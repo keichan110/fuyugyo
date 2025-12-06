@@ -1,9 +1,11 @@
-import jwt from "jsonwebtoken";
+import { decodeJwt as joseDecodeJwt, jwtVerify, SignJWT } from "jose";
 import { jwtConfig } from "@/lib/env";
 
 /**
  * JWT関連のユーティリティ関数
  * セキュアなJWT生成・検証・デコード機能を提供
+ *
+ * Cloudflare Workers環境対応のため、joseライブラリを使用
  */
 
 // biome-ignore lint/style/noMagicNumbers: 時間計算は可読性のため意図的にマジックナンバーを使用
@@ -53,6 +55,13 @@ export type JwtVerificationResult = {
 };
 
 /**
+ * シークレットキーをUint8Arrayに変換
+ */
+function getSecretKey(): Uint8Array {
+  return new TextEncoder().encode(jwtConfig.secret);
+}
+
+/**
  * JWTトークン生成
  *
  * @param payload - トークンに含めるペイロード
@@ -69,32 +78,76 @@ export type JwtVerificationResult = {
  * });
  * ```
  */
-export function generateJwt(
+export async function generateJwt(
   payload: Omit<JwtPayload, "iat" | "exp" | "iss" | "aud">
-): string {
-  // biome-ignore lint/style/noMagicNumbers: Unix timestamp変換のため1000を使用
-  const now = Math.floor(Date.now() / 1000);
-
-  const jwtPayload: JwtPayload = {
-    ...payload,
-    iat: now,
-    iss: JWT_ISSUER,
-    aud: JWT_AUDIENCE,
-  };
-
+): Promise<string> {
   try {
-    // ペイロードで iss/aud を設定済みのため、optionsでは設定しない
-    const options = {
-      expiresIn: jwtConfig.expiresIn, // 48h (from env.ts)
-      algorithm: "HS256",
-    };
+    const secret = getSecretKey();
 
-    return jwt.sign(jwtPayload, jwtConfig.secret, options as jwt.SignOptions);
+    const token = await new SignJWT({
+      userId: payload.userId,
+      lineUserId: payload.lineUserId,
+      displayName: payload.displayName,
+      role: payload.role,
+      isActive: payload.isActive,
+    })
+      .setProtectedHeader({ alg: "HS256" })
+      .setIssuedAt()
+      .setIssuer(JWT_ISSUER)
+      .setAudience(JWT_AUDIENCE)
+      .setExpirationTime(jwtConfig.expiresIn) // "48h"
+      .sign(secret);
+
+    return token;
   } catch (error) {
     throw new Error(
       `JWT generation failed: ${error instanceof Error ? error.message : "Unknown error"}`
     );
   }
+}
+
+/**
+ * エラーメッセージを解析
+ */
+function parseJwtError(error: unknown): string {
+  if (!(error instanceof Error)) {
+    return "Token verification failed";
+  }
+
+  if (error.message.includes("expired")) {
+    return "Token has expired";
+  }
+  if (error.message.includes("signature")) {
+    return "Invalid token signature";
+  }
+  if (error.message.includes("claim")) {
+    return "Invalid token claims";
+  }
+
+  return "Token verification failed";
+}
+
+/**
+ * JWTペイロードを検証
+ */
+function validateJwtPayload(payload: JwtPayload): JwtVerificationResult | null {
+  // 必須フィールドの検証
+  if (!(payload.userId && payload.lineUserId && payload.role)) {
+    return {
+      success: false,
+      error: "Invalid token payload: missing required fields",
+    };
+  }
+
+  // アクティブユーザーのみ許可
+  if (!payload.isActive) {
+    return {
+      success: false,
+      error: "User is not active",
+    };
+  }
+
+  return null;
 }
 
 /**
@@ -105,14 +158,14 @@ export function generateJwt(
  *
  * @example
  * ```typescript
- * const result = verifyJwt(token);
+ * const result = await verifyJwt(token);
  * if (result.success && result.payload) {
  *   console.log('User:', result.payload.displayName);
  *   console.log('Role:', result.payload.role);
  * }
  * ```
  */
-export function verifyJwt(token: string): JwtVerificationResult {
+export async function verifyJwt(token: string): Promise<JwtVerificationResult> {
   if (!token) {
     return {
       success: false,
@@ -121,52 +174,29 @@ export function verifyJwt(token: string): JwtVerificationResult {
   }
 
   try {
-    const verifyOptions: jwt.VerifyOptions = {
-      algorithms: ["HS256"],
+    const secret = getSecretKey();
+
+    const { payload } = await jwtVerify(token, secret, {
       issuer: JWT_ISSUER,
       audience: JWT_AUDIENCE,
-    };
+    });
 
-    const decoded = jwt.verify(
-      token,
-      jwtConfig.secret,
-      verifyOptions
-    ) as JwtPayload;
+    const jwtPayload = payload as JwtPayload;
 
-    // 必須フィールドの検証
-    if (!(decoded.userId && decoded.lineUserId && decoded.role)) {
-      return {
-        success: false,
-        error: "Invalid token payload: missing required fields",
-      };
-    }
-
-    // アクティブユーザーのみ許可
-    if (!decoded.isActive) {
-      return {
-        success: false,
-        error: "User is not active",
-      };
+    // ペイロード検証
+    const validationError = validateJwtPayload(jwtPayload);
+    if (validationError) {
+      return validationError;
     }
 
     return {
       success: true,
-      payload: decoded,
+      payload: jwtPayload,
     };
   } catch (error) {
-    let errorMessage = "Token verification failed";
-
-    if (error instanceof jwt.TokenExpiredError) {
-      errorMessage = "Token has expired";
-    } else if (error instanceof jwt.JsonWebTokenError) {
-      errorMessage = "Invalid token format";
-    } else if (error instanceof jwt.NotBeforeError) {
-      errorMessage = "Token not yet valid";
-    }
-
     return {
       success: false,
-      error: errorMessage,
+      error: parseJwtError(error),
     };
   }
 }
@@ -197,7 +227,7 @@ export function decodeJwt(token: string): JwtVerificationResult {
   }
 
   try {
-    const decoded = jwt.decode(token) as JwtPayload | null;
+    const decoded = joseDecodeJwt(token) as JwtPayload;
 
     if (!decoded) {
       return {
@@ -288,14 +318,14 @@ export function shouldRefreshToken(token: string): boolean {
  * @param token - JWTトークン
  * @returns ユーザー情報または null
  */
-export function extractUserFromToken(token: string): {
+export async function extractUserFromToken(token: string): Promise<{
   userId: string;
   lineUserId: string;
   displayName: string;
   role: "ADMIN" | "MANAGER" | "MEMBER";
   isActive: boolean;
-} | null {
-  const result = verifyJwt(token);
+} | null> {
+  const result = await verifyJwt(token);
 
   if (!(result.success && result.payload)) {
     return null;

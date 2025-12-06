@@ -103,7 +103,7 @@ export async function authenticateToken(
   }
 
   // JWT検証
-  const jwtResult = verifyJwt(token);
+  const jwtResult = await verifyJwt(token);
   if (!(jwtResult.success && jwtResult.payload)) {
     return {
       success: false,
@@ -376,7 +376,7 @@ export async function getAuthDebugInfo(request: NextRequest) {
     | null = null;
 
   if (token) {
-    const jwtResult = verifyJwt(token);
+    const jwtResult = await verifyJwt(token);
     jwtInfo = {
       valid: jwtResult.success,
       payload: jwtResult.payload

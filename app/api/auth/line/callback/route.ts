@@ -214,7 +214,7 @@ async function getOrCreateUser(
 /**
  * 認証完了レスポンスを作成する
  */
-function createSuccessResponse(
+async function createSuccessResponse(
   user: {
     id: string;
     lineUserId: string;
@@ -233,7 +233,7 @@ function createSuccessResponse(
     isActive: user.isActive,
   };
 
-  const token = generateJwt(jwtPayload);
+  const token = await generateJwt(jwtPayload);
   secureLog("info", "JWT generated for user", {
     displayName: user.displayName,
   });
@@ -321,7 +321,11 @@ export async function GET(request: NextRequest) {
     }
 
     // 6. 認証成功レスポンスの作成
-    return createSuccessResponse(user, sessionData.redirectUrl || "/", request);
+    return await createSuccessResponse(
+      user,
+      sessionData.redirectUrl || "/",
+      request
+    );
   } catch (error) {
     secureLog("error", "Authentication callback failed", {
       error: resolveErrorMessage(

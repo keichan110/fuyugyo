@@ -41,7 +41,7 @@ export default function RootLayout({
             attribute="class"
             defaultTheme="system"
             enableSystem
-            storageKey="snow-school-theme"
+            storageKey="fuyugyo-theme"
             value={{
               light: "light",
               dark: "dark",

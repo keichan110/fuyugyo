@@ -74,16 +74,10 @@ export function SignupPageClient({
                       ようこそ!
                     </span>
                     <br />
-                    スキー・スノーボードスクール
-                    <br />
-                    シフト管理システムへ招待されています
+                    Fuyugyō - 運営管理システムへ招待されています
                   </>
                 ) : (
-                  <>
-                    スキー・スノーボードスクール
-                    <br />
-                    シフト管理システム
-                  </>
+                  "Fuyugyō - 運営管理システム"
                 )}
               </CardDescription>
             </div>

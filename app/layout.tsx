@@ -7,9 +7,9 @@ import { QueryProvider } from "@/app/_providers/query-client";
 import { ThemeProvider } from "@/app/_providers/theme-provider";
 
 export const metadata: Metadata = {
-  title: "スキー・スノーボードスクール シフト管理システム",
+  title: "Fuyugyō - 運営管理システム",
   description:
-    "スキー・スノーボードスクールのシフト管理を効率化するWebアプリケーション",
+    "スキー・スノーボードスクールの運営管理を効率化するWebアプリケーション",
 };
 
 /**

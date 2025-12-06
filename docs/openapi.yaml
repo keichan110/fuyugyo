@@ -1,10 +1,10 @@
 openapi: 3.0.3
 info:
-  title: Snow School Scheduler API
-  description: スキー・スノーボードスクールのシフト管理システム API。
+  title: Fuyugyō API
+  description: スキー・スノーボードスクール 運営管理システム API。
   version: 1.2.0
   contact:
-    name: Snow School Scheduler
+    name: Fuyugyō
 
 servers:
   - url: http://localhost:3000

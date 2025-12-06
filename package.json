@@ -1,7 +1,7 @@
 {
   "name": "fuyugyo",
   "version": "0.1.0",
-  "description": "スキー・スノーボードスクール シフト管理システム",
+  "description": "Fuyugyō - 運営管理システム",
   "private": true,
   "scripts": {
     "dev": "next dev",

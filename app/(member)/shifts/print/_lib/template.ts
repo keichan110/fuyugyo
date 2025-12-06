@@ -259,7 +259,7 @@ export function generatePDFTemplate(
       </main>
 
       <footer>
-        <p>スキー・スノーボードスクール シフト管理システム</p>
+        <p>Fuyugyō - 運営管理システム</p>
       </footer>
     </body>
     </html>

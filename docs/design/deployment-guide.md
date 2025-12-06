@@ -79,7 +79,7 @@ Channel Secret: abcdef123456789...
 wrangler login
 
 # プロジェクト初期化（既存プロジェクトに追加）
-cd snow-school-scheduler
+cd fuyugyo
 npx create cloudflare@latest --framework=next --existing
 ```
 
@@ -87,15 +87,15 @@ npx create cloudflare@latest --framework=next --existing
 
 ```bash
 # D1データベース作成
-wrangler d1 create snow-school-scheduler-db
+wrangler d1 create fuyugyo-db
 
 # データベースIDを取得（出力例）
-# ✅ Successfully created DB 'snow-school-scheduler-db' in region APAC
+# ✅ Successfully created DB 'fuyugyo-db' in region APAC
 # Created your new D1 database.
 #
 # [[d1_databases]]
 # binding = "DB"
-# database_name = "snow-school-scheduler-db"
+# database_name = "fuyugyo-db"
 # database_id = "12345678-1234-1234-1234-123456789abc"
 ```
 
@@ -103,14 +103,14 @@ wrangler d1 create snow-school-scheduler-db
 
 ```toml
 # wrangler.toml
-name = "snow-school-scheduler"
+name = "fuyugyo"
 main = "src/index.js"
 compatibility_date = "2024-08-29"
 compatibility_flags = ["nodejs_compat"]
 
 [[d1_databases]]
 binding = "DB"
-database_name = "snow-school-scheduler-db"
+database_name = "fuyugyo-db"
 database_id = "12345678-1234-1234-1234-123456789abc"
 
 [vars]
@@ -198,14 +198,14 @@ npm run db:generate
 npx prisma migrate dev --name add_authentication_system
 
 # 本番環境（D1）にマイグレーション適用
-wrangler d1 execute snow-school-scheduler-db --file=./prisma/migrations/[timestamp]_add_authentication_system/migration.sql
+wrangler d1 execute fuyugyo-db --file=./prisma/migrations/[timestamp]_add_authentication_system/migration.sql
 ```
 
 ### 5.3 初期データ投入
 
 ```bash
 # ファーストアドミン作成スクリプト実行
-wrangler d1 execute snow-school-scheduler-db --command="
+wrangler d1 execute fuyugyo-db --command="
 INSERT INTO users (id, line_user_id, display_name, role, is_active, created_at, updated_at)
 VALUES ('admin-001', 'YOUR_LINE_USER_ID', '初期管理者', 'ADMIN', 1, datetime('now'), datetime('now'))
 "
@@ -302,7 +302,7 @@ npm run build
 wrangler deploy
 
 # デプロイ成功例
-# ✅ Successfully deployed to https://snow-school-scheduler.your-subdomain.workers.dev
+# ✅ Successfully deployed to https://fuyugyo.your-subdomain.workers.dev
 ```
 
 ### 7.3 カスタムドメイン設定（オプション）
@@ -392,7 +392,7 @@ crons = ["0 2 * * *"]  # 毎日午前2時実行
 
 ```bash
 # 解決方法
-wrangler d1 info snow-school-scheduler-db
+wrangler d1 info fuyugyo-db
 # データベースIDを wrangler.toml で確認
 ```
 
@@ -430,7 +430,7 @@ wrangler tail --since=2024-08-29T10:00:00Z
 wrangler rollback [DEPLOYMENT_ID]
 
 # マイグレーションロールバック（緊急時）
-wrangler d1 execute snow-school-scheduler-db --command="
+wrangler d1 execute fuyugyo-db --command="
 DROP TABLE invitation_tokens;
 DROP TABLE users;
 "

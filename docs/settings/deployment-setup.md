@@ -70,7 +70,7 @@ npm run cf:d1:create
 ```toml
 [[d1_databases]]
 binding = "DB"
-database_name = "snow-school-scheduler"
+database_name = "fuyugyo"
 database_id = "ここに実際のdatabase_idを入力"
 ```
 
@@ -113,7 +113,7 @@ GitHubリポジトリの **Settings > Secrets and variables > Actions > Variable
 1. 既存のチャンネルの設定を開く
 2. **Callback URL** に追加：
    ```
-   https://snow-school-scheduler.YOUR_SUBDOMAIN.workers.dev/api/auth/line/callback
+   https://fuyugyo.YOUR_SUBDOMAIN.workers.dev/api/auth/line/callback
    ```
 
 **注意**: デプロイ後に実際のWorkers URLが確定するため、初回デプロイ後にCallbackURLを更新してください。
@@ -148,7 +148,7 @@ npm run db:push
 # 緊急時のみ：ビルド後にwrangler直接実行
 npm run build
 npx wrangler deploy
-npx wrangler d1 migrations apply snow-school-scheduler --env=production
+npx wrangler d1 migrations apply fuyugyo --env=production
 ```
 
 ## 🔍 デプロイ確認
@@ -167,7 +167,7 @@ wrangler list
 デプロイ後、以下のURLでアプリケーションが正常に動作していることを確認：
 
 ```bash
-curl https://snow-school-scheduler.YOUR_SUBDOMAIN.workers.dev/api/health
+curl https://fuyugyo.YOUR_SUBDOMAIN.workers.dev/api/health
 ```
 
 期待されるレスポンス：
@@ -182,9 +182,9 @@ curl https://snow-school-scheduler.YOUR_SUBDOMAIN.workers.dev/api/health
 
 ### アプリケーション動作確認
 
-1. **ログインページ**: https://snow-school-scheduler.YOUR_SUBDOMAIN.workers.dev/login
-2. **公開シフト**: https://snow-school-scheduler.YOUR_SUBDOMAIN.workers.dev/shifts
-3. **管理画面**: https://snow-school-scheduler.YOUR_SUBDOMAIN.workers.dev/instructors （認証後）
+1. **ログインページ**: https://fuyugyo.YOUR_SUBDOMAIN.workers.dev/login
+2. **公開シフト**: https://fuyugyo.YOUR_SUBDOMAIN.workers.dev/shifts
+3. **管理画面**: https://fuyugyo.YOUR_SUBDOMAIN.workers.dev/instructors （認証後）
 
 ## 🛠️ トラブルシューティング
 
@@ -220,7 +220,7 @@ curl https://snow-school-scheduler.YOUR_SUBDOMAIN.workers.dev/api/health
 wrangler tail
 
 # D1データベースの状態確認
-wrangler d1 info snow-school-scheduler
+wrangler d1 info fuyugyo
 ```
 
 ## 📈 本番運用のベストプラクティス

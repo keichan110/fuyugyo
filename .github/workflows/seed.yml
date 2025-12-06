@@ -14,7 +14,7 @@ on:
 jobs:
   seed:
     runs-on: ubuntu-latest
-    if: github.repository == 'keichan110/snow-school-scheduler'
+    if: github.repository == 'keichan110/fuyugyo'
 
     steps:
       - name: Checkout repository

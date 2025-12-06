@@ -68,7 +68,7 @@ export function generateJwt(
   const jwtPayload: JwtPayload = {
     ...payload,
     iat: now,
-    iss: "snow-school-scheduler",
+    iss: "fuyugyo",
     aud: "snow-school-users",
   };
 
@@ -113,7 +113,7 @@ export function verifyJwt(token: string): JwtVerificationResult {
   try {
     const verifyOptions: jwt.VerifyOptions = {
       algorithms: ["HS256"],
-      issuer: "snow-school-scheduler",
+      issuer: "fuyugyo",
       audience: "snow-school-users",
     };
 

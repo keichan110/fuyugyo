@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
   - name: 📚 ドキュメント
-    url: https://github.com/keichan110/snow-school-scheduler/blob/main/README.md
+    url: https://github.com/keichan110/fuyugyo/blob/main/README.md
     about: プロジェクトの概要や使い方について確認できます
   - name: 💬 Discussion
-    url: https://github.com/keichan110/snow-school-scheduler/discussions
+    url: https://github.com/keichan110/fuyugyo/discussions
     about: 質問や相談、アイデアの共有はDiscussionsをご利用ください

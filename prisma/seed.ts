@@ -87,7 +87,9 @@ async function main() {
   console.log(
     `  - シフト: ${shifts.length}件 (${formatDate(minDate)}〜${formatDate(maxDate)})`
   );
-  console.log("\n開発準備完了！シフト管理システムの全データが整備されました。");
+  console.log(
+    "\n開発準備完了！Fuyugyō - 運営管理システムの全データが整備されました。"
+  );
 }
 
 main()

@@ -95,9 +95,7 @@ export function AuthErrorClient({
                 {title}
               </CardTitle>
               <CardDescription className="text-center">
-                スキー・スノーボードスクール
-                <br />
-                シフト管理システム
+                Fuyugyō - 運営管理システム
               </CardDescription>
             </div>
           </CardHeader>

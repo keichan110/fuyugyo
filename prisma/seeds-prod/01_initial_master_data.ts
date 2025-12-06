@@ -32,7 +32,7 @@ const prisma = createPrismaClient();
 
 async function main() {
   console.log(
-    "スキー・スノーボードスクール プロダクションマスタデータ投入開始...\n"
+    "Fuyugyō - 運営管理システム プロダクションマスタデータ投入開始...\n"
   );
 
   // ============================================

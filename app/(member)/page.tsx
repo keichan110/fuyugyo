@@ -108,9 +108,7 @@ export default async function DashboardPage() {
     <div className="space-y-6">
       <div>
         <h1 className="font-bold text-3xl tracking-tight">ダッシュボード</h1>
-        <p className="text-muted-foreground">
-          スキー・スノーボードスクール シフト管理システム
-        </p>
+        <p className="text-muted-foreground">Fuyugyō - 運営管理システム</p>
       </div>
 
       {/* 今後のシフト（インストラクター紐付け状況を含む） */}

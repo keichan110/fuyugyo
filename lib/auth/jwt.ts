@@ -10,6 +10,16 @@ import { jwtConfig } from "@/lib/env";
 const REFRESH_THRESHOLD_MS = 6 * 60 * 60 * 1000; // 6時間
 
 /**
+ * JWT発行者識別子
+ */
+const JWT_ISSUER = "fuyugyo";
+
+/**
+ * JWT対象者識別子
+ */
+const JWT_AUDIENCE = "fuyugyo-users";
+
+/**
  * JWTペイロードの型定義
  */
 export type JwtPayload = {
@@ -68,8 +78,8 @@ export function generateJwt(
   const jwtPayload: JwtPayload = {
     ...payload,
     iat: now,
-    iss: "snow-school-scheduler",
-    aud: "snow-school-users",
+    iss: JWT_ISSUER,
+    aud: JWT_AUDIENCE,
   };
 
   try {
@@ -113,8 +123,8 @@ export function verifyJwt(token: string): JwtVerificationResult {
   try {
     const verifyOptions: jwt.VerifyOptions = {
       algorithms: ["HS256"],
-      issuer: "snow-school-scheduler",
-      audience: "snow-school-users",
+      issuer: JWT_ISSUER,
+      audience: JWT_AUDIENCE,
     };
 
     const decoded = jwt.verify(

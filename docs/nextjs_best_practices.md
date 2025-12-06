@@ -826,15 +826,15 @@ export async function submitForm(
 // ✅ 正しい実装
 <Image
   src="/logo.png"
-  alt="Snow School Scheduler ロゴ"
+  alt="Fuyugyō ロゴ"
   width={200}
   height={50}
 />
 
-// ❌ 間違い：不要な単語を含む
+// ❌ 間違い:不要な単語を含む
 <Image
   src="/logo.png"
-  alt="Logo image of Snow School Scheduler"
+  alt="Logo image of Fuyugyō"
   width={200}
   height={50}
 />
@@ -966,4 +966,4 @@ export async function submitForm(
 ---
 
 **最終更新**: 2025-10-23
-**メンテナ**: Snow School Scheduler チーム
+**メンテナ**: Fuyugyō チーム

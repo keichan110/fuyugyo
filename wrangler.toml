@@ -1,4 +1,4 @@
-name = "snow-school-scheduler"
+name = "fuyugyo"
 main = ".open-next/worker.js"
 compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
@@ -6,7 +6,7 @@ compatibility_flags = ["nodejs_compat"]
 # D1データベースバインディング
 [[d1_databases]]
 binding = "DB"
-database_name = "snow-school-scheduler"
+database_name = "fuyugyo"
 database_id = "a39eae08-e034-45a3-b85a-d7e9d1b57c30"
 migrations_dir = "prisma/migrations"
 
@@ -18,7 +18,7 @@ binding = "ASSETS"
 # 環境変数（非機密情報のみ）
 [vars]
 NODE_ENV = "production"
-NEXTAUTH_URL = "https://snow-school-scheduler.ittooco.workers.dev"
+NEXTAUTH_URL = "https://fuyugyo.ittooco.workers.dev"
 JWT_EXPIRES_IN = "48h"
 INVITE_DEFAULT_EXPIRES = "168h"
 

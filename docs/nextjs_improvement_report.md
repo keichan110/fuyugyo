@@ -1,6 +1,6 @@
 # Next.js 15 ベストプラクティス改善レポート
 
-> **プロジェクト**: Snow School Scheduler
+> **プロジェクト**: Fuyugyō
 > **調査日**: 2025-10-23
 > **対象バージョン**: Next.js 15
 > **調査基準**: [Next.js 15 ベストプラクティスガイド](./nextjs_best_practices.md)

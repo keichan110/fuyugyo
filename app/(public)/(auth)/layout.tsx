@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "ログイン - スキー・スノーボードスクール シフト管理システム",
-  description: "LINE認証でログインして、シフト管理システムをご利用ください。",
+  title: "ログイン - Fuyugyō",
+  description: "LINE認証でログインして、運営管理システムをご利用ください。",
 };
 
 /**

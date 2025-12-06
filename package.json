@@ -1,7 +1,7 @@
 {
-  "name": "snow-school-scheduler",
+  "name": "fuyugyo",
   "version": "0.1.0",
-  "description": "スキー・スノーボードスクール シフト管理システム",
+  "description": "Fuyugyō - 運営管理システム",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -33,8 +33,8 @@
     "db:studio": "prisma studio",
     "db:seed": "tsx prisma/seed.ts",
     "wrangler:login": "wrangler login",
-    "cf:d1:create": "wrangler d1 create snow-school-scheduler",
-    "cf:d1:migrations:apply:local": "wrangler d1 migrations apply snow-school-scheduler --local"
+    "cf:d1:create": "wrangler d1 create fuyugyo",
+    "cf:d1:migrations:apply:local": "wrangler d1 migrations apply fuyugyo --local"
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.10",

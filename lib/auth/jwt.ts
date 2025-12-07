@@ -1,9 +1,11 @@
-import jwt from "jsonwebtoken";
+import { errors, decodeJwt as joseDecodeJwt, jwtVerify, SignJWT } from "jose";
 import { jwtConfig } from "@/lib/env";
 
 /**
  * JWT関連のユーティリティ関数
  * セキュアなJWT生成・検証・デコード機能を提供
+ *
+ * Cloudflare Workers環境対応のため、joseライブラリを使用
  */
 
 // biome-ignore lint/style/noMagicNumbers: 時間計算は可読性のため意図的にマジックナンバーを使用
@@ -20,6 +22,16 @@ const JWT_ISSUER = "fuyugyo";
 const JWT_AUDIENCE = "fuyugyo-users";
 
 /**
+ * 有効なユーザーロール定数
+ */
+const VALID_ROLES = ["ADMIN", "MANAGER", "MEMBER"] as const;
+
+/**
+ * ユーザーロール型（VALID_ROLESから自動生成）
+ */
+export type UserRole = (typeof VALID_ROLES)[number];
+
+/**
  * JWTペイロードの型定義
  */
 export type JwtPayload = {
@@ -30,7 +42,7 @@ export type JwtPayload = {
   /** 表示名 */
   displayName: string;
   /** ユーザー権限 */
-  role: "ADMIN" | "MANAGER" | "MEMBER";
+  role: UserRole;
   /** アクティブフラグ */
   isActive: boolean;
   /** 発行時刻 (Unix timestamp) */
@@ -53,6 +65,13 @@ export type JwtVerificationResult = {
 };
 
 /**
+ * シークレットキーをUint8Arrayに変換
+ */
+function getSecretKey(): Uint8Array {
+  return new TextEncoder().encode(jwtConfig.secret);
+}
+
+/**
  * JWTトークン生成
  *
  * @param payload - トークンに含めるペイロード
@@ -69,32 +88,109 @@ export type JwtVerificationResult = {
  * });
  * ```
  */
-export function generateJwt(
+export async function generateJwt(
   payload: Omit<JwtPayload, "iat" | "exp" | "iss" | "aud">
-): string {
-  // biome-ignore lint/style/noMagicNumbers: Unix timestamp変換のため1000を使用
-  const now = Math.floor(Date.now() / 1000);
-
-  const jwtPayload: JwtPayload = {
-    ...payload,
-    iat: now,
-    iss: JWT_ISSUER,
-    aud: JWT_AUDIENCE,
-  };
-
+): Promise<string> {
   try {
-    // ペイロードで iss/aud を設定済みのため、optionsでは設定しない
-    const options = {
-      expiresIn: jwtConfig.expiresIn, // 48h (from env.ts)
-      algorithm: "HS256",
-    };
+    const secret = getSecretKey();
 
-    return jwt.sign(jwtPayload, jwtConfig.secret, options as jwt.SignOptions);
+    const token = await new SignJWT(payload)
+      .setProtectedHeader({ alg: "HS256" })
+      .setIssuedAt()
+      .setIssuer(JWT_ISSUER)
+      .setAudience(JWT_AUDIENCE)
+      .setExpirationTime(jwtConfig.expiresIn) // "48h"
+      .sign(secret);
+
+    return token;
   } catch (error) {
     throw new Error(
       `JWT generation failed: ${error instanceof Error ? error.message : "Unknown error"}`
     );
   }
+}
+
+/**
+ * joseのエラー型かどうかを判定する型ガード
+ */
+function isJOSEError(error: unknown): error is errors.JOSEError {
+  return error instanceof errors.JOSEError;
+}
+
+/**
+ * エラーメッセージを解析
+ * joseライブラリのcodeプロパティを使用して堅牢にエラーを判定
+ */
+function parseJwtError(error: unknown): string {
+  if (!isJOSEError(error)) {
+    return "Token verification failed";
+  }
+
+  // codeプロパティで明示的にエラーの種類を判定
+  switch (error.code) {
+    case "ERR_JWT_EXPIRED":
+      return "Token has expired";
+    case "ERR_JWS_SIGNATURE_VERIFICATION_FAILED":
+      return "Invalid token signature";
+    case "ERR_JWT_CLAIM_VALIDATION_FAILED":
+      return "Invalid token claims";
+    default:
+      return "Token verification failed";
+  }
+}
+
+/**
+ * JWTペイロードを検証
+ * 型アサーション前に呼び出して、ランタイムエラーを防ぐ
+ */
+function validateJwtPayload(payload: unknown): JwtVerificationResult | null {
+  // payload が object であることを確認
+  if (typeof payload !== "object" || payload === null) {
+    return {
+      success: false,
+      error: "Invalid token payload: not an object",
+    };
+  }
+
+  const p = payload as Record<string, unknown>;
+
+  // 必須フィールドの存在と型を検証
+  if (
+    typeof p.userId !== "string" ||
+    typeof p.lineUserId !== "string" ||
+    typeof p.role !== "string"
+  ) {
+    return {
+      success: false,
+      error: "Invalid token payload: missing required fields",
+    };
+  }
+
+  // role の値を検証
+  if (!VALID_ROLES.includes(p.role as UserRole)) {
+    return {
+      success: false,
+      error: "Invalid token payload: invalid role",
+    };
+  }
+
+  // isActive の型と値を検証
+  if (typeof p.isActive !== "boolean") {
+    return {
+      success: false,
+      error: "Invalid token payload: isActive must be boolean",
+    };
+  }
+
+  // アクティブユーザーのみ許可
+  if (!p.isActive) {
+    return {
+      success: false,
+      error: "User is not active",
+    };
+  }
+
+  return null;
 }
 
 /**
@@ -105,14 +201,14 @@ export function generateJwt(
  *
  * @example
  * ```typescript
- * const result = verifyJwt(token);
+ * const result = await verifyJwt(token);
  * if (result.success && result.payload) {
  *   console.log('User:', result.payload.displayName);
  *   console.log('Role:', result.payload.role);
  * }
  * ```
  */
-export function verifyJwt(token: string): JwtVerificationResult {
+export async function verifyJwt(token: string): Promise<JwtVerificationResult> {
   if (!token) {
     return {
       success: false,
@@ -121,58 +217,36 @@ export function verifyJwt(token: string): JwtVerificationResult {
   }
 
   try {
-    const verifyOptions: jwt.VerifyOptions = {
-      algorithms: ["HS256"],
+    const secret = getSecretKey();
+
+    const { payload } = await jwtVerify(token, secret, {
       issuer: JWT_ISSUER,
       audience: JWT_AUDIENCE,
-    };
+    });
 
-    const decoded = jwt.verify(
-      token,
-      jwtConfig.secret,
-      verifyOptions
-    ) as JwtPayload;
-
-    // 必須フィールドの検証
-    if (!(decoded.userId && decoded.lineUserId && decoded.role)) {
-      return {
-        success: false,
-        error: "Invalid token payload: missing required fields",
-      };
+    // 型アサーション前にペイロード検証を実施
+    const validationError = validateJwtPayload(payload);
+    if (validationError) {
+      return validationError;
     }
 
-    // アクティブユーザーのみ許可
-    if (!decoded.isActive) {
-      return {
-        success: false,
-        error: "User is not active",
-      };
-    }
+    // 検証済みなので安全に型アサーション可能
+    const jwtPayload = payload as JwtPayload;
 
     return {
       success: true,
-      payload: decoded,
+      payload: jwtPayload,
     };
   } catch (error) {
-    let errorMessage = "Token verification failed";
-
-    if (error instanceof jwt.TokenExpiredError) {
-      errorMessage = "Token has expired";
-    } else if (error instanceof jwt.JsonWebTokenError) {
-      errorMessage = "Invalid token format";
-    } else if (error instanceof jwt.NotBeforeError) {
-      errorMessage = "Token not yet valid";
-    }
-
     return {
       success: false,
-      error: errorMessage,
+      error: parseJwtError(error),
     };
   }
 }
 
 /**
- * JWTトークンデコード（検証なし）
+ * JWTトークンデコード（署名検証なし）
  * デバッグ用途でトークンの内容を確認したい場合に使用
  *
  * @param token - デコードするJWTトークン
@@ -186,7 +260,7 @@ export function verifyJwt(token: string): JwtVerificationResult {
  * }
  * ```
  *
- * @warning このメソッドは検証を行いません。本番環境では必ずverifyJwt()を使用してください
+ * @warning このメソッドは署名検証を行いません。本番環境では必ずverifyJwt()を使用してください
  */
 export function decodeJwt(token: string): JwtVerificationResult {
   if (!token) {
@@ -197,7 +271,7 @@ export function decodeJwt(token: string): JwtVerificationResult {
   }
 
   try {
-    const decoded = jwt.decode(token) as JwtPayload | null;
+    const decoded = joseDecodeJwt(token);
 
     if (!decoded) {
       return {
@@ -206,9 +280,18 @@ export function decodeJwt(token: string): JwtVerificationResult {
       };
     }
 
+    // 型アサーション前にペイロード構造を検証
+    const validationError = validateJwtPayload(decoded);
+    if (validationError) {
+      return validationError;
+    }
+
+    // 検証済みなので安全に型アサーション可能
+    const jwtPayload = decoded as JwtPayload;
+
     return {
       success: true,
-      payload: decoded,
+      payload: jwtPayload,
     };
   } catch (error) {
     return {
@@ -288,14 +371,14 @@ export function shouldRefreshToken(token: string): boolean {
  * @param token - JWTトークン
  * @returns ユーザー情報または null
  */
-export function extractUserFromToken(token: string): {
+export async function extractUserFromToken(token: string): Promise<{
   userId: string;
   lineUserId: string;
   displayName: string;
-  role: "ADMIN" | "MANAGER" | "MEMBER";
+  role: UserRole;
   isActive: boolean;
-} | null {
-  const result = verifyJwt(token);
+} | null> {
+  const result = await verifyJwt(token);
 
   if (!(result.success && result.payload)) {
     return null;

@@ -12,10 +12,14 @@ function createPrismaClient(): PrismaClient {
   if (process.env.CF_PAGES || process.env.CLOUDFLARE_CONTEXT) {
     // @ts-expect-error - cloudflareContextはOpenNextによって自動注入される
     const binding = globalThis.cloudflareContext?.env?.DB;
-    if (binding) {
-      const adapter = new PrismaD1(binding);
-      return new PrismaClient({ adapter });
+    if (!binding) {
+      throw new Error(
+        "D1 database binding not found in Cloudflare environment. " +
+          "Ensure DB binding is configured in wrangler.toml or Pages settings."
+      );
     }
+    const adapter = new PrismaD1(binding);
+    return new PrismaClient({ adapter });
   }
 
   // ローカル開発環境では通常のPrismaClientを使用

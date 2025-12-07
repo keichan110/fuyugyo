@@ -48,6 +48,43 @@ afterEach(() => {
   }
 });
 
+// jose ライブラリのモック（Cloudflare Workers互換JWTライブラリ）
+// biome-ignore lint/style/noMagicNumbers: テストモックでの時刻計算のためマジックナンバーを許可
+jest.mock("jose", () => ({
+  SignJWT: jest.fn().mockImplementation(() => ({
+    setProtectedHeader: jest.fn().mockReturnThis(),
+    setIssuedAt: jest.fn().mockReturnThis(),
+    setIssuer: jest.fn().mockReturnThis(),
+    setAudience: jest.fn().mockReturnThis(),
+    setExpirationTime: jest.fn().mockReturnThis(),
+    sign: jest.fn().mockResolvedValue("mocked-jwt-token"),
+  })),
+  jwtVerify: jest.fn().mockResolvedValue({
+    payload: {
+      userId: "test-user-id",
+      lineUserId: "test-line-user-id",
+      displayName: "Test User",
+      role: "MEMBER",
+      isActive: true,
+      iat: Math.floor(Date.now() / 1000),
+      exp: Math.floor(Date.now() / 1000) + 172_800,
+      iss: "fuyugyo",
+      aud: "fuyugyo-users",
+    },
+  }),
+  decodeJwt: jest.fn().mockReturnValue({
+    userId: "test-user-id",
+    lineUserId: "test-line-user-id",
+    displayName: "Test User",
+    role: "MEMBER",
+    isActive: true,
+    iat: Math.floor(Date.now() / 1000),
+    exp: Math.floor(Date.now() / 1000) + 172_800,
+    iss: "fuyugyo",
+    aud: "fuyugyo-users",
+  }),
+}));
+
 // Next.js Router のモック設定（必要に応じてテストで上書き可能）
 jest.mock("next/navigation", () => ({
   useRouter: jest.fn(() => ({

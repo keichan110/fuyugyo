@@ -1,4 +1,4 @@
-import { decodeJwt as joseDecodeJwt, jwtVerify, SignJWT } from "jose";
+import { errors, decodeJwt as joseDecodeJwt, jwtVerify, SignJWT } from "jose";
 import { jwtConfig } from "@/lib/env";
 
 /**
@@ -101,24 +101,32 @@ export async function generateJwt(
 }
 
 /**
+ * joseのエラー型かどうかを判定する型ガード
+ */
+function isJOSEError(error: unknown): error is errors.JOSEError {
+  return error instanceof errors.JOSEError;
+}
+
+/**
  * エラーメッセージを解析
+ * joseライブラリのcodeプロパティを使用して堅牢にエラーを判定
  */
 function parseJwtError(error: unknown): string {
-  if (!(error instanceof Error)) {
+  if (!isJOSEError(error)) {
     return "Token verification failed";
   }
 
-  if (error.message.includes("expired")) {
-    return "Token has expired";
+  // codeプロパティで明示的にエラーの種類を判定
+  switch (error.code) {
+    case "ERR_JWT_EXPIRED":
+      return "Token has expired";
+    case "ERR_JWS_SIGNATURE_VERIFICATION_FAILED":
+      return "Invalid token signature";
+    case "ERR_JWT_CLAIM_VALIDATION_FAILED":
+      return "Invalid token claims";
+    default:
+      return "Token verification failed";
   }
-  if (error.message.includes("signature")) {
-    return "Invalid token signature";
-  }
-  if (error.message.includes("claim")) {
-    return "Invalid token claims";
-  }
-
-  return "Token verification failed";
 }
 
 /**

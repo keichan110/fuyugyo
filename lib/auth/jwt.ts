@@ -236,7 +236,7 @@ export async function verifyJwt(token: string): Promise<JwtVerificationResult> {
 }
 
 /**
- * JWTトークンデコード（検証なし）
+ * JWTトークンデコード（署名検証なし）
  * デバッグ用途でトークンの内容を確認したい場合に使用
  *
  * @param token - デコードするJWTトークン
@@ -250,7 +250,7 @@ export async function verifyJwt(token: string): Promise<JwtVerificationResult> {
  * }
  * ```
  *
- * @warning このメソッドは検証を行いません。本番環境では必ずverifyJwt()を使用してください
+ * @warning このメソッドは署名検証を行いません。本番環境では必ずverifyJwt()を使用してください
  */
 export function decodeJwt(token: string): JwtVerificationResult {
   if (!token) {
@@ -261,7 +261,7 @@ export function decodeJwt(token: string): JwtVerificationResult {
   }
 
   try {
-    const decoded = joseDecodeJwt(token) as JwtPayload;
+    const decoded = joseDecodeJwt(token);
 
     if (!decoded) {
       return {
@@ -270,9 +270,18 @@ export function decodeJwt(token: string): JwtVerificationResult {
       };
     }
 
+    // 型アサーション前にペイロード構造を検証
+    const validationError = validateJwtPayload(decoded);
+    if (validationError) {
+      return validationError;
+    }
+
+    // 検証済みなので安全に型アサーション可能
+    const jwtPayload = decoded as JwtPayload;
+
     return {
       success: true,
-      payload: decoded,
+      payload: jwtPayload,
     };
   } catch (error) {
     return {

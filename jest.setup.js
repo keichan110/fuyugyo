@@ -49,7 +49,10 @@ afterEach(() => {
 });
 
 // jose ライブラリのモック（Cloudflare Workers互換JWTライブラリ）
-// biome-ignore lint/style/noMagicNumbers: テストモックでの時刻計算のためマジックナンバーを許可
+// テストモック用の定数定義
+const MILLISECONDS_TO_SECONDS = 1000;
+const TWO_DAYS_IN_SECONDS = 172_800; // 48時間 = 172800秒
+
 jest.mock("jose", () => ({
   SignJWT: jest.fn().mockImplementation(() => ({
     setProtectedHeader: jest.fn().mockReturnThis(),
@@ -66,8 +69,9 @@ jest.mock("jose", () => ({
       displayName: "Test User",
       role: "MEMBER",
       isActive: true,
-      iat: Math.floor(Date.now() / 1000),
-      exp: Math.floor(Date.now() / 1000) + 172_800,
+      iat: Math.floor(Date.now() / MILLISECONDS_TO_SECONDS),
+      exp:
+        Math.floor(Date.now() / MILLISECONDS_TO_SECONDS) + TWO_DAYS_IN_SECONDS,
       iss: "fuyugyo",
       aud: "fuyugyo-users",
     },
@@ -78,8 +82,8 @@ jest.mock("jose", () => ({
     displayName: "Test User",
     role: "MEMBER",
     isActive: true,
-    iat: Math.floor(Date.now() / 1000),
-    exp: Math.floor(Date.now() / 1000) + 172_800,
+    iat: Math.floor(Date.now() / MILLISECONDS_TO_SECONDS),
+    exp: Math.floor(Date.now() / MILLISECONDS_TO_SECONDS) + TWO_DAYS_IN_SECONDS,
     iss: "fuyugyo",
     aud: "fuyugyo-users",
   }),

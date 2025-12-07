@@ -14,6 +14,7 @@ const customJestConfig = {
   moduleNameMapper: {
     "^@/(.*)$": "<rootDir>/$1",
     "^@prisma/client$": "<rootDir>/generated/prisma/index.js",
+    "^@prisma/adapter-d1$": "<rootDir>/__mocks__/@prisma/adapter-d1.ts",
   },
   // Coverage settings
   collectCoverage: false,

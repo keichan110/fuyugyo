@@ -22,6 +22,16 @@ const JWT_ISSUER = "fuyugyo";
 const JWT_AUDIENCE = "fuyugyo-users";
 
 /**
+ * 有効なユーザーロール定数
+ */
+const VALID_ROLES = ["ADMIN", "MANAGER", "MEMBER"] as const;
+
+/**
+ * ユーザーロール型（VALID_ROLESから自動生成）
+ */
+export type UserRole = (typeof VALID_ROLES)[number];
+
+/**
  * JWTペイロードの型定義
  */
 export type JwtPayload = {
@@ -32,7 +42,7 @@ export type JwtPayload = {
   /** 表示名 */
   displayName: string;
   /** ユーザー権限 */
-  role: "ADMIN" | "MANAGER" | "MEMBER";
+  role: UserRole;
   /** アクティブフラグ */
   isActive: boolean;
   /** 発行時刻 (Unix timestamp) */
@@ -157,7 +167,7 @@ function validateJwtPayload(payload: unknown): JwtVerificationResult | null {
   }
 
   // role の値を検証
-  if (p.role !== "ADMIN" && p.role !== "MANAGER" && p.role !== "MEMBER") {
+  if (!VALID_ROLES.includes(p.role as UserRole)) {
     return {
       success: false,
       error: "Invalid token payload: invalid role",
@@ -365,7 +375,7 @@ export async function extractUserFromToken(token: string): Promise<{
   userId: string;
   lineUserId: string;
   displayName: string;
-  role: "ADMIN" | "MANAGER" | "MEMBER";
+  role: UserRole;
   isActive: boolean;
 } | null> {
   const result = await verifyJwt(token);

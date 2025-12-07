@@ -131,18 +131,49 @@ function parseJwtError(error: unknown): string {
 
 /**
  * JWTペイロードを検証
+ * 型アサーション前に呼び出して、ランタイムエラーを防ぐ
  */
-function validateJwtPayload(payload: JwtPayload): JwtVerificationResult | null {
-  // 必須フィールドの検証
-  if (!(payload.userId && payload.lineUserId && payload.role)) {
+function validateJwtPayload(payload: unknown): JwtVerificationResult | null {
+  // payload が object であることを確認
+  if (typeof payload !== "object" || payload === null) {
+    return {
+      success: false,
+      error: "Invalid token payload: not an object",
+    };
+  }
+
+  const p = payload as Record<string, unknown>;
+
+  // 必須フィールドの存在と型を検証
+  if (
+    typeof p.userId !== "string" ||
+    typeof p.lineUserId !== "string" ||
+    typeof p.role !== "string"
+  ) {
     return {
       success: false,
       error: "Invalid token payload: missing required fields",
     };
   }
 
+  // role の値を検証
+  if (p.role !== "ADMIN" && p.role !== "MANAGER" && p.role !== "MEMBER") {
+    return {
+      success: false,
+      error: "Invalid token payload: invalid role",
+    };
+  }
+
+  // isActive の型と値を検証
+  if (typeof p.isActive !== "boolean") {
+    return {
+      success: false,
+      error: "Invalid token payload: isActive must be boolean",
+    };
+  }
+
   // アクティブユーザーのみ許可
-  if (!payload.isActive) {
+  if (!p.isActive) {
     return {
       success: false,
       error: "User is not active",
@@ -183,13 +214,14 @@ export async function verifyJwt(token: string): Promise<JwtVerificationResult> {
       audience: JWT_AUDIENCE,
     });
 
-    const jwtPayload = payload as JwtPayload;
-
-    // ペイロード検証
-    const validationError = validateJwtPayload(jwtPayload);
+    // 型アサーション前にペイロード検証を実施
+    const validationError = validateJwtPayload(payload);
     if (validationError) {
       return validationError;
     }
+
+    // 検証済みなので安全に型アサーション可能
+    const jwtPayload = payload as JwtPayload;
 
     return {
       success: true,

@@ -84,13 +84,7 @@ export async function generateJwt(
   try {
     const secret = getSecretKey();
 
-    const token = await new SignJWT({
-      userId: payload.userId,
-      lineUserId: payload.lineUserId,
-      displayName: payload.displayName,
-      role: payload.role,
-      isActive: payload.isActive,
-    })
+    const token = await new SignJWT(payload)
       .setProtectedHeader({ alg: "HS256" })
       .setIssuedAt()
       .setIssuer(JWT_ISSUER)

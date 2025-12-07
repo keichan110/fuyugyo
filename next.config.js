@@ -4,6 +4,8 @@ const nextConfig = {
   experimental: {
     optimizePackageImports: ["lucide-react", "@phosphor-icons/react"],
   },
+  // Prisma クライアントを Cloudflare Workers 用ビルドに含める
+  serverExternalPackages: ["@prisma/client", ".prisma/client"],
   images: {
     unoptimized: true,
   },

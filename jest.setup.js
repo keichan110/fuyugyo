@@ -53,6 +53,19 @@ afterEach(() => {
 const MILLISECONDS_TO_SECONDS = 1000;
 const TWO_DAYS_IN_SECONDS = 172_800; // 48時間 = 172800秒
 
+// ペイロード生成関数（呼び出し時に動的に生成）
+const createMockPayload = () => ({
+  userId: "test-user-id",
+  lineUserId: "test-line-user-id",
+  displayName: "Test User",
+  role: "MEMBER",
+  isActive: true,
+  iat: Math.floor(Date.now() / MILLISECONDS_TO_SECONDS),
+  exp: Math.floor(Date.now() / MILLISECONDS_TO_SECONDS) + TWO_DAYS_IN_SECONDS,
+  iss: "fuyugyo",
+  aud: "fuyugyo-users",
+});
+
 jest.mock("jose", () => ({
   SignJWT: jest.fn().mockImplementation(() => ({
     setProtectedHeader: jest.fn().mockReturnThis(),
@@ -62,31 +75,12 @@ jest.mock("jose", () => ({
     setExpirationTime: jest.fn().mockReturnThis(),
     sign: jest.fn().mockResolvedValue("mocked-jwt-token"),
   })),
-  jwtVerify: jest.fn().mockResolvedValue({
-    payload: {
-      userId: "test-user-id",
-      lineUserId: "test-line-user-id",
-      displayName: "Test User",
-      role: "MEMBER",
-      isActive: true,
-      iat: Math.floor(Date.now() / MILLISECONDS_TO_SECONDS),
-      exp:
-        Math.floor(Date.now() / MILLISECONDS_TO_SECONDS) + TWO_DAYS_IN_SECONDS,
-      iss: "fuyugyo",
-      aud: "fuyugyo-users",
-    },
-  }),
-  decodeJwt: jest.fn().mockReturnValue({
-    userId: "test-user-id",
-    lineUserId: "test-line-user-id",
-    displayName: "Test User",
-    role: "MEMBER",
-    isActive: true,
-    iat: Math.floor(Date.now() / MILLISECONDS_TO_SECONDS),
-    exp: Math.floor(Date.now() / MILLISECONDS_TO_SECONDS) + TWO_DAYS_IN_SECONDS,
-    iss: "fuyugyo",
-    aud: "fuyugyo-users",
-  }),
+  jwtVerify: jest.fn().mockImplementation(() =>
+    Promise.resolve({
+      payload: createMockPayload(),
+    })
+  ),
+  decodeJwt: jest.fn().mockImplementation(() => createMockPayload()),
 }));
 
 // Next.js Router のモック設定（必要に応じてテストで上書き可能）

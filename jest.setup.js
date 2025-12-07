@@ -83,6 +83,15 @@ jest.mock("jose", () => ({
   decodeJwt: jest.fn().mockImplementation(() => createMockPayload()),
 }));
 
+// React cache のモック（Jest/JSDOM環境では利用不可のため）
+jest.mock("react", () => {
+  const actual = jest.requireActual("react");
+  return {
+    ...actual,
+    cache: (fn) => fn,
+  };
+});
+
 // Next.js Router のモック設定（必要に応じてテストで上書き可能）
 jest.mock("next/navigation", () => ({
   useRouter: jest.fn(() => ({

@@ -1,3 +1,4 @@
+import type { D1Database } from "@cloudflare/workers-types";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { PrismaD1 } from "@prisma/adapter-d1";
 import { PrismaClient } from "@prisma/client";
@@ -13,7 +14,7 @@ export const getPrisma = cache(async () => {
   // Cloudflare Workers環境ではD1アダプターを使用
   if (process.env.CF_PAGES || process.env.CLOUDFLARE_CONTEXT) {
     const { env } = await getCloudflareContext();
-    const db = (env as { DB?: unknown }).DB;
+    const db = (env as { DB?: D1Database }).DB;
     if (!db) {
       throw new Error(
         "D1 database binding not found in Cloudflare environment. " +

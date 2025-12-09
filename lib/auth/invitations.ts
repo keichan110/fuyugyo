@@ -106,8 +106,10 @@ export async function createInvitationToken(
     expiresInHours = invitationConfig.defaultExpiryHours,
   } = params;
 
+  const prisma = await getPrisma();
+
   // 作成者が存在し、権限があることを確認
-  const creator = await (await getPrisma()).user.findUnique({
+  const creator = await prisma.user.findUnique({
     where: { id: createdBy },
     select: { id: true, displayName: true, role: true, isActive: true },
   });
@@ -136,7 +138,7 @@ export async function createInvitationToken(
     attempts++;
 
     // 既存のトークンと衝突していないかチェック
-    const existingToken = await (await getPrisma()).invitationToken.findUnique({
+    const existingToken = await prisma.invitationToken.findUnique({
       where: { token },
     });
 
@@ -159,7 +161,7 @@ export async function createInvitationToken(
     })();
 
   // 既存の有効な招待を無効化してから新しい招待を作成（トランザクションで実行）
-  const invitationToken = await (await getPrisma()).$transaction(async (tx) => {
+  const invitationToken = await prisma.$transaction(async (tx) => {
     // 既存の有効な招待を無効化
     await tx.invitationToken.updateMany({
       where: {
@@ -248,10 +250,10 @@ export async function validateInvitationToken(
       };
     }
 
+    const prisma = await getPrisma();
+
     // データベースからトークンを取得
-    const invitationToken = await (
-      await getPrisma()
-    ).invitationToken.findUnique({
+    const invitationToken = await prisma.invitationToken.findUnique({
       where: { token },
       include: {
         creator: {
@@ -331,8 +333,10 @@ export async function incrementTokenUsage(
     throw new Error(`Cannot increment usage: ${validation.error}`);
   }
 
+  const prisma = await getPrisma();
+
   // 使用回数を増加
-  const updatedToken = await (await getPrisma()).invitationToken.update({
+  const updatedToken = await prisma.invitationToken.update({
     where: { token },
     data: {
       usedCount: {
@@ -372,8 +376,10 @@ export async function deactivateInvitationToken(
   token: string,
   deactivatedBy: string
 ): Promise<InvitationTokenDetails> {
+  const prisma = await getPrisma();
+
   // 無効化を実行するユーザーの権限を確認
-  const user = await (await getPrisma()).user.findUnique({
+  const user = await prisma.user.findUnique({
     where: { id: deactivatedBy },
     select: { role: true, isActive: true },
   });
@@ -389,7 +395,7 @@ export async function deactivateInvitationToken(
   }
 
   // トークンを無効化
-  const updatedToken = await (await getPrisma()).invitationToken.update({
+  const updatedToken = await prisma.invitationToken.update({
     where: { token },
     data: {
       isActive: false,
@@ -420,7 +426,9 @@ export async function getInvitationTokensByCreator(
   createdBy: string,
   includeInactive = false
 ): Promise<InvitationTokenDetails[]> {
-  const tokens = await (await getPrisma()).invitationToken.findMany({
+  const prisma = await getPrisma();
+
+  const tokens = await prisma.invitationToken.findMany({
     where: {
       createdBy,
       ...(includeInactive ? {} : { isActive: true }),
@@ -451,7 +459,9 @@ export async function getInvitationTokensByCreator(
 export async function cleanupExpiredTokens(): Promise<number> {
   const now = new Date();
 
-  const result = await (await getPrisma()).invitationToken.updateMany({
+  const prisma = await getPrisma();
+
+  const result = await prisma.invitationToken.updateMany({
     where: {
       expiresAt: {
         lte: now,

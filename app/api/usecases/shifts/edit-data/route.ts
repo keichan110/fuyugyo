@@ -137,8 +137,10 @@ export async function GET(
     const parsedDepartmentId = deptIdValidation.parsedValue;
     const parsedShiftTypeId = shiftTypeIdValidation.parsedValue;
 
+    const prisma = await getPrisma();
+
     // 既存シフトを検索
-    const existingShift = await (await getPrisma()).shift.findFirst({
+    const existingShift = await prisma.shift.findFirst({
       where: {
         date: parsedDate,
         departmentId: parsedDepartmentId,
@@ -157,7 +159,7 @@ export async function GET(
     const mode: "edit" | "create" = existingShift ? "edit" : "create";
 
     // 利用可能なインストラクターを取得
-    const availableInstructors = await (await getPrisma()).instructor.findMany({
+    const availableInstructors = await prisma.instructor.findMany({
       where: {
         status: "ACTIVE",
         certifications: {
@@ -173,7 +175,7 @@ export async function GET(
     });
 
     // 同日の他シフトを取得(競合チェック用)
-    const conflictingShifts = await (await getPrisma()).shift.findMany({
+    const conflictingShifts = await prisma.shift.findMany({
       where: {
         date: parsedDate,
         ...(existingShift && { NOT: { id: existingShift.id } }),

@@ -73,8 +73,10 @@ export const getMonthlyShifts = cache(
     const startDate = new Date(year, month - 1, 1);
     const endDate = new Date(year, month, 0); // 月末日
 
+    const prisma = await getPrisma();
+
     // シフトデータを取得
-    const shifts = await (await getPrisma()).shift.findMany({
+    const shifts = await prisma.shift.findMany({
       where: {
         date: {
           gte: startDate,
@@ -149,8 +151,10 @@ export const getWeeklyShifts = cache(
     const DAYS_IN_WEEK = 7;
     endDate.setDate(endDate.getDate() + DAYS_IN_WEEK - 1);
 
+    const prisma = await getPrisma();
+
     // シフトデータを取得
-    const shifts = await (await getPrisma()).shift.findMany({
+    const shifts = await prisma.shift.findMany({
       where: {
         date: {
           gte: startDate,
@@ -215,7 +219,9 @@ export const getWeeklyShifts = cache(
  * @returns 部門一覧
  */
 export const getDepartments = cache(async () => {
-  const departments = await (await getPrisma()).department.findMany({
+  const prisma = await getPrisma();
+
+  const departments = await prisma.department.findMany({
     select: {
       id: true,
       name: true,
@@ -240,18 +246,20 @@ export const getDepartments = cache(async () => {
  * @returns シフトフォーム用のマスターデータ
  */
 export const getShiftFormData = cache(async () => {
+  const prisma = await getPrisma();
+
   const [departments, shiftTypes, activeInstructorCount] = await Promise.all([
-    (await getPrisma()).department.findMany({
+    prisma.department.findMany({
       where: { isActive: true },
       select: { id: true, name: true, code: true },
       orderBy: { name: "asc" },
     }),
-    (await getPrisma()).shiftType.findMany({
+    prisma.shiftType.findMany({
       where: { isActive: true },
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     }),
-    (await getPrisma()).instructor.count({
+    prisma.instructor.count({
       where: { status: "ACTIVE" },
     }),
   ]);

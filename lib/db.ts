@@ -28,7 +28,21 @@ export async function getPrisma(): Promise<PrismaClient> {
       const adapter = new PrismaD1(env.DB);
       return new PrismaClient({ adapter });
     }
-  } catch {
+    if (cloudflareContext) {
+      // Cloudflare環境だがDBバインディングがない場合は設定エラー
+      throw new Error(
+        "Cloudflare context found, but D1 database binding 'DB' is missing. " +
+          "Ensure it is configured in wrangler.toml or Pages project settings."
+      );
+    }
+  } catch (error) {
+    // Cloudflare環境での設定エラーは再スロー
+    if (
+      error instanceof Error &&
+      error.message.includes("D1 database binding")
+    ) {
+      throw error;
+    }
     // getCloudflareContext()が失敗した場合はローカル環境と判断
   }
 

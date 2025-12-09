@@ -14,7 +14,7 @@ export const getPrisma = cache(async () => {
   // Cloudflare Workers環境ではD1アダプターを使用
   if (process.env.CF_PAGES || process.env.CLOUDFLARE_CONTEXT) {
     const { env } = await getCloudflareContext();
-    const db = (env as App.CloudflareEnv).DB;
+    const db = env.DB;
     if (!db) {
       throw new Error(
         "D1 database binding not found in Cloudflare environment. " +

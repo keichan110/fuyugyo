@@ -1,16 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authenticateFromRequest } from "@/lib/auth/middleware";
-import { prisma } from "@/lib/db";
 import { GET } from "./route";
 
 // Prismaクライアントをモック化
-jest.mock("@/lib/db", () => ({
-  prisma: {
-    certification: {
-      findUnique: jest.fn(),
-      update: jest.fn(),
-    },
+const mockCertificationFindUnique = jest.fn();
+const mockCertificationUpdate = jest.fn();
+const mockPrismaClient = {
+  certification: {
+    findUnique: mockCertificationFindUnique,
+    update: mockCertificationUpdate,
   },
+};
+
+jest.mock("@/lib/db", () => ({
+  getPrisma: jest.fn(async () => mockPrismaClient),
 }));
 
 // NextResponseとNextRequestをモック化
@@ -39,9 +42,6 @@ jest.mock("@/lib/auth/middleware", () => ({
   authenticateFromRequest: jest.fn(),
 }));
 
-const mockPrisma = prisma as jest.Mocked<typeof prisma>;
-const mockCertificationFindUnique = mockPrisma.certification
-  .findUnique as jest.MockedFunction<typeof prisma.certification.findUnique>;
 const mockNextResponse = NextResponse as jest.Mocked<typeof NextResponse>;
 const mockAuthenticateFromRequest =
   authenticateFromRequest as jest.MockedFunction<

@@ -1,5 +1,5 @@
 import { cache } from "react";
-import { prisma } from "@/lib/db";
+import { getPrisma } from "@/lib/db";
 import type { UserInstructorProfile } from "@/types/actions";
 
 /**
@@ -12,7 +12,7 @@ import type { UserInstructorProfile } from "@/types/actions";
  */
 export const getInstructorProfile = cache(
   async (instructorId: number): Promise<UserInstructorProfile | null> => {
-    const instructor = await prisma.instructor.findUnique({
+    const instructor = await (await getPrisma()).instructor.findUnique({
       where: { id: instructorId },
       include: {
         certifications: {
@@ -55,7 +55,7 @@ export const getInstructorProfile = cache(
  */
 export const getAvailableInstructors = cache(
   async () =>
-    await prisma.instructor.findMany({
+    await (await getPrisma()).instructor.findMany({
       where: {
         status: "ACTIVE",
       },

@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
 import { GET } from "./route";
 
 type ShiftType = {
@@ -11,13 +10,17 @@ type ShiftType = {
 };
 
 // Prismaクライアントをモック化
-jest.mock("@/lib/db", () => ({
-  prisma: {
-    shiftType: {
-      findUnique: jest.fn(),
-      update: jest.fn(),
-    },
+const mockShiftTypeFindUnique = jest.fn();
+const mockShiftTypeUpdate = jest.fn();
+const mockPrismaClient = {
+  shiftType: {
+    findUnique: mockShiftTypeFindUnique,
+    update: mockShiftTypeUpdate,
   },
+};
+
+jest.mock("@/lib/db", () => ({
+  getPrisma: jest.fn(async () => mockPrismaClient),
 }));
 
 // NextResponseとNextRequestをモック化
@@ -46,9 +49,6 @@ jest.mock("@/lib/auth/middleware", () => ({
   authenticateFromRequest: jest.fn(),
 }));
 
-const mockPrisma = prisma as jest.Mocked<typeof prisma>;
-const mockShiftTypeFindUnique = mockPrisma.shiftType
-  .findUnique as jest.MockedFunction<typeof prisma.shiftType.findUnique>;
 const mockNextResponse = NextResponse as jest.Mocked<typeof NextResponse>;
 
 describe("GET /api/shift-types/[id]", () => {

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authenticateFromRequest } from "@/lib/auth/middleware";
-import { prisma } from "@/lib/db";
 import { GET } from "./route";
 
 type Department = {
@@ -14,12 +13,15 @@ type Department = {
 };
 
 // Prismaクライアントをモック化
-jest.mock("@/lib/db", () => ({
-  prisma: {
-    department: {
-      findMany: jest.fn(),
-    },
+const mockDepartmentFindMany = jest.fn();
+const mockPrismaClient = {
+  department: {
+    findMany: mockDepartmentFindMany,
   },
+};
+
+jest.mock("@/lib/db", () => ({
+  getPrisma: jest.fn(async () => mockPrismaClient),
 }));
 
 // NextResponseとNextRequestをモック化
@@ -48,9 +50,6 @@ jest.mock("@/lib/auth/middleware", () => ({
   authenticateFromRequest: jest.fn(),
 }));
 
-const mockPrisma = prisma as jest.Mocked<typeof prisma>;
-const mockDepartmentFindMany = mockPrisma.department
-  .findMany as jest.MockedFunction<typeof prisma.department.findMany>;
 const mockNextResponse = NextResponse as jest.Mocked<typeof NextResponse>;
 const mockAuthenticateFromRequest =
   authenticateFromRequest as jest.MockedFunction<

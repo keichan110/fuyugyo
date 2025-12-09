@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { logApiError } from "@/lib/api/error-handlers";
 import { withAuth } from "@/lib/auth/middleware";
-import { prisma } from "@/lib/db";
+import { getPrisma } from "@/lib/db";
 import { secureLog } from "@/lib/utils/logging";
 import {
   formatCertificationSummary,
@@ -138,7 +138,7 @@ export async function GET(
     const parsedShiftTypeId = shiftTypeIdValidation.parsedValue;
 
     // 既存シフトを検索
-    const existingShift = await prisma.shift.findFirst({
+    const existingShift = await (await getPrisma()).shift.findFirst({
       where: {
         date: parsedDate,
         departmentId: parsedDepartmentId,
@@ -157,7 +157,7 @@ export async function GET(
     const mode: "edit" | "create" = existingShift ? "edit" : "create";
 
     // 利用可能なインストラクターを取得
-    const availableInstructors = await prisma.instructor.findMany({
+    const availableInstructors = await (await getPrisma()).instructor.findMany({
       where: {
         status: "ACTIVE",
         certifications: {
@@ -173,7 +173,7 @@ export async function GET(
     });
 
     // 同日の他シフトを取得(競合チェック用)
-    const conflictingShifts = await prisma.shift.findMany({
+    const conflictingShifts = await (await getPrisma()).shift.findMany({
       where: {
         date: parsedDate,
         ...(existingShift && { NOT: { id: existingShift.id } }),

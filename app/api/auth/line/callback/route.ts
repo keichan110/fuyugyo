@@ -4,7 +4,7 @@ import { HTTP_STATUS_OK } from "@/constants/http-status";
 import { incrementTokenUsage } from "@/lib/auth/invitations";
 import { generateJwt } from "@/lib/auth/jwt";
 import { executeLineAuthFlow } from "@/lib/auth/line";
-import { prisma } from "@/lib/db";
+import { getPrisma } from "@/lib/db";
 import { deleteCookie, setAuthCookie } from "@/lib/utils/cookies";
 import { secureAuthLog, secureLog } from "@/lib/utils/logging";
 import type { AuthSession } from "./utils";
@@ -140,7 +140,7 @@ async function getOrCreateUser(
     }
   | { success: false; redirect: NextResponse }
 > {
-  let user = await prisma.user.findUnique({
+  let user = await (await getPrisma()).user.findUnique({
     where: { lineUserId: profile.userId },
   });
 

@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { authenticateFromRequest } from "@/lib/auth/middleware";
-import { prisma } from "@/lib/db";
+import { getPrisma } from "@/lib/db";
 
 export async function GET(request: NextRequest) {
   const authResult = await authenticateFromRequest(request);
@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
     );
   }
   try {
-    const departments = await prisma.department.findMany({
+    const departments = await (await getPrisma()).department.findMany({
       orderBy: {
         name: "asc",
       },

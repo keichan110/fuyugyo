@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { logApiError } from "@/lib/api/error-handlers";
 import { withAuth } from "@/lib/auth/middleware";
-import { prisma } from "@/lib/db";
+import { getPrisma } from "@/lib/db";
 import { formatDateString } from "../../helpers/formatters";
 import {
   departmentMinimalSelect,
@@ -116,7 +116,7 @@ export async function GET(
     endDate.setDate(endDate.getDate() + DAYS_IN_WEEK - 1);
 
     // シフトデータを取得
-    const shifts = await prisma.shift.findMany({
+    const shifts = await (await getPrisma()).shift.findMany({
       where: {
         date: {
           gte: startDate,

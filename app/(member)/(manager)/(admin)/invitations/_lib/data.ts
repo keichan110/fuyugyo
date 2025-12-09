@@ -1,6 +1,6 @@
 import { cache } from "react";
 import { ensureRole } from "@/lib/auth/role-guard";
-import { prisma } from "@/lib/db";
+import { getPrisma } from "@/lib/db";
 import type { InvitationTokenWithStats } from "./types";
 
 /**
@@ -26,7 +26,7 @@ export const getInvitations = cache(
     // 2. ユーザーのロールに基づいてデータをフィルタリング
     // MANAGER: 自分が作成した招待のみ
     // ADMIN: 全ての招待（将来的にshowAllフラグで制御可能）
-    const tokens = await prisma.invitationToken.findMany({
+    const tokens = await (await getPrisma()).invitationToken.findMany({
       where: {
         // MANAGERの場合は作成者フィルタを適用
         ...(user.role !== "ADMIN" && { createdBy: user.id }),

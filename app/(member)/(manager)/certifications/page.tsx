@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { prisma } from "@/lib/db";
+import { getPrisma } from "@/lib/db";
 import { CertificationList } from "./_components/certification-list";
 import { CertificationStats } from "./_components/certification-stats";
 import { CertificationTableHeader } from "./_components/certification-table-header";
@@ -100,7 +100,7 @@ async function CertificationsPageContent({
   }
 
   // サーバーサイドでデータ取得
-  const certifications = await prisma.certification.findMany({
+  const certifications = await (await getPrisma()).certification.findMany({
     where,
     include: {
       department: {

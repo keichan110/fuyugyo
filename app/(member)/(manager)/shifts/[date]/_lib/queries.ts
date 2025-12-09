@@ -7,7 +7,7 @@ import type {
   ShiftAssignment,
   ShiftType,
 } from "@prisma/client";
-import { prisma } from "@/lib/db";
+import { getPrisma } from "@/lib/db";
 import type { DepartmentMinimal, ShiftTypeMinimal } from "@/lib/types/domain";
 import type { InstructorWithAssignment, ShiftWithRelations } from "./types";
 
@@ -77,7 +77,7 @@ export async function getShiftsByDate(
 ): Promise<ShiftWithRelations[]> {
   const targetDate = new Date(date);
 
-  const shifts = await prisma.shift.findMany({
+  const shifts = await (await getPrisma()).shift.findMany({
     where: {
       date: targetDate,
       ...(departmentId && { departmentId }),
@@ -110,7 +110,7 @@ export async function getInstructorsWithAssignments(
 ): Promise<InstructorWithAssignment[]> {
   const targetDate = new Date(date);
 
-  const instructors = await prisma.instructor.findMany({
+  const instructors = await (await getPrisma()).instructor.findMany({
     where: {
       status: "ACTIVE",
       certifications: {
@@ -189,7 +189,7 @@ export async function getInstructorsWithAssignments(
  * @returns 部門一覧（コードの昇順）
  */
 export async function getDepartments(): Promise<DepartmentMinimal[]> {
-  const departments = await prisma.department.findMany({
+  const departments = await (await getPrisma()).department.findMany({
     orderBy: { code: "asc" },
   });
 
@@ -206,7 +206,7 @@ export async function getDepartments(): Promise<DepartmentMinimal[]> {
  * @returns シフト種別一覧（名前の昇順）
  */
 export async function getActiveShiftTypes(): Promise<ShiftTypeMinimal[]> {
-  const shiftTypes = await prisma.shiftType.findMany({
+  const shiftTypes = await (await getPrisma()).shiftType.findMany({
     where: { isActive: true },
     orderBy: { name: "asc" },
   });

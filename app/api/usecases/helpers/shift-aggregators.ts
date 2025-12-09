@@ -63,7 +63,7 @@ export type FormattedShiftData = {
  *
  * @example
  * ```typescript
- * const rawShifts = await prisma.shift.findMany({ ... });
+ * const rawShifts = await (await getPrisma()).shift.findMany({ ... });
  * const formatted = formatShiftsData(rawShifts);
  * ```
  */

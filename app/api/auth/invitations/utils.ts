@@ -11,7 +11,7 @@ import type {
   AuthenticationResult,
   InvitationListItem,
 } from "@/lib/auth/types";
-import { prisma } from "@/lib/db";
+import { getPrisma } from "@/lib/db";
 
 /**
  * 認証とロールチェックの結果型
@@ -156,7 +156,7 @@ export async function fetchInvitationTokens(
 ) {
   if (showAll && userRole === "ADMIN") {
     // 全ユーザーの招待トークンを取得（管理者のみ）
-    return await prisma.invitationToken.findMany({
+    return await (await getPrisma()).invitationToken.findMany({
       where: {
         ...(includeInactive ? {} : { isActive: true }),
       },

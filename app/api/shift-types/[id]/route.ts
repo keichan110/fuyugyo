@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { getPrisma } from "@/lib/db";
 
 type Params = {
   params: Promise<{ id: string }>;
@@ -22,7 +22,7 @@ export async function GET(_request: NextRequest, context: Params) {
       );
     }
 
-    const shiftType = await prisma.shiftType.findUnique({
+    const shiftType = await (await getPrisma()).shiftType.findUnique({
       where: {
         id: shiftTypeId,
       },

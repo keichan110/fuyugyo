@@ -9,7 +9,7 @@ import { validateNumericId } from "@/app/api/usecases/helpers/validators";
 import type { ActiveInstructorsByDepartmentResponse } from "@/app/api/usecases/types/responses";
 import { logApiError } from "@/lib/api/error-handlers";
 import { withAuth } from "@/lib/auth/middleware";
-import { prisma } from "@/lib/db";
+import { getPrisma } from "@/lib/db";
 
 /**
  * 部門別アクティブインストラクター取得APIエンドポイント
@@ -108,7 +108,7 @@ export async function GET(
     const departmentId = validation.parsedValue;
 
     // 部門情報を取得
-    const department = await prisma.department.findUnique({
+    const department = await (await getPrisma()).department.findUnique({
       where: { id: departmentId },
       select: { id: true, name: true },
     });
@@ -128,7 +128,7 @@ export async function GET(
 
     // アクティブなインストラクターを取得
     // データベース側で部門フィルタリングを実行（N+1クエリ問題を回避）
-    const instructors = await prisma.instructor.findMany({
+    const instructors = await (await getPrisma()).instructor.findMany({
       where: {
         status: "ACTIVE",
         certifications: {

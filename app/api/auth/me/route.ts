@@ -174,10 +174,10 @@ export async function POST(request: NextRequest) {
     }
 
     // データベースの動的インポート（Prismaクライアント）
-    const { prisma } = await import("@/lib/db");
+    const { getPrisma } = await import("@/lib/db");
 
     // 表示名を更新
-    const updatedUser = await prisma.user.update({
+    const updatedUser = await (await getPrisma()).user.update({
       where: { id: user.id },
       data: { displayName: newDisplayName },
     });

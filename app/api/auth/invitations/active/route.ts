@@ -8,7 +8,7 @@ import {
 } from "@/constants/http-status";
 import { authenticateFromRequest, checkUserRole } from "@/lib/auth/middleware";
 import type { ApiResponse } from "@/lib/auth/types";
-import { prisma } from "@/lib/db";
+import { getPrisma } from "@/lib/db";
 
 /**
  * 有効な招待チェックAPI
@@ -56,7 +56,9 @@ export async function GET(request: NextRequest): Promise<
 
     const now = new Date();
 
-    const activeInvitation = await prisma.invitationToken.findFirst({
+    const activeInvitation = await (
+      await getPrisma()
+    ).invitationToken.findFirst({
       where: {
         isActive: true,
         expiresAt: { gt: now },

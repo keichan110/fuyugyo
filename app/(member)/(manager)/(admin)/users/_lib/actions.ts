@@ -1,7 +1,7 @@
 "use server";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { requireAdmin } from "@/lib/auth/role-guard";
-import { prisma } from "@/lib/db";
+import { getPrisma } from "@/lib/db";
 import type { ActionResult } from "@/types/actions";
 import {
   type CreateUserInput,
@@ -46,7 +46,7 @@ export async function createUserAction(
     const validated = createUserSchema.parse(input);
 
     // 既存ユーザーチェック（LINE User IDの重複確認）
-    const existing = await prisma.user.findUnique({
+    const existing = await (await getPrisma()).user.findUnique({
       where: { lineUserId: validated.lineUserId },
     });
 
@@ -70,7 +70,7 @@ export async function createUserAction(
       userData.pictureUrl = validated.pictureUrl;
     }
 
-    const user = await prisma.user.create({
+    const user = await (await getPrisma()).user.create({
       data: userData,
     });
 
@@ -131,7 +131,7 @@ export async function updateUserAction(
     const validated = updateUserSchema.parse(input);
 
     // ユーザー存在確認
-    const existingUser = await prisma.user.findUnique({
+    const existingUser = await (await getPrisma()).user.findUnique({
       where: { id },
       select: { id: true },
     });
@@ -158,7 +158,7 @@ export async function updateUserAction(
     }
 
     // ユーザー更新
-    const user = await prisma.user.update({
+    const user = await (await getPrisma()).user.update({
       where: { id },
       data: updateData,
     });
@@ -212,7 +212,7 @@ export async function deleteUserAction(
     }
 
     // ユーザー存在確認
-    const existingUser = await prisma.user.findUnique({
+    const existingUser = await (await getPrisma()).user.findUnique({
       where: { id },
       select: { id: true, isActive: true },
     });
@@ -230,7 +230,7 @@ export async function deleteUserAction(
     }
 
     // ユーザー無効化（論理削除）
-    await prisma.user.update({
+    await (await getPrisma()).user.update({
       where: { id },
       data: { isActive: false },
     });

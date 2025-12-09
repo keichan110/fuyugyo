@@ -6,7 +6,7 @@ import {
   HTTP_STATUS_NOT_FOUND,
 } from "@/constants/http-status";
 import type { AuthenticatedUser } from "@/lib/auth/types";
-import { prisma } from "@/lib/db";
+import { getPrisma } from "@/lib/db";
 
 /**
  * トークンパラメータをバリデーションする
@@ -60,7 +60,7 @@ export async function fetchInvitationToken(decodedToken: string): Promise<
       };
     }
 > {
-  const invitationToken = await prisma.invitationToken.findUnique({
+  const invitationToken = await (await getPrisma()).invitationToken.findUnique({
     where: { token: decodedToken },
     include: {
       creator: {
@@ -145,7 +145,7 @@ export function checkTokenActive(invitationToken: {
  * トークンを無効化する
  */
 export async function deactivateToken(decodedToken: string) {
-  return await prisma.invitationToken.update({
+  return await (await getPrisma()).invitationToken.update({
     where: { token: decodedToken },
     data: {
       isActive: false,

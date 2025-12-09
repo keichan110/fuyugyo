@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { getPrisma } from "@/lib/db";
 
 export async function GET(
   _request: NextRequest,
@@ -24,7 +24,7 @@ export async function GET(
     }
 
     // インストラクター詳細情報を取得
-    const instructor = await prisma.instructor.findUnique({
+    const instructor = await (await getPrisma()).instructor.findUnique({
       where: { id: numericId },
       include: {
         certifications: {

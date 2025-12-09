@@ -14,7 +14,7 @@ import {
 } from "@/constants/pagination";
 import { authenticateFromRequest } from "@/lib/auth/middleware";
 import type { ApiResponse } from "@/lib/auth/types";
-import { prisma } from "@/lib/db";
+import { getPrisma } from "@/lib/db";
 
 /**
  * ユーザー管理API
@@ -133,7 +133,7 @@ export async function GET(
 
     // ユーザー一覧取得（並列実行）
     const [users, total] = await Promise.all([
-      prisma.user.findMany({
+      (await getPrisma()).user.findMany({
         where,
         select: {
           id: true,
@@ -150,7 +150,7 @@ export async function GET(
         skip,
         take: limitNum,
       }),
-      prisma.user.count({ where }),
+      (await getPrisma()).user.count({ where }),
     ]);
 
     const response: UserListResponse = {

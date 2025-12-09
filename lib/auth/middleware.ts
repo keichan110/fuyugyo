@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { type NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { getPrisma } from "@/lib/db";
 import {
   clearAuthCookies,
   setAuthCookie as setSecureAuthCookie,
@@ -114,7 +114,7 @@ export async function authenticateToken(
 
   try {
     // データベースからユーザー情報を取得
-    const user = await prisma.user.findUnique({
+    const user = await (await getPrisma()).user.findUnique({
       where: {
         id: jwtResult.payload.userId,
       },
@@ -391,7 +391,7 @@ export async function getAuthDebugInfo(request: NextRequest) {
 
     if (jwtResult.success && jwtResult.payload) {
       try {
-        dbUser = await prisma.user.findUnique({
+        dbUser = await (await getPrisma()).user.findUnique({
           where: { id: jwtResult.payload.userId },
           select: {
             id: true,

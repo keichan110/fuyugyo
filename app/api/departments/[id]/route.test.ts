@@ -2,6 +2,7 @@
  * @jest-environment node
  */
 
+import type { PrismaClient } from "@prisma/client";
 import { NextRequest } from "next/server";
 
 jest.mock("@/lib/auth/middleware", () => ({
@@ -9,20 +10,22 @@ jest.mock("@/lib/auth/middleware", () => ({
 }));
 
 // Prismaをモック化
-jest.mock("@/lib/db", () => ({
-  prisma: {
-    department: {
-      findUnique: jest.fn(),
-    },
+const mockDepartmentFindUnique = jest.fn();
+const mockPrismaClient = {
+  department: {
+    findUnique: mockDepartmentFindUnique,
   },
+};
+
+jest.mock("@/lib/db", () => ({
+  getPrisma: jest.fn(async () => mockPrismaClient),
 }));
 
 import { authenticateFromRequest } from "@/lib/auth/middleware";
-import { prisma } from "@/lib/db";
 import { GET } from "./route";
 
-const mockFindUnique = prisma.department.findUnique as jest.MockedFunction<
-  typeof prisma.department.findUnique
+const mockFindUnique = mockDepartmentFindUnique as jest.MockedFunction<
+  PrismaClient["department"]["findUnique"]
 >;
 const mockAuthenticateFromRequest =
   authenticateFromRequest as jest.MockedFunction<

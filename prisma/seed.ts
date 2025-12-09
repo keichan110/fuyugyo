@@ -1,4 +1,4 @@
-import { PrismaClient } from "../generated/prisma";
+import { PrismaClient } from "@prisma/client";
 import { seedCertifications } from "./seeds/certification.seed";
 import { seedDepartments } from "./seeds/department.seed";
 import { seedInstructors } from "./seeds/instructor.seed";

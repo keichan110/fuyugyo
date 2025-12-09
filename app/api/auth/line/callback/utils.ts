@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { TOKEN_PREVIEW_LENGTH } from "@/constants/auth";
 import { validateInvitationToken } from "@/lib/auth/invitations";
-import { prisma } from "@/lib/db";
+import { getPrisma } from "@/lib/db";
 import { secureLog } from "@/lib/utils/logging";
 
 export type AuthSession = {
@@ -109,7 +109,7 @@ export async function updateUserProfileIfNeeded(
     return user;
   }
 
-  const updatedUser = await prisma.user.update({
+  const updatedUser = await (await getPrisma()).user.update({
     where: { id: user.id },
     data: {
       displayName: profile.displayName,
@@ -155,7 +155,7 @@ export async function validateInvitation(
  * 新規ユーザーを作成する
  */
 export async function createNewUser(profile: LineProfile, inviteToken: string) {
-  const user = await prisma.user.create({
+  const user = await (await getPrisma()).user.create({
     data: {
       lineUserId: profile.userId,
       displayName: profile.displayName,

@@ -1,7 +1,7 @@
 "use server";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { requireManagerAuth } from "@/lib/auth/role-guard";
-import { prisma } from "@/lib/db";
+import { getPrisma } from "@/lib/db";
 import type { ActionResult } from "@/types/actions";
 import {
   type CreateShiftInput,
@@ -32,7 +32,7 @@ export async function createShiftAction(
     } = validated;
 
     // 既存シフトチェック
-    const existingShift = await prisma.shift.findUnique({
+    const existingShift = await (await getPrisma()).shift.findUnique({
       where: {
         unique_shift_per_day: {
           date: new Date(date),
@@ -60,7 +60,7 @@ export async function createShiftAction(
     }
 
     // トランザクション: シフト作成/更新 + インストラクター割り当て
-    const shift = await prisma.$transaction(async (tx) => {
+    const shift = await (await getPrisma()).$transaction(async (tx) => {
       let result: { id: number };
 
       if (existingShift && force) {
@@ -140,7 +140,7 @@ export async function updateShiftAction(
     const validated = updateShiftSchema.parse(input);
     const { description, assignedInstructorIds } = validated;
 
-    const shift = await prisma.$transaction(async (tx) => {
+    const shift = await (await getPrisma()).$transaction(async (tx) => {
       // シフト更新
       await tx.shift.update({
         where: { id },
@@ -201,7 +201,7 @@ export async function deleteShiftAction(
     await requireManagerAuth();
 
     // トランザクション: 割り当て削除 → シフト削除
-    await prisma.$transaction(async (tx) => {
+    await (await getPrisma()).$transaction(async (tx) => {
       await tx.shiftAssignment.deleteMany({
         where: { shiftId: id },
       });

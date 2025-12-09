@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import type { ShiftFormDataResponse } from "@/app/api/usecases/types/responses";
 import { logApiError } from "@/lib/api/error-handlers";
 import { withAuth } from "@/lib/auth/middleware";
-import { prisma } from "@/lib/db";
+import { getPrisma } from "@/lib/db";
 
 /**
  * シフト作成フォームの初期表示データを取得するAPIエンドポイント
@@ -64,7 +64,7 @@ export async function GET(
     const [departments, shiftTypes, activeInstructorsCount] = await Promise.all(
       [
         // アクティブな部門のみ取得（名前の昇順）
-        prisma.department.findMany({
+        (await getPrisma()).department.findMany({
           where: { isActive: true },
           select: {
             id: true,
@@ -74,7 +74,7 @@ export async function GET(
           orderBy: { name: "asc" },
         }),
         // アクティブなシフト種別を取得（名前の昇順）
-        prisma.shiftType.findMany({
+        (await getPrisma()).shiftType.findMany({
           where: { isActive: true },
           select: {
             id: true,
@@ -84,7 +84,7 @@ export async function GET(
           orderBy: { name: "asc" },
         }),
         // アクティブなインストラクター数をカウント
-        prisma.instructor.count({
+        (await getPrisma()).instructor.count({
           where: { status: "ACTIVE" },
         }),
       ]

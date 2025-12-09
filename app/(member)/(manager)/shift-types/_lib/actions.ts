@@ -1,7 +1,7 @@
 "use server";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { requireManagerAuth } from "@/lib/auth/role-guard";
-import { prisma } from "@/lib/db";
+import { getPrisma } from "@/lib/db";
 import type { ActionResult } from "@/types/actions";
 import {
   type CreateShiftTypeInput,
@@ -24,7 +24,7 @@ export async function createShiftTypeAction(
     const validated = createShiftTypeSchema.parse(input);
 
     // DB操作
-    const shiftType = await prisma.shiftType.create({
+    const shiftType = await (await getPrisma()).shiftType.create({
       data: validated,
     });
 
@@ -54,7 +54,7 @@ export async function updateShiftTypeAction(
 
     const validated = updateShiftTypeSchema.parse(input);
 
-    const shiftType = await prisma.shiftType.update({
+    const shiftType = await (await getPrisma()).shiftType.update({
       where: { id },
       data: validated,
     });
@@ -83,7 +83,7 @@ export async function deleteShiftTypeAction(
     await requireManagerAuth();
 
     // 論理削除（isActive = false）
-    await prisma.shiftType.update({
+    await (await getPrisma()).shiftType.update({
       where: { id },
       data: { isActive: false },
     });

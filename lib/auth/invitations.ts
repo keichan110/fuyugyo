@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import { prisma } from "@/lib/db";
+import { getPrisma } from "@/lib/db";
 
 /**
  * 招待トークン関連のユーティリティ関数
@@ -105,6 +105,8 @@ export async function createInvitationToken(
     expiresAt,
     expiresInHours = invitationConfig.defaultExpiryHours,
   } = params;
+
+  const prisma = await getPrisma();
 
   // 作成者が存在し、権限があることを確認
   const creator = await prisma.user.findUnique({
@@ -248,6 +250,8 @@ export async function validateInvitationToken(
       };
     }
 
+    const prisma = await getPrisma();
+
     // データベースからトークンを取得
     const invitationToken = await prisma.invitationToken.findUnique({
       where: { token },
@@ -329,6 +333,8 @@ export async function incrementTokenUsage(
     throw new Error(`Cannot increment usage: ${validation.error}`);
   }
 
+  const prisma = await getPrisma();
+
   // 使用回数を増加
   const updatedToken = await prisma.invitationToken.update({
     where: { token },
@@ -370,6 +376,8 @@ export async function deactivateInvitationToken(
   token: string,
   deactivatedBy: string
 ): Promise<InvitationTokenDetails> {
+  const prisma = await getPrisma();
+
   // 無効化を実行するユーザーの権限を確認
   const user = await prisma.user.findUnique({
     where: { id: deactivatedBy },
@@ -418,6 +426,8 @@ export async function getInvitationTokensByCreator(
   createdBy: string,
   includeInactive = false
 ): Promise<InvitationTokenDetails[]> {
+  const prisma = await getPrisma();
+
   const tokens = await prisma.invitationToken.findMany({
     where: {
       createdBy,
@@ -448,6 +458,8 @@ export async function getInvitationTokensByCreator(
  */
 export async function cleanupExpiredTokens(): Promise<number> {
   const now = new Date();
+
+  const prisma = await getPrisma();
 
   const result = await prisma.invitationToken.updateMany({
     where: {

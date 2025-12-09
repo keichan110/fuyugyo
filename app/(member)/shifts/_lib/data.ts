@@ -10,7 +10,7 @@ import {
   calculateTotalAssignments,
   formatShiftsData,
 } from "@/app/api/usecases/helpers/shift-aggregators";
-import { prisma } from "@/lib/db";
+import { getPrisma } from "@/lib/db";
 
 /**
  * 月次ビュー用のシフトデータ型
@@ -72,6 +72,8 @@ export const getMonthlyShifts = cache(
     // 月の開始日と終了日を計算
     const startDate = new Date(year, month - 1, 1);
     const endDate = new Date(year, month, 0); // 月末日
+
+    const prisma = await getPrisma();
 
     // シフトデータを取得
     const shifts = await prisma.shift.findMany({
@@ -149,6 +151,8 @@ export const getWeeklyShifts = cache(
     const DAYS_IN_WEEK = 7;
     endDate.setDate(endDate.getDate() + DAYS_IN_WEEK - 1);
 
+    const prisma = await getPrisma();
+
     // シフトデータを取得
     const shifts = await prisma.shift.findMany({
       where: {
@@ -215,6 +219,8 @@ export const getWeeklyShifts = cache(
  * @returns 部門一覧
  */
 export const getDepartments = cache(async () => {
+  const prisma = await getPrisma();
+
   const departments = await prisma.department.findMany({
     select: {
       id: true,
@@ -240,6 +246,8 @@ export const getDepartments = cache(async () => {
  * @returns シフトフォーム用のマスターデータ
  */
 export const getShiftFormData = cache(async () => {
+  const prisma = await getPrisma();
+
   const [departments, shiftTypes, activeInstructorCount] = await Promise.all([
     prisma.department.findMany({
       where: { isActive: true },

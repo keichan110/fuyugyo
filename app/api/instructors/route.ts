@@ -14,7 +14,7 @@ import {
 } from "@/lib/api/types";
 import { isOneOf } from "@/lib/api/validation";
 import { authenticateFromRequest } from "@/lib/auth/middleware";
-import { prisma } from "@/lib/db";
+import { getPrisma } from "@/lib/db";
 import type { InstructorStatus } from "@/types/common";
 
 export async function GET(request: NextRequest) {
@@ -74,7 +74,7 @@ export async function GET(request: NextRequest) {
         };
       }
 
-      const instructors = await prisma.instructor.findMany({
+      const instructors = await (await getPrisma()).instructor.findMany({
         where: whereClause,
         include: {
           certifications: {

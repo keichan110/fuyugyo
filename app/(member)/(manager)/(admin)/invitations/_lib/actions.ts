@@ -1,4 +1,5 @@
 "use server";
+import type { PrismaClient } from "@prisma/client";
 import { revalidatePath, revalidateTag } from "next/cache";
 import {
   createInvitationToken,
@@ -7,7 +8,7 @@ import {
   invitationConfig,
 } from "@/lib/auth/invitations";
 import { requireAuth } from "@/lib/auth/role-guard";
-import { prisma } from "@/lib/db";
+import { getPrisma } from "@/lib/db";
 import type { ActionResult } from "@/types/actions";
 import {
   type AcceptInvitationInput,
@@ -30,7 +31,10 @@ const DEFAULT_INVITATION_EXPIRY_DAYS = 7;
 async function validateTokenAndCheckUser(
   token: string,
   lineUserId: string,
-  tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0]
+  tx: Omit<
+    PrismaClient,
+    "$connect" | "$disconnect" | "$on" | "$transaction" | "$extends"
+  >
 ) {
   // トークン形式の基本チェック
   if (!token || typeof token !== "string") {
@@ -230,7 +234,7 @@ export async function acceptInvitationAction(
     const validated = acceptInvitationSchema.parse(input);
     const { token, lineUserId, displayName, pictureUrl } = validated;
 
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await (await getPrisma()).$transaction(async (tx) => {
       const invitationToken = await validateTokenAndCheckUser(
         token,
         lineUserId,

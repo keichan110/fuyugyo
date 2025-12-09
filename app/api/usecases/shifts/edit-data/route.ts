@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { logApiError } from "@/lib/api/error-handlers";
 import { withAuth } from "@/lib/auth/middleware";
-import { prisma } from "@/lib/db";
+import { getPrisma } from "@/lib/db";
 import { secureLog } from "@/lib/utils/logging";
 import {
   formatCertificationSummary,
@@ -136,6 +136,8 @@ export async function GET(
     const parsedDate = dateValidation.parsedValue;
     const parsedDepartmentId = deptIdValidation.parsedValue;
     const parsedShiftTypeId = shiftTypeIdValidation.parsedValue;
+
+    const prisma = await getPrisma();
 
     // 既存シフトを検索
     const existingShift = await prisma.shift.findFirst({

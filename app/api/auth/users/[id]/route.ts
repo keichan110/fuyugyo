@@ -2,7 +2,7 @@ import type { User } from "@prisma/client";
 import { type NextRequest, NextResponse } from "next/server";
 import { authenticateFromRequest } from "@/lib/auth/middleware";
 import type { ApiResponse } from "@/lib/auth/types";
-import { prisma } from "@/lib/db";
+import { getPrisma } from "@/lib/db";
 
 /**
  * 個別ユーザー管理API
@@ -62,7 +62,7 @@ export async function GET(
     }
 
     // ユーザー詳細取得
-    const user = await prisma.user.findUnique({
+    const user = await (await getPrisma()).user.findUnique({
       where: { id },
       select: {
         id: true,

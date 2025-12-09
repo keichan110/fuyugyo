@@ -1,7 +1,7 @@
 "use server";
 
 import { authenticate } from "@/lib/auth/auth";
-import { prisma } from "@/lib/db";
+import { getPrisma } from "@/lib/db";
 import { secureLog } from "@/lib/utils/logging";
 import type { ActionResult } from "@/types/actions";
 
@@ -31,7 +31,7 @@ export async function linkMyInstructor(
 
   try {
     // インストラクターの存在確認とステータス検証
-    const instructor = await prisma.instructor.findUnique({
+    const instructor = await (await getPrisma()).instructor.findUnique({
       where: { id: instructorId },
     });
 
@@ -44,7 +44,7 @@ export async function linkMyInstructor(
     }
 
     // 紐付け実行
-    await prisma.user.update({
+    await (await getPrisma()).user.update({
       where: { id: user.id },
       data: { instructorId },
     });
@@ -73,7 +73,7 @@ export async function unlinkMyInstructor(): Promise<ActionResult<void>> {
   }
 
   try {
-    await prisma.user.update({
+    await (await getPrisma()).user.update({
       where: { id: user.id },
       data: { instructorId: null },
     });

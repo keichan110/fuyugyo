@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authenticateFromRequest } from "@/lib/auth/middleware";
-import { prisma } from "@/lib/db";
 import type { InstructorStatus } from "@/types/common";
 import { GET } from "./route";
 
@@ -29,21 +28,29 @@ type Instructor = {
 };
 
 // Prismaクライアントをモック化
-jest.mock("@/lib/db", () => ({
-  prisma: {
-    instructor: {
-      findMany: jest.fn(),
-      create: jest.fn(),
-      findUnique: jest.fn(),
-    },
-    certification: {
-      findMany: jest.fn(),
-    },
-    instructorCertification: {
-      createMany: jest.fn(),
-    },
-    $transaction: jest.fn(),
+const mockInstructorFindMany = jest.fn();
+const mockInstructorCreate = jest.fn();
+const mockInstructorFindUnique = jest.fn();
+const mockCertificationFindMany = jest.fn();
+const mockInstructorCertificationCreateMany = jest.fn();
+const mockTransaction = jest.fn();
+const mockPrismaClient = {
+  instructor: {
+    findMany: mockInstructorFindMany,
+    create: mockInstructorCreate,
+    findUnique: mockInstructorFindUnique,
   },
+  certification: {
+    findMany: mockCertificationFindMany,
+  },
+  instructorCertification: {
+    createMany: mockInstructorCertificationCreateMany,
+  },
+  $transaction: mockTransaction,
+};
+
+jest.mock("@/lib/db", () => ({
+  getPrisma: jest.fn(async () => mockPrismaClient),
 }));
 
 // NextResponseとNextRequestをモック化
@@ -72,9 +79,6 @@ jest.mock("@/lib/auth/middleware", () => ({
   authenticateFromRequest: jest.fn(),
 }));
 
-const mockPrisma = prisma as jest.Mocked<typeof prisma>;
-const mockInstructorFindMany = mockPrisma.instructor
-  .findMany as jest.MockedFunction<typeof prisma.instructor.findMany>;
 const mockNextResponse = NextResponse as jest.Mocked<typeof NextResponse>;
 const mockAuthenticateFromRequest =
   authenticateFromRequest as jest.MockedFunction<

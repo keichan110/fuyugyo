@@ -1,5 +1,5 @@
 import { cache } from "react";
-import { prisma } from "@/lib/db";
+import { getPrisma } from "@/lib/db";
 
 /**
  * 今後のシフトとして取得するデフォルト件数
@@ -37,7 +37,7 @@ export const getUpcomingShifts = cache(
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const shifts = await prisma.shift.findMany({
+    const shifts = await (await getPrisma()).shift.findMany({
       where: {
         date: {
           gte: today,

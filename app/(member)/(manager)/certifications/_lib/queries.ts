@@ -1,6 +1,6 @@
 import { cache } from "react";
 import "server-only";
-import { prisma } from "@/lib/db";
+import { getPrisma } from "@/lib/db";
 
 /**
  * 資格一覧を取得する関数（キャッシュ付き）
@@ -10,7 +10,7 @@ import { prisma } from "@/lib/db";
  */
 export const getCertifications = cache(
   async () =>
-    await prisma.certification.findMany({
+    await (await getPrisma()).certification.findMany({
       where: { isActive: true },
       include: {
         department: {
@@ -28,7 +28,7 @@ export const getCertifications = cache(
 export async function getDepartmentIdByType(
   departmentType: "ski" | "snowboard"
 ): Promise<number> {
-  const departments = await prisma.department.findMany({
+  const departments = await (await getPrisma()).department.findMany({
     select: { id: true, name: true },
   });
 

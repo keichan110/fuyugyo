@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { authenticateFromRequest } from "@/lib/auth/middleware";
-import { prisma } from "@/lib/db";
+import { getPrisma } from "@/lib/db";
 
 // 既存シフトデータの型定義（レスポンス用）
 type ExistingShiftData = {
@@ -161,7 +161,7 @@ export async function GET(request: NextRequest) {
     }
 
     // ユニーク制約を使って既存シフト検索
-    const existingShift = await prisma.shift.findUnique({
+    const existingShift = await (await getPrisma()).shift.findUnique({
       where: {
         unique_shift_per_day: {
           date: parsedDate,

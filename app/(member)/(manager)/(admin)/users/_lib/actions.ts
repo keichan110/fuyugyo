@@ -1,7 +1,7 @@
 "use server";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { requireAdmin } from "@/lib/auth/role-guard";
-import { prisma } from "@/lib/db";
+import { getPrisma } from "@/lib/db";
 import type { ActionResult } from "@/types/actions";
 import {
   type CreateUserInput,
@@ -11,7 +11,7 @@ import {
 } from "./schemas";
 
 /**
- * ユーザー作成アクション（管理者専用）
+ * ユーザー作成アクション(管理者専用)
  *
  * 注意: 通常のユーザー登録は招待システム経由で行われます。
  * このアクションは管理者が直接ユーザーを作成する特殊ケース用です。
@@ -45,7 +45,9 @@ export async function createUserAction(
     // バリデーション
     const validated = createUserSchema.parse(input);
 
-    // 既存ユーザーチェック（LINE User IDの重複確認）
+    const prisma = await getPrisma();
+
+    // 既存ユーザーチェック(LINE User IDの重複確認)
     const existing = await prisma.user.findUnique({
       where: { lineUserId: validated.lineUserId },
     });
@@ -54,7 +56,7 @@ export async function createUserAction(
       return { success: false, error: "User with this LINE ID already exists" };
     }
 
-    // ユーザー作成（exactOptionalPropertyTypes対応）
+    // ユーザー作成(exactOptionalPropertyTypes対応)
     const userData: {
       lineUserId: string;
       displayName: string;
@@ -88,11 +90,11 @@ export async function createUserAction(
 }
 
 /**
- * ユーザー更新アクション（管理者専用）
+ * ユーザー更新アクション(管理者専用)
  *
  * 更新可能なフィールド:
  * - displayName: 表示名
- * - role: ユーザー権限（ADMIN, MANAGER, MEMBER）
+ * - role: ユーザー権限(ADMIN, MANAGER, MEMBER)
  * - isActive: アクティブ状態
  *
  * 制限:
@@ -130,6 +132,8 @@ export async function updateUserAction(
     // バリデーション
     const validated = updateUserSchema.parse(input);
 
+    const prisma = await getPrisma();
+
     // ユーザー存在確認
     const existingUser = await prisma.user.findUnique({
       where: { id },
@@ -140,7 +144,7 @@ export async function updateUserAction(
       return { success: false, error: "User not found" };
     }
 
-    // 実際に提供されたフィールドのみを抽出（exactOptionalPropertyTypes対応）
+    // 実際に提供されたフィールドのみを抽出(exactOptionalPropertyTypes対応)
     const updateData: {
       displayName?: string;
       role?: "ADMIN" | "MANAGER" | "MEMBER";
@@ -178,7 +182,7 @@ export async function updateUserAction(
 }
 
 /**
- * ユーザー削除アクション（管理者専用）
+ * ユーザー削除アクション(管理者専用)
  *
  * 注意: 物理削除ではなく、isActive を false にする論理削除です。
  *
@@ -211,6 +215,8 @@ export async function deleteUserAction(
       };
     }
 
+    const prisma = await getPrisma();
+
     // ユーザー存在確認
     const existingUser = await prisma.user.findUnique({
       where: { id },
@@ -229,7 +235,7 @@ export async function deleteUserAction(
       };
     }
 
-    // ユーザー無効化（論理削除）
+    // ユーザー無効化(論理削除)
     await prisma.user.update({
       where: { id },
       data: { isActive: false },

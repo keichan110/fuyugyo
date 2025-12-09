@@ -1,5 +1,5 @@
 import { cache } from "react";
-import { prisma } from "@/lib/db";
+import { getPrisma } from "@/lib/db";
 import type { InstructorWithCertifications } from "./types";
 
 /**
@@ -8,7 +8,7 @@ import type { InstructorWithCertifications } from "./types";
  */
 export const getInstructors = cache(
   async (): Promise<InstructorWithCertifications[]> => {
-    const instructors = await prisma.instructor.findMany({
+    const instructors = await (await getPrisma()).instructor.findMany({
       include: {
         certifications: {
           include: {

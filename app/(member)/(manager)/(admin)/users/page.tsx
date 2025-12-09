@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { prisma } from "@/lib/db";
+import { getPrisma } from "@/lib/db";
 import { UserList } from "./_components/user-list";
 import { UserStats } from "./_components/user-stats";
 import { UserTableHeader } from "./_components/user-table-header";
@@ -94,7 +94,7 @@ async function UsersPageContent({ searchParams }: UsersPageProps) {
   // status === "all" の場合は条件を追加しない
 
   // サーバーサイドでデータ取得
-  const users = await prisma.user.findMany({
+  const users = await (await getPrisma()).user.findMany({
     where,
     select: {
       id: true,

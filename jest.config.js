@@ -12,9 +12,9 @@ const customJestConfig = {
     "**/*.(test|spec).(js|jsx|ts|tsx)",
   ],
   moduleNameMapper: {
-    "^@/(.*)$": "<rootDir>/$1",
-    "^@prisma/client$": "<rootDir>/generated/prisma/index.js",
     "^@prisma/adapter-d1$": "<rootDir>/__mocks__/@prisma/adapter-d1.ts",
+    "^@opennextjs/cloudflare$": "<rootDir>/__mocks__/@opennextjs/cloudflare.ts",
+    "^@/(.*)$": "<rootDir>/$1",
   },
   // Coverage settings
   collectCoverage: false,

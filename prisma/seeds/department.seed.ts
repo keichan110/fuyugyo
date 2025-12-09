@@ -1,4 +1,4 @@
-import type { PrismaClient } from "../../generated/prisma";
+import type { PrismaClient } from "@prisma/client";
 
 export interface DepartmentSeeds {
   skiDepartment: { id: number; code: string; name: string };

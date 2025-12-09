@@ -1,3 +1,4 @@
+import type { PrismaClient } from "@prisma/client";
 import { redirect } from "next/navigation";
 import MemberLayout from "@/app/(member)/layout";
 import {
@@ -9,7 +10,6 @@ import {
   getAvailableInstructors,
   getInstructorProfile,
 } from "@/lib/data/instructor";
-import { prisma } from "@/lib/db";
 
 // Mock dependencies
 jest.mock("next/navigation", () => ({
@@ -33,13 +33,15 @@ jest.mock("@/app/_components/header/header-authenticated", () => ({
   HeaderAuthenticated: () => null,
 }));
 
-jest.mock("@/lib/db", () => ({
-  prisma: {
-    instructor: {
-      findUnique: jest.fn(),
-      findMany: jest.fn(),
-    },
+const mockPrismaClient = {
+  instructor: {
+    findUnique: jest.fn(),
+    findMany: jest.fn(),
   },
+};
+
+jest.mock("@/lib/db", () => ({
+  getPrisma: jest.fn().mockResolvedValue(mockPrismaClient),
 }));
 
 jest.mock("@/lib/data/instructor", () => ({
@@ -59,10 +61,10 @@ type MockedGetAvailableInstructors = jest.MockedFunction<
   typeof getAvailableInstructors
 >;
 type MockedPrismaInstructorFindUnique = jest.MockedFunction<
-  typeof prisma.instructor.findUnique
+  PrismaClient["instructor"]["findUnique"]
 >;
 type MockedPrismaInstructorFindMany = jest.MockedFunction<
-  typeof prisma.instructor.findMany
+  PrismaClient["instructor"]["findMany"]
 >;
 
 describe("MemberLayout", () => {
@@ -74,10 +76,10 @@ describe("MemberLayout", () => {
     getInstructorProfile as MockedGetInstructorProfile;
   const mockGetAvailableInstructors =
     getAvailableInstructors as MockedGetAvailableInstructors;
-  const mockPrismaInstructorFindUnique = prisma.instructor
-    .findUnique as MockedPrismaInstructorFindUnique;
-  const mockPrismaInstructorFindMany = prisma.instructor
-    .findMany as MockedPrismaInstructorFindMany;
+  const mockPrismaInstructorFindUnique = mockPrismaClient.instructor
+    .findUnique as unknown as MockedPrismaInstructorFindUnique;
+  const mockPrismaInstructorFindMany = mockPrismaClient.instructor
+    .findMany as unknown as MockedPrismaInstructorFindMany;
 
   const mockUser = {
     id: "user_1",

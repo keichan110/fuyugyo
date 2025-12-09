@@ -37,12 +37,12 @@
 
 ```typescript
 // app/(dashboard)/instructors/page.tsx
-import { prisma } from '@/lib/db'
+import { getPrisma } from '@/lib/db'
 import { InstructorList } from '@/features/instructors/ui/instructor-list'
 
 export default async function InstructorsPage() {
   // Server Component で直接データ取得
-  const allInstructors = await prisma.instructor.findMany({
+  const allInstructors = await (await getPrisma()).instructor.findMany({
     include: {
       certifications: {
         include: {
@@ -98,7 +98,7 @@ export function getSearchParam(
 
 ```typescript
 // app/(dashboard)/instructors/page.tsx
-import { prisma } from '@/lib/db'
+import { getPrisma } from '@/lib/db'
 import { InstructorList } from '@/features/instructors/ui/instructor-list'
 import { InstructorFilters } from '@/features/instructors/ui/instructor-filters'
 import { getSearchParam } from '@/lib/utils/search-params'
@@ -147,7 +147,7 @@ export default async function InstructorsPage({
       : { lastName: order === 'desc' ? 'desc' : 'asc' }
 
   // データ取得
-  const filteredInstructors = await prisma.instructor.findMany({
+  const filteredInstructors = await (await getPrisma()).instructor.findMany({
     where,
     orderBy,
     include: {
@@ -259,12 +259,12 @@ export function InstructorFilters() {
 
 ```typescript
 // app/(dashboard)/instructors/page.tsx
-import { prisma } from '@/lib/db'
+import { getPrisma } from '@/lib/db'
 import { InstructorSearch } from '@/features/instructors/ui/instructor-search'
 
 export default async function InstructorsPage() {
   // ⚠️ 重要: センシティブな情報を除外し、公開可能なフィールドのみを取得
-  const allInstructors = await prisma.instructor.findMany({
+  const allInstructors = await (await getPrisma()).instructor.findMany({
     select: {
       id: true,
       lastName: true,
@@ -402,7 +402,7 @@ export function InstructorSearch({ initialInstructors }: Props) {
 // features/instructors/actions.ts
 'use server'
 
-import { prisma } from '@/lib/db'
+import { getPrisma } from '@/lib/db'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 
@@ -436,7 +436,7 @@ export async function createInstructor(formData: FormData) {
 
   // 2. DB 操作
   try {
-    await prisma.instructor.create({
+    await (await getPrisma()).instructor.create({
       data: result.data,
     })
 
@@ -472,7 +472,7 @@ export async function updateInstructor(id: number, formData: FormData) {
   }
 
   try {
-    await prisma.instructor.update({
+    await (await getPrisma()).instructor.update({
       where: { id },
       data: result.data,
     })
@@ -492,7 +492,7 @@ export async function updateInstructor(id: number, formData: FormData) {
 
 export async function deleteInstructor(id: number) {
   try {
-    await prisma.instructor.delete({
+    await (await getPrisma()).instructor.delete({
       where: { id },
     })
 
@@ -655,7 +655,7 @@ export default function Error({
 ```typescript
 // app/(dashboard)/instructors/page.tsx
 import { Suspense } from 'react'
-import { prisma } from '@/lib/db'
+import { getPrisma } from '@/lib/db'
 import { InstructorList } from '@/features/instructors/ui/instructor-list'
 import { InstructorListSkeleton } from '@/features/instructors/ui/instructor-list-skeleton'
 
@@ -673,7 +673,7 @@ export default function InstructorsPage() {
 }
 
 async function InstructorListAsync() {
-  const instructors = await prisma.instructor.findMany({
+  const instructors = await (await getPrisma()).instructor.findMany({
     include: {
       certifications: {
         include: {
@@ -696,7 +696,7 @@ async function InstructorListAsync() {
 
 ```typescript
 // app/(dashboard)/dashboard/page.tsx
-import { prisma } from '@/lib/db'
+import { getPrisma } from '@/lib/db'
 
 export default async function DashboardPage() {
   // 並列で取得
@@ -724,10 +724,10 @@ export default async function DashboardPage() {
 // features/instructors/queries/get-instructor.ts
 import { cache } from 'react'
 import 'server-only'
-import { prisma } from '@/lib/db'
+import { getPrisma } from '@/lib/db'
 
 export const getInstructor = cache(async (id: number) => {
-  const instructor = await prisma.instructor.findUnique({
+  const instructor = await (await getPrisma()).instructor.findUnique({
     where: { id },
     include: {
       certifications: {
@@ -786,10 +786,10 @@ export default async function InstructorDetailPage({
 // ❌ BAD: Client Component で DB アクセス
 'use client'
 
-import { prisma } from '@/lib/db' // エラー: クライアントでは動作しない
+import { getPrisma } from '@/lib/db' // エラー: クライアントでは動作しない
 
 export function BadComponent() {
-  const data = await prisma.user.findMany() // エラー
+  const data = await (await getPrisma()).user.findMany() // エラー
   return <div>{data}</div>
 }
 ```
@@ -800,7 +800,7 @@ export function BadComponent() {
 // ❌ BAD: 内部だけで使うのに Route Handler を作成
 // app/api/instructors/route.ts
 export async function GET() {
-  const instructors = await prisma.instructor.findMany()
+  const instructors = await (await getPrisma()).instructor.findMany()
   return Response.json(instructors)
 }
 
@@ -815,7 +815,7 @@ export default async function Page() {
 ```typescript
 // ✅ GOOD: Server Component で直接取得
 export default async function Page() {
-  const instructors = await prisma.instructor.findMany()
+  const instructors = await (await getPrisma()).instructor.findMany()
   return <List instructors={instructors} />
 }
 ```
@@ -848,10 +848,10 @@ export default async function GoodPage({ searchParams }) {
 // ❌ BAD: revalidatePath を呼ばない
 'use server'
 
-import { prisma } from '@/lib/db'
+import { getPrisma } from '@/lib/db'
 
 export async function createInstructor(data: InstructorData) {
-  await prisma.instructor.create({
+  await (await getPrisma()).instructor.create({
     data,
   })
   // revalidatePath を呼ばないと、古いデータが表示され続ける
@@ -863,11 +863,11 @@ export async function createInstructor(data: InstructorData) {
 // ✅ GOOD: revalidatePath を呼ぶ
 'use server'
 
-import { prisma } from '@/lib/db'
+import { getPrisma } from '@/lib/db'
 import { revalidatePath } from 'next/cache'
 
 export async function createInstructor(data: InstructorData) {
-  await prisma.instructor.create({
+  await (await getPrisma()).instructor.create({
     data,
   })
   revalidatePath('/instructors') // キャッシュを再検証
@@ -995,13 +995,13 @@ export default async function Page({ searchParams }: PageProps) {
   const page = Number.parseInt(pageParam || '1')
   const perPage = 20
 
-  const instructors = await prisma.instructor.findMany({
+  const instructors = await (await getPrisma()).instructor.findMany({
     take: perPage,
     skip: (page - 1) * perPage,
     orderBy: { lastName: 'asc' },
   })
 
-  const totalCount = await prisma.instructor.count()
+  const totalCount = await (await getPrisma()).instructor.count()
 
   return (
     <div>

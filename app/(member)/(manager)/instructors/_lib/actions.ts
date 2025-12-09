@@ -1,7 +1,7 @@
 "use server";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { requireManagerAuth } from "@/lib/auth/role-guard";
-import { prisma } from "@/lib/db";
+import { getPrisma } from "@/lib/db";
 import type { ActionResult } from "@/types/actions";
 import {
   type CreateInstructorInput,
@@ -25,7 +25,7 @@ export async function createInstructorAction(
     const { certificationIds, ...instructorData } = validated;
 
     // トランザクション: インストラクター作成 + 資格紐付け
-    const instructor = await prisma.$transaction(async (tx) => {
+    const instructor = await (await getPrisma()).$transaction(async (tx) => {
       // インストラクター作成
       const newInstructor = await tx.instructor.create({
         data: instructorData,
@@ -86,7 +86,7 @@ export async function updateInstructorAction(
     const { certificationIds, ...instructorData } = validated;
 
     // トランザクション: インストラクター更新 + 資格再設定
-    const instructor = await prisma.$transaction(async (tx) => {
+    const instructor = await (await getPrisma()).$transaction(async (tx) => {
       // インストラクター更新
       await tx.instructor.update({
         where: { id },
@@ -149,7 +149,7 @@ export async function deleteInstructorAction(
     await requireManagerAuth();
 
     // 論理削除（status = INACTIVE）
-    await prisma.instructor.update({
+    await (await getPrisma()).instructor.update({
       where: { id },
       data: { status: "INACTIVE" },
     });

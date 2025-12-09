@@ -1,7 +1,7 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { requireManagerAuth } from "@/lib/auth/role-guard";
-import { prisma } from "@/lib/db";
+import { getPrisma } from "@/lib/db";
 import type { ActionResult } from "@/types/actions";
 import { getCertifications, getDepartmentIdByType } from "./queries";
 import {
@@ -26,7 +26,7 @@ export async function createCertificationAction(
     const validated = createCertificationSchema.parse(input);
 
     // DB操作
-    const certification = await prisma.certification.create({
+    const certification = await (await getPrisma()).certification.create({
       data: validated,
       include: {
         department: {
@@ -60,7 +60,7 @@ export async function updateCertificationAction(
 
     const validated = updateCertificationSchema.parse(input);
 
-    const certification = await prisma.certification.update({
+    const certification = await (await getPrisma()).certification.update({
       where: { id },
       data: validated,
       include: {
@@ -92,7 +92,7 @@ export async function deleteCertificationAction(
     await requireManagerAuth();
 
     // 論理削除（isActive = false）
-    await prisma.certification.update({
+    await (await getPrisma()).certification.update({
       where: { id },
       data: { isActive: false },
     });

@@ -1,5 +1,5 @@
 import { faker } from "@faker-js/faker/locale/ja";
-import type { PrismaClient } from "../../generated/prisma";
+import type { Instructor, PrismaClient } from "@prisma/client";
 
 export interface InstructorSeed {
   id: number;
@@ -49,10 +49,14 @@ export async function seedInstructors(
     instructorData.map((data) => prisma.instructor.create({ data }))
   );
 
-  const activeCount = instructors.filter((i) => i.status === "ACTIVE").length;
-  const retiredCount = instructors.filter((i) => i.status === "RETIRED").length;
+  const activeCount = instructors.filter(
+    (i: Instructor) => i.status === "ACTIVE"
+  ).length;
+  const retiredCount = instructors.filter(
+    (i: Instructor) => i.status === "RETIRED"
+  ).length;
   const inactiveCount = instructors.filter(
-    (i) => i.status === "INACTIVE"
+    (i: Instructor) => i.status === "INACTIVE"
   ).length;
 
   console.log(

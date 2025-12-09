@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { getPrisma } from "@/lib/db";
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -23,7 +23,7 @@ export async function GET(_request: NextRequest, context: RouteContext) {
       );
     }
 
-    const certification = await prisma.certification.findUnique({
+    const certification = await (await getPrisma()).certification.findUnique({
       where: { id: certificationId },
       include: {
         department: {

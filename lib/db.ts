@@ -27,24 +27,3 @@ export const getPrisma = cache(async () => {
   // ローカル開発環境では通常のPrismaClientを使用
   return new PrismaClient();
 });
-
-/**
- * @deprecated
- * Use getPrisma() instead. This export only exists for backwards compatibility.
- * The synchronous prisma instance does not support Cloudflare D1 adapter.
- *
- * Migration completed: All usage has been migrated to getPrisma().
- * This export will be removed in a future version.
- */
-const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined;
-};
-
-/**
- * @deprecated Use getPrisma() instead
- */
-export const prisma = globalForPrisma.prisma ?? new PrismaClient();
-
-if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.prisma = prisma;
-}

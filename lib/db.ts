@@ -1,7 +1,6 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { PrismaD1 } from "@prisma/adapter-d1";
 import { PrismaClient } from "@prisma/client";
-import { cache } from "react";
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
@@ -20,21 +19,33 @@ if (process.env.NODE_ENV !== "production") {
  * OpenNext Cloudflare公式ドキュメントに基づく実装
  * https://opennext.js.org/cloudflare/howtos/db
  */
-export const getPrisma = cache(async (): Promise<PrismaClient> => {
+export async function getPrisma(): Promise<PrismaClient> {
   // Cloudflare Workers環境ではD1アダプターを使用
-  if (process.env.CF_PAGES || process.env.CLOUDFLARE_CONTEXT) {
-    const { env } = await getCloudflareContext();
-    const db = env.DB;
-    if (!db) {
+  try {
+    const cloudflareContext = await getCloudflareContext();
+    if (cloudflareContext?.env?.DB) {
+      const { env } = cloudflareContext;
+      const adapter = new PrismaD1(env.DB);
+      return new PrismaClient({ adapter });
+    }
+    if (cloudflareContext) {
+      // Cloudflare環境だがDBバインディングがない場合は設定エラー
       throw new Error(
-        "D1 database binding not found in Cloudflare environment. " +
-          "Ensure DB binding is configured in wrangler.toml or Pages settings."
+        "Cloudflare context found, but D1 database binding 'DB' is missing. " +
+          "Ensure it is configured in wrangler.toml or Pages project settings."
       );
     }
-    const adapter = new PrismaD1(db);
-    return new PrismaClient({ adapter });
+  } catch (error) {
+    // Cloudflare環境での設定エラーは再スロー
+    if (
+      error instanceof Error &&
+      error.message.includes("D1 database binding")
+    ) {
+      throw error;
+    }
+    // getCloudflareContext()が失敗した場合はローカル環境と判断
   }
 
   // ローカル開発環境ではシングルトンインスタンスを返す
   return prisma;
-});
+}

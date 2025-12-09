@@ -1,4 +1,4 @@
-import type { PrismaClient } from "../../generated/prisma";
+import type { PrismaClient } from "@prisma/client";
 import type { CertificationSeeds } from "./certification.seed";
 import type { InstructorSeed } from "./instructor.seed";
 

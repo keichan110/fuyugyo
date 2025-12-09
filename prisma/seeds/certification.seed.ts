@@ -1,4 +1,4 @@
-import type { PrismaClient } from "../../generated/prisma";
+import type { PrismaClient } from "@prisma/client";
 import type { DepartmentSeeds } from "./department.seed";
 
 export interface CertificationSeeds {

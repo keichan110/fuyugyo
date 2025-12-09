@@ -1,5 +1,5 @@
+import type { PrismaClient } from "@prisma/client";
 import { isHoliday } from "japanese-holidays";
-import type { PrismaClient } from "../../generated/prisma";
 import type { DepartmentSeeds } from "./department.seed";
 import type { ShiftTypeSeeds } from "./shiftType.seed";
 

@@ -7,8 +7,8 @@ compatibility_flags = ["nodejs_compat"]
 [[d1_databases]]
 binding = "DB"
 database_name = "fuyugyo"
-database_id = "a39eae08-e034-45a3-b85a-d7e9d1b57c30"
-migrations_dir = "prisma/migrations"
+database_id = "8a945c24-aea6-49f5-aca3-92dcd4203949"
+migrations_dir = "prisma/migrations_d1"
 
 # 静的アセット設定
 [assets]

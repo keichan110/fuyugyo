@@ -79,6 +79,9 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: deploy
 
+      - name: Prepare D1 migrations
+        run: node scripts/prepare-d1-migrations.js
+
       - name: Apply database migrations
         id: migrate
         run: npx wrangler d1 migrations apply fuyugyo --remote

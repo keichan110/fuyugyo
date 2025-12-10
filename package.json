@@ -33,8 +33,7 @@
     "db:studio": "prisma studio",
     "db:seed": "tsx prisma/seed.ts",
     "wrangler:login": "wrangler login",
-    "cf:d1:create": "wrangler d1 create fuyugyo",
-    "cf:d1:migrations:apply:local": "wrangler d1 migrations apply fuyugyo --local"
+    "cf:d1:create": "wrangler d1 create fuyugyo"
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.10",

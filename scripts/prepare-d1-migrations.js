@@ -3,7 +3,7 @@
  * Prismaのマイグレーションをフラット化してWrangler D1用に準備するスクリプト
  *
  * Prisma: prisma/migrations/TIMESTAMP_name/migration.sql
- * D1:     prisma/migrations_flat/TIMESTAMP_name.sql
+ * D1:     prisma/migrations_d1/TIMESTAMP_name.sql
  */
 
 const fs = require("node:fs");

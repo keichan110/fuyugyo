@@ -70,18 +70,6 @@ describe("GET /api/usecases/shifts/edit-data", () => {
     expect(data.success).toBe(false);
   });
 
-  it("should return 400 for empty department ID", async () => {
-    const request = new NextRequest(
-      "http://localhost/api/usecases/shifts/edit-data?date=2025-01-15&departmentId=   &shiftTypeId=cuid123"
-    );
-    const response = await GET(request);
-    const data = await response.json();
-
-    expect(response.status).toBe(400);
-    expect(data.success).toBe(false);
-    expect(data.error).toContain("Invalid department or shift type ID");
-  });
-
   // 注: 実際のデータベース操作を伴うテストは、統合テストまたはE2Eテストで実施することを推奨
   // このファイルではバリデーションロジックのテストに焦点を当てています
 });

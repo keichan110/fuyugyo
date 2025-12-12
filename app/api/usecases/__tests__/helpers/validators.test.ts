@@ -1,54 +1,7 @@
 import {
   validateDateString,
   validateRequiredParams,
-  validateStringId,
 } from "../../helpers/validators";
-
-describe("validateStringId", () => {
-  it("should validate valid CUID string", () => {
-    const result = validateStringId("cltest123456789");
-
-    expect(result.isValid).toBe(true);
-    expect(result.parsedValue).toBe("cltest123456789");
-    expect(result.error).toBeNull();
-  });
-
-  it("should validate any non-empty string", () => {
-    const result = validateStringId("abc123");
-
-    expect(result.isValid).toBe(true);
-    expect(result.parsedValue).toBe("abc123");
-    expect(result.error).toBeNull();
-  });
-
-  it("should reject empty string", () => {
-    const result = validateStringId("");
-
-    expect(result.isValid).toBe(false);
-    expect(result.parsedValue).toBeNull();
-    expect(result.error).toBe(
-      'Invalid ID format: expected non-empty string, got ""'
-    );
-  });
-
-  it("should reject string with only spaces", () => {
-    const result = validateStringId("   ");
-
-    expect(result.isValid).toBe(false);
-    expect(result.parsedValue).toBeNull();
-    expect(result.error).toBe(
-      'Invalid ID format: expected non-empty string, got "   "'
-    );
-  });
-
-  it("should validate string with spaces (not trimmed)", () => {
-    const result = validateStringId("cl test 123");
-
-    expect(result.isValid).toBe(true);
-    expect(result.parsedValue).toBe("cl test 123");
-    expect(result.error).toBeNull();
-  });
-});
 
 describe("validateDateString", () => {
   it("should validate valid date string", () => {

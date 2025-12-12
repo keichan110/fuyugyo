@@ -1,30 +1,4 @@
 /**
- * パスパラメータの文字列ID（CUID）をバリデーション
- *
- * @param value - パラメータ文字列
- * @returns バリデーション結果とエラーメッセージ
- */
-export function validateStringId(value: string): {
-  isValid: boolean;
-  parsedValue: string | null;
-  error: string | null;
-} {
-  if (value.trim().length === 0) {
-    return {
-      isValid: false,
-      parsedValue: null,
-      error: `Invalid ID format: expected non-empty string, got "${value}"`,
-    };
-  }
-
-  return {
-    isValid: true,
-    parsedValue: value,
-    error: null,
-  };
-}
-
-/**
  * 日付文字列をバリデーションしてパース
  *
  * @param value - 日付文字列 (YYYY-MM-DD形式を想定)

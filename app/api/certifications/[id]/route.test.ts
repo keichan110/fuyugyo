@@ -92,7 +92,7 @@ describe("GET /api/certifications/[id]", () => {
   });
 
   describe("正常系", () => {
-    it("資格詳細データがインストラクター情報付きで正しく返されること", async () => {
+    it("資格詳細データが部門情報付きで正しく返されること", async () => {
       // Arrange
       const mockCertificationFromDb = {
         id: "test-cert-1",
@@ -108,54 +108,6 @@ describe("GET /api/certifications/[id]", () => {
           id: "test-dept-1",
           name: "スキー",
         },
-        instructorCertifications: [
-          {
-            instructor: {
-              id: "test-inst-1",
-              lastName: "山田",
-              firstName: "太郎",
-              status: "ACTIVE",
-            },
-          },
-          {
-            instructor: {
-              id: "test-inst-2",
-              lastName: "鈴木",
-              firstName: "花子",
-              status: "ACTIVE",
-            },
-          },
-        ],
-      };
-
-      const _expectedResponse = {
-        id: "test-cert-1",
-        departmentId: "test-dept-1",
-        name: "スキー指導員",
-        shortName: "指導員",
-        organization: "SAJ",
-        description: "スキー指導員資格",
-        isActive: true,
-        createdAt: new Date("2024-01-01"),
-        updatedAt: new Date("2024-01-01"),
-        department: {
-          id: "test-dept-1",
-          name: "スキー",
-        },
-        instructors: [
-          {
-            id: "test-inst-1",
-            lastName: "山田",
-            firstName: "太郎",
-            status: "ACTIVE",
-          },
-          {
-            id: "test-inst-2",
-            lastName: "鈴木",
-            firstName: "花子",
-            status: "ACTIVE",
-          },
-        ],
       };
 
       mockCertificationFindUnique.mockResolvedValue(mockCertificationFromDb);
@@ -189,7 +141,7 @@ describe("GET /api/certifications/[id]", () => {
       });
     });
 
-    it("インストラクターが関連付けられていない資格でも正しく返されること", async () => {
+    it("説明がnullの資格でも正しく返されること", async () => {
       // Arrange
       const mockCertificationFromDb = {
         id: "test-cert-2",
@@ -205,24 +157,6 @@ describe("GET /api/certifications/[id]", () => {
           id: "test-dept-2",
           name: "スノーボード",
         },
-        instructorCertifications: [],
-      };
-
-      const _expectedResponse = {
-        id: "test-cert-2",
-        departmentId: "test-dept-2",
-        name: "スノーボード指導員",
-        shortName: "指導員",
-        organization: "JSBA",
-        description: null,
-        isActive: true,
-        createdAt: new Date("2024-01-01"),
-        updatedAt: new Date("2024-01-01"),
-        department: {
-          id: "test-dept-2",
-          name: "スノーボード",
-        },
-        instructors: [],
       };
 
       mockCertificationFindUnique.mockResolvedValue(mockCertificationFromDb);
@@ -365,7 +299,6 @@ describe("GET /api/certifications/[id]", () => {
         createdAt: new Date("2024-01-01"),
         updatedAt: new Date("2024-01-01"),
         department: { id: "test-dept-1", name: "Test Dept" },
-        instructorCertifications: [],
       };
       mockCertificationFindUnique.mockResolvedValue(mockCertificationFromDb);
 

@@ -9,7 +9,7 @@ export function validateStringId(value: string): {
   parsedValue: string | null;
   error: string | null;
 } {
-  if (!value || typeof value !== "string" || value.trim().length === 0) {
+  if (value.trim().length === 0) {
     return {
       isValid: false,
       parsedValue: null,

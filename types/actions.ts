@@ -32,8 +32,8 @@ export type AuthenticatedUser = {
   pictureUrl: string | null;
   /** ユーザー権限 */
   role: "ADMIN" | "MANAGER" | "MEMBER";
-  /** 紐付けられたインストラクターID */
-  instructorId: number | null;
+  /** 紐付けられたインストラクターID (cuid形式) */
+  instructorId: string | null;
   /** アクティブフラグ（権限チェックで使用） */
   isActive: boolean;
   /** 作成日時 */
@@ -47,7 +47,7 @@ export type AuthenticatedUser = {
  * ダイアログでの選択肢表示用
  */
 export type InstructorBasicInfo = {
-  id: number;
+  id: string;
   lastName: string;
   firstName: string;
   lastNameKana: string | null;
@@ -60,14 +60,14 @@ export type InstructorBasicInfo = {
  * プロフィール表示用
  */
 export type UserInstructorProfile = {
-  id: number;
+  id: string;
   lastName: string;
   firstName: string;
   lastNameKana: string | null;
   firstNameKana: string | null;
   status: string;
   certifications: {
-    id: number;
+    id: string;
     name: string;
     shortName: string;
     organization: string;

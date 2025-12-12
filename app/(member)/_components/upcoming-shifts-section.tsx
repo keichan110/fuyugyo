@@ -28,7 +28,7 @@ import { ShiftCard } from "./shift-card";
 
 type UpcomingShiftsSectionProps = {
   shifts: Array<{
-    id: number;
+    id: string;
     date: Date;
     department: {
       code: string;

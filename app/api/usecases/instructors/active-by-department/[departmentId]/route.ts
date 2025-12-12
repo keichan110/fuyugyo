@@ -5,7 +5,7 @@ import {
   formatInstructorDisplayNameKana,
 } from "@/app/api/usecases/helpers/formatters";
 import { instructorWithCertificationsSelect } from "@/app/api/usecases/helpers/query-optimizers";
-import { validateNumericId } from "@/app/api/usecases/helpers/validators";
+import { validateStringId } from "@/app/api/usecases/helpers/validators";
 import type { ActiveInstructorsByDepartmentResponse } from "@/app/api/usecases/types/responses";
 import { logApiError } from "@/lib/api/error-handlers";
 import { withAuth } from "@/lib/auth/middleware";
@@ -33,7 +33,7 @@ import { getPrisma } from "@/lib/db";
  *   data: {
  *     instructors: [
  *       {
- *         id: 1,
+ *         id: "cltest123456789",
  *         displayName: "山田 太郎",
  *         displayNameKana: "ヤマダ タロウ",
  *         status: "ACTIVE",
@@ -41,7 +41,7 @@ import { getPrisma } from "@/lib/db";
  *       }
  *     ],
  *     metadata: {
- *       departmentId: 1,
+ *       departmentId: "cltest123456789",
  *       departmentName: "スキー",
  *       totalCount: 12,
  *       activeCount: 12
@@ -91,7 +91,7 @@ export async function GET(
   try {
     const { departmentId: departmentIdParam } = await params;
 
-    const validation = validateNumericId(departmentIdParam);
+    const validation = validateStringId(departmentIdParam);
     if (!validation.isValid || validation.parsedValue === null) {
       const STATUS_BAD_REQUEST = 400;
       return NextResponse.json(

@@ -23,9 +23,9 @@ export async function GET(
     // パラメータを解決
     const resolvedParams = await params;
 
-    // IDパラメータの検証
-    const id = Number.parseInt(resolvedParams.id, 10);
-    if (Number.isNaN(id)) {
+    // IDパラメータの検証（CUIDは文字列形式）
+    const id = resolvedParams.id;
+    if (!id || typeof id !== "string") {
       return NextResponse.json(
         {
           success: false,

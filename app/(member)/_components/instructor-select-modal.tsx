@@ -27,7 +27,7 @@ type InstructorSelectModalProps = {
   instructors: InstructorBasicInfo[];
   onSuccess: () => void;
   /** 現在紐づけられているインストラクターID (紐付け解除ボタンの表示制御に使用) */
-  currentInstructorId?: number | null;
+  currentInstructorId?: string | null;
 };
 
 /**
@@ -71,7 +71,7 @@ export function InstructorSelectModal({
   // モーダルが開いたときに現在のインストラクターIDをセット
   useEffect(() => {
     if (open && currentInstructorId) {
-      setSelectedId(currentInstructorId.toString());
+      setSelectedId(currentInstructorId);
     } else if (open && !currentInstructorId) {
       setSelectedId("");
     }
@@ -92,7 +92,7 @@ export function InstructorSelectModal({
 
     setErrorMessage(null);
     startTransition(async () => {
-      const result = await linkMyInstructor(Number(selectedId));
+      const result = await linkMyInstructor(selectedId);
 
       if (result.success) {
         handleSuccess();
@@ -134,10 +134,7 @@ export function InstructorSelectModal({
               </SelectTrigger>
               <SelectContent>
                 {instructors.map((instructor) => (
-                  <SelectItem
-                    key={instructor.id}
-                    value={instructor.id.toString()}
-                  >
+                  <SelectItem key={instructor.id} value={instructor.id}>
                     {instructor.lastName} {instructor.firstName}
                     {instructor.lastNameKana && (
                       <span className="text-muted-foreground text-sm">

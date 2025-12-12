@@ -58,7 +58,7 @@ describe("ShiftCalendarGrid", () => {
           count: 2,
           assignedInstructors: [
             {
-              id: 1,
+              id: "test-instructor-1",
               lastName: "山田",
               firstName: "太郎",
               displayName: "山田 太郎",

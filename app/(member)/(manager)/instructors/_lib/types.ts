@@ -9,12 +9,12 @@ export interface InstructorWithCertifications
   createdAt: string; // Date → ISO 8601 string
   updatedAt: string; // Date → ISO 8601 string
   certifications: {
-    id: number;
+    id: string;
     name: string;
     shortName: string | null;
     organization: string;
     department: {
-      id: number;
+      id: string;
       code: string;
       name: string;
     };
@@ -35,7 +35,7 @@ export type InstructorFormData = {
   firstNameKana?: string;
   status: "active" | "inactive" | "retired";
   notes?: string;
-  certificationIds?: number[];
+  certificationIds?: string[];
 };
 
 export type InstructorModalProps = {

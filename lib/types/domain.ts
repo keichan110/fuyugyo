@@ -20,7 +20,7 @@
  */
 export type DepartmentMinimal = {
   /** 部門ID */
-  id: number;
+  id: string;
   /** 部門名 */
   name: string;
   /** 部門コード（例: "SKI", "SNOWBOARD"） */
@@ -36,7 +36,7 @@ export type DepartmentMinimal = {
  */
 export type ShiftTypeMinimal = {
   /** シフト種別ID */
-  id: number;
+  id: string;
   /** シフト種別名（例: "午前", "午後"） */
   name: string;
   /** 有効/無効フラグ */

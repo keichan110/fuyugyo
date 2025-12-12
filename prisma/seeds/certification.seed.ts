@@ -2,9 +2,9 @@ import type { PrismaClient } from "@prisma/client";
 import type { DepartmentSeeds } from "./department.seed";
 
 export interface CertificationSeeds {
-  skiCertifications: Array<{ id: number; name: string; shortName: string }>;
+  skiCertifications: Array<{ id: string; name: string; shortName: string }>;
   snowboardCertifications: Array<{
-    id: number;
+    id: string;
     name: string;
     shortName: string;
   }>;

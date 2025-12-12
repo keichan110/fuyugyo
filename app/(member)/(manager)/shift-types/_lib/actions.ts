@@ -45,7 +45,7 @@ export async function createShiftTypeAction(
  * シフト種別更新アクション
  */
 export async function updateShiftTypeAction(
-  id: number,
+  id: string,
   input: UpdateShiftTypeInput
 ): Promise<ActionResult<unknown>> {
   try {
@@ -76,7 +76,7 @@ export async function updateShiftTypeAction(
  * シフト種別削除アクション（論理削除）
  */
 export async function deleteShiftTypeAction(
-  id: number
+  id: string
 ): Promise<ActionResult<void>> {
   try {
     // 認証・権限チェック（マネージャー以上）

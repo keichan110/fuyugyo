@@ -12,8 +12,8 @@ import {
 import { instructorWithCertificationsSelect } from "../../helpers/query-optimizers";
 import {
   validateDateString,
-  validateNumericId,
   validateRequiredParams,
+  validateStringId,
 } from "../../helpers/validators";
 import type { ShiftEditDataResponse } from "../../types/responses";
 
@@ -113,8 +113,8 @@ export async function GET(
     }
 
     // IDのバリデーション
-    const deptIdValidation = validateNumericId(departmentId as string);
-    const shiftTypeIdValidation = validateNumericId(shiftTypeId as string);
+    const deptIdValidation = validateStringId(departmentId as string);
+    const shiftTypeIdValidation = validateStringId(shiftTypeId as string);
 
     if (
       !deptIdValidation.isValid ||

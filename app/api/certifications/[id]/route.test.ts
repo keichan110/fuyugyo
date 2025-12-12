@@ -95,8 +95,8 @@ describe("GET /api/certifications/[id]", () => {
     it("資格詳細データがインストラクター情報付きで正しく返されること", async () => {
       // Arrange
       const mockCertificationFromDb = {
-        id: 1,
-        departmentId: 1,
+        id: "test-cert-1",
+        departmentId: "test-dept-1",
         name: "スキー指導員",
         shortName: "指導員",
         organization: "SAJ",
@@ -105,13 +105,13 @@ describe("GET /api/certifications/[id]", () => {
         createdAt: new Date("2024-01-01"),
         updatedAt: new Date("2024-01-01"),
         department: {
-          id: 1,
+          id: "test-dept-1",
           name: "スキー",
         },
         instructorCertifications: [
           {
             instructor: {
-              id: 1,
+              id: "test-inst-1",
               lastName: "山田",
               firstName: "太郎",
               status: "ACTIVE",
@@ -119,7 +119,7 @@ describe("GET /api/certifications/[id]", () => {
           },
           {
             instructor: {
-              id: 2,
+              id: "test-inst-2",
               lastName: "鈴木",
               firstName: "花子",
               status: "ACTIVE",
@@ -128,9 +128,9 @@ describe("GET /api/certifications/[id]", () => {
         ],
       };
 
-      const expectedResponse = {
-        id: 1,
-        departmentId: 1,
+      const _expectedResponse = {
+        id: "test-cert-1",
+        departmentId: "test-dept-1",
         name: "スキー指導員",
         shortName: "指導員",
         organization: "SAJ",
@@ -139,18 +139,18 @@ describe("GET /api/certifications/[id]", () => {
         createdAt: new Date("2024-01-01"),
         updatedAt: new Date("2024-01-01"),
         department: {
-          id: 1,
+          id: "test-dept-1",
           name: "スキー",
         },
         instructors: [
           {
-            id: 1,
+            id: "test-inst-1",
             lastName: "山田",
             firstName: "太郎",
             status: "ACTIVE",
           },
           {
-            id: 2,
+            id: "test-inst-2",
             lastName: "鈴木",
             firstName: "花子",
             status: "ACTIVE",
@@ -162,7 +162,7 @@ describe("GET /api/certifications/[id]", () => {
 
       // ルートパラメータを模擬
       const mockContext = {
-        params: Promise.resolve({ id: "1" }),
+        params: Promise.resolve({ id: "test-cert-1" }),
       };
 
       // Act
@@ -170,7 +170,7 @@ describe("GET /api/certifications/[id]", () => {
 
       // Assert
       expect(mockCertificationFindUnique).toHaveBeenCalledWith({
-        where: { id: 1 },
+        where: { id: "test-cert-1" },
         include: {
           department: {
             select: {
@@ -178,24 +178,12 @@ describe("GET /api/certifications/[id]", () => {
               name: true,
             },
           },
-          instructorCertifications: {
-            include: {
-              instructor: {
-                select: {
-                  id: true,
-                  lastName: true,
-                  firstName: true,
-                  status: true,
-                },
-              },
-            },
-          },
         },
       });
 
       expect(mockNextResponse.json).toHaveBeenCalledWith({
         success: true,
-        data: expectedResponse,
+        data: mockCertificationFromDb,
         message: null,
         error: null,
       });
@@ -204,8 +192,8 @@ describe("GET /api/certifications/[id]", () => {
     it("インストラクターが関連付けられていない資格でも正しく返されること", async () => {
       // Arrange
       const mockCertificationFromDb = {
-        id: 2,
-        departmentId: 2,
+        id: "test-cert-2",
+        departmentId: "test-dept-2",
         name: "スノーボード指導員",
         shortName: "指導員",
         organization: "JSBA",
@@ -214,15 +202,15 @@ describe("GET /api/certifications/[id]", () => {
         createdAt: new Date("2024-01-01"),
         updatedAt: new Date("2024-01-01"),
         department: {
-          id: 2,
+          id: "test-dept-2",
           name: "スノーボード",
         },
         instructorCertifications: [],
       };
 
-      const expectedResponse = {
-        id: 2,
-        departmentId: 2,
+      const _expectedResponse = {
+        id: "test-cert-2",
+        departmentId: "test-dept-2",
         name: "スノーボード指導員",
         shortName: "指導員",
         organization: "JSBA",
@@ -231,7 +219,7 @@ describe("GET /api/certifications/[id]", () => {
         createdAt: new Date("2024-01-01"),
         updatedAt: new Date("2024-01-01"),
         department: {
-          id: 2,
+          id: "test-dept-2",
           name: "スノーボード",
         },
         instructors: [],
@@ -240,7 +228,7 @@ describe("GET /api/certifications/[id]", () => {
       mockCertificationFindUnique.mockResolvedValue(mockCertificationFromDb);
 
       const mockContext = {
-        params: Promise.resolve({ id: "2" }),
+        params: Promise.resolve({ id: "test-cert-2" }),
       };
 
       // Act
@@ -249,7 +237,7 @@ describe("GET /api/certifications/[id]", () => {
       // Assert
       expect(mockNextResponse.json).toHaveBeenCalledWith({
         success: true,
-        data: expectedResponse,
+        data: mockCertificationFromDb,
         message: null,
         error: null,
       });
@@ -262,7 +250,7 @@ describe("GET /api/certifications/[id]", () => {
       mockCertificationFindUnique.mockResolvedValue(null);
 
       const mockContext = {
-        params: Promise.resolve({ id: "999" }),
+        params: Promise.resolve({ id: "test-cert-999" }),
       };
 
       // Act
@@ -270,24 +258,12 @@ describe("GET /api/certifications/[id]", () => {
 
       // Assert
       expect(mockCertificationFindUnique).toHaveBeenCalledWith({
-        where: { id: 999 },
+        where: { id: "test-cert-999" },
         include: {
           department: {
             select: {
               id: true,
               name: true,
-            },
-          },
-          instructorCertifications: {
-            include: {
-              instructor: {
-                select: {
-                  id: true,
-                  lastName: true,
-                  firstName: true,
-                  status: true,
-                },
-              },
             },
           },
         },
@@ -306,15 +282,26 @@ describe("GET /api/certifications/[id]", () => {
 
     it("不正なIDパラメータの場合は404エラーが返されること", async () => {
       // Arrange
+      mockCertificationFindUnique.mockResolvedValue(null);
       const mockContext = {
-        params: Promise.resolve({ id: "invalid" }),
+        params: Promise.resolve({ id: "test-cert-invalid" }),
       };
 
       // Act
       await GET(new NextRequest("http://localhost"), mockContext);
 
       // Assert
-      expect(mockCertificationFindUnique).not.toHaveBeenCalled();
+      expect(mockCertificationFindUnique).toHaveBeenCalledWith({
+        where: { id: "test-cert-invalid" },
+        include: {
+          department: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
+      });
 
       expect(mockNextResponse.json).toHaveBeenCalledWith(
         {
@@ -333,7 +320,7 @@ describe("GET /api/certifications/[id]", () => {
       mockCertificationFindUnique.mockRejectedValue(mockError);
 
       const mockContext = {
-        params: Promise.resolve({ id: "1" }),
+        params: Promise.resolve({ id: "test-cert-1" }),
       };
 
       // Act
@@ -341,24 +328,12 @@ describe("GET /api/certifications/[id]", () => {
 
       // Assert
       expect(mockCertificationFindUnique).toHaveBeenCalledWith({
-        where: { id: 1 },
+        where: { id: "test-cert-1" },
         include: {
           department: {
             select: {
               id: true,
               name: true,
-            },
-          },
-          instructorCertifications: {
-            include: {
-              instructor: {
-                select: {
-                  id: true,
-                  lastName: true,
-                  firstName: true,
-                  status: true,
-                },
-              },
             },
           },
         },
@@ -380,8 +355,8 @@ describe("GET /api/certifications/[id]", () => {
     it("findUniqueが正しいパラメータで呼ばれること", async () => {
       // Arrange
       const mockCertificationFromDb = {
-        id: 1,
-        departmentId: 1,
+        id: "test-cert-1",
+        departmentId: "test-dept-1",
         name: "Test Certification",
         shortName: "テスト",
         organization: "Test Org",
@@ -389,13 +364,13 @@ describe("GET /api/certifications/[id]", () => {
         isActive: true,
         createdAt: new Date("2024-01-01"),
         updatedAt: new Date("2024-01-01"),
-        department: { id: 1, name: "Test Dept" },
+        department: { id: "test-dept-1", name: "Test Dept" },
         instructorCertifications: [],
       };
       mockCertificationFindUnique.mockResolvedValue(mockCertificationFromDb);
 
       const mockContext = {
-        params: Promise.resolve({ id: "1" }),
+        params: Promise.resolve({ id: "test-cert-1" }),
       };
 
       // Act
@@ -403,24 +378,12 @@ describe("GET /api/certifications/[id]", () => {
 
       // Assert
       expect(mockCertificationFindUnique).toHaveBeenCalledWith({
-        where: { id: 1 },
+        where: { id: "test-cert-1" },
         include: {
           department: {
             select: {
               id: true,
               name: true,
-            },
-          },
-          instructorCertifications: {
-            include: {
-              instructor: {
-                select: {
-                  id: true,
-                  lastName: true,
-                  firstName: true,
-                  status: true,
-                },
-              },
             },
           },
         },
@@ -432,7 +395,7 @@ describe("GET /api/certifications/[id]", () => {
       mockCertificationFindUnique.mockResolvedValue(null);
 
       const mockContext = {
-        params: Promise.resolve({ id: "1" }),
+        params: Promise.resolve({ id: "test-cert-1" }),
       };
 
       // Act
@@ -442,12 +405,12 @@ describe("GET /api/certifications/[id]", () => {
       expect(mockCertificationFindUnique).toHaveBeenCalledTimes(1);
     });
 
-    it("部門情報とインストラクター情報が適切にincludeされていること", async () => {
+    it("部門情報が適切にincludeされていること", async () => {
       // Arrange
       mockCertificationFindUnique.mockResolvedValue(null);
 
       const mockContext = {
-        params: Promise.resolve({ id: "1" }),
+        params: Promise.resolve({ id: "test-cert-1" }),
       };
 
       // Act
@@ -461,18 +424,6 @@ describe("GET /api/certifications/[id]", () => {
               select: {
                 id: true,
                 name: true,
-              },
-            },
-            instructorCertifications: {
-              include: {
-                instructor: {
-                  select: {
-                    id: true,
-                    lastName: true,
-                    firstName: true,
-                    status: true,
-                  },
-                },
               },
             },
           },

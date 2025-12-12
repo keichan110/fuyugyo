@@ -4,10 +4,10 @@ import type { DepartmentSeeds } from "./department.seed";
 import type { ShiftTypeSeeds } from "./shiftType.seed";
 
 export interface ShiftSeed {
-  id: number;
+  id: string;
   date: Date;
-  departmentId: number;
-  shiftTypeId: number;
+  departmentId: string;
+  shiftTypeId: string;
   description: string | null;
 }
 

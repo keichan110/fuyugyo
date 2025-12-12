@@ -35,7 +35,7 @@ export type ActiveInstructorsByDepartmentResponse =
       success: true;
       data: {
         instructors: Array<{
-          id: number;
+          id: string;
           displayName: string;
           displayNameKana: string;
           status: string;
@@ -43,7 +43,7 @@ export type ActiveInstructorsByDepartmentResponse =
           certificationSummary: string;
         }>;
         metadata: {
-          departmentId: number;
+          departmentId: string;
           departmentName: string;
           totalCount: number;
           activeCount: number;
@@ -60,19 +60,19 @@ export type CalendarViewResponse =
       success: true;
       data: {
         shifts: Array<{
-          id: number;
+          id: string;
           date: string;
           department: {
-            id: number;
+            id: string;
             name: string;
             code: string;
           };
           shiftType: {
-            id: number;
+            id: string;
             name: string;
           };
           assignedInstructors: Array<{
-            id: number;
+            id: string;
             displayName: string;
           }>;
           stats: {
@@ -105,7 +105,7 @@ export type CalendarViewResponse =
  */
 export type ShiftEditInstructor = {
   /** インストラクターID */
-  id: number;
+  id: string;
   /** 表示名（姓名が結合済み、例: "山田 太郎"） */
   displayName: string;
   /** カナ表示名（姓名カナが結合済み、例: "ヤマダ タロウ"） */
@@ -135,21 +135,21 @@ export type ShiftEditDataResponse =
         mode: "edit" | "create";
         /** 既存シフト情報（作成モードの場合はnull） */
         shift: {
-          id: number;
+          id: string;
           date: string;
-          departmentId: number;
-          shiftTypeId: number;
+          departmentId: string;
+          shiftTypeId: string;
           description: string | null;
-          assignedInstructorIds: number[];
+          assignedInstructorIds: string[];
         } | null;
         /** 利用可能なインストラクター一覧（アサイン状態と競合情報付き） */
         availableInstructors: ShiftEditInstructor[];
         /** 競合情報の詳細リスト */
         conflicts: Array<{
-          instructorId: number;
+          instructorId: string;
           instructorName: string;
           conflictingShift: {
-            id: number;
+            id: string;
             departmentName: string;
             shiftTypeName: string;
           };
@@ -157,10 +157,10 @@ export type ShiftEditDataResponse =
         /** フォーム初期値 */
         formData: {
           date: string;
-          departmentId: number;
-          shiftTypeId: number;
+          departmentId: string;
+          shiftTypeId: string;
           description: string | null;
-          selectedInstructorIds: number[];
+          selectedInstructorIds: string[];
         };
       };
     }

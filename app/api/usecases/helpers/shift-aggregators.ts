@@ -4,21 +4,21 @@ import { formatDateString, formatInstructorDisplayName } from "./formatters";
  * Prismaから取得したシフトデータの型定義
  */
 type RawShiftData = {
-  id: number;
+  id: string;
   date: Date;
   description: string | null;
   department: {
-    id: number;
+    id: string;
     name: string;
     code: string;
   };
   shiftType: {
-    id: number;
+    id: string;
     name: string;
   };
   shiftAssignments: Array<{
     instructor: {
-      id: number;
+      id: string;
       lastName: string;
       firstName: string;
     };
@@ -29,19 +29,19 @@ type RawShiftData = {
  * 整形後のシフトデータの型定義
  */
 export type FormattedShiftData = {
-  id: number;
+  id: string;
   date: string;
   department: {
-    id: number;
+    id: string;
     name: string;
     code: string;
   };
   shiftType: {
-    id: number;
+    id: string;
     name: string;
   };
   assignedInstructors: Array<{
-    id: number;
+    id: string;
     displayName: string;
   }>;
   stats: {

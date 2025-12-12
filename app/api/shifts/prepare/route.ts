@@ -4,24 +4,24 @@ import { getPrisma } from "@/lib/db";
 
 // 既存シフトデータの型定義（レスポンス用）
 type ExistingShiftData = {
-  id: number;
+  id: string;
   date: string;
-  departmentId: number;
-  shiftTypeId: number;
+  departmentId: string;
+  shiftTypeId: string;
   description: string | null;
   department: {
-    id: number;
+    id: string;
     name: string;
     code: string;
   };
   shiftType: {
-    id: number;
+    id: string;
     name: string;
   };
   assignments: Array<{
-    id: number;
+    id: string;
     instructor: {
-      id: number;
+      id: string;
       lastName: string;
       firstName: string;
     };
@@ -32,10 +32,10 @@ type ExistingShiftData = {
 // フォームデータの型定義
 type FormData = {
   date: string;
-  departmentId: number;
-  shiftTypeId: number;
+  departmentId: string;
+  shiftTypeId: string;
   description: string | null;
-  selectedInstructorIds: number[];
+  selectedInstructorIds: string[];
 };
 
 // 統一レスポンスの型定義
@@ -51,24 +51,25 @@ type PrepareShiftResponse = {
 
 // Prismaの型定義
 type ShiftWithRelations = {
-  id: number;
+  id: string;
   date: Date;
-  departmentId: number;
-  shiftTypeId: number;
+  departmentId: string;
+  shiftTypeId: string;
   description: string | null;
   department: {
-    id: number;
+    id: string;
     name: string;
     code: string;
   };
   shiftType: {
-    id: number;
+    id: string;
     name: string;
   };
   shiftAssignments: Array<{
-    id: number;
+    id: string;
+    instructorId: string;
     instructor: {
-      id: number;
+      id: string;
       lastName: string;
       firstName: string;
     };
@@ -146,19 +147,19 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // 数値パラメータバリデーション
-    const parsedDepartmentId = Number.parseInt(departmentId, 10);
-    const parsedShiftTypeId = Number.parseInt(shiftTypeId, 10);
-
-    if (Number.isNaN(parsedDepartmentId) || Number.isNaN(parsedShiftTypeId)) {
+    // IDパラメータバリデーション
+    if (!(departmentId.trim() && shiftTypeId.trim())) {
       return NextResponse.json(
         {
           success: false,
-          error: "Invalid departmentId or shiftTypeId",
+          error: "departmentId and shiftTypeId must not be empty",
         },
         { status: 400 }
       );
     }
+
+    const parsedDepartmentId = departmentId;
+    const parsedShiftTypeId = shiftTypeId;
 
     // ユニーク制約を使って既存シフト検索
     const existingShift = await (await getPrisma()).shift.findUnique({

@@ -9,7 +9,7 @@ import { useShiftNavigation } from "../_lib/use-shift-navigation";
 import { DepartmentSelectionPopover } from "./department-selection-popover";
 
 type Department = {
-  id: number;
+  id: string;
   name: string;
   code: string;
 };
@@ -61,7 +61,7 @@ export const ShiftDayCard = React.memo<ShiftDayCardProps>(
     }, [date]);
 
     // 部門選択後の遷移処理
-    const handleDepartmentSelect = (departmentId: number) => {
+    const handleDepartmentSelect = (departmentId: string) => {
       navigateToShiftEdit(dateString, departmentId);
     };
 

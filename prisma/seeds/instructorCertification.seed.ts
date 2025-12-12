@@ -73,8 +73,8 @@ export async function seedInstructorCertifications(
 
   // 一括挿入用の配列
   const instructorCertificationsData: {
-    instructorId: number;
-    certificationId: number;
+    instructorId: string;
+    certificationId: string;
   }[] = [];
 
   // 全インストラクターに資格を割り当て

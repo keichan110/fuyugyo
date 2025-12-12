@@ -1,35 +1,25 @@
 /**
- * パスパラメータの数値IDをバリデーションしてパース
+ * パスパラメータの文字列ID（CUID）をバリデーション
  *
  * @param value - パラメータ文字列
- * @returns パース結果とエラーメッセージ
+ * @returns バリデーション結果とエラーメッセージ
  */
-export function validateNumericId(value: string): {
+export function validateStringId(value: string): {
   isValid: boolean;
-  parsedValue: number | null;
+  parsedValue: string | null;
   error: string | null;
 } {
-  const parsed = Number.parseInt(value, 10);
-
-  if (Number.isNaN(parsed)) {
+  if (!value || typeof value !== "string" || value.trim().length === 0) {
     return {
       isValid: false,
       parsedValue: null,
-      error: `Invalid ID format: expected numeric value, got "${value}"`,
-    };
-  }
-
-  if (parsed <= 0) {
-    return {
-      isValid: false,
-      parsedValue: null,
-      error: `Invalid ID value: expected positive integer, got ${parsed}`,
+      error: `Invalid ID format: expected non-empty string, got "${value}"`,
     };
   }
 
   return {
     isValid: true,
-    parsedValue: parsed,
+    parsedValue: value,
     error: null,
   };
 }

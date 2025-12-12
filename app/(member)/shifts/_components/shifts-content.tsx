@@ -33,19 +33,19 @@ const WHITESPACE_REGEX = /\s+/;
  * (APIレスポンス形式に合わせた型定義)
  */
 type ServerShift = {
-  id: number;
+  id: string;
   date: string;
   department: {
-    id: number;
+    id: string;
     name: string;
     code: string;
   };
   shiftType: {
-    id: number;
+    id: string;
     name: string;
   };
   assignedInstructors: Array<{
-    id: number;
+    id: string;
     displayName: string;
   }>;
   stats: {
@@ -61,7 +61,7 @@ type ServerShift = {
  * サーバーから取得した部門データの型
  */
 type ServerDepartment = {
-  id: number;
+  id: string;
   name: string;
   code: string;
 };

@@ -11,7 +11,7 @@ import { useShiftNavigation } from "../_lib/use-shift-navigation";
 import { DepartmentSelectionPopover } from "./department-selection-popover";
 
 type Department = {
-  id: number;
+  id: string;
   name: string;
   code: string;
 };
@@ -54,7 +54,7 @@ export function ShiftDetailSection({
   const [isDepartmentPopoverOpen, setIsDepartmentPopoverOpen] = useState(false);
 
   // 部門選択後の遷移処理
-  const handleDepartmentSelect = (departmentId: number) => {
+  const handleDepartmentSelect = (departmentId: string) => {
     if (!selectedDate) {
       return;
     }

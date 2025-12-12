@@ -89,7 +89,7 @@ export default function InstructorModal({
     useState<string>("");
   const [assignedCertifications, setAssignedCertifications] = useState<
     {
-      id: number;
+      id: string;
       name: string;
       shortName: string | null;
       organization: string;
@@ -207,7 +207,7 @@ export default function InstructorModal({
     }
 
     const certificationToAdd = availableCertifications.find(
-      (cert) => cert.id.toString() === selectedCertification
+      (cert) => cert.id === selectedCertification
     );
 
     if (!certificationToAdd) {
@@ -247,7 +247,7 @@ export default function InstructorModal({
     setSelectedCertification("");
   };
 
-  const handleRemoveCertification = (certificationId: number) => {
+  const handleRemoveCertification = (certificationId: string) => {
     setAssignedCertifications((prev) =>
       prev.filter((cert) => cert.id !== certificationId)
     );
@@ -487,7 +487,7 @@ export default function InstructorModal({
                           : "部門を選択してから資格を選んでください"}
                       </option>
                       {getFilteredCertifications().map((cert) => (
-                        <option key={cert.id} value={cert.id.toString()}>
+                        <option key={cert.id} value={cert.id}>
                           {cert.shortName || cert.name} ({cert.organization})
                         </option>
                       ))}

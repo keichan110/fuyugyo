@@ -23,13 +23,13 @@ const mockDayDataWithShifts: DayData = {
       count: 1,
       assignedInstructors: [
         {
-          id: 1,
+          id: "test-instructor-1",
           lastName: "田中",
           firstName: "太郎",
           displayName: "田中太郎",
         },
         {
-          id: 2,
+          id: "test-instructor-2",
           lastName: "佐藤",
           firstName: "花子",
           displayName: "佐藤花子",

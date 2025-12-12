@@ -9,23 +9,9 @@ export async function GET(
     const resolvedParams = await params;
     const id = resolvedParams.id;
 
-    // IDのバリデーション
-    const numericId = Number.parseInt(id, 10);
-    if (Number.isNaN(numericId) || numericId <= 0) {
-      return NextResponse.json(
-        {
-          success: false,
-          data: null,
-          message: null,
-          error: "Invalid ID format",
-        },
-        { status: 400 }
-      );
-    }
-
     // インストラクター詳細情報を取得
     const instructor = await (await getPrisma()).instructor.findUnique({
-      where: { id: numericId },
+      where: { id },
       include: {
         certifications: {
           include: {

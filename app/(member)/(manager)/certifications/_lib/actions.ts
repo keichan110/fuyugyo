@@ -51,7 +51,7 @@ export async function createCertificationAction(
  * 資格更新アクション
  */
 export async function updateCertificationAction(
-  id: number,
+  id: string,
   input: UpdateCertificationInput
 ): Promise<ActionResult<unknown>> {
   try {
@@ -85,7 +85,7 @@ export async function updateCertificationAction(
  * 資格削除アクション（論理削除）
  */
 export async function deleteCertificationAction(
-  id: number
+  id: string
 ): Promise<ActionResult<void>> {
   try {
     // 認証・権限チェック（マネージャー以上）
@@ -114,7 +114,7 @@ export async function deleteCertificationAction(
  */
 export async function getDepartmentIdByTypeAction(
   departmentType: "ski" | "snowboard"
-): Promise<ActionResult<number>> {
+): Promise<ActionResult<string>> {
   try {
     const departmentId = await getDepartmentIdByType(departmentType);
     return { success: true, data: departmentId };

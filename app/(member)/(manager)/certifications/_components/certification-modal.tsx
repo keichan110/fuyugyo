@@ -37,7 +37,7 @@ type CreateAction = (
   input: CreateCertificationInput
 ) => Promise<CertificationActionResult>;
 type UpdateAction = (
-  id: number,
+  id: string,
   input: UpdateCertificationInput
 ) => Promise<CertificationActionResult>;
 
@@ -146,7 +146,7 @@ export default function CertificationModal({
    */
   const fetchDepartmentId = async (
     departmentType: "ski" | "snowboard"
-  ): Promise<number> => {
+  ): Promise<string> => {
     const result = await getDepartmentIdByTypeAction(departmentType);
     if (!result.success) {
       throw new Error(result.error || "部門IDの取得に失敗しました");
@@ -158,7 +158,7 @@ export default function CertificationModal({
    * 入力データを構築するヘルパー関数
    */
   const buildCertificationInput = (
-    departmentId: number,
+    departmentId: string,
     data: CertificationFormData
   ) => ({
     departmentId,

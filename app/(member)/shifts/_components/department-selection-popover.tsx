@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/popover";
 
 type Department = {
-  id: number;
+  id: string;
   name: string;
   code: string;
 };
@@ -21,7 +21,7 @@ type DepartmentSelectionPopoverProps = {
   /** 部門一覧 */
   departments: Department[];
   /** 部門選択時のハンドラー */
-  onSelectDepartment: (departmentId: number) => void;
+  onSelectDepartment: (departmentId: string) => void;
   /** トリガーボタンの子要素 */
   children: React.ReactNode;
 };
@@ -40,7 +40,7 @@ export function DepartmentSelectionPopover({
   onSelectDepartment,
   children,
 }: DepartmentSelectionPopoverProps) {
-  const handleDepartmentSelect = (departmentId: number) => {
+  const handleDepartmentSelect = (departmentId: string) => {
     onSelectDepartment(departmentId);
     onOpenChange(false);
   };

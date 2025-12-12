@@ -15,7 +15,7 @@ jest.mock("@/app/(member)/_actions/instructor-linkage", () => ({
 
 const mockInstructors: InstructorBasicInfo[] = [
   {
-    id: 1,
+    id: "test-instructor-1",
     firstName: "太郎",
     lastName: "山田",
     firstNameKana: "タロウ",
@@ -23,7 +23,7 @@ const mockInstructors: InstructorBasicInfo[] = [
     status: "ACTIVE",
   },
   {
-    id: 2,
+    id: "test-instructor-2",
     firstName: "花子",
     lastName: "佐藤",
     firstNameKana: "ハナコ",
@@ -105,7 +105,7 @@ describe("InstructorSelectModal", () => {
     it("currentInstructorIdがある場合、初期値として設定される", () => {
       render(
         <InstructorSelectModal
-          currentInstructorId={1}
+          currentInstructorId="test-instructor-1"
           instructors={mockInstructors}
           onOpenChange={mockOnOpenChange}
           onSuccess={mockOnSuccess}
@@ -137,7 +137,7 @@ describe("InstructorSelectModal", () => {
     it("currentInstructorIdがある場合、保存ボタンが有効化される", () => {
       render(
         <InstructorSelectModal
-          currentInstructorId={1}
+          currentInstructorId="test-instructor-1"
           instructors={mockInstructors}
           onOpenChange={mockOnOpenChange}
           onSuccess={mockOnSuccess}
@@ -158,7 +158,7 @@ describe("InstructorSelectModal", () => {
 
       render(
         <InstructorSelectModal
-          currentInstructorId={1}
+          currentInstructorId="test-instructor-1"
           instructors={mockInstructors}
           onOpenChange={mockOnOpenChange}
           onSuccess={mockOnSuccess}
@@ -170,7 +170,7 @@ describe("InstructorSelectModal", () => {
       await user.click(saveButton);
 
       await waitFor(() => {
-        expect(linkMyInstructor).toHaveBeenCalledWith(1);
+        expect(linkMyInstructor).toHaveBeenCalledWith("test-instructor-1");
       });
     });
 
@@ -180,7 +180,7 @@ describe("InstructorSelectModal", () => {
 
       render(
         <InstructorSelectModal
-          currentInstructorId={1}
+          currentInstructorId="test-instructor-1"
           instructors={mockInstructors}
           onOpenChange={mockOnOpenChange}
           onSuccess={mockOnSuccess}
@@ -202,7 +202,7 @@ describe("InstructorSelectModal", () => {
 
       render(
         <InstructorSelectModal
-          currentInstructorId={1}
+          currentInstructorId="test-instructor-1"
           instructors={mockInstructors}
           onOpenChange={mockOnOpenChange}
           onSuccess={mockOnSuccess}
@@ -229,7 +229,7 @@ describe("InstructorSelectModal", () => {
 
       render(
         <InstructorSelectModal
-          currentInstructorId={1}
+          currentInstructorId="test-instructor-1"
           instructors={mockInstructors}
           onOpenChange={mockOnOpenChange}
           onSuccess={mockOnSuccess}
@@ -256,7 +256,7 @@ describe("InstructorSelectModal", () => {
 
       render(
         <InstructorSelectModal
-          currentInstructorId={1}
+          currentInstructorId="test-instructor-1"
           instructors={mockInstructors}
           onOpenChange={mockOnOpenChange}
           onSuccess={mockOnSuccess}
@@ -295,7 +295,7 @@ describe("InstructorSelectModal", () => {
     it("currentInstructorIdがある場合、解除ボタンが表示される", () => {
       render(
         <InstructorSelectModal
-          currentInstructorId={1}
+          currentInstructorId="test-instructor-1"
           instructors={mockInstructors}
           onOpenChange={mockOnOpenChange}
           onSuccess={mockOnSuccess}
@@ -314,7 +314,7 @@ describe("InstructorSelectModal", () => {
 
       render(
         <InstructorSelectModal
-          currentInstructorId={1}
+          currentInstructorId="test-instructor-1"
           instructors={mockInstructors}
           onOpenChange={mockOnOpenChange}
           onSuccess={mockOnSuccess}
@@ -335,7 +335,7 @@ describe("InstructorSelectModal", () => {
 
       render(
         <InstructorSelectModal
-          currentInstructorId={1}
+          currentInstructorId="test-instructor-1"
           instructors={mockInstructors}
           onOpenChange={mockOnOpenChange}
           onSuccess={mockOnSuccess}
@@ -356,7 +356,7 @@ describe("InstructorSelectModal", () => {
 
       render(
         <InstructorSelectModal
-          currentInstructorId={1}
+          currentInstructorId="test-instructor-1"
           instructors={mockInstructors}
           onOpenChange={mockOnOpenChange}
           onSuccess={mockOnSuccess}
@@ -425,7 +425,7 @@ describe("InstructorSelectModal", () => {
     it("ボタンがbutton要素として表示される", () => {
       render(
         <InstructorSelectModal
-          currentInstructorId={1}
+          currentInstructorId="test-instructor-1"
           instructors={mockInstructors}
           onOpenChange={mockOnOpenChange}
           onSuccess={mockOnSuccess}

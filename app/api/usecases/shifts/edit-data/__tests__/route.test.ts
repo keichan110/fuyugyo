@@ -31,7 +31,7 @@ jest.mock("@/lib/auth/middleware", () => ({
 }));
 
 jest.mock("@/lib/db", () => ({
-  prisma: {
+  getPrisma: jest.fn(async () => ({
     shift: {
       findFirst: jest.fn(),
       findMany: jest.fn(),
@@ -39,7 +39,7 @@ jest.mock("@/lib/db", () => ({
     instructor: {
       findMany: jest.fn(),
     },
-  },
+  })),
 }));
 
 describe("GET /api/usecases/shifts/edit-data", () => {
@@ -61,7 +61,7 @@ describe("GET /api/usecases/shifts/edit-data", () => {
 
   it("should return 400 for invalid date format", async () => {
     const request = new NextRequest(
-      "http://localhost/api/usecases/shifts/edit-data?date=invalid&departmentId=1&shiftTypeId=1"
+      "http://localhost/api/usecases/shifts/edit-data?date=invalid&departmentId=test-dept-1&shiftTypeId=test-shift-type-1"
     );
     const response = await GET(request);
     const data = await response.json();
@@ -70,9 +70,9 @@ describe("GET /api/usecases/shifts/edit-data", () => {
     expect(data.success).toBe(false);
   });
 
-  it("should return 400 for invalid department ID", async () => {
+  it("should return 400 for empty department ID", async () => {
     const request = new NextRequest(
-      "http://localhost/api/usecases/shifts/edit-data?date=2025-01-15&departmentId=abc&shiftTypeId=1"
+      "http://localhost/api/usecases/shifts/edit-data?date=2025-01-15&departmentId=   &shiftTypeId=cuid123"
     );
     const response = await GET(request);
     const data = await response.json();

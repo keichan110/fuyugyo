@@ -75,7 +75,7 @@ export async function createInstructorAction(
  * インストラクター更新アクション
  */
 export async function updateInstructorAction(
-  id: number,
+  id: string,
   input: UpdateInstructorInput
 ): Promise<ActionResult<unknown>> {
   try {
@@ -142,7 +142,7 @@ export async function updateInstructorAction(
  * インストラクター削除アクション（論理削除）
  */
 export async function deleteInstructorAction(
-  id: number
+  id: string
 ): Promise<ActionResult<void>> {
   try {
     // 認証・権限チェック（マネージャー以上）

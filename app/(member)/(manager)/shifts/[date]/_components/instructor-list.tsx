@@ -10,9 +10,9 @@ import type { InstructorWithAssignment, ShiftSlot } from "../_lib/types";
 type InstructorListProps = {
   instructors: InstructorWithAssignment[];
   shiftSlots: ShiftSlot[];
-  selectedInstructorIds: number[];
-  editingShiftId: number | null;
-  onToggleInstructor: (instructorId: number) => void;
+  selectedInstructorIds: string[];
+  editingShiftId: string | null;
+  onToggleInstructor: (instructorId: string) => void;
 };
 
 /**

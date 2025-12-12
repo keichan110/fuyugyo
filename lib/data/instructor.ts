@@ -11,12 +11,12 @@ import type { UserInstructorProfile } from "@/types/actions";
  * @returns インストラクタープロファイル（存在しない場合はnull）
  */
 export const getInstructorProfile = cache(
-  async (instructorId: number): Promise<UserInstructorProfile | null> => {
+  async (instructorId: string): Promise<UserInstructorProfile | null> => {
     const instructor = await (await getPrisma()).instructor.findUnique({
       where: { id: instructorId },
       include: {
         certifications: {
-          include: {
+          select: {
             certification: {
               select: {
                 id: true,

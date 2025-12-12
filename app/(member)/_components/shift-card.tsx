@@ -3,7 +3,7 @@ import { DepartmentIcon } from "./department-icon";
 
 type ShiftCardProps = {
   shift: {
-    id: number;
+    id: string;
     date: Date;
     department: {
       code: string;

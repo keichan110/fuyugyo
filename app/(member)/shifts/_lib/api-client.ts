@@ -16,10 +16,10 @@ export type PrepareShiftResponse = {
     shift: ExistingShiftData | null;
     formData: {
       date: string;
-      departmentId: number;
-      shiftTypeId: number;
+      departmentId: string;
+      shiftTypeId: string;
       description: string;
-      selectedInstructorIds: number[];
+      selectedInstructorIds: string[];
     };
   };
   error?: string;
@@ -48,10 +48,10 @@ export interface DuplicateShiftError extends ShiftApiResponse {
 // シフト作成パラメータ
 export type CreateShiftParams = {
   date: string;
-  departmentId: number;
-  shiftTypeId: number;
+  departmentId: string;
+  shiftTypeId: string;
   description?: string | undefined;
-  assignedInstructorIds: number[];
+  assignedInstructorIds: string[];
   force?: boolean;
 };
 
@@ -134,13 +134,13 @@ async function handleMergeAction(
   onError: (error: string) => void
 ): Promise<void> {
   const existingInstructorIds = duplicateError.data.existing.assignments.map(
-    (assignment: { instructor: { id: number } }) => assignment.instructor.id
+    (assignment: { instructor: { id: string } }) => assignment.instructor.id
   );
 
   const mergedInstructorIds = [
     ...existingInstructorIds,
     ...shiftData.assignedInstructorIds.filter(
-      (id: number) => !existingInstructorIds.includes(id)
+      (id: string) => !existingInstructorIds.includes(id)
     ),
   ];
 

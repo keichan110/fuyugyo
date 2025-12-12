@@ -34,7 +34,7 @@ const mockDatabase = {
 
 // ID生成用カウンター
 let idCounter = 1;
-const generateId = () => idCounter++;
+const generateId = () => `test-id-${idCounter++}`;
 
 // 基本的なCRUD操作のモック関数
 const createMockCrudOperations = (tableName: keyof typeof mockDatabase) => ({
@@ -285,15 +285,22 @@ export const setupMockData = () => {
   resetMockDatabase();
 
   // 基本データをセットアップ
-  const department = createDepartment({ id: 1 });
-  const shiftType = createShiftType({ id: 1 });
-  const certification = createCertification({ id: 1, departmentId: 1 });
-  const instructor = createInstructor({ id: 1 });
-  const shift = createShift({ id: 1, departmentId: 1, shiftTypeId: 1 });
+  const department = createDepartment({ id: "test-dept-1" });
+  const shiftType = createShiftType({ id: "test-shift-type-1" });
+  const certification = createCertification({
+    id: "test-cert-1",
+    departmentId: "test-dept-1",
+  });
+  const instructor = createInstructor({ id: "test-instructor-1" });
+  const shift = createShift({
+    id: "test-shift-1",
+    departmentId: "test-dept-1",
+    shiftTypeId: "test-shift-type-1",
+  });
   const assignment = createShiftAssignment({
-    id: 1,
-    shiftId: 1,
-    instructorId: 1,
+    id: "test-assignment-1",
+    shiftId: "test-shift-1",
+    instructorId: "test-instructor-1",
   });
 
   mockDatabase.departments.push(department);

@@ -9,10 +9,10 @@
  * シフトエンティティ
  */
 export type Shift = {
-  id: number;
+  id: string;
   date: string;
-  departmentId: number;
-  shiftTypeId: number;
+  departmentId: string;
+  shiftTypeId: string;
   description: string | null;
   createdAt: string;
   updatedAt: string;
@@ -23,7 +23,7 @@ export type Shift = {
 };
 
 export type Department = {
-  id: number;
+  id: string;
   code: string;
   name: string;
   createdAt: string;
@@ -31,7 +31,7 @@ export type Department = {
 };
 
 export type ShiftType = {
-  id: number;
+  id: string;
   name: string;
   isActive: boolean;
   createdAt: string;
@@ -39,15 +39,15 @@ export type ShiftType = {
 };
 
 export type ShiftAssignment = {
-  id: number;
-  shiftId: number;
-  instructorId: number;
+  id: string;
+  shiftId: string;
+  instructorId: string;
   assignedAt: string;
   instructor: Instructor;
 };
 
 export type Instructor = {
-  id: number;
+  id: string;
   lastName: string;
   firstName: string;
   status: string;

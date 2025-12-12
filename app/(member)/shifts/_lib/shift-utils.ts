@@ -2,7 +2,7 @@ import { WEEKDAYS } from "./constants";
 import type { Department } from "./types";
 
 // Cache for department lookups
-const departmentCache = new Map<number, string>();
+const departmentCache = new Map<string, string>();
 
 // シフト種別の短縮名マッピング (type-safe Record)
 const SHIFT_TYPE_SHORT_MAP: Record<string, string> = {
@@ -52,7 +52,7 @@ export function formatDate(year: number, month: number, day: number): string {
  * 部門IDから部門コードを取得 (cached for performance)
  */
 export function getDepartmentCodeById(
-  departmentId: number,
+  departmentId: string,
   departments: readonly Department[]
 ): string {
   // Check cache first

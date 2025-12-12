@@ -1,70 +1,51 @@
 import {
   validateDateString,
-  validateNumericId,
   validateRequiredParams,
+  validateStringId,
 } from "../../helpers/validators";
 
-describe("validateNumericId", () => {
-  it("should validate positive integer correctly", () => {
-    const result = validateNumericId("123");
+describe("validateStringId", () => {
+  it("should validate valid CUID string", () => {
+    const result = validateStringId("cltest123456789");
 
     expect(result.isValid).toBe(true);
-    expect(result.parsedValue).toBe(123);
+    expect(result.parsedValue).toBe("cltest123456789");
     expect(result.error).toBeNull();
   });
 
-  it("should reject non-numeric string", () => {
-    const result = validateNumericId("abc");
-
-    expect(result.isValid).toBe(false);
-    expect(result.parsedValue).toBeNull();
-    expect(result.error).toBe(
-      'Invalid ID format: expected numeric value, got "abc"'
-    );
-  });
-
-  it("should reject negative number", () => {
-    const result = validateNumericId("-5");
-
-    expect(result.isValid).toBe(false);
-    expect(result.parsedValue).toBeNull();
-    expect(result.error).toBe(
-      "Invalid ID value: expected positive integer, got -5"
-    );
-  });
-
-  it("should reject zero", () => {
-    const result = validateNumericId("0");
-
-    expect(result.isValid).toBe(false);
-    expect(result.parsedValue).toBeNull();
-    expect(result.error).toBe(
-      "Invalid ID value: expected positive integer, got 0"
-    );
-  });
-
-  it("should parse string with spaces (parseInt behavior)", () => {
-    // Note: Number.parseInt("12 34") returns 12, parsing stops at first non-digit
-    const result = validateNumericId("12 34");
+  it("should validate any non-empty string", () => {
+    const result = validateStringId("abc123");
 
     expect(result.isValid).toBe(true);
-    expect(result.parsedValue).toBe(12);
+    expect(result.parsedValue).toBe("abc123");
     expect(result.error).toBeNull();
   });
 
   it("should reject empty string", () => {
-    const result = validateNumericId("");
+    const result = validateStringId("");
 
     expect(result.isValid).toBe(false);
     expect(result.parsedValue).toBeNull();
-    expect(result.error).toContain("Invalid ID format");
+    expect(result.error).toBe(
+      'Invalid ID format: expected non-empty string, got ""'
+    );
   });
 
-  it("should accept string with leading zeros", () => {
-    const result = validateNumericId("00123");
+  it("should reject string with only spaces", () => {
+    const result = validateStringId("   ");
+
+    expect(result.isValid).toBe(false);
+    expect(result.parsedValue).toBeNull();
+    expect(result.error).toBe(
+      'Invalid ID format: expected non-empty string, got "   "'
+    );
+  });
+
+  it("should validate string with spaces (not trimmed)", () => {
+    const result = validateStringId("cl test 123");
 
     expect(result.isValid).toBe(true);
-    expect(result.parsedValue).toBe(123);
+    expect(result.parsedValue).toBe("cl test 123");
     expect(result.error).toBeNull();
   });
 });
@@ -129,7 +110,7 @@ describe("validateRequiredParams", () => {
     const params = {
       from: "2025-01-01",
       to: "2025-12-31",
-      departmentId: "1",
+      departmentId: "test-dept-1",
     };
     const requiredKeys = ["from", "to"];
 
@@ -158,7 +139,7 @@ describe("validateRequiredParams", () => {
     const params = {
       from: null,
       to: null,
-      departmentId: "1",
+      departmentId: "test-dept-1",
     };
     const requiredKeys = ["from", "to"];
 

@@ -4,7 +4,7 @@ import type { InstructorStatus } from "@/types/common";
 import { GET } from "./route";
 
 type Instructor = {
-  id: number;
+  id: string;
   lastName: string;
   firstName: string;
   lastNameKana: string | null;
@@ -15,12 +15,12 @@ type Instructor = {
   updatedAt: Date;
   certifications: {
     certification: {
-      id: number;
+      id: string;
       name: string;
       shortName: string | null;
       organization: string;
       department: {
-        id: number;
+        id: string;
         name: string;
       };
     };
@@ -133,7 +133,7 @@ describe("GET /api/instructors", () => {
       // Arrange
       const mockInstructors: Instructor[] = [
         {
-          id: 1,
+          id: "test-instructor-1",
           lastName: "山田",
           firstName: "太郎",
           lastNameKana: "ヤマダ",
@@ -145,12 +145,12 @@ describe("GET /api/instructors", () => {
           certifications: [
             {
               certification: {
-                id: 1,
+                id: "test-certification-1",
                 name: "スキー指導員",
                 shortName: "指導員",
                 organization: "SAJ",
                 department: {
-                  id: 1,
+                  id: "test-department-1",
                   name: "スキー",
                 },
               },
@@ -158,7 +158,7 @@ describe("GET /api/instructors", () => {
           ],
         },
         {
-          id: 2,
+          id: "test-instructor-2",
           lastName: "佐藤",
           firstName: "花子",
           lastNameKana: "サトウ",
@@ -170,12 +170,12 @@ describe("GET /api/instructors", () => {
           certifications: [
             {
               certification: {
-                id: 2,
+                id: "test-certification-2",
                 name: "スノーボード指導員",
                 shortName: "指導員",
                 organization: "JSBA",
                 department: {
-                  id: 2,
+                  id: "test-department-2",
                   name: "スノーボード",
                 },
               },
@@ -220,7 +220,7 @@ describe("GET /api/instructors", () => {
           success: true,
           data: [
             {
-              id: 1,
+              id: "test-instructor-1",
               lastName: "山田",
               firstName: "太郎",
               lastNameKana: "ヤマダ",
@@ -231,19 +231,19 @@ describe("GET /api/instructors", () => {
               updatedAt: new Date("2024-01-01"),
               certifications: [
                 {
-                  id: 1,
+                  id: "test-certification-1",
                   name: "スキー指導員",
                   shortName: "指導員",
                   organization: "SAJ",
                   department: {
-                    id: 1,
+                    id: "test-department-1",
                     name: "スキー",
                   },
                 },
               ],
             },
             {
-              id: 2,
+              id: "test-instructor-2",
               lastName: "佐藤",
               firstName: "花子",
               lastNameKana: "サトウ",
@@ -254,12 +254,12 @@ describe("GET /api/instructors", () => {
               updatedAt: new Date("2024-01-02"),
               certifications: [
                 {
-                  id: 2,
+                  id: "test-certification-2",
                   name: "スノーボード指導員",
                   shortName: "指導員",
                   organization: "JSBA",
                   department: {
-                    id: 2,
+                    id: "test-department-2",
                     name: "スノーボード",
                   },
                 },
@@ -278,7 +278,7 @@ describe("GET /api/instructors", () => {
       // Arrange
       const mockInstructors: Instructor[] = [
         {
-          id: 1,
+          id: "test-instructor-1",
           lastName: "山田",
           firstName: "太郎",
           lastNameKana: "ヤマダ",

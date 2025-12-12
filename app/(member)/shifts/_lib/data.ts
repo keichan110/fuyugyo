@@ -17,19 +17,19 @@ import { getPrisma } from "@/lib/db";
  */
 export type MonthlyViewData = {
   shifts: Array<{
-    id: number;
+    id: string;
     date: string;
     department: {
-      id: number;
+      id: string;
       name: string;
       code: string;
     };
     shiftType: {
-      id: number;
+      id: string;
       name: string;
     };
     assignedInstructors: Array<{
-      id: number;
+      id: string;
       displayName: string;
     }>;
     stats: {

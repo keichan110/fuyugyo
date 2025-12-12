@@ -2,7 +2,7 @@ import { faker } from "@faker-js/faker/locale/ja";
 import type { Instructor, PrismaClient } from "@prisma/client";
 
 export interface InstructorSeed {
-  id: number;
+  id: string;
   lastName: string;
   firstName: string;
   status: string;

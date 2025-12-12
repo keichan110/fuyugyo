@@ -35,7 +35,7 @@ type InstructorWithDetails = Instructor & {
  */
 function determineDepartmentCode(
   instructor: InstructorWithDetails,
-  departmentId?: number
+  departmentId?: string
 ): string {
   if (departmentId) {
     // 指定された部門IDに対応する資格を探す
@@ -73,7 +73,7 @@ function determineDepartmentCode(
  */
 export async function getShiftsByDate(
   date: string,
-  departmentId?: number
+  departmentId?: string
 ): Promise<ShiftWithRelations[]> {
   const targetDate = new Date(date);
 
@@ -106,7 +106,7 @@ export async function getShiftsByDate(
  */
 export async function getInstructorsWithAssignments(
   date: string,
-  departmentId?: number
+  departmentId?: string
 ): Promise<InstructorWithAssignment[]> {
   const targetDate = new Date(date);
 

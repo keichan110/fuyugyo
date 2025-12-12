@@ -1,40 +1,4 @@
 /**
- * パスパラメータの数値IDをバリデーションしてパース
- *
- * @param value - パラメータ文字列
- * @returns パース結果とエラーメッセージ
- */
-export function validateNumericId(value: string): {
-  isValid: boolean;
-  parsedValue: number | null;
-  error: string | null;
-} {
-  const parsed = Number.parseInt(value, 10);
-
-  if (Number.isNaN(parsed)) {
-    return {
-      isValid: false,
-      parsedValue: null,
-      error: `Invalid ID format: expected numeric value, got "${value}"`,
-    };
-  }
-
-  if (parsed <= 0) {
-    return {
-      isValid: false,
-      parsedValue: null,
-      error: `Invalid ID value: expected positive integer, got ${parsed}`,
-    };
-  }
-
-  return {
-    isValid: true,
-    parsedValue: parsed,
-    error: null,
-  };
-}
-
-/**
  * 日付文字列をバリデーションしてパース
  *
  * @param value - 日付文字列 (YYYY-MM-DD形式を想定)

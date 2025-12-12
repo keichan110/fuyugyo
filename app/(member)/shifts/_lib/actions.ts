@@ -61,7 +61,7 @@ export async function createShiftAction(
 
     // トランザクション: シフト作成/更新 + インストラクター割り当て
     const shift = await (await getPrisma()).$transaction(async (tx) => {
-      let result: { id: number };
+      let result: { id: string };
 
       if (existingShift && force) {
         // 強制更新: 既存シフトを更新
@@ -130,7 +130,7 @@ export async function createShiftAction(
  * シフト更新アクション
  */
 export async function updateShiftAction(
-  id: number,
+  id: string,
   input: UpdateShiftInput
 ): Promise<ActionResult<unknown>> {
   try {
@@ -194,7 +194,7 @@ export async function updateShiftAction(
  * シフト削除アクション
  */
 export async function deleteShiftAction(
-  id: number
+  id: string
 ): Promise<ActionResult<void>> {
   try {
     // 認証・権限チェック（マネージャー以上）

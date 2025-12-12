@@ -5,7 +5,6 @@ import {
   formatInstructorDisplayNameKana,
 } from "@/app/api/usecases/helpers/formatters";
 import { instructorWithCertificationsSelect } from "@/app/api/usecases/helpers/query-optimizers";
-import { validateNumericId } from "@/app/api/usecases/helpers/validators";
 import type { ActiveInstructorsByDepartmentResponse } from "@/app/api/usecases/types/responses";
 import { logApiError } from "@/lib/api/error-handlers";
 import { withAuth } from "@/lib/auth/middleware";
@@ -33,7 +32,7 @@ import { getPrisma } from "@/lib/db";
  *   data: {
  *     instructors: [
  *       {
- *         id: 1,
+ *         id: "cltest123456789",
  *         displayName: "山田 太郎",
  *         displayNameKana: "ヤマダ タロウ",
  *         status: "ACTIVE",
@@ -41,7 +40,7 @@ import { getPrisma } from "@/lib/db";
  *       }
  *     ],
  *     metadata: {
- *       departmentId: 1,
+ *       departmentId: "cltest123456789",
  *       departmentName: "スキー",
  *       totalCount: 12,
  *       activeCount: 12
@@ -89,23 +88,7 @@ export async function GET(
   }
 
   try {
-    const { departmentId: departmentIdParam } = await params;
-
-    const validation = validateNumericId(departmentIdParam);
-    if (!validation.isValid || validation.parsedValue === null) {
-      const STATUS_BAD_REQUEST = 400;
-      return NextResponse.json(
-        {
-          success: false,
-          data: null,
-          message: null,
-          error: validation.error || "Invalid department ID",
-        } satisfies ActiveInstructorsByDepartmentResponse,
-        { status: STATUS_BAD_REQUEST }
-      );
-    }
-
-    const departmentId = validation.parsedValue;
+    const { departmentId } = await params;
 
     // 部門情報を取得
     const department = await (await getPrisma()).department.findUnique({

@@ -16,7 +16,7 @@ import type { ActionResult } from "@/types/actions";
  * @returns 成功時はsuccess: true、失敗時はerrorメッセージ
  */
 export async function linkMyInstructor(
-  instructorId: number
+  instructorId: string
 ): Promise<ActionResult<void>> {
   const user = await authenticate();
 

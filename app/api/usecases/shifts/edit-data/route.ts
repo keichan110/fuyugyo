@@ -12,7 +12,6 @@ import {
 import { instructorWithCertificationsSelect } from "../../helpers/query-optimizers";
 import {
   validateDateString,
-  validateNumericId,
   validateRequiredParams,
 } from "../../helpers/validators";
 import type { ShiftEditDataResponse } from "../../types/responses";
@@ -112,30 +111,9 @@ export async function GET(
       );
     }
 
-    // IDのバリデーション
-    const deptIdValidation = validateNumericId(departmentId as string);
-    const shiftTypeIdValidation = validateNumericId(shiftTypeId as string);
-
-    if (
-      !deptIdValidation.isValid ||
-      deptIdValidation.parsedValue === null ||
-      !shiftTypeIdValidation.isValid ||
-      shiftTypeIdValidation.parsedValue === null
-    ) {
-      return NextResponse.json(
-        {
-          success: false,
-          data: null,
-          message: null,
-          error: "Invalid department or shift type ID",
-        },
-        { status: 400 }
-      );
-    }
-
     const parsedDate = dateValidation.parsedValue;
-    const parsedDepartmentId = deptIdValidation.parsedValue;
-    const parsedShiftTypeId = shiftTypeIdValidation.parsedValue;
+    const parsedDepartmentId = departmentId as string;
+    const parsedShiftTypeId = shiftTypeId as string;
 
     const prisma = await getPrisma();
 

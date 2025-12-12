@@ -34,8 +34,8 @@ export async function seedShiftAssignments(
     });
 
   // 部門別にインストラクターを分類
-  const skiInstructorIds = new Set<number>();
-  const snowboardInstructorIds = new Set<number>();
+  const skiInstructorIds = new Set<string>();
+  const snowboardInstructorIds = new Set<string>();
 
   for (const ic of instructorCertifications) {
     if (ic.certification.departmentId === skiDepartment.id) {
@@ -106,7 +106,7 @@ export async function seedShiftAssignments(
 
   // 日付ごとに割り当て済みのインストラクターを追跡するマップ
   // key: 日付文字列 (YYYY-MM-DD), value: 割り当て済みインストラクターIDのSet
-  const dailyAssignments = new Map<string, Set<number>>();
+  const dailyAssignments = new Map<string, Set<string>>();
 
   // 日付でシフトをグループ化
   const shiftsByDate = new Map<string, ShiftSeed[]>();
@@ -124,7 +124,7 @@ export async function seedShiftAssignments(
   }
 
   // シフトにインストラクターを割り当て
-  const assignmentsToCreate: Array<{ shiftId: number; instructorId: number }> =
+  const assignmentsToCreate: Array<{ shiftId: string; instructorId: string }> =
     [];
   let skiInstructorIndex = 0;
   let snowboardInstructorIndex = 0;
@@ -132,7 +132,7 @@ export async function seedShiftAssignments(
   // 日付ごとにシフトを処理
   for (const [dateString, dateShifts] of shiftsByDate) {
     // この日に割り当て済みのインストラクターを管理
-    const assignedToday = new Set<number>();
+    const assignedToday = new Set<string>();
     dailyAssignments.set(dateString, assignedToday);
 
     // その日のシフトごとにインストラクターを割り当て

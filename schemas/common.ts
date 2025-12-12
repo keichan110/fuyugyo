@@ -18,20 +18,20 @@ export const dateStringSchema = z
   .regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format. Expected YYYY-MM-DD");
 
 /**
- * 正の整数IDスキーマ
- * データベースの自動採番IDを検証
+ * CUID文字列IDスキーマ
+ * データベースのCUID形式のIDを検証
  *
  * @example
  * ```typescript
  * const schema = z.object({
  *   id: idSchema,
  * });
- * schema.parse({ id: 1 }); // OK
- * schema.parse({ id: 0 }); // Error (must be positive)
- * schema.parse({ id: -1 }); // Error (must be positive)
+ * schema.parse({ id: 'ckxxx...' }); // OK
+ * schema.parse({ id: '' }); // Error (must not be empty)
+ * schema.parse({ id: 123 }); // Error (must be string)
  * ```
  */
-export const idSchema = z.number().int().positive();
+export const idSchema = z.string().min(1, "ID is required");
 
 /**
  * オプショナルな文字列（空文字をnullに変換）

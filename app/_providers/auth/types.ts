@@ -19,7 +19,7 @@ export type User = {
   /** ユーザー権限 */
   role: "ADMIN" | "MANAGER" | "MEMBER";
   /** 紐付けられたインストラクターID */
-  instructorId: number | null;
+  instructorId: string | null;
   /** アクティブフラグ */
   isActive: boolean;
   /** 作成日時 */
@@ -67,7 +67,7 @@ export type InitialUser = {
   displayName: string;
   pictureUrl?: string | null;
   role: "ADMIN" | "MANAGER" | "MEMBER";
-  instructorId?: number | null;
+  instructorId?: string | null;
 };
 
 /**

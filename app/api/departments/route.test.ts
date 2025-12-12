@@ -3,7 +3,7 @@ import { authenticateFromRequest } from "@/lib/auth/middleware";
 import { GET } from "./route";
 
 type Department = {
-  id: number;
+  id: string;
   code: string;
   name: string;
   description: string | null;
@@ -63,7 +63,7 @@ describe("GET /api/departments", () => {
     mockAuthenticateFromRequest.mockResolvedValue({
       success: true,
       user: {
-        id: "1",
+        id: "test-dept-1",
         lineUserId: "test-user",
         displayName: "Test User",
         role: "ADMIN",
@@ -104,7 +104,7 @@ describe("GET /api/departments", () => {
       // Arrange
       const mockDepartments: Department[] = [
         {
-          id: 1,
+          id: "test-dept-1",
           code: "SKI",
           name: "スキー",
           description: "スキー部門",
@@ -113,7 +113,7 @@ describe("GET /api/departments", () => {
           updatedAt: new Date("2024-01-01"),
         },
         {
-          id: 2,
+          id: "test-dept-2",
           code: "SNOWBOARD",
           name: "スノーボード",
           description: "スノーボード部門",
@@ -172,7 +172,7 @@ describe("GET /api/departments", () => {
       // Arrange
       const mockDepartments: Department[] = [
         {
-          id: 1,
+          id: "test-dept-1",
           code: "SKI",
           name: "スキー",
           description: "スキー部門",
@@ -251,8 +251,8 @@ describe("GET /api/departments", () => {
     it("部門データが名前順（昇順）でソートされて取得されること", async () => {
       // Arrange
       const mockDepartments: Partial<Department>[] = [
-        { id: 2, code: "SNOWBOARD", name: "スノーボード" },
-        { id: 1, code: "SKI", name: "スキー" },
+        { id: "test-dept-2", code: "SNOWBOARD", name: "スノーボード" },
+        { id: "test-dept-1", code: "SKI", name: "スキー" },
       ];
       mockDepartmentFindMany.mockResolvedValue(mockDepartments as Department[]);
 

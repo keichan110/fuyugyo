@@ -13,24 +13,24 @@ import {
 
 // 既存シフトの型定義
 export type ExistingShiftData = {
-  id: number;
+  id: string;
   date: string;
-  departmentId: number;
-  shiftTypeId: number;
+  departmentId: string;
+  shiftTypeId: string;
   description: string | null;
   department: {
-    id: number;
+    id: string;
     name: string;
     code: string;
   };
   shiftType: {
-    id: number;
+    id: string;
     name: string;
   };
   assignments: Array<{
-    id: number;
+    id: string;
     instructor: {
-      id: number;
+      id: string;
       lastName: string;
       firstName: string;
     };
@@ -41,10 +41,10 @@ export type ExistingShiftData = {
 // 新しいシフトデータの型定義
 export type NewShiftData = {
   date: string;
-  departmentId: number;
-  shiftTypeId: number;
+  departmentId: string;
+  shiftTypeId: string;
   description?: string;
-  assignedInstructorIds: number[];
+  assignedInstructorIds: string[];
 };
 
 // ダイアログのアクション型

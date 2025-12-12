@@ -1,10 +1,10 @@
 import type { PrismaClient } from "@prisma/client";
 
 export interface ShiftTypeSeeds {
-  generalLessonType: { id: number; name: string };
-  groupLessonType: { id: number; name: string };
-  badgeTestType: { id: number; name: string };
-  prefectureEventType: { id: number; name: string };
+  generalLessonType: { id: string; name: string };
+  groupLessonType: { id: string; name: string };
+  badgeTestType: { id: string; name: string };
+  prefectureEventType: { id: string; name: string };
 }
 
 export async function seedShiftTypes(

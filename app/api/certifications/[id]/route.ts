@@ -9,39 +9,13 @@ export async function GET(_request: NextRequest, context: RouteContext) {
   try {
     const { id } = await context.params;
 
-    // IDが数値でない場合は404を返す
-    const certificationId = Number.parseInt(id, 10);
-    if (Number.isNaN(certificationId)) {
-      return NextResponse.json(
-        {
-          success: false,
-          data: null,
-          message: null,
-          error: "Resource not found",
-        },
-        { status: 404 }
-      );
-    }
-
     const certification = await (await getPrisma()).certification.findUnique({
-      where: { id: certificationId },
+      where: { id },
       include: {
         department: {
           select: {
             id: true,
             name: true,
-          },
-        },
-        instructorCertifications: {
-          include: {
-            instructor: {
-              select: {
-                id: true,
-                lastName: true,
-                firstName: true,
-                status: true,
-              },
-            },
           },
         },
       },
@@ -60,16 +34,9 @@ export async function GET(_request: NextRequest, context: RouteContext) {
       );
     }
 
-    // レスポンス形式をCertificationDetailスキーマに合わせて変換
-    const { instructorCertifications, ...certificationBase } = certification;
-    const certificationDetail = {
-      ...certificationBase,
-      instructors: instructorCertifications.map((ic) => ic.instructor),
-    };
-
     return NextResponse.json({
       success: true,
-      data: certificationDetail,
+      data: certification,
       message: null,
       error: null,
     });

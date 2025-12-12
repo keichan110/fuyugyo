@@ -27,7 +27,7 @@ type ShiftSlotEditorProps = {
   shiftTypes: ShiftTypeMinimal[];
   instructors: InstructorWithAssignment[];
   isSubmitting: boolean;
-  onShiftTypeChange: (shiftTypeId: number) => void;
+  onShiftTypeChange: (shiftTypeId: string) => void;
   onDescriptionChange: (description: string) => void;
   onSave: () => void;
   onCancel: () => void;
@@ -126,15 +126,15 @@ export function ShiftSlotEditor({
                 シフト種別 <span className="text-red-500">*</span>
               </Label>
               <Select
-                onValueChange={(value) => onShiftTypeChange(Number(value))}
-                value={slot.shiftTypeId > 0 ? String(slot.shiftTypeId) : ""}
+                onValueChange={(value) => onShiftTypeChange(value)}
+                value={slot.shiftTypeId || ""}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="シフト種別を選択" />
                 </SelectTrigger>
                 <SelectContent>
                   {shiftTypes.map((type) => (
-                    <SelectItem key={type.id} value={String(type.id)}>
+                    <SelectItem key={type.id} value={type.id}>
                       {type.name}
                     </SelectItem>
                   ))}

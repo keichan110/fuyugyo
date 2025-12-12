@@ -12,13 +12,13 @@ import type { AssignedInstructor, ShiftSummary } from "./types";
 // テスト用のモックデータ
 const mockAssignedInstructors: AssignedInstructor[] = [
   {
-    id: 1,
+    id: "instructor-1",
     displayName: "山田太郎",
     firstName: "太郎",
     lastName: "山田",
   },
   {
-    id: 2,
+    id: "instructor-2",
     displayName: "鈴木花子",
     firstName: "花子",
     lastName: "鈴木",

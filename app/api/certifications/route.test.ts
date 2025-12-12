@@ -3,8 +3,8 @@ import { authenticateFromRequest } from "@/lib/auth/middleware";
 import { GET } from "./route";
 
 type Certification = {
-  id: number;
-  departmentId: number;
+  id: string;
+  departmentId: string;
   name: string;
   shortName: string;
   organization: string;
@@ -13,7 +13,7 @@ type Certification = {
   createdAt: Date;
   updatedAt: Date;
   department: {
-    id: number;
+    id: string;
     name: string;
   };
 };
@@ -112,8 +112,8 @@ describe("GET /api/certifications", () => {
       // Arrange
       const mockCertifications: Certification[] = [
         {
-          id: 1,
-          departmentId: 1,
+          id: "test-cert-1",
+          departmentId: "test-dept-1",
           name: "スキー指導員",
           shortName: "指導員",
           organization: "SAJ",
@@ -122,13 +122,13 @@ describe("GET /api/certifications", () => {
           createdAt: new Date("2024-01-01"),
           updatedAt: new Date("2024-01-01"),
           department: {
-            id: 1,
+            id: "test-dept-1",
             name: "スキー",
           },
         },
         {
-          id: 2,
-          departmentId: 2,
+          id: "test-cert-2",
+          departmentId: "test-dept-2",
           name: "スノーボード指導員",
           shortName: "指導員",
           organization: "JSBA",
@@ -137,7 +137,7 @@ describe("GET /api/certifications", () => {
           createdAt: new Date("2024-01-01"),
           updatedAt: new Date("2024-01-01"),
           department: {
-            id: 2,
+            id: "test-dept-2",
             name: "スノーボード",
           },
         },
@@ -204,8 +204,8 @@ describe("GET /api/certifications", () => {
       // Arrange
       const mockCertifications: Certification[] = [
         {
-          id: 1,
-          departmentId: 1,
+          id: "test-cert-1",
+          departmentId: "test-dept-1",
           name: "スキー指導員",
           shortName: "指導員",
           organization: "SAJ",
@@ -214,7 +214,7 @@ describe("GET /api/certifications", () => {
           createdAt: new Date("2024-01-01"),
           updatedAt: new Date("2024-01-01"),
           department: {
-            id: 1,
+            id: "test-dept-1",
             name: "スキー",
           },
         },
@@ -296,14 +296,14 @@ describe("GET /api/certifications", () => {
       // Arrange
       const mockCertifications: Partial<Certification>[] = [
         {
-          id: 1,
+          id: "test-cert-1",
           name: "スキー指導員",
-          department: { id: 1, name: "スキー" },
+          department: { id: "test-dept-1", name: "スキー" },
         },
         {
-          id: 2,
+          id: "test-cert-2",
           name: "スノーボード指導員",
-          department: { id: 2, name: "スノーボード" },
+          department: { id: "test-dept-2", name: "スノーボード" },
         },
       ];
       mockCertificationFindMany.mockResolvedValue(

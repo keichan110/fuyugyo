@@ -27,7 +27,7 @@ export const getCertifications = cache(
  */
 export async function getDepartmentIdByType(
   departmentType: "ski" | "snowboard"
-): Promise<number> {
+): Promise<string> {
   const departments = await (await getPrisma()).department.findMany({
     select: { id: true, name: true },
   });
@@ -41,7 +41,9 @@ export async function getDepartmentIdByType(
   });
 
   if (!targetDepartment) {
-    return departments[0]?.id || 1;
+    throw new Error(
+      `Department type "${departmentType}" not found in database`
+    );
   }
 
   return targetDepartment.id;

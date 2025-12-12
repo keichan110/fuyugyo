@@ -38,7 +38,7 @@ type ShiftsByDateAndDept = Map<
  */
 function groupShiftsByDateAndDepartment(
   shifts: MonthlyViewData["shifts"],
-  departments: Array<{ id: number; name: string; code: string }>,
+  departments: Array<{ id: string; name: string; code: string }>,
   year: number,
   month: number
 ): ShiftsByDateAndDept {
@@ -141,7 +141,7 @@ function escapeHtml(str: string): string {
  */
 export function generatePDFTemplate(
   data: MonthlyViewData,
-  departments: Array<{ id: number; name: string; code: string }>,
+  departments: Array<{ id: string; name: string; code: string }>,
   year: number,
   month: number
 ): string {

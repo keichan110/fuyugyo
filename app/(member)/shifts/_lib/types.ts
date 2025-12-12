@@ -1,8 +1,8 @@
 export type Shift = {
-  id: number;
+  id: string;
   date: string;
-  departmentId: number;
-  shiftTypeId: number;
+  departmentId: string;
+  shiftTypeId: string;
   description: string | null;
   createdAt: string;
   updatedAt: string;
@@ -15,7 +15,7 @@ export type Shift = {
 };
 
 export type Department = {
-  id: number;
+  id: string;
   code: string;
   name: string;
   createdAt: string;
@@ -23,7 +23,7 @@ export type Department = {
 };
 
 export type ShiftType = {
-  id: number;
+  id: string;
   name: string;
   isActive: boolean;
   createdAt: string;
@@ -32,14 +32,14 @@ export type ShiftType = {
 
 export type ShiftAssignment = {
   id: string;
-  shiftId: number;
-  instructorId: number;
+  shiftId: string;
+  instructorId: string;
   assignedAt: string;
   instructor: Instructor;
 };
 
 export type Instructor = {
-  id: number;
+  id: string;
   lastName: string;
   firstName: string;
   status: string;
@@ -47,7 +47,7 @@ export type Instructor = {
 
 // アサイン済みインストラクター情報（公開ビュー用）
 export type AssignedInstructor = {
-  id: number;
+  id: string;
   lastName: string;
   firstName: string;
   displayName: string; // "lastName firstName" 形式
@@ -105,18 +105,18 @@ export interface ReadonlyShift
 
 // Query parameter types for better type safety
 export type ShiftQueryParams = {
-  readonly departmentId?: number;
-  readonly shiftTypeId?: number;
+  readonly departmentId?: string;
+  readonly shiftTypeId?: string;
   readonly dateFrom?: string;
   readonly dateTo?: string;
 };
 
 export type CreateShiftData = {
   readonly date: string;
-  readonly departmentId: number;
-  readonly shiftTypeId: number;
+  readonly departmentId: string;
+  readonly shiftTypeId: string;
   readonly description?: string | null;
-  readonly assignedInstructorIds?: readonly number[];
+  readonly assignedInstructorIds?: readonly string[];
 };
 
 export type DayData = {
@@ -159,7 +159,7 @@ export type CalendarDate = {
  */
 export type FormattedInstructor = {
   /** インストラクターID */
-  id: number;
+  id: string;
   /** 表示名（姓名が結合済み、例: "山田 太郎"） */
   displayName: string;
   /** カナ表示名（姓名カナが結合済み、例: "ヤマダ タロウ"） */

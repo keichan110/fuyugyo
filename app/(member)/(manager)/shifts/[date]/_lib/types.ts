@@ -12,19 +12,19 @@ export type { DepartmentMinimal, ShiftTypeMinimal } from "@/lib/types/domain";
  */
 export type ShiftSlot = {
   /** シフトID (null = 新規作成中) */
-  id: number | null;
+  id: string | null;
 
   /** 部門ID */
-  departmentId: number;
+  departmentId: string;
 
   /** シフト種別ID */
-  shiftTypeId: number;
+  shiftTypeId: string;
 
   /** 備考 */
   description: string;
 
   /** 割り当てられたインストラクターのID配列 */
-  instructorIds: number[];
+  instructorIds: string[];
 
   /** UI状態: 編集中かどうか */
   isEditing: boolean;
@@ -38,7 +38,7 @@ export type ShiftSlot = {
  */
 export type InstructorWithAssignment = {
   /** インストラクターID */
-  id: number;
+  id: string;
 
   /** 表示名（姓名） */
   displayName: string;
@@ -50,18 +50,18 @@ export type InstructorWithAssignment = {
   departmentCode: string;
 
   /** 割り当て済みのシフトID配列 */
-  assignedToShiftIds: number[];
+  assignedToShiftIds: string[];
 
   /** 配置状況の詳細情報 */
   assignmentInfo: Array<{
-    shiftId: number;
+    shiftId: string;
     departmentName: string;
     shiftTypeName: string;
   }>;
 
   /** 資格情報 */
   certifications: Array<{
-    certificationId: number;
+    certificationId: string;
     certificationName: string;
     departmentCode: string;
   }>;
@@ -87,34 +87,34 @@ export type DayShiftData = {
   shiftTypes: ShiftTypeMinimal[];
 
   /** 事前選択された部門ID（URLパラメーターから） */
-  preselectedDepartmentId?: number;
+  preselectedDepartmentId?: string;
 };
 
 /**
  * データベースから取得したシフト情報（型安全性のため明示）
  */
 export type ShiftWithRelations = {
-  id: number;
+  id: string;
   date: Date;
-  departmentId: number;
-  shiftTypeId: number;
+  departmentId: string;
+  shiftTypeId: string;
   description: string | null;
   department: {
-    id: number;
+    id: string;
     name: string;
     code: string;
   };
   shiftType: {
-    id: number;
+    id: string;
     name: string;
     isActive: boolean;
   };
   shiftAssignments: Array<{
-    id: number;
-    shiftId: number;
-    instructorId: number;
+    id: string;
+    shiftId: string;
+    instructorId: string;
     instructor: {
-      id: number;
+      id: string;
       lastName: string;
       firstName: string;
       lastNameKana: string | null;

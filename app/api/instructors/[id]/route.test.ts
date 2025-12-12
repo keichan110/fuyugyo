@@ -3,7 +3,7 @@ import type { InstructorStatus } from "@/types/common";
 import { GET } from "./route";
 
 type InstructorWithCertifications = {
-  id: number;
+  id: string;
   lastName: string;
   firstName: string;
   lastNameKana: string | null;
@@ -14,12 +14,12 @@ type InstructorWithCertifications = {
   updatedAt: Date;
   certifications: {
     certification: {
-      id: number;
+      id: string;
       name: string;
       shortName: string | null;
       organization: string;
       department: {
-        id: number;
+        id: string;
         name: string;
       };
     };
@@ -112,7 +112,7 @@ describe("GET /api/instructors/[id]", () => {
     it("インストラクターの詳細情報が資格情報付きで正しく返されること", async () => {
       // Arrange
       const mockInstructor: InstructorWithCertifications = {
-        id: 1,
+        id: "test-instructor-1",
         lastName: "山田",
         firstName: "太郎",
         lastNameKana: "ヤマダ",
@@ -124,24 +124,24 @@ describe("GET /api/instructors/[id]", () => {
         certifications: [
           {
             certification: {
-              id: 1,
+              id: "test-certification-1",
               name: "スキー指導員",
               shortName: "指導員",
               organization: "SAJ",
               department: {
-                id: 1,
+                id: "test-department-1",
                 name: "スキー",
               },
             },
           },
           {
             certification: {
-              id: 2,
+              id: "test-certification-2",
               name: "スキー準指導員",
               shortName: "準指導員",
               organization: "SAJ",
               department: {
-                id: 1,
+                id: "test-department-1",
                 name: "スキー",
               },
             },
@@ -152,16 +152,16 @@ describe("GET /api/instructors/[id]", () => {
       mockInstructorFindUnique.mockResolvedValue(mockInstructor);
 
       const mockRequest = new NextRequest(
-        "http://localhost:3000/api/instructors/1"
+        "http://localhost:3000/api/instructors/test-instructor-1"
       );
-      const context = { params: Promise.resolve({ id: "1" }) };
+      const context = { params: Promise.resolve({ id: "test-instructor-1" }) };
 
       // Act
       await GET(mockRequest, context);
 
       // Assert
       expect(mockInstructorFindUnique).toHaveBeenCalledWith({
-        where: { id: 1 },
+        where: { id: "test-instructor-1" },
         include: {
           certifications: {
             include: {
@@ -183,7 +183,7 @@ describe("GET /api/instructors/[id]", () => {
       expect(mockNextResponse.json).toHaveBeenCalledWith({
         success: true,
         data: {
-          id: 1,
+          id: "test-instructor-1",
           lastName: "山田",
           firstName: "太郎",
           lastNameKana: "ヤマダ",
@@ -194,22 +194,22 @@ describe("GET /api/instructors/[id]", () => {
           updatedAt: new Date("2024-01-01T00:00:00.000Z"),
           certifications: [
             {
-              id: 1,
+              id: "test-certification-1",
               name: "スキー指導員",
               shortName: "指導員",
               organization: "SAJ",
               department: {
-                id: 1,
+                id: "test-department-1",
                 name: "スキー",
               },
             },
             {
-              id: 2,
+              id: "test-certification-2",
               name: "スキー準指導員",
               shortName: "準指導員",
               organization: "SAJ",
               department: {
-                id: 1,
+                id: "test-department-1",
                 name: "スキー",
               },
             },
@@ -223,7 +223,7 @@ describe("GET /api/instructors/[id]", () => {
     it("資格情報がないインストラクターでも正しく返されること", async () => {
       // Arrange
       const mockInstructor: InstructorWithCertifications = {
-        id: 2,
+        id: "test-instructor-2",
         lastName: "佐藤",
         firstName: "花子",
         lastNameKana: null,
@@ -238,9 +238,9 @@ describe("GET /api/instructors/[id]", () => {
       mockInstructorFindUnique.mockResolvedValue(mockInstructor);
 
       const mockRequest = new NextRequest(
-        "http://localhost:3000/api/instructors/2"
+        "http://localhost:3000/api/instructors/test-instructor-2"
       );
-      const context = { params: Promise.resolve({ id: "2" }) };
+      const context = { params: Promise.resolve({ id: "test-instructor-2" }) };
 
       // Act
       await GET(mockRequest, context);
@@ -249,7 +249,7 @@ describe("GET /api/instructors/[id]", () => {
       expect(mockNextResponse.json).toHaveBeenCalledWith({
         success: true,
         data: {
-          id: 2,
+          id: "test-instructor-2",
           lastName: "佐藤",
           firstName: "花子",
           lastNameKana: null,
@@ -265,10 +265,10 @@ describe("GET /api/instructors/[id]", () => {
       });
     });
 
-    it("数値文字列のIDが正しく整数に変換されること", async () => {
+    it("文字列IDが正しく処理されること", async () => {
       // Arrange
       const mockInstructor: InstructorWithCertifications = {
-        id: 123,
+        id: "test-instructor-3",
         lastName: "田中",
         firstName: "三郎",
         lastNameKana: "タナカ",
@@ -283,16 +283,16 @@ describe("GET /api/instructors/[id]", () => {
       mockInstructorFindUnique.mockResolvedValue(mockInstructor);
 
       const mockRequest = new NextRequest(
-        "http://localhost:3000/api/instructors/123"
+        "http://localhost:3000/api/instructors/test-instructor-3"
       );
-      const context = { params: Promise.resolve({ id: "123" }) };
+      const context = { params: Promise.resolve({ id: "test-instructor-3" }) };
 
       // Act
       await GET(mockRequest, context);
 
       // Assert
       expect(mockInstructorFindUnique).toHaveBeenCalledWith({
-        where: { id: 123 },
+        where: { id: "test-instructor-3" },
         include: {
           certifications: {
             include: {
@@ -319,16 +319,18 @@ describe("GET /api/instructors/[id]", () => {
       mockInstructorFindUnique.mockResolvedValue(null);
 
       const mockRequest = new NextRequest(
-        "http://localhost:3000/api/instructors/999"
+        "http://localhost:3000/api/instructors/test-instructor-nonexistent"
       );
-      const context = { params: Promise.resolve({ id: "999" }) };
+      const context = {
+        params: Promise.resolve({ id: "test-instructor-nonexistent" }),
+      };
 
       // Act
       await GET(mockRequest, context);
 
       // Assert
       expect(mockInstructorFindUnique).toHaveBeenCalledWith({
-        where: { id: 999 },
+        where: { id: "test-instructor-nonexistent" },
         include: {
           certifications: {
             include: {
@@ -358,84 +360,15 @@ describe("GET /api/instructors/[id]", () => {
       );
     });
 
-    it("無効なID（数値でない）が指定された場合に400エラーが返されること", async () => {
-      // Arrange
-      const mockRequest = new NextRequest(
-        "http://localhost:3000/api/instructors/invalid"
-      );
-      const context = { params: Promise.resolve({ id: "invalid" }) };
-
-      // Act
-      await GET(mockRequest, context);
-
-      // Assert
-      expect(mockInstructorFindUnique).not.toHaveBeenCalled();
-      expect(mockNextResponse.json).toHaveBeenCalledWith(
-        {
-          success: false,
-          data: null,
-          message: null,
-          error: "Invalid ID format",
-        },
-        { status: 400 }
-      );
-    });
-
-    it("負の数値IDが指定された場合に400エラーが返されること", async () => {
-      // Arrange
-      const mockRequest = new NextRequest(
-        "http://localhost:3000/api/instructors/-1"
-      );
-      const context = { params: Promise.resolve({ id: "-1" }) };
-
-      // Act
-      await GET(mockRequest, context);
-
-      // Assert
-      expect(mockInstructorFindUnique).not.toHaveBeenCalled();
-      expect(mockNextResponse.json).toHaveBeenCalledWith(
-        {
-          success: false,
-          data: null,
-          message: null,
-          error: "Invalid ID format",
-        },
-        { status: 400 }
-      );
-    });
-
-    it("0のIDが指定された場合に400エラーが返されること", async () => {
-      // Arrange
-      const mockRequest = new NextRequest(
-        "http://localhost:3000/api/instructors/0"
-      );
-      const context = { params: Promise.resolve({ id: "0" }) };
-
-      // Act
-      await GET(mockRequest, context);
-
-      // Assert
-      expect(mockInstructorFindUnique).not.toHaveBeenCalled();
-      expect(mockNextResponse.json).toHaveBeenCalledWith(
-        {
-          success: false,
-          data: null,
-          message: null,
-          error: "Invalid ID format",
-        },
-        { status: 400 }
-      );
-    });
-
     it("データベースエラーが発生した場合に500エラーが返されること", async () => {
       // Arrange
       const mockError = new Error("Database connection failed");
       mockInstructorFindUnique.mockRejectedValue(mockError);
 
       const mockRequest = new NextRequest(
-        "http://localhost:3000/api/instructors/1"
+        "http://localhost:3000/api/instructors/test-instructor-1"
       );
-      const context = { params: Promise.resolve({ id: "1" }) };
+      const context = { params: Promise.resolve({ id: "test-instructor-1" }) };
 
       // Act
       await GET(mockRequest, context);
@@ -457,7 +390,7 @@ describe("GET /api/instructors/[id]", () => {
     it("findUniqueが1回だけ呼ばれること", async () => {
       // Arrange
       const mockInstructor: InstructorWithCertifications = {
-        id: 1,
+        id: "test-instructor-1",
         lastName: "山田",
         firstName: "太郎",
         lastNameKana: "ヤマダ",
@@ -472,9 +405,9 @@ describe("GET /api/instructors/[id]", () => {
       mockInstructorFindUnique.mockResolvedValue(mockInstructor);
 
       const mockRequest = new NextRequest(
-        "http://localhost:3000/api/instructors/1"
+        "http://localhost:3000/api/instructors/test-instructor-1"
       );
-      const context = { params: Promise.resolve({ id: "1" }) };
+      const context = { params: Promise.resolve({ id: "test-instructor-1" }) };
 
       // Act
       await GET(mockRequest, context);
@@ -488,9 +421,9 @@ describe("GET /api/instructors/[id]", () => {
       mockInstructorFindUnique.mockResolvedValue(null);
 
       const mockRequest = new NextRequest(
-        "http://localhost:3000/api/instructors/1"
+        "http://localhost:3000/api/instructors/test-instructor-1"
       );
-      const context = { params: Promise.resolve({ id: "1" }) };
+      const context = { params: Promise.resolve({ id: "test-instructor-1" }) };
 
       // Act
       await GET(mockRequest, context);
@@ -523,9 +456,9 @@ describe("GET /api/instructors/[id]", () => {
       mockInstructorFindUnique.mockResolvedValue(null);
 
       const mockRequest = new NextRequest(
-        "http://localhost:3000/api/instructors/42"
+        "http://localhost:3000/api/instructors/test-instructor-42"
       );
-      const context = { params: Promise.resolve({ id: "42" }) };
+      const context = { params: Promise.resolve({ id: "test-instructor-42" }) };
 
       // Act
       await GET(mockRequest, context);
@@ -533,7 +466,7 @@ describe("GET /api/instructors/[id]", () => {
       // Assert
       expect(mockInstructorFindUnique).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { id: 42 },
+          where: { id: "test-instructor-42" },
         })
       );
     });
@@ -543,7 +476,7 @@ describe("GET /api/instructors/[id]", () => {
     it("OpenAPI仕様に準拠したレスポンス形式で返されること", async () => {
       // Arrange
       const mockInstructor: InstructorWithCertifications = {
-        id: 1,
+        id: "test-instructor-1",
         lastName: "山田",
         firstName: "太郎",
         lastNameKana: "ヤマダ",
@@ -555,12 +488,12 @@ describe("GET /api/instructors/[id]", () => {
         certifications: [
           {
             certification: {
-              id: 1,
+              id: "test-certification-1",
               name: "スキー指導員",
               shortName: "指導員",
               organization: "SAJ",
               department: {
-                id: 1,
+                id: "test-department-1",
                 name: "スキー",
               },
             },
@@ -571,9 +504,9 @@ describe("GET /api/instructors/[id]", () => {
       mockInstructorFindUnique.mockResolvedValue(mockInstructor);
 
       const mockRequest = new NextRequest(
-        "http://localhost:3000/api/instructors/1"
+        "http://localhost:3000/api/instructors/test-instructor-1"
       );
-      const context = { params: Promise.resolve({ id: "1" }) };
+      const context = { params: Promise.resolve({ id: "test-instructor-1" }) };
 
       // Act
       await GET(mockRequest, context);
@@ -583,17 +516,17 @@ describe("GET /api/instructors/[id]", () => {
         expect.objectContaining({
           success: expect.any(Boolean),
           data: expect.objectContaining({
-            id: expect.any(Number),
+            id: expect.any(String),
             lastName: expect.any(String),
             firstName: expect.any(String),
             status: expect.stringMatching(/^(ACTIVE|INACTIVE|RETIRED)$/),
             certifications: expect.arrayContaining([
               expect.objectContaining({
-                id: expect.any(Number),
+                id: expect.any(String),
                 name: expect.any(String),
                 organization: expect.any(String),
                 department: expect.objectContaining({
-                  id: expect.any(Number),
+                  id: expect.any(String),
                   name: expect.any(String),
                 }),
               }),
@@ -610,9 +543,11 @@ describe("GET /api/instructors/[id]", () => {
       mockInstructorFindUnique.mockResolvedValue(null);
 
       const mockRequest = new NextRequest(
-        "http://localhost:3000/api/instructors/999"
+        "http://localhost:3000/api/instructors/test-instructor-nonexistent"
       );
-      const context = { params: Promise.resolve({ id: "999" }) };
+      const context = {
+        params: Promise.resolve({ id: "test-instructor-nonexistent" }),
+      };
 
       // Act
       await GET(mockRequest, context);

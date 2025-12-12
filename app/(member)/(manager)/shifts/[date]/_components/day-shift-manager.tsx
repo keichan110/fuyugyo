@@ -49,19 +49,19 @@ export function DayShiftManager({ initialData }: DayShiftManagerProps) {
   const [isDepartmentPopoverOpen, setIsDepartmentPopoverOpen] = useState(false);
   const [deleteConfirmation, setDeleteConfirmation] = useState<{
     isOpen: boolean;
-    shiftId: number | null;
+    shiftId: string | null;
   }>({ isOpen: false, shiftId: null });
 
   /**
    * 新しいシフト枠を追加（部門IDを指定）
    */
-  const handleAddSlot = (departmentId: number) => {
+  const handleAddSlot = (departmentId: string) => {
     setShiftSlots((prev) => [
       ...prev,
       {
         id: null,
         departmentId,
-        shiftTypeId: 0,
+        shiftTypeId: "",
         description: "",
         instructorIds: [],
         isEditing: true,
@@ -243,7 +243,7 @@ export function DayShiftManager({ initialData }: DayShiftManagerProps) {
   /**
    * シフト枠のシフト種別変更
    */
-  const handleUpdateSlotShiftType = (index: number, shiftTypeId: number) => {
+  const handleUpdateSlotShiftType = (index: number, shiftTypeId: string) => {
     setShiftSlots((prev) =>
       prev.map((slot, i) => (i === index ? { ...slot, shiftTypeId } : slot))
     );
@@ -261,7 +261,7 @@ export function DayShiftManager({ initialData }: DayShiftManagerProps) {
   /**
    * インストラクターの選択/解除
    */
-  const handleToggleInstructor = (instructorId: number) => {
+  const handleToggleInstructor = (instructorId: string) => {
     // 編集中のシフト枠を探す
     const editingIndex = shiftSlots.findIndex((slot) => slot.isEditing);
 
@@ -351,7 +351,7 @@ export function DayShiftManager({ initialData }: DayShiftManagerProps) {
               // 部門が事前選択されている場合は直接追加
               <AddShiftSlotButton
                 onAdd={() =>
-                  handleAddSlot(initialData.preselectedDepartmentId as number)
+                  handleAddSlot(initialData.preselectedDepartmentId as string)
                 }
               />
             ) : (

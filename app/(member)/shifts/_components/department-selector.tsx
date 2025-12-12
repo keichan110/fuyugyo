@@ -7,8 +7,8 @@ import type { DepartmentMinimal } from "../_lib/types";
 
 type DepartmentSelectorProps = {
   departments: DepartmentMinimal[];
-  selectedId: number;
-  onSelect: (id: number) => void;
+  selectedId: string;
+  onSelect: (id: string) => void;
   error?: string | undefined;
   isLoading?: boolean;
 };

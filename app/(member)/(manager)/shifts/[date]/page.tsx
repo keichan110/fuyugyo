@@ -54,8 +54,8 @@ export default async function DayShiftPage({
     notFound();
   }
 
-  // 部門IDを数値に変換
-  const departmentId = department ? Number.parseInt(department, 10) : undefined;
+  // 部門IDを取得
+  const departmentId = department || undefined;
 
   // データを並列取得（部門IDがある場合はその部門のシフトとインストラクターのみ取得）
   const [shifts, instructors, departments, shiftTypes] = await Promise.all([

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { GET } from "./route";
 
 type ShiftType = {
-  id: number;
+  id: string;
   name: string;
   isActive: boolean;
   createdAt: Date;
@@ -83,7 +83,7 @@ describe("GET /api/shift-types/[id]", () => {
     it("シフト種類詳細データが正しく返されること", async () => {
       // Arrange
       const mockShiftType: ShiftType = {
-        id: 1,
+        id: "test-shift-type-1",
         name: "レッスン",
         isActive: true,
         createdAt: new Date("2024-01-01"),
@@ -93,7 +93,7 @@ describe("GET /api/shift-types/[id]", () => {
       mockShiftTypeFindUnique.mockResolvedValue(mockShiftType);
 
       const mockContext = {
-        params: Promise.resolve({ id: "1" }),
+        params: Promise.resolve({ id: "test-shift-type-1" }),
       };
 
       // Act
@@ -101,7 +101,7 @@ describe("GET /api/shift-types/[id]", () => {
 
       // Assert
       expect(mockShiftTypeFindUnique).toHaveBeenCalledWith({
-        where: { id: 1 },
+        where: { id: "test-shift-type-1" },
       });
 
       expect(mockNextResponse.json).toHaveBeenCalledWith(mockShiftType);
@@ -110,7 +110,7 @@ describe("GET /api/shift-types/[id]", () => {
     it("非アクティブなシフト種類でも正しく返されること", async () => {
       // Arrange
       const mockShiftType: ShiftType = {
-        id: 2,
+        id: "test-shift-type-2",
         name: "廃止されたレッスン",
         isActive: false,
         createdAt: new Date("2024-01-01"),
@@ -120,7 +120,7 @@ describe("GET /api/shift-types/[id]", () => {
       mockShiftTypeFindUnique.mockResolvedValue(mockShiftType);
 
       const mockContext = {
-        params: Promise.resolve({ id: "2" }),
+        params: Promise.resolve({ id: "test-shift-type-2" }),
       };
 
       // Act
@@ -137,7 +137,7 @@ describe("GET /api/shift-types/[id]", () => {
       mockShiftTypeFindUnique.mockResolvedValue(null);
 
       const mockContext = {
-        params: Promise.resolve({ id: "999" }),
+        params: Promise.resolve({ id: "test-shift-type-nonexistent" }),
       };
 
       // Act
@@ -145,7 +145,7 @@ describe("GET /api/shift-types/[id]", () => {
 
       // Assert
       expect(mockShiftTypeFindUnique).toHaveBeenCalledWith({
-        where: { id: 999 },
+        where: { id: "test-shift-type-nonexistent" },
       });
 
       expect(mockNextResponse.json).toHaveBeenCalledWith(
@@ -161,15 +161,19 @@ describe("GET /api/shift-types/[id]", () => {
 
     it("不正なIDパラメータの場合は404エラーが返されること", async () => {
       // Arrange
+      mockShiftTypeFindUnique.mockResolvedValue(null);
+
       const mockContext = {
-        params: Promise.resolve({ id: "invalid" }),
+        params: Promise.resolve({ id: "test-shift-type-invalid" }),
       };
 
       // Act
       await GET(new NextRequest("http://localhost"), mockContext);
 
       // Assert
-      expect(mockShiftTypeFindUnique).not.toHaveBeenCalled();
+      expect(mockShiftTypeFindUnique).toHaveBeenCalledWith({
+        where: { id: "test-shift-type-invalid" },
+      });
 
       expect(mockNextResponse.json).toHaveBeenCalledWith(
         {
@@ -188,7 +192,7 @@ describe("GET /api/shift-types/[id]", () => {
       mockShiftTypeFindUnique.mockRejectedValue(mockError);
 
       const mockContext = {
-        params: Promise.resolve({ id: "1" }),
+        params: Promise.resolve({ id: "test-shift-type-1" }),
       };
 
       // Act
@@ -196,7 +200,7 @@ describe("GET /api/shift-types/[id]", () => {
 
       // Assert
       expect(mockShiftTypeFindUnique).toHaveBeenCalledWith({
-        where: { id: 1 },
+        where: { id: "test-shift-type-1" },
       });
 
       expect(mockNextResponse.json).toHaveBeenCalledWith(
@@ -215,7 +219,7 @@ describe("GET /api/shift-types/[id]", () => {
     it("findUniqueが正しいパラメータで呼ばれること", async () => {
       // Arrange
       const mockShiftType: ShiftType = {
-        id: 1,
+        id: "test-shift-type-1",
         name: "テストシフト種類",
         isActive: true,
         createdAt: new Date("2024-01-01"),
@@ -224,7 +228,7 @@ describe("GET /api/shift-types/[id]", () => {
       mockShiftTypeFindUnique.mockResolvedValue(mockShiftType);
 
       const mockContext = {
-        params: Promise.resolve({ id: "1" }),
+        params: Promise.resolve({ id: "test-shift-type-1" }),
       };
 
       // Act
@@ -232,7 +236,7 @@ describe("GET /api/shift-types/[id]", () => {
 
       // Assert
       expect(mockShiftTypeFindUnique).toHaveBeenCalledWith({
-        where: { id: 1 },
+        where: { id: "test-shift-type-1" },
       });
     });
 
@@ -241,7 +245,7 @@ describe("GET /api/shift-types/[id]", () => {
       mockShiftTypeFindUnique.mockResolvedValue(null);
 
       const mockContext = {
-        params: Promise.resolve({ id: "1" }),
+        params: Promise.resolve({ id: "test-shift-type-1" }),
       };
 
       // Act

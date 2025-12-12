@@ -5,7 +5,7 @@ import { InstructorLinkageButton } from "./instructor-linkage-button";
 
 const mockInstructors: InstructorBasicInfo[] = [
   {
-    id: 1,
+    id: "test-instructor-1",
     firstName: "太郎",
     lastName: "山田",
     firstNameKana: "タロウ",
@@ -13,7 +13,7 @@ const mockInstructors: InstructorBasicInfo[] = [
     status: "ACTIVE",
   },
   {
-    id: 2,
+    id: "test-instructor-2",
     firstName: "花子",
     lastName: "佐藤",
     firstNameKana: "ハナコ",

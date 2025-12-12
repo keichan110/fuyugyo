@@ -29,12 +29,13 @@ let assignmentCounter = 1;
 export const createDepartment = (
   overrides: Partial<Department> = {}
 ): Department => {
-  const id = departmentCounter++;
+  const counter = departmentCounter++;
+  const id = `test-dept-${counter}`;
   return {
     id,
-    code: `DEPT${String(id).padStart(3, "0")}`,
-    name: `テスト部門${id}`,
-    description: `テスト用の部門説明${id}`,
+    code: `DEPT${String(counter).padStart(3, "0")}`,
+    name: `テスト部門${counter}`,
+    description: `テスト用の部門説明${counter}`,
     isActive: true,
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -48,15 +49,16 @@ export const createDepartment = (
 export const createInstructor = (
   overrides: Partial<Instructor> = {}
 ): Instructor => {
-  const id = instructorCounter++;
+  const counter = instructorCounter++;
+  const id = `test-instructor-${counter}`;
   return {
     id,
-    lastName: `テスト姓${id}`,
-    firstName: `テスト名${id}`,
-    lastNameKana: `テストセイ${id}`,
-    firstNameKana: `テストメイ${id}`,
+    lastName: `テスト姓${counter}`,
+    firstName: `テスト名${counter}`,
+    lastNameKana: `テストセイ${counter}`,
+    firstNameKana: `テストメイ${counter}`,
     status: "ACTIVE" as InstructorStatus,
-    notes: `テスト用のメモ${id}`,
+    notes: `テスト用のメモ${counter}`,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,
@@ -69,14 +71,15 @@ export const createInstructor = (
 export const createCertification = (
   overrides: Partial<Certification> = {}
 ): Certification => {
-  const id = certificationCounter++;
+  const counter = certificationCounter++;
+  const id = `test-cert-${counter}`;
   return {
     id,
-    departmentId: 1, // デフォルト部門ID
-    name: `テスト資格${id}`,
-    shortName: `資格${id}`,
-    organization: `テスト団体${id}`,
-    description: `テスト用の資格説明${id}`,
+    departmentId: "test-dept-1", // デフォルト部門ID
+    name: `テスト資格${counter}`,
+    shortName: `資格${counter}`,
+    organization: `テスト団体${counter}`,
+    description: `テスト用の資格説明${counter}`,
     isActive: true,
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -90,10 +93,11 @@ export const createCertification = (
 export const createShiftType = (
   overrides: Partial<ShiftType> = {}
 ): ShiftType => {
-  const id = shiftTypeCounter++;
+  const counter = shiftTypeCounter++;
+  const id = `test-shift-type-${counter}`;
   return {
     id,
-    name: `テストシフト種別${id}`,
+    name: `テストシフト種別${counter}`,
     isActive: true,
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -105,20 +109,21 @@ export const createShiftType = (
  * シフトデータファクトリー
  */
 export const createShift = (overrides: Partial<Shift> = {}): Shift => {
-  const id = shiftCounter++;
+  const counter = shiftCounter++;
+  const id = `test-shift-${counter}`;
   const now = new Date();
   const defaultDate = new Date(
     now.getFullYear(),
     now.getMonth(),
-    now.getDate() + id
+    now.getDate() + counter
   );
 
   return {
     id,
     date: defaultDate,
-    departmentId: 1, // デフォルト部門ID
-    shiftTypeId: 1, // デフォルトシフト種別ID
-    description: `テスト用のシフト説明${id}`,
+    departmentId: "test-dept-1", // デフォルト部門ID
+    shiftTypeId: "test-shift-type-1", // デフォルトシフト種別ID
+    description: `テスト用のシフト説明${counter}`,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,
@@ -131,11 +136,12 @@ export const createShift = (overrides: Partial<Shift> = {}): Shift => {
 export const createShiftAssignment = (
   overrides: Partial<ShiftAssignment> = {}
 ): ShiftAssignment => {
-  const id = assignmentCounter++;
+  const counter = assignmentCounter++;
+  const id = `test-assignment-${counter}`;
   return {
     id,
-    shiftId: 1, // デフォルトシフトID
-    instructorId: 1, // デフォルトインストラクターID
+    shiftId: "test-shift-1", // デフォルトシフトID
+    instructorId: "test-instructor-1", // デフォルトインストラクターID
     assignedAt: new Date(),
     ...overrides,
   };
@@ -209,7 +215,7 @@ export const createShiftWithAssignments = (
   const assignments = Array.from({ length: assignmentCount }, (_, index) =>
     createShiftAssignment({
       shiftId: shift.id,
-      instructorId: index + 1,
+      instructorId: `test-instructor-${index + 1}`,
       ...assignmentOverrides[index],
     })
   );

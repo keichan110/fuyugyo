@@ -6,7 +6,7 @@ import { formatDateToString, getWeekDates } from "../_lib/week-calculations";
 import { ShiftDayCard } from "./shift-day-card";
 
 type Department = {
-  id: number;
+  id: string;
   name: string;
   code: string;
 };

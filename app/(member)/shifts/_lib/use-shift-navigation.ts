@@ -29,7 +29,7 @@ export function useShiftNavigation() {
    * @param departmentId - 部門ID
    */
   const navigateToShiftEdit = useCallback(
-    (dateString: string, departmentId: number) => {
+    (dateString: string, departmentId: string) => {
       // 現在のURLパラメータを取得して returnTo に含める
       const currentUrl = window.location.pathname + window.location.search;
       const returnTo = encodeURIComponent(currentUrl);

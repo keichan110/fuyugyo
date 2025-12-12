@@ -10,15 +10,15 @@ const DEFAULT_UPCOMING_SHIFTS_LIMIT = 10;
  * インストラクター向け今後のシフト情報
  */
 export type UpcomingShift = {
-  id: number;
+  id: string;
   date: Date;
   department: {
-    id: number;
+    id: string;
     name: string;
     code: string;
   };
   shiftType: {
-    id: number;
+    id: string;
     name: string;
   };
 };
@@ -32,7 +32,7 @@ export type UpcomingShift = {
  * @returns 今後のシフト一覧（日付昇順、最大10件）
  */
 export const getUpcomingShifts = cache(
-  async (instructorId: number): Promise<UpcomingShift[]> => {
+  async (instructorId: string): Promise<UpcomingShift[]> => {
     // 今日の日付（時刻を00:00:00にリセット）
     const today = new Date();
     today.setHours(0, 0, 0, 0);

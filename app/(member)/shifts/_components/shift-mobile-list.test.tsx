@@ -46,13 +46,13 @@ describe("ShiftMobileList", () => {
           count: 3,
           assignedInstructors: [
             {
-              id: 1,
+              id: "cuid_instructor_1",
               lastName: "田中",
               firstName: "花子",
               displayName: "田中 花子",
             },
             {
-              id: 2,
+              id: "cuid_instructor_2",
               lastName: "佐藤",
               firstName: "次郎",
               displayName: "佐藤 次郎",
@@ -65,7 +65,7 @@ describe("ShiftMobileList", () => {
           count: 1,
           assignedInstructors: [
             {
-              id: 3,
+              id: "cuid_instructor_3",
               lastName: "鈴木",
               firstName: "三郎",
               displayName: "鈴木 三郎",
@@ -220,7 +220,7 @@ describe("ShiftMobileList", () => {
               count: 1,
               assignedInstructors: [
                 {
-                  id: 1,
+                  id: "cuid_instructor_1",
                   lastName: "山田",
                   firstName: "太郎",
                   displayName: "山田 太郎",
@@ -247,7 +247,7 @@ describe("ShiftMobileList", () => {
               count: 1,
               assignedInstructors: [
                 {
-                  id: 2,
+                  id: "cuid_instructor_2",
                   lastName: "佐藤",
                   firstName: "花子",
                   displayName: "佐藤 花子",

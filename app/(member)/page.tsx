@@ -21,7 +21,7 @@ async function UpcomingShiftsAsync({
   instructorProfile,
   availableInstructors,
 }: {
-  instructorId: number | null;
+  instructorId: string | null;
   instructorProfile: UserInstructorProfile | null;
   availableInstructors: InstructorBasicInfo[];
 }) {

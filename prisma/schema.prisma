@@ -9,7 +9,7 @@ datasource db {
 
 /// 部門テーブル（スキー・スノーボード等の部門を管理）
 model Department {
-  id             Int             @id @default(autoincrement())
+  id             String          @id @default(cuid())
   code           String          @unique
   name           String
   description    String?
@@ -25,8 +25,8 @@ model Department {
 
 /// 資格テーブル（インストラクター資格を管理）
 model Certification {
-  id                       Int                       @id @default(autoincrement())
-  departmentId             Int                       @map("department_id")
+  id                       String                    @id @default(cuid())
+  departmentId             String                    @map("department_id")
   name                     String
   shortName                String                    @map("short_name")
   organization             String
@@ -45,7 +45,7 @@ model Certification {
 
 /// インストラクターテーブル（インストラクター基本情報を管理）
 model Instructor {
-  id               Int                       @id @default(autoincrement())
+  id               String                    @id @default(cuid())
   lastName         String                    @map("last_name")
   firstName        String                    @map("first_name")
   lastNameKana     String?                   @map("last_name_kana")
@@ -69,9 +69,9 @@ model Instructor {
 
 /// インストラクター資格関連テーブル（多対多の中間テーブル）
 model InstructorCertification {
-  id              Int           @id @default(autoincrement())
-  instructorId    Int           @map("instructor_id")
-  certificationId Int           @map("certification_id")
+  id              String        @id @default(cuid())
+  instructorId    String        @map("instructor_id")
+  certificationId String        @map("certification_id")
   createdAt       DateTime      @default(now()) @map("created_at")
   updatedAt       DateTime      @updatedAt @map("updated_at")
   certification   Certification @relation(fields: [certificationId], references: [id], onDelete: Cascade)
@@ -85,7 +85,7 @@ model InstructorCertification {
 
 /// シフト種類テーブル（シフトの種類を管理するマスタ）
 model ShiftType {
-  id        Int      @id @default(autoincrement())
+  id        String   @id @default(cuid())
   name      String
   isActive  Boolean  @default(true) @map("is_active")
   createdAt DateTime @default(now()) @map("created_at")
@@ -98,10 +98,10 @@ model ShiftType {
 
 /// シフトテーブル（シフト枠を管理）
 model Shift {
-  id               Int               @id @default(autoincrement())
+  id               String            @id @default(cuid())
   date             DateTime
-  departmentId     Int               @map("department_id")
-  shiftTypeId      Int               @map("shift_type_id")
+  departmentId     String            @map("department_id")
+  shiftTypeId      String            @map("shift_type_id")
   description      String?
   createdAt        DateTime          @default(now()) @map("created_at")
   updatedAt        DateTime          @updatedAt @map("updated_at")
@@ -122,9 +122,9 @@ model Shift {
 
 /// シフト割り当てテーブル（シフトとインストラクターの多対多関係を管理）
 model ShiftAssignment {
-  id           Int        @id @default(autoincrement())
-  shiftId      Int        @map("shift_id")
-  instructorId Int        @map("instructor_id")
+  id           String     @id @default(cuid())
+  shiftId      String     @map("shift_id")
+  instructorId String     @map("instructor_id")
   assignedAt   DateTime   @default(now()) @map("assigned_at")
   instructor   Instructor @relation(fields: [instructorId], references: [id], onDelete: Cascade)
   shift        Shift      @relation(fields: [shiftId], references: [id], onDelete: Cascade)
@@ -147,7 +147,7 @@ model User {
   pictureUrl         String?           @map("picture_url")
   role               String            @default("MEMBER")
   isActive           Boolean           @default(true) @map("is_active")
-  instructorId       Int?              @map("instructor_id")
+  instructorId       String?           @map("instructor_id")
   instructor         Instructor?       @relation(fields: [instructorId], references: [id], onDelete: SetNull)
   createdAt          DateTime          @default(now()) @map("created_at")
   updatedAt          DateTime          @updatedAt @map("updated_at")

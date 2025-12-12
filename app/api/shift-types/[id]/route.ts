@@ -8,23 +8,10 @@ type Params = {
 export async function GET(_request: NextRequest, context: Params) {
   try {
     const { id } = await context.params;
-    const shiftTypeId = Number.parseInt(id, 10);
-
-    if (Number.isNaN(shiftTypeId)) {
-      return NextResponse.json(
-        {
-          success: false,
-          data: null,
-          message: null,
-          error: "Resource not found",
-        },
-        { status: 404 }
-      );
-    }
 
     const shiftType = await (await getPrisma()).shiftType.findUnique({
       where: {
-        id: shiftTypeId,
+        id,
       },
     });
 

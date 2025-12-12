@@ -46,18 +46,17 @@ export async function GET(request: NextRequest) {
       }
 
       // departmentIdパラメータのバリデーション
-      let departmentIdFilter: number | undefined;
+      let departmentIdFilter: string | undefined;
       if (departmentIdParam) {
-        const departmentId = Number.parseInt(departmentIdParam, 10);
-        if (Number.isNaN(departmentId) || departmentId <= 0) {
+        if (!departmentIdParam.trim()) {
           return createValidationErrorResponse([
             {
               field: "departmentId",
-              message: "departmentId must be a positive integer",
+              message: "departmentId must not be empty",
             },
           ]);
         }
-        departmentIdFilter = departmentId;
+        departmentIdFilter = departmentIdParam;
       }
 
       const whereClause: Record<string, unknown> = {};

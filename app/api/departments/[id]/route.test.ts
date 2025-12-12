@@ -38,7 +38,7 @@ describe("/api/departments/[id] GET", () => {
     mockAuthenticateFromRequest.mockResolvedValue({
       success: true,
       user: {
-        id: "1",
+        id: "test-dept-1",
         lineUserId: "test-user",
         displayName: "Test User",
         role: "ADMIN",
@@ -57,9 +57,11 @@ describe("/api/departments/[id] GET", () => {
       error: "Authentication required",
     });
 
-    const request = new NextRequest("http://localhost:3000/api/departments/1");
+    const request = new NextRequest(
+      "http://localhost:3000/api/departments/test-dept-1"
+    );
     const response = await GET(request, {
-      params: Promise.resolve({ id: "1" }),
+      params: Promise.resolve({ id: "test-dept-1" }),
     });
     const data = await response.json();
 
@@ -76,7 +78,7 @@ describe("/api/departments/[id] GET", () => {
   it("部門が存在する場合、部門詳細を返す", async () => {
     // テストデータを準備
     const mockDepartment = {
-      id: 1,
+      id: "test-dept-1",
       code: "ski",
       name: "スキー",
       description: "スキー部門",
@@ -88,9 +90,11 @@ describe("/api/departments/[id] GET", () => {
     mockFindUnique.mockResolvedValue(mockDepartment);
 
     // リクエストを作成
-    const request = new NextRequest("http://localhost:3000/api/departments/1");
+    const request = new NextRequest(
+      "http://localhost:3000/api/departments/test-dept-1"
+    );
     const response = await GET(request, {
-      params: Promise.resolve({ id: "1" }),
+      params: Promise.resolve({ id: "test-dept-1" }),
     });
     const data = await response.json();
 
@@ -99,7 +103,7 @@ describe("/api/departments/[id] GET", () => {
     expect(data).toEqual({
       success: true,
       data: {
-        id: 1,
+        id: "test-dept-1",
         code: "ski",
         name: "スキー",
         description: "スキー部門",
@@ -113,7 +117,7 @@ describe("/api/departments/[id] GET", () => {
 
     // Prismaクエリが正しく呼ばれたことを確認
     expect(mockFindUnique).toHaveBeenCalledWith({
-      where: { id: 1 },
+      where: { id: "test-dept-1" },
     });
   });
 
@@ -121,10 +125,10 @@ describe("/api/departments/[id] GET", () => {
     mockFindUnique.mockResolvedValue(null);
 
     const request = new NextRequest(
-      "http://localhost:3000/api/departments/999"
+      "http://localhost:3000/api/departments/test-dept-nonexistent"
     );
     const response = await GET(request, {
-      params: Promise.resolve({ id: "999" }),
+      params: Promise.resolve({ id: "test-dept-nonexistent" }),
     });
     const data = await response.json();
 
@@ -139,10 +143,10 @@ describe("/api/departments/[id] GET", () => {
 
   it("無効なIDパラメータの場合、404エラーを返す", async () => {
     const request = new NextRequest(
-      "http://localhost:3000/api/departments/invalid"
+      "http://localhost:3000/api/departments/test-dept-invalid"
     );
     const response = await GET(request, {
-      params: Promise.resolve({ id: "invalid" }),
+      params: Promise.resolve({ id: "" }),
     });
     const data = await response.json();
 
@@ -161,9 +165,11 @@ describe("/api/departments/[id] GET", () => {
   it("データベースエラーが発生した場合、500エラーを返す", async () => {
     mockFindUnique.mockRejectedValue(new Error("Database error"));
 
-    const request = new NextRequest("http://localhost:3000/api/departments/1");
+    const request = new NextRequest(
+      "http://localhost:3000/api/departments/test-dept-1"
+    );
     const response = await GET(request, {
-      params: Promise.resolve({ id: "1" }),
+      params: Promise.resolve({ id: "test-dept-1" }),
     });
     const data = await response.json();
 

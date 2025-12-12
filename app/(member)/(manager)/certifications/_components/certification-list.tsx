@@ -33,7 +33,7 @@ type CertificationListProps = {
   ) => Promise<ActionResult<unknown>>;
   /** 資格更新アクション */
   onUpdateCertification: (
-    id: number,
+    id: string,
     input: UpdateCertificationInput
   ) => Promise<ActionResult<unknown>>;
 };

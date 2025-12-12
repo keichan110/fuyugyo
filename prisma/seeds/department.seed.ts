@@ -1,8 +1,8 @@
 import type { PrismaClient } from "@prisma/client";
 
 export interface DepartmentSeeds {
-  skiDepartment: { id: number; code: string; name: string };
-  snowboardDepartment: { id: number; code: string; name: string };
+  skiDepartment: { id: string; code: string; name: string };
+  snowboardDepartment: { id: string; code: string; name: string };
 }
 
 export async function seedDepartments(

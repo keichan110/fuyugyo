@@ -3,7 +3,7 @@ import { authenticateFromRequest } from "@/lib/auth/middleware";
 import { GET } from "./route";
 
 type ShiftType = {
-  id: number;
+  id: string;
   name: string;
   isActive: boolean;
   createdAt: Date;
@@ -63,7 +63,7 @@ describe("GET /api/shift-types", () => {
     mockAuthenticateFromRequest.mockResolvedValue({
       success: true,
       user: {
-        id: "1",
+        id: "test-user-1",
         lineUserId: "test-line-user",
         displayName: "Test User",
         pictureUrl: null,
@@ -104,14 +104,14 @@ describe("GET /api/shift-types", () => {
       // Arrange
       const mockShiftTypes: ShiftType[] = [
         {
-          id: 1,
+          id: "test-shift-type-1",
           name: "レッスン",
           isActive: true,
           createdAt: new Date("2024-01-01"),
           updatedAt: new Date("2024-01-01"),
         },
         {
-          id: 2,
+          id: "test-shift-type-2",
           name: "パトロール",
           isActive: true,
           createdAt: new Date("2024-01-01"),
@@ -168,7 +168,7 @@ describe("GET /api/shift-types", () => {
       // Arrange
       const mockShiftTypes: ShiftType[] = [
         {
-          id: 1,
+          id: "test-shift-type-1",
           name: "レッスン",
           isActive: true,
           createdAt: new Date("2024-01-01"),
@@ -245,8 +245,8 @@ describe("GET /api/shift-types", () => {
     it("シフト種類データが名前順（昇順）でソートされて取得されること", async () => {
       // Arrange
       const mockShiftTypes: Partial<ShiftType>[] = [
-        { id: 2, name: "パトロール" },
-        { id: 1, name: "レッスン" },
+        { id: "test-shift-type-2", name: "パトロール" },
+        { id: "test-shift-type-1", name: "レッスン" },
       ];
       mockShiftTypeFindMany.mockResolvedValue(mockShiftTypes as ShiftType[]);
 

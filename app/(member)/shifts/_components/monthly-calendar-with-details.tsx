@@ -22,7 +22,7 @@ const SUNDAY_INDEX = 0;
 const SATURDAY_INDEX = 6;
 
 type Department = {
-  id: number;
+  id: string;
   name: string;
   code: string;
 };

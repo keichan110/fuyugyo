@@ -41,10 +41,9 @@ export async function getDepartmentIdByType(
   });
 
   if (!targetDepartment) {
-    if (!departments[0]?.id) {
-      throw new Error("No departments found in database");
-    }
-    return departments[0].id;
+    throw new Error(
+      `Department type "${departmentType}" not found in database`
+    );
   }
 
   return targetDepartment.id;

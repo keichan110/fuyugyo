@@ -1,6 +1,7 @@
 "use client";
 
 import { Calendar, CheckCircle, Copy, Plus } from "@phosphor-icons/react";
+import clsx from "clsx";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -119,11 +120,12 @@ export default function ActiveInvitationCard({
 
   return (
     <Card
-      className={`border-2 ${
+      className={clsx(
+        "border-2",
         isExpired
           ? "border-red-200 bg-red-50/30 dark:border-red-800 dark:bg-red-900/10"
           : "border-green-200 bg-green-50/30 dark:border-green-800 dark:bg-green-900/10"
-      }`}
+      )}
     >
       <CardContent className="space-y-6 p-6 md:p-8">
         <div className="flex items-start justify-between">
@@ -132,16 +134,16 @@ export default function ActiveInvitationCard({
               <h2 className="font-bold text-xl md:text-2xl">
                 {isExpired ? "期限切れの招待" : "現在有効な招待"}
               </h2>
-              {!isExpired && (
-                <div className="rounded-full bg-green-100 px-2 py-1 font-medium text-green-700 text-xs dark:bg-green-900/30 dark:text-green-300">
-                  有効
-                </div>
-              )}
-              {isExpired && (
-                <div className="rounded-full bg-red-100 px-2 py-1 font-medium text-red-700 text-xs dark:bg-red-900/30 dark:text-red-300">
-                  期限切れ
-                </div>
-              )}
+              <div
+                className={clsx(
+                  "rounded-full px-2 py-1 font-medium text-xs",
+                  isExpired
+                    ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300"
+                    : "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300"
+                )}
+              >
+                {isExpired ? "期限切れ" : "有効"}
+              </div>
             </div>
             <p className="text-muted-foreground text-sm">
               {invitation.description || "説明なし"}

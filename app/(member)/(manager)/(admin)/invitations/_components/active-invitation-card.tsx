@@ -31,6 +31,7 @@ export default function ActiveInvitationCard({
   onCreateNew,
 }: ActiveInvitationCardProps) {
   const [copied, setCopied] = useState(false);
+  const [copyError, setCopyError] = useState(false);
 
   const handleCopyUrl = useCallback(async () => {
     if (!invitation) {
@@ -44,10 +45,16 @@ export default function ActiveInvitationCard({
       await navigator.clipboard.writeText(invitationUrl);
 
       setCopied(true);
+      setCopyError(false);
       window.setTimeout(() => setCopied(false), CLIPBOARD_SUCCESS_TIMEOUT_MS);
     } catch {
-      // Clipboard write may fail due to browser permissions or security context
-      // Silently ignore the error as this is a non-critical feature
+      // Clipboard APIはHTTPS環境やブラウザ権限が必要なため失敗する可能性がある
+      setCopyError(true);
+      setCopied(false);
+      window.setTimeout(
+        () => setCopyError(false),
+        CLIPBOARD_SUCCESS_TIMEOUT_MS
+      );
     }
   }, [invitation]);
 
@@ -163,6 +170,11 @@ export default function ActiveInvitationCard({
               )}
             </Button>
           </div>
+          {copyError && (
+            <p className="text-red-600 text-sm dark:text-red-400">
+              URLのコピーに失敗しました。手動でURLをコピーしてください。
+            </p>
+          )}
         </div>
 
         <div className="flex justify-end border-t pt-4">

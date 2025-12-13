@@ -1,0 +1,47 @@
+name: Gemini Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+    branches: [main, develop]
+
+jobs:
+  gemini-review:
+    # DRAFTのPRではスキップする
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # 完全な履歴を取得してコンテキストを提供
+
+      - name: Read code review guidelines
+        id: guidelines
+        run: |
+          if [ -f "docs/code-review-guidelines.md" ]; then
+            echo "GUIDELINES<<EOF" >> $GITHUB_OUTPUT
+            cat docs/code-review-guidelines.md >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "GUIDELINES=" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run Gemini Code Review
+        uses: google-github-actions/run-gemini-cli@main
+        with:
+          gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
+          prompt: |
+            あなたはコードレビューの専門家です。
+            以下のコードレビューガイドラインに従って、このプルリクエストのコードを詳細にレビューしてください。
+
+            # コードレビューガイドライン
+            ${{ steps.guidelines.outputs.GUIDELINES }}
+
+            重要度の高い問題から順に、具体的な改善提案を含めてコメントしてください。
+            軽微な問題や好みの問題については言及する必要はありません。

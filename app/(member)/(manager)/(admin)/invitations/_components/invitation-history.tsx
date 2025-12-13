@@ -1,11 +1,10 @@
 "use client";
 
 import { Calendar, CalendarX, CaretDown, CaretUp } from "@phosphor-icons/react";
-import { format } from "date-fns";
-import { ja } from "date-fns/locale";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { formatDateInJST } from "../_lib/date-utils";
 import { getInvitationStatusLabel } from "../_lib/invitation-utils";
 import type { InvitationTokenWithStats } from "../_lib/types";
 
@@ -77,12 +76,7 @@ export default function InvitationHistory({
                               className="h-3.5 w-3.5"
                               weight="regular"
                             />
-                            作成:{" "}
-                            {format(
-                              new Date(invitation.createdAt),
-                              "yyyy/MM/dd",
-                              { locale: ja }
-                            )}
+                            作成: {formatDateInJST(invitation.createdAt)}
                           </div>
                           {invitation.expiresAt && (
                             <div className="flex items-center gap-1">
@@ -90,12 +84,7 @@ export default function InvitationHistory({
                                 className="h-3.5 w-3.5"
                                 weight="regular"
                               />
-                              期限:{" "}
-                              {format(
-                                new Date(invitation.expiresAt),
-                                "yyyy/MM/dd",
-                                { locale: ja }
-                              )}
+                              期限: {formatDateInJST(invitation.expiresAt)}
                             </div>
                           )}
                           <div>使用回数: {invitation.usageCount}回</div>

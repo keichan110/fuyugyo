@@ -17,6 +17,7 @@ import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
+import { formatDateInJST } from "../_lib/date-utils";
 import type {
   InvitationFormData,
   InvitationTokenWithStats,
@@ -333,7 +334,7 @@ export default function InvitationModal({
                         有効期限
                       </div>
                       <div className="font-bold text-2xl text-orange-700 dark:text-orange-300">
-                        {format(formData.expiresAt, "yyyy年MM月dd日")} 23:59まで
+                        {formatDateInJST(formData.expiresAt)} 23:59まで
                       </div>
                     </div>
                   </div>

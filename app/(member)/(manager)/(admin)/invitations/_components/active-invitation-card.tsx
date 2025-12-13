@@ -1,11 +1,10 @@
 "use client";
 
 import { Calendar, CheckCircle, Copy, Plus } from "@phosphor-icons/react";
-import { format } from "date-fns";
-import { ja } from "date-fns/locale";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { formatDateTimeInJST } from "../_lib/date-utils";
 import { isInvitationExpired } from "../_lib/invitation-utils";
 import type { InvitationTokenWithStats } from "../_lib/types";
 
@@ -141,9 +140,7 @@ export default function ActiveInvitationCard({
               有効期限
             </div>
             <p className="font-medium text-foreground">
-              {expiresAtDate
-                ? format(expiresAtDate, "yyyy年MM月dd日 HH:mm", { locale: ja })
-                : "無期限"}
+              {expiresAtDate ? formatDateTimeInJST(expiresAtDate) : "無期限"}
             </p>
           </div>
 

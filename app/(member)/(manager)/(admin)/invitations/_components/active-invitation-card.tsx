@@ -6,6 +6,7 @@ import { ja } from "date-fns/locale";
 import { useCallback, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { isInvitationExpired } from "../_lib/invitation-utils";
 import type { InvitationTokenWithStats } from "../_lib/types";
 
 /** クリップボードコピー成功表示のタイムアウト（ミリ秒） */
@@ -82,9 +83,7 @@ export default function ActiveInvitationCard({
   const expiresAtDate = invitation.expiresAt
     ? new Date(invitation.expiresAt)
     : null;
-  const isExpired = expiresAtDate
-    ? expiresAtDate.getTime() < Date.now()
-    : false;
+  const isExpired = isInvitationExpired(invitation);
 
   return (
     <Card

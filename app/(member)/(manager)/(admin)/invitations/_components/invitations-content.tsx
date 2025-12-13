@@ -6,6 +6,7 @@ import {
   createInvitationAction,
   deleteInvitationAction,
 } from "../_lib/actions";
+import { isInvitationValid } from "../_lib/invitation-utils";
 import type {
   InvitationFormData,
   InvitationTokenWithStats,
@@ -41,23 +42,8 @@ function sortInvitations(
 function getActiveInvitation(
   invitations: InvitationTokenWithStats[]
 ): InvitationTokenWithStats | null {
-  const now = Date.now();
-
   return (
-    invitations.find((invitation) => {
-      if (!invitation.isActive) {
-        return false;
-      }
-
-      if (
-        invitation.expiresAt &&
-        new Date(invitation.expiresAt).getTime() < now
-      ) {
-        return false;
-      }
-
-      return true;
-    }) ?? null
+    invitations.find((invitation) => isInvitationValid(invitation)) ?? null
   );
 }
 

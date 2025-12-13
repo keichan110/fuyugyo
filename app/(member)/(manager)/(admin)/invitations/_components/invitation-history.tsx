@@ -6,26 +6,12 @@ import { ja } from "date-fns/locale";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { getInvitationStatusLabel } from "../_lib/invitation-utils";
 import type { InvitationTokenWithStats } from "../_lib/types";
 
 type InvitationHistoryProps = {
   invitations: InvitationTokenWithStats[];
 };
-
-function getStatusLabel(invitation: InvitationTokenWithStats): string {
-  if (!invitation.isActive) {
-    return "無効";
-  }
-
-  if (
-    invitation.expiresAt &&
-    new Date(invitation.expiresAt).getTime() < Date.now()
-  ) {
-    return "期限切れ";
-  }
-
-  return "有効";
-}
 
 /**
  * 過去の招待履歴を表示する折りたたみ可能なコンポーネント
@@ -68,7 +54,7 @@ export default function InvitationHistory({
       {isExpanded && (
         <div className="space-y-2">
           {invitations.map((invitation) => {
-            const statusLabel = getStatusLabel(invitation);
+            const statusLabel = getInvitationStatusLabel(invitation);
 
             return (
               <Card key={invitation.token}>

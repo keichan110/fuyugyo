@@ -12,6 +12,8 @@ import type { InvitationTokenWithStats } from "../_lib/types";
 /** クリップボードコピー成功表示のタイムアウト（ミリ秒） */
 const CLIPBOARD_SUCCESS_TIMEOUT_MS = 2000;
 
+type CopyStatus = "idle" | "copied" | "error";
+
 type ActiveInvitationCardProps = {
   invitation: InvitationTokenWithStats | null;
   onCreateNew: () => void;
@@ -30,8 +32,7 @@ export default function ActiveInvitationCard({
   invitation,
   onCreateNew,
 }: ActiveInvitationCardProps) {
-  const [copied, setCopied] = useState(false);
-  const [copyError, setCopyError] = useState(false);
+  const [copyStatus, setCopyStatus] = useState<CopyStatus>("idle");
   const [fullUrl, setFullUrl] = useState("");
 
   // クライアント側でフルURLを生成（SSR対応）
@@ -50,40 +51,25 @@ export default function ActiveInvitationCard({
 
     try {
       await navigator.clipboard.writeText(fullUrl);
-      setCopied(true);
-      setCopyError(false);
+      setCopyStatus("copied");
     } catch {
       // Clipboard APIはHTTPS環境やブラウザ権限が必要なため失敗する可能性がある
-      setCopyError(true);
-      setCopied(false);
+      setCopyStatus("error");
     }
   }, [fullUrl]);
 
-  // copiedステートの自動リセット（クリーンアップ対応）
+  // copyStatusの自動リセット（クリーンアップ対応）
   useEffect(() => {
-    if (!copied) {
+    if (copyStatus === "idle") {
       return;
     }
 
     const timerId = setTimeout(
-      () => setCopied(false),
+      () => setCopyStatus("idle"),
       CLIPBOARD_SUCCESS_TIMEOUT_MS
     );
     return () => clearTimeout(timerId);
-  }, [copied]);
-
-  // copyErrorステートの自動リセット（クリーンアップ対応）
-  useEffect(() => {
-    if (!copyError) {
-      return;
-    }
-
-    const timerId = setTimeout(
-      () => setCopyError(false),
-      CLIPBOARD_SUCCESS_TIMEOUT_MS
-    );
-    return () => clearTimeout(timerId);
-  }, [copyError]);
+  }, [copyStatus]);
 
   if (!invitation) {
     return (
@@ -184,9 +170,9 @@ export default function ActiveInvitationCard({
               className="shrink-0 gap-2"
               onClick={handleCopyUrl}
               size="default"
-              variant={copied ? "outline" : "default"}
+              variant={copyStatus === "copied" ? "outline" : "default"}
             >
-              {copied ? (
+              {copyStatus === "copied" ? (
                 <>
                   <CheckCircle className="h-4 w-4" weight="fill" />
                   コピー完了
@@ -199,7 +185,7 @@ export default function ActiveInvitationCard({
               )}
             </Button>
           </div>
-          {copyError && (
+          {copyStatus === "error" && (
             <p className="text-red-600 text-sm dark:text-red-400">
               URLのコピーに失敗しました。手動でURLをコピーしてください。
             </p>

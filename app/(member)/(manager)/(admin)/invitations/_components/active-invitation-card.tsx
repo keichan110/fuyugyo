@@ -49,20 +49,36 @@ export default function ActiveInvitationCard({
 
     try {
       await navigator.clipboard.writeText(fullUrl);
-
       setCopied(true);
       setCopyError(false);
-      window.setTimeout(() => setCopied(false), CLIPBOARD_SUCCESS_TIMEOUT_MS);
     } catch {
       // Clipboard APIはHTTPS環境やブラウザ権限が必要なため失敗する可能性がある
       setCopyError(true);
       setCopied(false);
-      window.setTimeout(
+    }
+  }, [fullUrl]);
+
+  // copiedステートの自動リセット（クリーンアップ対応）
+  useEffect(() => {
+    if (copied) {
+      const timerId = setTimeout(
+        () => setCopied(false),
+        CLIPBOARD_SUCCESS_TIMEOUT_MS
+      );
+      return () => clearTimeout(timerId);
+    }
+  }, [copied]);
+
+  // copyErrorステートの自動リセット（クリーンアップ対応）
+  useEffect(() => {
+    if (copyError) {
+      const timerId = setTimeout(
         () => setCopyError(false),
         CLIPBOARD_SUCCESS_TIMEOUT_MS
       );
+      return () => clearTimeout(timerId);
     }
-  }, [fullUrl]);
+  }, [copyError]);
 
   if (!invitation) {
     return (

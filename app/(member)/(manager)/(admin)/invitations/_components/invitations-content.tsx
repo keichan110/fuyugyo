@@ -196,10 +196,7 @@ export default function InvitationsContent({
         />
       </div>
 
-      <InvitationHistory
-        invitations={historicalInvitations}
-        onOpenDetail={handleOpenModal}
-      />
+      <InvitationHistory invitations={historicalInvitations} />
 
       <InvitationModal
         invitation={editingInvitation}

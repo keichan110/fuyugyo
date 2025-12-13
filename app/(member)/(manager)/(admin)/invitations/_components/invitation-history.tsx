@@ -1,14 +1,6 @@
 "use client";
 
-import {
-  Calendar,
-  CalendarX,
-  CaretDown,
-  CaretUp,
-  Eye,
-  EyeSlash,
-  UserCheck,
-} from "@phosphor-icons/react";
+import { Calendar, CalendarX, CaretDown, CaretUp } from "@phosphor-icons/react";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
 import { useState } from "react";
@@ -18,58 +10,22 @@ import type { InvitationTokenWithStats } from "../_lib/types";
 
 type InvitationHistoryProps = {
   invitations: InvitationTokenWithStats[];
-  onOpenDetail: (invitation: InvitationTokenWithStats) => void;
 };
 
-type InvitationStatus = "active" | "expired" | "inactive";
-
-function getInvitationStatus(
-  invitation: InvitationTokenWithStats
-): InvitationStatus {
+function getStatusLabel(invitation: InvitationTokenWithStats): string {
   if (!invitation.isActive) {
-    return "inactive";
+    return "無効";
   }
 
   if (
     invitation.expiresAt &&
     new Date(invitation.expiresAt).getTime() < Date.now()
   ) {
-    return "expired";
+    return "期限切れ";
   }
 
-  return "active";
+  return "有効";
 }
-
-const STATUS_CONFIG = {
-  active: {
-    icon: UserCheck,
-    label: "有効",
-    iconClass: "text-green-600 dark:text-green-400",
-    badgeClass:
-      "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300",
-  },
-  expired: {
-    icon: CalendarX,
-    label: "期限切れ",
-    iconClass: "text-red-600 dark:text-red-400",
-    badgeClass: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
-  },
-  inactive: {
-    icon: EyeSlash,
-    label: "使用済み",
-    iconClass: "text-gray-600 dark:text-gray-400",
-    badgeClass:
-      "bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-300",
-  },
-} satisfies Record<
-  InvitationStatus,
-  {
-    icon: typeof UserCheck;
-    label: string;
-    iconClass: string;
-    badgeClass: string;
-  }
->;
 
 /**
  * 過去の招待履歴を表示する折りたたみ可能なコンポーネント
@@ -82,7 +38,6 @@ const STATUS_CONFIG = {
  */
 export default function InvitationHistory({
   invitations,
-  onOpenDetail,
 }: InvitationHistoryProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -98,7 +53,6 @@ export default function InvitationHistory({
         variant="outline"
       >
         <div className="flex items-center gap-2">
-          <Eye className="h-4 w-4" weight="regular" />
           <span>過去の招待履歴</span>
           <span className="text-muted-foreground text-sm">
             ({invitations.length}件)
@@ -114,32 +68,20 @@ export default function InvitationHistory({
       {isExpanded && (
         <div className="space-y-2">
           {invitations.map((invitation) => {
-            const status = getInvitationStatus(invitation);
-            const config = STATUS_CONFIG[status];
-            const StatusIcon = config.icon;
+            const statusLabel = getStatusLabel(invitation);
 
             return (
-              <Card
-                className="cursor-pointer transition-colors hover:bg-muted/50"
-                key={invitation.token}
-                onClick={() => onOpenDetail(invitation)}
-              >
+              <Card key={invitation.token}>
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between gap-4">
-                    <div className="flex min-w-0 flex-1 items-start gap-3">
-                      <StatusIcon
-                        className={`mt-0.5 h-5 w-5 shrink-0 ${config.iconClass}`}
-                        weight="regular"
-                      />
+                    <div className="flex min-w-0 flex-1">
                       <div className="min-w-0 flex-1 space-y-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <p className="font-medium text-sm">
                             {invitation.description || "説明なし"}
                           </p>
-                          <span
-                            className={`rounded-full px-2 py-0.5 font-medium text-xs ${config.badgeClass}`}
-                          >
-                            {config.label}
+                          <span className="rounded-full bg-gray-100 px-2 py-0.5 font-medium text-gray-700 text-xs dark:bg-gray-900/30 dark:text-gray-300">
+                            {statusLabel}
                           </span>
                         </div>
 

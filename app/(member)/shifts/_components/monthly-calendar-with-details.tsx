@@ -277,22 +277,7 @@ export function MonthlyCalendarWithDetails({
               {selectedDateInfo &&
                 selectedDateInfo.weekIndex === weekIndex &&
                 selectedDate && (
-                  <button
-                    className="slide-in-from-top-2 block w-full animate-in cursor-default text-left duration-300"
-                    onClick={(e) => {
-                      // 背景クリックで選択解除
-                      if (e.target === e.currentTarget) {
-                        onDateSelect(null);
-                      }
-                    }}
-                    onKeyDown={(e) => {
-                      // Escapeキーで選択解除
-                      if (e.key === "Escape") {
-                        onDateSelect(null);
-                      }
-                    }}
-                    type="button"
-                  >
+                  <div className="slide-in-from-top-2 block w-full animate-in duration-300">
                     <div className="mx-auto max-w-4xl">
                       <ShiftDayCard
                         canManage={canManage}
@@ -302,7 +287,7 @@ export function MonthlyCalendarWithDetails({
                         departments={departments}
                       />
                     </div>
-                  </button>
+                  </div>
                 )}
             </div>
           );

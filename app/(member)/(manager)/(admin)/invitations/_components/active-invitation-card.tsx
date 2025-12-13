@@ -61,24 +61,28 @@ export default function ActiveInvitationCard({
 
   // copiedステートの自動リセット（クリーンアップ対応）
   useEffect(() => {
-    if (copied) {
-      const timerId = setTimeout(
-        () => setCopied(false),
-        CLIPBOARD_SUCCESS_TIMEOUT_MS
-      );
-      return () => clearTimeout(timerId);
+    if (!copied) {
+      return;
     }
+
+    const timerId = setTimeout(
+      () => setCopied(false),
+      CLIPBOARD_SUCCESS_TIMEOUT_MS
+    );
+    return () => clearTimeout(timerId);
   }, [copied]);
 
   // copyErrorステートの自動リセット（クリーンアップ対応）
   useEffect(() => {
-    if (copyError) {
-      const timerId = setTimeout(
-        () => setCopyError(false),
-        CLIPBOARD_SUCCESS_TIMEOUT_MS
-      );
-      return () => clearTimeout(timerId);
+    if (!copyError) {
+      return;
     }
+
+    const timerId = setTimeout(
+      () => setCopyError(false),
+      CLIPBOARD_SUCCESS_TIMEOUT_MS
+    );
+    return () => clearTimeout(timerId);
   }, [copyError]);
 
   if (!invitation) {

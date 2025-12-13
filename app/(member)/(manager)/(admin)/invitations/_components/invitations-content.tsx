@@ -6,7 +6,6 @@ import {
   createInvitationAction,
   deleteInvitationAction,
 } from "../_lib/actions";
-import { checkActiveInvitation } from "../_lib/api";
 import type {
   InvitationFormData,
   InvitationTokenWithStats,
@@ -14,7 +13,6 @@ import type {
 import ActiveInvitationCard from "./active-invitation-card";
 import InvitationHistory from "./invitation-history";
 import InvitationModal from "./invitation-modal";
-import InvitationWarningModal from "./invitation-warning-modal";
 
 type InvitationsContentProps = {
   initialData: InvitationTokenWithStats[];
@@ -90,8 +88,7 @@ function getHistoricalInvitations(
  * - アクティブな招待をHeroカードで表示
  * - 過去の招待を折りたたみ可能な履歴セクションで表示
  * - 新規作成モーダルの管理
- * - 既存招待置き換え警告モーダルの管理
- * - Server Actionsによる作成・無効化
+ * - Server Actionsによる作成・無効化（既存の有効な招待は自動的に置き換え）
  * - ページリフレッシュ（router.refresh）による最新データ取得
  * - useMemoによる計算結果のメモ化（パフォーマンス最適化）
  *
@@ -110,13 +107,6 @@ export default function InvitationsContent({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingInvitation, setEditingInvitation] =
     useState<InvitationTokenWithStats | null>(null);
-  const [warningModalOpen, setWarningModalOpen] = useState(false);
-  const [existingActiveInvitation, setExistingActiveInvitation] =
-    useState<InvitationTokenWithStats | null>(null);
-  const [pendingFormData, setPendingFormData] =
-    useState<InvitationFormData | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [replacementError, setReplacementError] = useState<string | null>(null);
 
   const sortedInvitations = useMemo(
     () => sortInvitations(initialData),
@@ -146,78 +136,25 @@ export default function InvitationsContent({
     setEditingInvitation(null);
   }, []);
 
-  const executeInvitationCreation = useCallback(
+  const handleSave = useCallback(
     async (formData: InvitationFormData) => {
-      setIsSubmitting(true);
-      try {
-        const requestData = {
-          description: formData.description,
-          expiresAt: formData.expiresAt.toISOString(),
-          role: "MEMBER" as const,
-        };
+      const requestData = {
+        description: formData.description,
+        expiresAt: formData.expiresAt.toISOString(),
+        role: "MEMBER" as const,
+      };
 
-        const result = await createInvitationAction(requestData);
+      const result = await createInvitationAction(requestData);
 
-        if (!result.success) {
-          throw new Error(result.error || "Failed to create invitation");
-        }
-
-        // Server Componentを再実行してサーバーから最新データを取得
-        router.refresh();
-      } finally {
-        setIsSubmitting(false);
+      if (!result.success) {
+        throw new Error(result.error || "Failed to create invitation");
       }
+
+      // Server Componentを再実行してサーバーから最新データを取得
+      router.refresh();
     },
     [router]
   );
-
-  const handleSave = useCallback(
-    async (data: InvitationFormData) => {
-      const activeInvitation = await checkActiveInvitation();
-
-      if (activeInvitation) {
-        setExistingActiveInvitation(activeInvitation);
-        setPendingFormData(data);
-        setWarningModalOpen(true);
-        return;
-      }
-
-      await executeInvitationCreation(data);
-    },
-    [executeInvitationCreation]
-  );
-
-  const handleConfirmReplacement = useCallback(async () => {
-    if (!pendingFormData) {
-      return;
-    }
-
-    // Clear any previous error
-    setReplacementError(null);
-
-    try {
-      await executeInvitationCreation(pendingFormData);
-
-      // Success: close modal and clear state
-      setWarningModalOpen(false);
-      setPendingFormData(null);
-      setExistingActiveInvitation(null);
-    } catch (error) {
-      // Error: keep modal open and show error message
-      const errorMessage =
-        error instanceof Error
-          ? error.message
-          : "招待の置き換えに失敗しました。もう一度お試しください。";
-      setReplacementError(errorMessage);
-    }
-  }, [executeInvitationCreation, pendingFormData]);
-
-  const handleCancelReplacement = useCallback(() => {
-    setWarningModalOpen(false);
-    setPendingFormData(null);
-    setExistingActiveInvitation(null);
-    setReplacementError(null);
-  }, []);
 
   const handleDeactivate = useCallback(
     async (token: string) => {
@@ -236,14 +173,6 @@ export default function InvitationsContent({
     },
     [router]
   );
-
-  const handleCloseWarningModal = useCallback(() => {
-    if (isSubmitting) {
-      return;
-    }
-
-    handleCancelReplacement();
-  }, [handleCancelReplacement, isSubmitting]);
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 md:py-8 lg:px-8">
@@ -279,17 +208,6 @@ export default function InvitationsContent({
         onDeactivate={handleDeactivate}
         onSave={handleSave}
       />
-
-      {existingActiveInvitation && (
-        <InvitationWarningModal
-          error={replacementError}
-          existingInvitation={existingActiveInvitation}
-          isOpen={warningModalOpen}
-          isSubmitting={isSubmitting}
-          onClose={handleCloseWarningModal}
-          onConfirm={handleConfirmReplacement}
-        />
-      )}
     </div>
   );
 }

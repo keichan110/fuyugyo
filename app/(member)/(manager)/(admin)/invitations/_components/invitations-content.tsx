@@ -1,170 +1,23 @@
 "use client";
 
-import {
-  CalendarX,
-  CheckCircle,
-  Copy,
-  Eye,
-  EyeSlash,
-  Plus,
-  UserCheck,
-} from "@phosphor-icons/react";
-import { format } from "date-fns";
-import { ja } from "date-fns/locale";
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import {
   createInvitationAction,
   deleteInvitationAction,
 } from "../_lib/actions";
-import { checkActiveInvitation } from "../_lib/api";
+import { isInvitationValid } from "../_lib/invitation-utils";
 import type {
   InvitationFormData,
-  InvitationStats,
   InvitationTokenWithStats,
 } from "../_lib/types";
+import ActiveInvitationCard from "./active-invitation-card";
+import InvitationHistory from "./invitation-history";
 import InvitationModal from "./invitation-modal";
-import InvitationWarningModal from "./invitation-warning-modal";
-
-/** クリップボードコピー成功表示のタイムアウト（ミリ秒） */
-const CLIPBOARD_SUCCESS_TIMEOUT_MS = 2000;
 
 type InvitationsContentProps = {
   initialData: InvitationTokenWithStats[];
 };
-
-type InvitationRowProps = {
-  invitation: InvitationTokenWithStats;
-  copiedToken: string | null;
-  onOpenModal: (invitation: InvitationTokenWithStats) => void;
-  onCopyUrl: (token: string) => void;
-};
-
-/**
- * 招待テーブルの1行を表示するコンポーネント
- *
- * @description
- * 招待情報をステータス別に色分けされたテーブル行として表示します。
- * 行をクリックすると詳細モーダルが開き、URLコピーボタンを提供します。
- *
- * @component
- * @internal
- */
-function InvitationRow({
-  invitation,
-  copiedToken,
-  onOpenModal,
-  onCopyUrl,
-}: InvitationRowProps) {
-  const status = getInvitationStatus(invitation);
-  const StatusIcon = STATUS_ICON[status];
-  const statusStyles = STATUS_STYLES[status];
-  const isInactiveLabel = status !== "active";
-
-  return (
-    <TableRow
-      className={`transition-colors ${statusStyles.row} ${isInactiveLabel ? "opacity-60" : ""}`}
-      key={invitation.token}
-    >
-      <TableCell>
-        <StatusIcon
-          className={`h-5 w-5 ${statusStyles.icon}`}
-          weight="regular"
-        />
-      </TableCell>
-      <TableCell
-        className="cursor-pointer"
-        onClick={() => onOpenModal(invitation)}
-      >
-        <p
-          className={`line-clamp-2 font-medium text-sm ${statusStyles.text} ${
-            isInactiveLabel ? "line-through" : ""
-          }`}
-        >
-          {invitation.description || "説明なし"}
-        </p>
-      </TableCell>
-      <TableCell
-        className="cursor-pointer"
-        onClick={() => onOpenModal(invitation)}
-      >
-        <span
-          className={`font-mono text-sm ${statusStyles.text} ${
-            isInactiveLabel ? "line-through" : ""
-          }`}
-        >
-          {invitation.usageCount}
-        </span>
-      </TableCell>
-      <TableCell
-        className="cursor-pointer"
-        onClick={() => onOpenModal(invitation)}
-      >
-        {invitation.expiresAt ? (
-          <span
-            className={`text-sm ${statusStyles.text} ${
-              isInactiveLabel ? "line-through" : ""
-            }`}
-          >
-            {format(new Date(invitation.expiresAt), "MM/dd", {
-              locale: ja,
-            })}
-          </span>
-        ) : (
-          <span className="text-muted-foreground text-sm">なし</span>
-        )}
-      </TableCell>
-      <TableCell
-        className="cursor-pointer"
-        onClick={() => onOpenModal(invitation)}
-      >
-        <span
-          className={`text-muted-foreground text-sm ${
-            isInactiveLabel ? "line-through" : ""
-          }`}
-        >
-          {format(new Date(invitation.createdAt), "MM/dd HH:mm", {
-            locale: ja,
-          })}
-        </span>
-      </TableCell>
-      <TableCell className="text-center">
-        {status === "active" ? (
-          <Button
-            className="h-8 w-8 p-0"
-            onClick={(event) => {
-              event.stopPropagation();
-              onCopyUrl(invitation.token);
-            }}
-            size="sm"
-            title="招待URLをコピー"
-            variant="outline"
-          >
-            {copiedToken === invitation.token ? (
-              <CheckCircle className="h-4 w-4 text-green-600" weight="fill" />
-            ) : (
-              <Copy className="h-4 w-4" weight="regular" />
-            )}
-          </Button>
-        ) : (
-          <span className="text-muted-foreground text-xs">-</span>
-        )}
-      </TableCell>
-    </TableRow>
-  );
-}
 
 /**
  * 招待を作成日時の降順でソートする関数
@@ -181,133 +34,31 @@ function sortInvitations(
 }
 
 /**
- * 招待をアクティブフィルターでフィルタリングする関数
+ * 有効な招待を取得する関数
  *
- * @param invitations - フィルタリング対象の招待配列
- * @param showActiveOnly - 有効な招待のみ表示する場合はtrue
- * @returns フィルタリング済みの招待配列
+ * @param invitations - 招待配列
+ * @returns 有効な招待、または null
  */
-function filterInvitations(
-  invitations: InvitationTokenWithStats[],
-  showActiveOnly: boolean
-): InvitationTokenWithStats[] {
-  if (!showActiveOnly) {
-    return invitations;
-  }
-
-  const now = Date.now();
-  return invitations.filter((invitation) => {
-    if (!invitation.isActive) {
-      return false;
-    }
-
-    if (
-      invitation.expiresAt &&
-      new Date(invitation.expiresAt).getTime() < now
-    ) {
-      return false;
-    }
-
-    return true;
-  });
-}
-
-function calculateStats(
+function getActiveInvitation(
   invitations: InvitationTokenWithStats[]
-): InvitationStats {
-  const now = Date.now();
-
-  let active = 0;
-  let expired = 0;
-
-  for (const invitation of invitations) {
-    if (!invitation.isActive) {
-      continue;
-    }
-
-    const isExpired = invitation.expiresAt
-      ? new Date(invitation.expiresAt).getTime() < now
-      : false;
-
-    if (isExpired) {
-      expired += 1;
-      continue;
-    }
-
-    active += 1;
-  }
-
-  const used = invitations.filter((invitation) => !invitation.isActive).length;
-
-  return {
-    total: invitations.length,
-    active,
-    expired,
-    used,
-  };
+): InvitationTokenWithStats | null {
+  return (
+    invitations.find((invitation) => isInvitationValid(invitation)) ?? null
+  );
 }
-
-type InvitationStatus = "active" | "expired" | "inactive";
-
-function getInvitationStatus(
-  invitation: InvitationTokenWithStats
-): InvitationStatus {
-  if (!invitation.isActive) {
-    return "inactive";
-  }
-
-  if (
-    invitation.expiresAt &&
-    new Date(invitation.expiresAt).getTime() < Date.now()
-  ) {
-    return "expired";
-  }
-
-  return "active";
-}
-
-const STATUS_ICON = {
-  active: UserCheck,
-  expired: CalendarX,
-  inactive: EyeSlash,
-} satisfies Record<InvitationStatus, typeof UserCheck>;
-
-const STATUS_STYLES = {
-  active: {
-    row: "bg-green-50/30 hover:bg-green-50/50 dark:bg-green-900/5 dark:hover:bg-green-900/10",
-    icon: "text-green-600 dark:text-green-400",
-    text: "text-foreground",
-  },
-  expired: {
-    row: "bg-red-50/30 hover:bg-red-50/50 dark:bg-red-900/5 dark:hover:bg-red-900/10",
-    icon: "text-red-600 dark:text-red-400",
-    text: "text-foreground",
-  },
-  inactive: {
-    row: "bg-gray-50/30 hover:bg-gray-50/50 dark:bg-gray-900/5 dark:hover:bg-gray-900/10",
-    icon: "text-gray-600 dark:text-gray-400",
-    text: "text-foreground",
-  },
-} satisfies Record<
-  InvitationStatus,
-  { row: string; icon: string; text: string }
->;
 
 /**
  * 招待管理画面のメインコンテンツコンポーネント
  *
  * @description
  * 招待トークンの一覧表示、作成、管理を行うClient Componentです。
- * Server Componentから渡された初期データを表示し、統計情報・フィルター・テーブルを統合的に管理します。
+ * Server Componentから渡された初期データを表示し、アクティブな招待と履歴を分けて表示します。
  *
  * 主な機能:
- * - 招待統計カードの表示（有効、期限切れ、使用済み）
- * - アクティブフィルター（有効のみ表示）
- * - 招待テーブルの表示（ステータス別色分け）
+ * - アクティブな招待をHeroカードで表示
+ * - 過去の招待を折りたたみ可能な履歴セクションで表示
  * - 新規作成モーダルの管理
- * - 既存招待置き換え警告モーダルの管理
- * - 招待URLのクリップボードコピー
- * - Server Actionsによる作成・無効化
+ * - Server Actionsによる作成・無効化（既存の有効な招待は自動的に置き換え）
  * - ページリフレッシュ（router.refresh）による最新データ取得
  * - useMemoによる計算結果のメモ化（パフォーマンス最適化）
  *
@@ -323,32 +74,26 @@ export default function InvitationsContent({
   initialData,
 }: InvitationsContentProps) {
   const router = useRouter();
-  const [showActiveOnly, setShowActiveOnly] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingInvitation, setEditingInvitation] =
     useState<InvitationTokenWithStats | null>(null);
-  const [copiedToken, setCopiedToken] = useState<string | null>(null);
-  const [warningModalOpen, setWarningModalOpen] = useState(false);
-  const [existingActiveInvitation, setExistingActiveInvitation] =
-    useState<InvitationTokenWithStats | null>(null);
-  const [pendingFormData, setPendingFormData] =
-    useState<InvitationFormData | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [replacementError, setReplacementError] = useState<string | null>(null);
 
   const sortedInvitations = useMemo(
     () => sortInvitations(initialData),
     [initialData]
   );
 
-  const filteredInvitations = useMemo(
-    () => filterInvitations(sortedInvitations, showActiveOnly),
-    [sortedInvitations, showActiveOnly]
+  const activeInvitation = useMemo(
+    () => getActiveInvitation(sortedInvitations),
+    [sortedInvitations]
   );
 
-  const stats = useMemo(
-    () => calculateStats(sortedInvitations),
-    [sortedInvitations]
+  const historicalInvitations = useMemo(
+    () =>
+      sortedInvitations.filter(
+        (invitation) => invitation.token !== activeInvitation?.token
+      ),
+    [sortedInvitations, activeInvitation]
   );
 
   const handleOpenModal = useCallback(
@@ -364,82 +109,25 @@ export default function InvitationsContent({
     setEditingInvitation(null);
   }, []);
 
-  const handleActiveFilterChange = useCallback((checked: boolean) => {
-    setShowActiveOnly(checked);
-  }, []);
-
-  const executeInvitationCreation = useCallback(
+  const handleSave = useCallback(
     async (formData: InvitationFormData) => {
-      setIsSubmitting(true);
-      try {
-        const requestData = {
-          description: formData.description,
-          expiresAt: formData.expiresAt.toISOString(),
-          role: "MEMBER" as const,
-        };
+      const requestData = {
+        description: formData.description,
+        expiresAt: formData.expiresAt.toISOString(),
+        role: "MEMBER" as const,
+      };
 
-        const result = await createInvitationAction(requestData);
+      const result = await createInvitationAction(requestData);
 
-        if (!result.success) {
-          throw new Error(result.error || "Failed to create invitation");
-        }
-
-        // Server Componentを再実行してサーバーから最新データを取得
-        router.refresh();
-      } finally {
-        setIsSubmitting(false);
+      if (!result.success) {
+        throw new Error(result.error || "Failed to create invitation");
       }
+
+      // Server Componentを再実行してサーバーから最新データを取得
+      router.refresh();
     },
     [router]
   );
-
-  const handleSave = useCallback(
-    async (data: InvitationFormData) => {
-      const activeInvitation = await checkActiveInvitation();
-
-      if (activeInvitation) {
-        setExistingActiveInvitation(activeInvitation);
-        setPendingFormData(data);
-        setWarningModalOpen(true);
-        return;
-      }
-
-      await executeInvitationCreation(data);
-    },
-    [executeInvitationCreation]
-  );
-
-  const handleConfirmReplacement = useCallback(async () => {
-    if (!pendingFormData) {
-      return;
-    }
-
-    // Clear any previous error
-    setReplacementError(null);
-
-    try {
-      await executeInvitationCreation(pendingFormData);
-
-      // Success: close modal and clear state
-      setWarningModalOpen(false);
-      setPendingFormData(null);
-      setExistingActiveInvitation(null);
-    } catch (error) {
-      // Error: keep modal open and show error message
-      const errorMessage =
-        error instanceof Error
-          ? error.message
-          : "招待の置き換えに失敗しました。もう一度お試しください。";
-      setReplacementError(errorMessage);
-    }
-  }, [executeInvitationCreation, pendingFormData]);
-
-  const handleCancelReplacement = useCallback(() => {
-    setWarningModalOpen(false);
-    setPendingFormData(null);
-    setExistingActiveInvitation(null);
-    setReplacementError(null);
-  }, []);
 
   const handleDeactivate = useCallback(
     async (token: string) => {
@@ -449,37 +137,15 @@ export default function InvitationsContent({
         throw new Error(result.error || "Failed to delete invitation");
       }
 
+      // Close modal and refresh data
+      setIsModalOpen(false);
+      setEditingInvitation(null);
+
       // Server Componentを再実行してサーバーから最新データを取得
       router.refresh();
     },
     [router]
   );
-
-  const handleCopyInvitationUrl = useCallback(async (token: string) => {
-    try {
-      const baseUrl = window.location.origin;
-      const invitationUrl = `${baseUrl}/login?invite=${encodeURIComponent(token)}`;
-
-      await navigator.clipboard.writeText(invitationUrl);
-
-      setCopiedToken(token);
-      window.setTimeout(
-        () => setCopiedToken(null),
-        CLIPBOARD_SUCCESS_TIMEOUT_MS
-      );
-    } catch {
-      // Clipboard write may fail due to browser permissions or security context
-      // Silently ignore the error as this is a non-critical feature
-    }
-  }, []);
-
-  const handleCloseWarningModal = useCallback(() => {
-    if (isSubmitting) {
-      return;
-    }
-
-    handleCancelReplacement();
-  }, [handleCancelReplacement, isSubmitting]);
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 md:py-8 lg:px-8">
@@ -496,116 +162,14 @@ export default function InvitationsContent({
         </div>
       </div>
 
-      <div className="mb-4 md:mb-6">
-        <Card className="mx-auto w-full max-w-md md:mx-0">
-          <CardContent className="px-3 py-2">
-            <div className="flex items-center justify-center divide-x divide-border">
-              <div className="flex items-center gap-2 px-4 py-1">
-                <UserCheck
-                  className="h-4 w-4 text-green-600 dark:text-green-400"
-                  weight="regular"
-                />
-                <div className="font-bold text-base text-green-600 dark:text-green-400">
-                  {stats.active}
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 px-4 py-1">
-                <CalendarX
-                  className="h-4 w-4 text-red-600 dark:text-red-400"
-                  weight="regular"
-                />
-                <div className="font-bold text-base text-red-600 dark:text-red-400">
-                  {stats.expired}
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 px-4 py-1">
-                <EyeSlash
-                  className="h-4 w-4 text-amber-600 dark:text-amber-400"
-                  weight="regular"
-                />
-                <div className="font-bold text-amber-600 text-base dark:text-amber-400">
-                  {stats.used}
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="mb-6 md:mb-8">
+        <ActiveInvitationCard
+          invitation={activeInvitation}
+          onCreateNew={() => handleOpenModal()}
+        />
       </div>
 
-      <div className="overflow-x-auto rounded-lg border bg-white shadow-lg dark:bg-gray-900">
-        <div className="space-y-4 border-b p-4">
-          <div className="flex items-center justify-between">
-            <h2 className="font-semibold text-lg">招待一覧</h2>
-            <Button
-              className="flex items-center gap-2"
-              onClick={() => handleOpenModal()}
-            >
-              <Plus className="h-4 w-4" />
-              新規作成
-            </Button>
-          </div>
-
-          <div className="flex items-center justify-end">
-            <div className="flex items-center space-x-2">
-              <Switch
-                checked={showActiveOnly}
-                id="active-only"
-                onCheckedChange={handleActiveFilterChange}
-              />
-              <Label
-                className="flex cursor-pointer items-center gap-1"
-                htmlFor="active-only"
-              >
-                {showActiveOnly ? (
-                  <Eye className="h-4 w-4 text-green-600 dark:text-green-400" />
-                ) : (
-                  <EyeSlash className="h-4 w-4 text-gray-500" />
-                )}
-                有効のみ表示
-              </Label>
-            </div>
-          </div>
-        </div>
-
-        <Table>
-          <TableHeader>
-            <TableRow className="bg-white dark:bg-gray-900">
-              <TableHead className="w-12" />
-              <TableHead className="min-w-[200px]">説明</TableHead>
-              <TableHead className="min-w-[80px]">使用回数</TableHead>
-              <TableHead className="min-w-[120px]">有効期限</TableHead>
-              <TableHead className="min-w-[120px]">作成日時</TableHead>
-              <TableHead className="w-20 text-center">URL</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filteredInvitations.length === 0 ? (
-              <TableRow>
-                <TableCell
-                  className="py-8 text-center text-muted-foreground"
-                  colSpan={6}
-                >
-                  {showActiveOnly
-                    ? "有効な招待がありません"
-                    : "招待が作成されていません"}
-                </TableCell>
-              </TableRow>
-            ) : (
-              filteredInvitations.map((invitation) => (
-                <InvitationRow
-                  copiedToken={copiedToken}
-                  invitation={invitation}
-                  key={invitation.token}
-                  onCopyUrl={handleCopyInvitationUrl}
-                  onOpenModal={handleOpenModal}
-                />
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
+      <InvitationHistory invitations={historicalInvitations} />
 
       <InvitationModal
         invitation={editingInvitation}
@@ -614,17 +178,6 @@ export default function InvitationsContent({
         onDeactivate={handleDeactivate}
         onSave={handleSave}
       />
-
-      {existingActiveInvitation && (
-        <InvitationWarningModal
-          error={replacementError}
-          existingInvitation={existingActiveInvitation}
-          isOpen={warningModalOpen}
-          isSubmitting={isSubmitting}
-          onClose={handleCloseWarningModal}
-          onConfirm={handleConfirmReplacement}
-        />
-      )}
     </div>
   );
 }

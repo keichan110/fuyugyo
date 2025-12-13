@@ -48,22 +48,6 @@ function getActiveInvitation(
 }
 
 /**
- * 過去の招待（有効でないもの）を取得する関数
- *
- * @param invitations - 招待配列
- * @returns 過去の招待配列
- */
-function getHistoricalInvitations(
-  invitations: InvitationTokenWithStats[]
-): InvitationTokenWithStats[] {
-  const activeInvitation = getActiveInvitation(invitations);
-
-  return invitations.filter(
-    (invitation) => invitation.token !== activeInvitation?.token
-  );
-}
-
-/**
  * 招待管理画面のメインコンテンツコンポーネント
  *
  * @description
@@ -105,8 +89,11 @@ export default function InvitationsContent({
   );
 
   const historicalInvitations = useMemo(
-    () => getHistoricalInvitations(sortedInvitations),
-    [sortedInvitations]
+    () =>
+      sortedInvitations.filter(
+        (invitation) => invitation.token !== activeInvitation?.token
+      ),
+    [sortedInvitations, activeInvitation]
   );
 
   const handleOpenModal = useCallback(

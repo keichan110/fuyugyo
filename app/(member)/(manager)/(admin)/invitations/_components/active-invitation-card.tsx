@@ -3,7 +3,7 @@
 import { Calendar, CheckCircle, Copy, Plus } from "@phosphor-icons/react";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { isInvitationExpired } from "../_lib/invitation-utils";
@@ -32,17 +32,24 @@ export default function ActiveInvitationCard({
 }: ActiveInvitationCardProps) {
   const [copied, setCopied] = useState(false);
   const [copyError, setCopyError] = useState(false);
+  const [fullUrl, setFullUrl] = useState("");
+
+  // クライアント側でフルURLを生成（SSR対応）
+  useEffect(() => {
+    if (invitation) {
+      const baseUrl = window.location.origin;
+      const invitationUrl = `${baseUrl}/login?invite=${encodeURIComponent(invitation.token)}`;
+      setFullUrl(invitationUrl);
+    }
+  }, [invitation]);
 
   const handleCopyUrl = useCallback(async () => {
-    if (!invitation) {
+    if (!fullUrl) {
       return;
     }
 
     try {
-      const baseUrl = window.location.origin;
-      const invitationUrl = `${baseUrl}/login?invite=${encodeURIComponent(invitation.token)}`;
-
-      await navigator.clipboard.writeText(invitationUrl);
+      await navigator.clipboard.writeText(fullUrl);
 
       setCopied(true);
       setCopyError(false);
@@ -56,7 +63,7 @@ export default function ActiveInvitationCard({
         CLIPBOARD_SUCCESS_TIMEOUT_MS
       );
     }
-  }, [invitation]);
+  }, [fullUrl]);
 
   if (!invitation) {
     return (
@@ -85,12 +92,15 @@ export default function ActiveInvitationCard({
     );
   }
 
-  // SSR対応: 表示用には相対パスのみを使用し、完全なURLはコピー時に生成
-  const invitationPath = `/login?invite=${encodeURIComponent(invitation.token)}`;
   const expiresAtDate = invitation.expiresAt
     ? new Date(invitation.expiresAt)
     : null;
   const isExpired = isInvitationExpired(invitation);
+
+  // SSR時の相対パス（初回レンダリング用フォールバック）
+  const invitationPath = `/login?invite=${encodeURIComponent(invitation.token)}`;
+  // クライアント側で生成されたフルURL、またはSSR時のフォールバック
+  const displayUrl = fullUrl || invitationPath;
 
   return (
     <Card
@@ -149,7 +159,7 @@ export default function ActiveInvitationCard({
           <div className="text-muted-foreground text-sm">招待URL</div>
           <div className="flex gap-2">
             <div className="min-w-0 flex-1 rounded-md border bg-muted/50 px-3 py-2">
-              <p className="truncate font-mono text-sm">{invitationPath}</p>
+              <p className="truncate font-mono text-sm">{displayUrl}</p>
             </div>
             <Button
               className="shrink-0 gap-2"

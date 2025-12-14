@@ -48,6 +48,25 @@ export function getDepartmentBadgeBgClass(department: DepartmentType): string {
   );
 }
 
+// JST（日本標準時）のオフセット: UTC+9時間をミリ秒で表現
+// biome-ignore lint/style/noMagicNumbers: 時間計算は計算式で表現した方が可読性が高い
+const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
+
+/**
+ * JSTの現在日付をYYYY-MM-DD形式で取得
+ * サーバーがUTC、クライアントがJSTの場合のズレを回避
+ */
+export function getTodayDateJST(): string {
+  const now = new Date();
+  // UTC時刻をJST（UTC+9）に変換
+  const jstDate = new Date(now.getTime() + JST_OFFSET_MS);
+  return formatDate(
+    jstDate.getUTCFullYear(),
+    jstDate.getUTCMonth() + 1,
+    jstDate.getUTCDate()
+  );
+}
+
 /**
  * 日付文字列をフォーマット（YYYY-MM-DD形式） (optimized)
  */

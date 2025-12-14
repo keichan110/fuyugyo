@@ -53,16 +53,8 @@ export const ShiftDayCard = React.memo<ShiftDayCardProps>(
 
     // 今日の日付を判定（JST基準）
     const todayDateJST = getTodayDateJST();
-    const isToday = useMemo(
-      () => dateString === todayDateJST,
-      [dateString, todayDateJST]
-    );
-
-    // 過去の日付かどうかを判定
-    const isPastDate = useMemo(
-      () => dateString < todayDateJST,
-      [dateString, todayDateJST]
-    );
+    const isToday = dateString === todayDateJST;
+    const isPastDate = dateString < todayDateJST;
 
     // 部門選択後の遷移処理
     const handleDepartmentSelect = (departmentId: string) => {

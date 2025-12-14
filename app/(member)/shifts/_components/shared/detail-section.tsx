@@ -4,11 +4,11 @@ import { Calendar } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import type { DepartmentSectionOptions } from "../_lib/shift-components";
-import { renderDepartmentSections } from "../_lib/shift-components";
-import type { DayData } from "../_lib/types";
-import { useShiftNavigation } from "../_lib/use-shift-navigation";
-import { DepartmentSelectionPopover } from "./department-selection-popover";
+import type { DepartmentSectionOptions } from "../../_lib/shift-components";
+import { renderDepartmentSections } from "../../_lib/shift-components";
+import type { DayData } from "../../_lib/types";
+import { useShiftNavigation } from "../../_lib/use-shift-navigation";
+import { DepartmentSelectionPopover } from "./department-popover";
 
 type Department = {
   id: string;

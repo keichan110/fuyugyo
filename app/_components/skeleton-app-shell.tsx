@@ -1,5 +1,5 @@
 import type { HTMLAttributes } from "react";
-import { SkeletonSection } from "@/app/(member)/shifts/_components/skeleton-section";
+import { SkeletonSection } from "@/app/(member)/shifts/_components/ui/section-skeleton";
 import { cn } from "@/lib/utils";
 import { SkeletonCardGrid } from "./skeleton-card-grid";
 

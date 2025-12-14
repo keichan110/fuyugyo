@@ -1,9 +1,9 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { DEPARTMENT_STYLES } from "../_lib/constants";
-import { getDepartmentIcon } from "../_lib/shift-components";
-import type { DepartmentMinimal } from "../_lib/types";
+import { DEPARTMENT_STYLES } from "../../_lib/constants";
+import { getDepartmentIcon } from "../../_lib/shift-components";
+import type { DepartmentMinimal } from "../../_lib/types";
 
 type DepartmentSelectorProps = {
   departments: DepartmentMinimal[];

@@ -1,9 +1,9 @@
 "use client";
 
 import { useMemo } from "react";
-import type { DayData, ShiftStats } from "../_lib/types";
-import { formatDateToString, getWeekDates } from "../_lib/week-calculations";
-import { ShiftDayCard } from "./shift-day-card";
+import type { DayData, ShiftStats } from "../../_lib/types";
+import { formatDateToString, getWeekDates } from "../../_lib/week-calculations";
+import { ShiftDayCard } from "../shared/day-card";
 
 type Department = {
   id: string;

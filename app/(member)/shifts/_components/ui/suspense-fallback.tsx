@@ -1,4 +1,4 @@
-import ShiftsLoading from "../loading";
+import ShiftsLoading from "../../loading";
 
 export function PublicShiftsSuspenseFallback() {
   return <ShiftsLoading />;

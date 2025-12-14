@@ -5,7 +5,7 @@ import { CalendarIcon, ChevronLeft, ChevronRight } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
-import { getWeekPeriodDisplay } from "../_lib/week-calculations";
+import { getWeekPeriodDisplay } from "../../_lib/week-calculations";
 
 type WeekNavigationProps = {
   baseDate: Date;

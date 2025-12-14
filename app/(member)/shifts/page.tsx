@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { authenticateFromCookies } from "@/lib/auth/middleware";
-import ShiftsContent from "./_components/shifts-content";
+import ShiftsContent from "./_components/content";
 import {
   getDepartments,
   getMonthlyShifts,

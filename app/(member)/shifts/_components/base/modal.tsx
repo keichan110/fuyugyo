@@ -11,8 +11,8 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
-import { formatDateForDisplay } from "../_lib/date-formatter";
-import type { DayData } from "../_lib/types";
+import { formatDateForDisplay } from "../../_lib/date-formatter";
+import type { DayData } from "../../_lib/types";
 
 export type BaseShiftModalProps = {
   isOpen: boolean;

@@ -1,16 +1,16 @@
 "use client";
 
 import { DepartmentIcon } from "@/app/(member)/_components/department-icon";
-import { ShiftBadge } from "@/app/(member)/shifts/_components/shift-badge";
+import { ShiftBadge } from "@/app/(member)/shifts/_components/shared/badge";
 import { cn } from "@/lib/utils";
-import { WEEKDAYS } from "../_lib/constants";
-import type { BaseShiftDisplayProps, DepartmentType } from "./types";
+import { WEEKDAYS } from "../../_lib/constants";
+import type { BaseShiftDisplayProps, DepartmentType } from "../types";
 import {
   formatDate,
   getDaysInMonth,
   getDepartmentBgClass,
   getShiftTypeShort,
-} from "./utils";
+} from "../utils";
 
 // Constants
 const SATURDAY_DAY_INDEX = 6;

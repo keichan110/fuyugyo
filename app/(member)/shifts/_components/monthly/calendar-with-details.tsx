@@ -1,12 +1,12 @@
 "use client";
 
 import { useMemo } from "react";
-import { ShiftBadge } from "@/app/(member)/shifts/_components/shift-badge";
+import { ShiftBadge } from "@/app/(member)/shifts/_components/shared/badge";
 import { cn } from "@/lib/utils";
-import { WEEKDAYS } from "../_lib/constants";
-import type { DayData } from "../_lib/types";
-import { ShiftDayCard } from "./shift-day-card";
-import type { BaseShiftDisplayProps, DepartmentType } from "./types";
+import { WEEKDAYS } from "../../_lib/constants";
+import type { DayData } from "../../_lib/types";
+import { ShiftDayCard } from "../shared/day-card";
+import type { BaseShiftDisplayProps, DepartmentType } from "../types";
 import {
   formatDate,
   getDaysInMonth,
@@ -14,7 +14,7 @@ import {
   getDepartmentBgClass,
   getFirstDayOfWeek,
   getShiftTypeShort,
-} from "./utils";
+} from "../utils";
 
 // カレンダー関連の定数
 const DAYS_PER_WEEK = 7;

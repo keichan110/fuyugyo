@@ -1,7 +1,7 @@
 "use client";
 
-import { BaseShiftMobileList } from "./base-shift-mobile-list";
-import type { BaseShiftDisplayProps } from "./types";
+import { BaseShiftMobileList } from "../base/mobile-list";
+import type { BaseShiftDisplayProps } from "../types";
 
 /**
  * 統合モバイルリストコンポーネントのProps型

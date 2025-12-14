@@ -1,10 +1,10 @@
 import { render } from "@testing-library/react";
 import "@testing-library/jest-dom";
-import type { ShiftStats } from "../_lib/types";
-import { ShiftCalendarGrid } from "./shift-calendar-grid";
+import type { ShiftStats } from "../../_lib/types";
+import { ShiftCalendarGrid } from "./calendar-grid";
 
 // BaseShiftCalendarをモック化
-jest.mock("./base-shift-calendar", () => ({
+jest.mock("../base/calendar", () => ({
   BaseShiftCalendar: jest.fn(
     ({ year, month, shiftStats, isHoliday, selectedDate, onDateSelect }) => (
       <div data-testid="base-shift-calendar">
@@ -33,7 +33,7 @@ jest.mock("next/dynamic", () => {
     // BaseShiftCalendarを直接返す
     function MockComponent(props: Record<string, unknown>) {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { BaseShiftCalendar } = require("./base-shift-calendar");
+      const { BaseShiftCalendar } = require("../base/calendar");
       return <BaseShiftCalendar {...props} />;
     }
     MockComponent.displayName = "MockDynamicComponent";
@@ -42,7 +42,7 @@ jest.mock("next/dynamic", () => {
 });
 
 // ShiftCalendarSkeletonをモック化
-jest.mock("./shift-calendar-skeleton", () => ({
+jest.mock("../ui/calendar-skeleton", () => ({
   ShiftCalendarSkeleton: () => (
     <div data-testid="calendar-skeleton">Loading...</div>
   ),

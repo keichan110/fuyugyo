@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom";
-import type { ShiftStats } from "../_lib/types";
-import { BaseShiftCalendar } from "./base-shift-calendar";
+import type { ShiftStats } from "../../_lib/types";
+import { BaseShiftCalendar } from "./calendar";
 
 // 依存モジュールをモック化
 jest.mock("@/lib/utils", () => ({
@@ -20,7 +20,7 @@ jest.mock("@/app/(member)/_components/department-icon", () => ({
   )),
 }));
 
-jest.mock("@/app/(member)/shifts/_components/shift-badge", () => ({
+jest.mock("@/app/(member)/shifts/_components/shared/badge", () => ({
   ShiftBadge: jest.fn(({ count }) => (
     <div data-count={count} data-testid="shift-badge">
       {count}名
@@ -28,7 +28,7 @@ jest.mock("@/app/(member)/shifts/_components/shift-badge", () => ({
   )),
 }));
 
-jest.mock("./utils", () => ({
+jest.mock("../utils", () => ({
   getShiftTypeShort: jest.fn((type: string) => type.slice(0, 2)),
   getDepartmentBgClass: jest.fn((dept: string) => `bg-${dept}`),
   formatDate: jest.fn(

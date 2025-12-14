@@ -3,10 +3,10 @@
 import React, { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { renderDepartmentSections } from "../_lib/shift-components";
-import type { DayData } from "../_lib/types";
-import { useShiftNavigation } from "../_lib/use-shift-navigation";
-import { DepartmentSelectionPopover } from "./department-selection-popover";
+import { renderDepartmentSections } from "../../_lib/shift-components";
+import type { DayData } from "../../_lib/types";
+import { useShiftNavigation } from "../../_lib/use-shift-navigation";
+import { DepartmentSelectionPopover } from "./department-popover";
 
 type Department = {
   id: string;

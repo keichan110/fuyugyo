@@ -17,11 +17,11 @@ import { isHoliday } from "../_lib/constants";
 import type { ShiftStats } from "../_lib/types";
 import { useShiftDataTransformation } from "../_lib/use-shift-data-transformation";
 import { formatDateToString } from "../_lib/week-calculations";
-import { MonthlyCalendarWithDetails } from "./monthly-calendar-with-details";
-import { ShiftMobileList } from "./shift-mobile-list";
-import { ViewToggle } from "./view-toggle";
-import { WeekNavigation } from "./week-navigation";
-import { WeeklyShiftList } from "./weekly-shift-list";
+import { MonthlyCalendarWithDetails } from "./monthly/calendar-with-details";
+import { ShiftMobileList } from "./shared/mobile-list";
+import { ViewToggle } from "./shared/view-toggle";
+import { WeekNavigation } from "./weekly/navigation";
+import { WeeklyShiftList } from "./weekly/shift-list";
 
 type ViewMode = "monthly" | "weekly";
 

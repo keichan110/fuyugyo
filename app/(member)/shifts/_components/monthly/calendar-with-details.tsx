@@ -175,7 +175,7 @@ export function MonthlyCalendarWithDetails({
             "-translate-y-1 transform border-blue-400 shadow-xl ring-2 ring-emerald-400 dark:ring-emerald-500":
               isToday && isSelected,
             "opacity-80": !(hasShifts || isToday),
-            "opacity-50": isPastDate && !isToday,
+            "opacity-70": isPastDate && !isToday,
           }
         )}
         key={day}

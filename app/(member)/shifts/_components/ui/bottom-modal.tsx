@@ -1,8 +1,8 @@
 "use client";
 
-import { PublicShiftModal } from "@/app/(member)/shifts/_components/base-shift-modal";
-import { renderDepartmentSections } from "../_lib/shift-components";
-import type { DayData } from "../_lib/types";
+import { PublicShiftModal } from "@/app/(member)/shifts/_components/base/modal";
+import { renderDepartmentSections } from "../../_lib/shift-components";
+import type { DayData } from "../../_lib/types";
 
 type PublicShiftBottomModalProps = {
   isOpen: boolean;

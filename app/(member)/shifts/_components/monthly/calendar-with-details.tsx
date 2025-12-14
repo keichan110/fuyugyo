@@ -1,12 +1,12 @@
 "use client";
 
 import { useMemo } from "react";
-import { ShiftBadge } from "@/app/(member)/shifts/_components/shift-badge";
+import { ShiftBadge } from "@/app/(member)/shifts/_components/shared/badge";
 import { cn } from "@/lib/utils";
-import { WEEKDAYS } from "../_lib/constants";
-import type { DayData } from "../_lib/types";
-import { ShiftDayCard } from "./shift-day-card";
-import type { BaseShiftDisplayProps, DepartmentType } from "./types";
+import { WEEKDAYS } from "../../_lib/constants";
+import type { DayData } from "../../_lib/types";
+import { ShiftDayCard } from "../shared/day-card";
+import type { BaseShiftDisplayProps, DepartmentType } from "../types";
 import {
   formatDate,
   getDaysInMonth,
@@ -14,7 +14,8 @@ import {
   getDepartmentBgClass,
   getFirstDayOfWeek,
   getShiftTypeShort,
-} from "./utils";
+  getTodayDateJST,
+} from "../utils";
 
 // カレンダー関連の定数
 const DAYS_PER_WEEK = 7;
@@ -70,13 +71,8 @@ export function MonthlyCalendarWithDetails({
   const daysInMonth = getDaysInMonth(year, month);
   const firstDayOfWeek = getFirstDayOfWeek(year, month);
 
-  // 今日の日付を取得
-  const today = new Date();
-  const todayDate = formatDate(
-    today.getFullYear(),
-    today.getMonth() + 1,
-    today.getDate()
-  );
+  // JSTの今日の日付を取得（サーバーUTC対応）
+  const todayDate = getTodayDateJST();
 
   // 選択された日付の週と位置を計算
   const selectedDateInfo = useMemo(() => {
@@ -157,6 +153,7 @@ export function MonthlyCalendarWithDetails({
     const isHolidayDay = checkIsHoliday(date);
     const isSelected = selectedDate === date;
     const isToday = date === todayDate;
+    const isPastDate = date < todayDate;
     const hasShifts = dayData && dayData.shifts.length > 0;
     const dayOfWeekIndex = new Date(year, month - 1, day).getDay();
     const dayOfWeek = WEEKDAYS[dayOfWeekIndex];
@@ -178,6 +175,7 @@ export function MonthlyCalendarWithDetails({
             "-translate-y-1 transform border-blue-400 shadow-xl ring-2 ring-emerald-400 dark:ring-emerald-500":
               isToday && isSelected,
             "opacity-80": !(hasShifts || isToday),
+            "opacity-70": isPastDate && !isToday,
           }
         )}
         key={day}

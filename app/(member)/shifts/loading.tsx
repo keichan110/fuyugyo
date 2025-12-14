@@ -1,5 +1,5 @@
-import { SkeletonCalendar } from "@/app/(member)/shifts/_components/skeleton-calendar";
-import { SkeletonSection } from "@/app/(member)/shifts/_components/skeleton-section";
+import { SkeletonSection } from "@/app/(member)/shifts/_components/ui/section-skeleton";
+import { SkeletonCalendar } from "@/app/(member)/shifts/_components/ui/skeleton";
 
 export default function ShiftsLoading() {
   return (

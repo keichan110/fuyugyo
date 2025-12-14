@@ -3,7 +3,7 @@
 import type {
   ExistingShiftData,
   NewShiftData,
-} from "../_components/duplicate-shift-dialog";
+} from "../_components/shared/duplicate-dialog";
 
 // HTTP ステータスコード定数
 const HTTP_STATUS_CONFLICT = 409;

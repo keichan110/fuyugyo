@@ -49,6 +49,28 @@ export function getDepartmentBadgeBgClass(department: DepartmentType): string {
 }
 
 /**
+ * JSTの現在日付をYYYY-MM-DD形式で取得
+ * Intl.DateTimeFormatを使用してタイムゾーンを考慮した日付取得を実現
+ * サーバーがUTC、クライアントがJSTの場合のズレを回避
+ */
+export function getTodayDateJST(): string {
+  const now = new Date();
+  const formatter = new Intl.DateTimeFormat("ja-JP", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+
+  const parts = formatter.formatToParts(now);
+  const year = parts.find((p) => p.type === "year")?.value ?? "";
+  const month = parts.find((p) => p.type === "month")?.value ?? "";
+  const day = parts.find((p) => p.type === "day")?.value ?? "";
+
+  return `${year}-${month}-${day}`;
+}
+
+/**
  * 日付文字列をフォーマット（YYYY-MM-DD形式） (optimized)
  */
 export function formatDate(year: number, month: number, day: number): string {

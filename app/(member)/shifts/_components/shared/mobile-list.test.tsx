@@ -1,10 +1,10 @@
 import { render } from "@testing-library/react";
 import "@testing-library/jest-dom";
-import type { ShiftStats } from "../_lib/types";
-import { ShiftMobileList } from "./shift-mobile-list";
+import type { ShiftStats } from "../../_lib/types";
+import { ShiftMobileList } from "./mobile-list";
 
 // BaseShiftMobileListをモック化
-jest.mock("./base-shift-mobile-list", () => ({
+jest.mock("../base/mobile-list", () => ({
   BaseShiftMobileList: jest.fn(
     ({
       year,

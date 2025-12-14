@@ -21,7 +21,7 @@ export function generateInstructorChips(
   return assignedInstructors.map((instructor) => (
     <div
       className={cn(
-        "inline-flex cursor-pointer items-center gap-1 rounded-full border px-2.5 py-1 font-medium text-xs transition-all duration-200 hover:scale-105 hover:shadow-md",
+        "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 font-medium text-xs",
         chipClass
       )}
       key={instructor.id}
@@ -94,7 +94,7 @@ function renderInstructorChips(
     return instructors.map((instructor) => (
       <div
         className={cn(
-          "pointer-events-none inline-flex cursor-pointer items-center gap-1 rounded-full border px-2.5 py-1 font-medium text-xs hover:shadow-md",
+          "pointer-events-none inline-flex items-center gap-1 rounded-full border px-2.5 py-1 font-medium text-xs",
           styles.chipClass
         )}
         key={instructor.id}

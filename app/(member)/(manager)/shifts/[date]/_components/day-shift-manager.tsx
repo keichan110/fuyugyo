@@ -4,7 +4,7 @@ import { AlertTriangle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useNotification } from "@/app/_providers/notifications";
-import { DepartmentSelectionPopover } from "@/app/(member)/shifts/_components/department-selection-popover";
+import { DepartmentSelectionPopover } from "@/app/(member)/shifts/_components/shared/department-popover";
 import {
   createShiftAction,
   deleteShiftAction,

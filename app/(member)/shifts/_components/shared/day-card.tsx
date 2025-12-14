@@ -3,10 +3,11 @@
 import React, { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { renderDepartmentSections } from "../_lib/shift-components";
-import type { DayData } from "../_lib/types";
-import { useShiftNavigation } from "../_lib/use-shift-navigation";
-import { DepartmentSelectionPopover } from "./department-selection-popover";
+import { renderDepartmentSections } from "../../_lib/shift-components";
+import type { DayData } from "../../_lib/types";
+import { useShiftNavigation } from "../../_lib/use-shift-navigation";
+import { getTodayDateJST } from "../utils";
+import { DepartmentSelectionPopover } from "./department-popover";
 
 type Department = {
   id: string;
@@ -50,15 +51,10 @@ export const ShiftDayCard = React.memo<ShiftDayCardProps>(
     const [isDepartmentPopoverOpen, setIsDepartmentPopoverOpen] =
       useState(false);
 
-    // 今日の日付を判定
-    const isToday = useMemo(() => {
-      const today = new Date();
-      return (
-        date.getFullYear() === today.getFullYear() &&
-        date.getMonth() === today.getMonth() &&
-        date.getDate() === today.getDate()
-      );
-    }, [date]);
+    // 今日の日付を判定（JST基準）
+    const todayDateJST = getTodayDateJST();
+    const isToday = dateString === todayDateJST;
+    const isPastDate = dateString < todayDateJST;
 
     // 部門選択後の遷移処理
     const handleDepartmentSelect = (departmentId: string) => {
@@ -110,6 +106,7 @@ export const ShiftDayCard = React.memo<ShiftDayCardProps>(
           "overflow-hidden shadow-lg transition-all duration-200 hover:shadow-xl",
           {
             "ring-2 ring-emerald-400 dark:ring-emerald-500": isToday,
+            "opacity-70": isPastDate && !isToday,
           }
         )}
       >

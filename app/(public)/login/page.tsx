@@ -67,6 +67,9 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   // クエリパラメータを取得
   const params = await searchParams;
   const redirectUrl = validateRedirectUrl(params.redirect);
+  const inviteToken = Array.isArray(params.invite)
+    ? params.invite[0]
+    : params.invite;
 
   // 既にログイン済みの場合はリダイレクト
   if (authResult.success && authResult.user) {
@@ -74,5 +77,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   }
 
   // 未認証の場合はログイン UI を表示
-  return <LoginPageClient redirectUrl={redirectUrl} />;
+  return (
+    <LoginPageClient inviteToken={inviteToken} redirectUrl={redirectUrl} />
+  );
 }

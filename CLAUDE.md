@@ -292,7 +292,32 @@ export async function createResource(data: CreateResourceSchema) {
 
 ## エラーハンドリング戦略
 
-- **API Routes**: 統一された ApiResponse 型でエラー情報を返却
+### API エラーハンドリング
+
+- **統一レスポンス形式**: `ApiResponse<T>`型で `success`, `data`, `error`, `message` を返却
+- **logApiError() 使用**: API ハンドラーで発生したエラーを `logApiError(context, error)` でログ出力
+- **SecureLog による保護**: 機密情報（token, password, secret など）を自動的にマスキングしてログ出力
+
+```typescript
+try {
+  // API処理
+} catch (error) {
+  logApiError("Failed to fetch shift data", error);
+  return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
+}
+```
+
+### セキュアログ出力
+
+**secureLog ユーティリティ**:
+- `secureLog(level, message, data?)` - 機密情報を自動マスキング
+- `secureAuthLog(message, data?)` - 認証関連の安全なログ出力（state は最初の8文字のみ表示）
+- `logDebugConfig(config)` - 開発環境でのトラブルシューティング用設定情報表示
+
+**マスキング対象**: token, accesstoken, secret, channelsecret, password, auth, authorization, jwt, code, state, clientsecret, apikey など
+
+### その他のエラーハンドリング
+
 - **Server Actions**: try/catch + revalidatePath() パターンで安全性確保
 - **React Error Boundaries**: `error.tsx`ファイルによるエラー境界実装
 - **404 ハンドリング**: `not-found.tsx`による適切な 404 ページ表示

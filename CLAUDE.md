@@ -37,13 +37,8 @@ npm run lint         # ESLint静的解析（必須）
 npm run dev          # 開発サーバー起動
 npm run build        # プロダクションビルド
 npm run start        # 本番モードで起動
-npm test             # Jest単体テスト（全テスト実行）
-npm run test:watch   # テストwatchモード
-npm run test:coverage # カバレッジ付きテスト実行
-npm run test:ci      # CI環境用テスト実行
-npm run format       # Prettierコード整形
+npm run format       # コード整形実行
 npm run format:check # 整形チェック
-npm run test:validate # 型チェック+lint+テスト実行
 ```
 
 ## データベース操作
@@ -304,6 +299,16 @@ export async function createResource(data: CreateResourceSchema) {
 npm test                    # 全テスト実行
 npm run test:watch          # ウォッチモード（開発時推奨）
 npm test -- --testPathPattern="shifts"  # 特定パス指定実行
+```
+
+## テスト実行
+
+```bash
+npm test                                    # 全テスト実行
+npm test -- --testPathPattern="shifts"      # 特定パス指定実行
+npm test -- shifts.test.ts                  # 特定ファイル実行
+npm run test:watch                          # ウォッチモード
+npm run test:coverage                       # カバレッジレポート生成
 ```
 
 ## コード品質チェック

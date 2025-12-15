@@ -39,6 +39,7 @@
       "Bash(npm test:*)",
       "Bash(npm run test:*)",
       "Bash(npm run format:*)"
-    ]
+    ],
+    "deny": [".env"]
   }
 }

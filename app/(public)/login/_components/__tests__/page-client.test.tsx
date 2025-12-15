@@ -127,18 +127,16 @@ describe("LoginPageClient", () => {
       const user = userEvent.setup();
 
       // 実際にはこのような形式ではないが、エンコーディングのテストとして
-      render(
-        <LoginPageClient
-          inviteToken="inv_test+special=chars&more"
-          redirectUrl="/"
-        />
-      );
+      const inviteToken = "inv_test+special=chars&more";
+      render(<LoginPageClient inviteToken={inviteToken} redirectUrl="/" />);
 
       const button = screen.getByRole("button", { name: /LINEでログイン/i });
       await user.click(button);
 
-      // URLSearchParams が自動的にエンコードすることを確認
-      expect(window.location.href).toContain("invite=inv_test");
+      const url = new URL(window.location.href, "http://localhost");
+
+      // URLSearchParams が自動的にエンコードし、元の値が正しく取得できることを確認
+      expect(url.searchParams.get("invite")).toBe(inviteToken);
     });
   });
 

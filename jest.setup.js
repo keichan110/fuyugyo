@@ -116,6 +116,16 @@ jest.mock("next/navigation", () => ({
   useParams: jest.fn(() => ({})),
 }));
 
+// Next.js Image のモック
+jest.mock("next/image", () => ({
+  __esModule: true,
+  default: jest.fn((props) => {
+    const { src, alt, ...rest } = props;
+    // eslint-disable-next-line no-undef
+    return require("react").createElement("img", { src, alt, ...rest });
+  }),
+}));
+
 // window.matchMedia のモック（レスポンシブテスト用）
 if (typeof window !== "undefined") {
   Object.defineProperty(window, "matchMedia", {

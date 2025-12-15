@@ -11,6 +11,8 @@ const COLOR_PATTERN_MODULO = 2;
 type LoginPageClientProps = {
   /** リダイレクト先URL（デフォルト: "/"） */
   redirectUrl?: string;
+  /** 招待トークン */
+  inviteToken?: string | undefined;
 };
 
 /**
@@ -19,10 +21,17 @@ type LoginPageClientProps = {
  */
 export default function LoginPageClient({
   redirectUrl = "/",
+  inviteToken,
 }: LoginPageClientProps) {
   const handleLineLogin = () => {
-    // リダイレクト先をURLパラメータとして渡す
-    const loginUrl = `/api/auth/line/login?redirect=${encodeURIComponent(redirectUrl)}`;
+    // リダイレクト先と招待トークンをURLパラメータとして渡す
+    const params = new URLSearchParams({
+      redirect: redirectUrl,
+    });
+    if (inviteToken) {
+      params.set("invite", inviteToken);
+    }
+    const loginUrl = `/api/auth/line/login?${params.toString()}`;
     window.location.href = loginUrl;
   };
 

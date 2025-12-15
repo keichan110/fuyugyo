@@ -246,18 +246,32 @@ docs/                       # プロジェクトドキュメント
 
 ## API Routes 設計パターン
 
-### RESTful API 設計
+### Usecase-driven 設計
+
+API エンドポイントはビジネスロジックに基づいた **usecase** 単位で設計し、クライアント側の要件を直接反映したエンドポイントを提供する：
+
+```
+/api/[resource]              # 基本的なリソース操作（CRUD）
+/api/usecases/[feature]/...  # 特定のユースケース用エンドポイント
+```
+
+**例：**
+- `GET /api/usecases/shifts/weekly-view?dateFrom=2025-01-13` - 週次シフトビュー
+- `GET /api/usecases/shifts/monthly-view?month=2025-01` - 月次シフトビュー
+- `GET /api/usecases/shifts/form-data` - シフト作成フォーム用データ
+- `GET /api/usecases/instructors/active-by-department/[departmentId]` - 部門別アクティブインストラクター
+
+### レスポンス形式
+
+統一されたレスポンス構造：
 
 ```typescript
-// 統一レスポンス形式
-export type ApiResponse<T> = { success: true; data: T } | { success: false; error: string };
-
-// CRUD操作パターン
-GET    /api/[resource]     → 一覧取得
-POST   /api/[resource]     → 新規作成
-GET    /api/[resource]/[id] → 詳細取得
-PUT    /api/[resource]/[id] → 更新
-DELETE /api/[resource]/[id] → 削除
+export type ApiResponse<T> = {
+  success: boolean;
+  data: T | null;
+  error?: string | null;
+  message?: string | null;
+};
 ```
 
 ## Server Actions 実装パターン

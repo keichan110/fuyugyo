@@ -43,73 +43,51 @@ type UpcomingShiftsSectionProps = {
 };
 
 /**
- * カルーセルコンテンツをレンダリングするヘルパー関数
+ * インストラクター未紐付け時の警告表示コンポーネント
  *
  * @description
- * インストラクターの紐付け状態とシフトの有無に応じて、
- * 適切なコンテンツを早期リターンパターンで返します。
- *
- * @returns CarouselItem要素
+ * インストラクター情報が設定されていない場合に警告メッセージと
+ * 設定ボタンを表示します。
  */
-function renderCarouselContent({
-  instructorProfile,
-  shifts,
+const InstructorNotLinkedAlert = ({
   availableInstructors,
   onSuccess,
 }: {
-  instructorProfile: UserInstructorProfile | null;
-  shifts: UpcomingShiftsSectionProps["shifts"];
   availableInstructors: InstructorBasicInfo[];
   onSuccess: () => void;
-}) {
-  // インストラクター未紐付けの場合：警告カードを表示
-  if (!instructorProfile) {
-    return (
-      <CarouselItem className="basis-full pl-2 md:pl-4">
-        <Alert className="flex items-center gap-4" variant="warning">
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4" />
-            <div>
-              <AlertTitle>インストラクター情報が設定されていません</AlertTitle>
-              <AlertDescription>
-                スケジュール機能を利用するには、インストラクター情報を設定してください。
-              </AlertDescription>
-            </div>
-          </div>
-          <div className="ml-auto">
-            <InstructorLinkageButton
-              instructors={availableInstructors}
-              onSuccessAction={onSuccess}
-            />
-          </div>
-        </Alert>
-      </CarouselItem>
-    );
-  }
+}) => (
+  <Alert className="flex items-center gap-4" variant="warning">
+    <div className="flex items-center gap-2">
+      <AlertTriangle className="h-8 w-8 md:h-4 md:w-4" />
+      <div>
+        <AlertTitle>インストラクター情報が設定されていません</AlertTitle>
+        <AlertDescription>
+          スケジュール機能を利用するには、インストラクター情報を設定してください。
+        </AlertDescription>
+      </div>
+    </div>
+    <div className="ml-auto">
+      <InstructorLinkageButton
+        instructors={availableInstructors}
+        onSuccessAction={onSuccess}
+      />
+    </div>
+  </Alert>
+);
 
-  // インストラクター紐付け済みだがシフトがない場合
-  if (shifts.length === 0) {
-    return (
-      <CarouselItem className="basis-full pl-2 md:pl-4">
-        <div className="rounded-lg border p-4">
-          <p className="text-center text-muted-foreground text-sm">
-            現在、予定されているシフトはありません
-          </p>
-        </div>
-      </CarouselItem>
-    );
-  }
-
-  // シフトがある場合：シフトカードを表示
-  return shifts.map((shift) => (
-    <CarouselItem
-      className="basis-full pl-2 md:basis-1/5 md:pl-4"
-      key={shift.id}
-    >
-      <ShiftCard shift={shift} />
-    </CarouselItem>
-  ));
-}
+/**
+ * シフトなし時の空状態表示コンポーネント
+ *
+ * @description
+ * 予定されているシフトがない場合にメッセージを表示します。
+ */
+const EmptyShiftsState = () => (
+  <div className="rounded-lg border p-4">
+    <p className="text-center text-muted-foreground text-sm">
+      現在、予定されているシフトはありません
+    </p>
+  </div>
+);
 
 /**
  * インストラクター向け今後のシフト表示セクションコンポーネント
@@ -156,6 +134,40 @@ export function UpcomingShiftsSection({
     router.refresh();
   };
 
+  // インストラクター未紐付けまたはシフトがない場合
+  if (!instructorProfile || shifts.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Calendar className="h-5 w-5 text-muted-foreground" />
+            <CardTitle>今後のシフト</CardTitle>
+          </div>
+          <CardDescription>直近の予定されたシフトを表示します</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {instructorProfile ? (
+            <EmptyShiftsState />
+          ) : (
+            <InstructorNotLinkedAlert
+              availableInstructors={availableInstructors}
+              onSuccess={handleSuccess}
+            />
+          )}
+          {/* すべてのシフトを見るリンク */}
+          <Link
+            className="mt-4 flex items-center justify-center gap-2 rounded-lg bg-muted px-4 py-2 text-muted-foreground text-sm transition-colors hover:bg-muted/80 hover:text-primary"
+            href={shiftsLink}
+          >
+            <Calendar className="h-4 w-4" />
+            すべて表示
+          </Link>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // シフトがある場合：カルーセルで表示
   return (
     <Card>
       <CardHeader>
@@ -174,12 +186,14 @@ export function UpcomingShiftsSection({
           }}
         >
           <CarouselContent className="-ml-2 md:-ml-4">
-            {renderCarouselContent({
-              instructorProfile,
-              shifts,
-              availableInstructors,
-              onSuccess: handleSuccess,
-            })}
+            {shifts.map((shift) => (
+              <CarouselItem
+                className="basis-full pl-2 md:basis-1/5 md:pl-4"
+                key={shift.id}
+              >
+                <ShiftCard shift={shift} />
+              </CarouselItem>
+            ))}
           </CarouselContent>
           <CarouselPrevious className="left-0" />
           <CarouselNext className="right-0" />

@@ -134,8 +134,8 @@ export function UpcomingShiftsSection({
     router.refresh();
   };
 
-  // インストラクター未紐付けの場合
-  if (!instructorProfile) {
+  // インストラクター未紐付けまたはシフトがない場合
+  if (!instructorProfile || shifts.length === 0) {
     return (
       <Card>
         <CardHeader>
@@ -146,36 +146,14 @@ export function UpcomingShiftsSection({
           <CardDescription>直近の予定されたシフトを表示します</CardDescription>
         </CardHeader>
         <CardContent>
-          <InstructorNotLinkedAlert
-            availableInstructors={availableInstructors}
-            onSuccess={handleSuccess}
-          />
-          {/* すべてのシフトを見るリンク */}
-          <Link
-            className="mt-4 flex items-center justify-center gap-2 rounded-lg bg-muted px-4 py-2 text-muted-foreground text-sm transition-colors hover:bg-muted/80 hover:text-primary"
-            href={shiftsLink}
-          >
-            <Calendar className="h-4 w-4" />
-            すべて表示
-          </Link>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  // シフトがない場合
-  if (shifts.length === 0) {
-    return (
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <Calendar className="h-5 w-5 text-muted-foreground" />
-            <CardTitle>今後のシフト</CardTitle>
-          </div>
-          <CardDescription>直近の予定されたシフトを表示します</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <EmptyShiftsState />
+          {instructorProfile ? (
+            <EmptyShiftsState />
+          ) : (
+            <InstructorNotLinkedAlert
+              availableInstructors={availableInstructors}
+              onSuccess={handleSuccess}
+            />
+          )}
           {/* すべてのシフトを見るリンク */}
           <Link
             className="mt-4 flex items-center justify-center gap-2 rounded-lg bg-muted px-4 py-2 text-muted-foreground text-sm transition-colors hover:bg-muted/80 hover:text-primary"

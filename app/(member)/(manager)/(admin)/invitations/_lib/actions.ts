@@ -1,5 +1,4 @@
 "use server";
-import type { PrismaClient } from "@prisma/client";
 import { revalidatePath, revalidateTag } from "next/cache";
 import {
   createInvitationToken,
@@ -21,79 +20,6 @@ import {
  * デフォルトの招待有効期限（日数）
  */
 const DEFAULT_INVITATION_EXPIRY_DAYS = 7;
-
-/**
- * トランザクション内でのトークン検証とユーザー存在チェック
- *
- * トークンの取得から検証までトランザクション内で実行することで、
- * TOCTTOU（Time-of-Check-Time-of-Use）競合状態を防止します。
- */
-async function validateTokenAndCheckUser(
-  token: string,
-  lineUserId: string,
-  tx: Omit<
-    PrismaClient,
-    "$connect" | "$disconnect" | "$on" | "$transaction" | "$extends"
-  >
-) {
-  // トークン形式の基本チェック
-  if (!token || typeof token !== "string") {
-    throw new Error("Invalid token format");
-  }
-
-  // プレフィックスチェック
-  if (!token.startsWith(invitationConfig.tokenPrefix)) {
-    throw new Error("Invalid token prefix");
-  }
-
-  // トランザクション内でトークンを取得（race condition対策）
-  const invitationToken = await tx.invitationToken.findUnique({
-    where: { token },
-    include: {
-      creator: {
-        select: {
-          id: true,
-          displayName: true,
-          role: true,
-        },
-      },
-    },
-  });
-
-  if (!invitationToken) {
-    throw new Error("Invitation token not found");
-  }
-
-  // アクティブ状態チェック
-  if (!invitationToken.isActive) {
-    throw new Error("Invitation token is disabled");
-  }
-
-  // 有効期限チェック
-  const now = new Date();
-  if (invitationToken.expiresAt <= now) {
-    throw new Error("Invitation token has expired");
-  }
-
-  // 使用回数制限チェック
-  if (
-    invitationToken.maxUses !== null &&
-    invitationToken.usedCount >= invitationToken.maxUses
-  ) {
-    throw new Error("Invitation token has reached maximum uses");
-  }
-
-  // ユーザー存在チェック
-  const existingUser = await tx.user.findUnique({
-    where: { lineUserId },
-  });
-
-  if (existingUser) {
-    throw new Error("User already exists");
-  }
-
-  return invitationToken;
-}
 
 /**
  * 招待作成アクション（管理者・マネージャー専用）
@@ -234,57 +160,112 @@ export async function acceptInvitationAction(
     const validated = acceptInvitationSchema.parse(input);
     const { token, lineUserId, displayName, pictureUrl } = validated;
 
-    const result = await (await getPrisma()).$transaction(async (tx) => {
-      const invitationToken = await validateTokenAndCheckUser(
-        token,
-        lineUserId,
-        tx
-      );
+    const prisma = await getPrisma();
 
-      const userData: {
-        lineUserId: string;
-        displayName: string;
-        pictureUrl?: string | null;
-        role: string;
-      } = {
-        lineUserId,
-        displayName,
-        role: "MEMBER",
-      };
+    // 1. トークン検証（トランザクション外で実施）
+    // トークン形式の基本チェック
+    if (!token || typeof token !== "string") {
+      return { success: false, error: "Invalid token format" };
+    }
 
-      if (pictureUrl) {
-        userData.pictureUrl = pictureUrl;
-      }
+    // プレフィックスチェック
+    if (!token.startsWith(invitationConfig.tokenPrefix)) {
+      return { success: false, error: "Invalid token prefix" };
+    }
 
-      const user = await tx.user.create({
-        data: userData,
-      });
-
-      const updateResult = await tx.invitationToken.updateMany({
-        where: {
-          token,
-          ...(invitationToken.maxUses !== null
-            ? { usedCount: { lt: invitationToken.maxUses } }
-            : {}),
-        },
-        data: {
-          usedCount: {
-            increment: 1,
+    // トークン取得
+    const invitationToken = await prisma.invitationToken.findUnique({
+      where: { token },
+      include: {
+        creator: {
+          select: {
+            id: true,
+            displayName: true,
+            role: true,
           },
         },
-      });
+      },
+    });
 
-      if (updateResult.count === 0) {
-        throw new Error("Invitation token has reached maximum uses");
-      }
+    if (!invitationToken) {
+      return { success: false, error: "Invitation token not found" };
+    }
 
-      return user;
+    if (!invitationToken.isActive) {
+      return { success: false, error: "Invitation token is disabled" };
+    }
+
+    if (invitationToken.expiresAt <= new Date()) {
+      return { success: false, error: "Invitation token has expired" };
+    }
+
+    if (
+      invitationToken.maxUses !== null &&
+      invitationToken.usedCount >= invitationToken.maxUses
+    ) {
+      return {
+        success: false,
+        error: "Invitation token has reached maximum uses",
+      };
+    }
+
+    // 2. ユーザー存在チェック
+    const existingUser = await prisma.user.findUnique({
+      where: { lineUserId },
+    });
+    if (existingUser) {
+      return { success: false, error: "User already exists" };
+    }
+
+    // 3. 楽観的同時実行制御: usedCountをatomicに更新
+    const updateResult = await prisma.invitationToken.updateMany({
+      where: {
+        token,
+        isActive: true,
+        expiresAt: { gt: new Date() },
+        ...(invitationToken.maxUses !== null
+          ? { usedCount: { lt: invitationToken.maxUses } }
+          : {}),
+      },
+      data: {
+        usedCount: {
+          increment: 1,
+        },
+      },
+    });
+
+    // 4. 更新失敗（他の人が先に使用した）場合はエラー
+    if (updateResult.count === 0) {
+      return {
+        success: false,
+        error: "Invitation token is no longer available",
+      };
+    }
+
+    // 5. ユーザー作成（usedCountは既に増加済み）
+    const userData: {
+      lineUserId: string;
+      displayName: string;
+      pictureUrl?: string | null;
+      role: string;
+    } = {
+      lineUserId,
+      displayName,
+      role: "MEMBER",
+    };
+
+    if (pictureUrl) {
+      userData.pictureUrl = pictureUrl;
+    }
+
+    const user = await prisma.user.create({
+      data: userData,
     });
 
     revalidatePath("/users");
     revalidateTag("users.list");
 
-    return { success: true, data: result };
+    return { success: true, data: user };
   } catch (error) {
     if (error instanceof Error) {
       return { success: false, error: error.message };

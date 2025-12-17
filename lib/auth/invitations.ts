@@ -160,43 +160,41 @@ export async function createInvitationToken(
       return date;
     })();
 
-  // 既存の有効な招待を無効化してから新しい招待を作成（トランザクションで実行）
-  const invitationToken = await prisma.$transaction(async (tx) => {
-    // 既存の有効な招待を無効化
-    await tx.invitationToken.updateMany({
-      where: {
-        isActive: true,
-        expiresAt: {
-          gt: new Date(), // 有効期限が現在時刻より後の招待のみ
-        },
+  // 既存の有効な招待を無効化してから新しい招待を作成
+  // 1. 既存の有効な招待を無効化（冪等操作）
+  await prisma.invitationToken.updateMany({
+    where: {
+      isActive: true,
+      expiresAt: {
+        gt: new Date(), // 有効期限が現在時刻より後の招待のみ
       },
-      data: {
-        isActive: false,
-        updatedAt: new Date(),
-      },
-    });
+    },
+    data: {
+      isActive: false,
+      updatedAt: new Date(),
+    },
+  });
 
-    // 新しい招待を作成
-    return await tx.invitationToken.create({
-      data: {
-        token,
-        ...(description && { description }),
-        expiresAt: finalExpiresAt,
-        createdBy,
-        maxUses: null, // 使用回数制限なし
-        usedCount: 0,
-        isActive: true,
-      },
-      include: {
-        creator: {
-          select: {
-            id: true,
-            displayName: true,
-            role: true,
-          },
+  // 2. 新しい招待を作成
+  const invitationToken = await prisma.invitationToken.create({
+    data: {
+      token,
+      ...(description && { description }),
+      expiresAt: finalExpiresAt,
+      createdBy,
+      maxUses: null, // 使用回数制限なし
+      usedCount: 0,
+      isActive: true,
+    },
+    include: {
+      creator: {
+        select: {
+          id: true,
+          displayName: true,
+          role: true,
         },
       },
-    });
+    },
   });
 
   return {

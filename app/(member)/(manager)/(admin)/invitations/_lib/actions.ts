@@ -162,6 +162,7 @@ export async function acceptInvitationAction(
     const { token, lineUserId, displayName, pictureUrl } = validated;
 
     const prisma = await getPrisma();
+    const now = new Date(); // 現在時刻を一度だけ取得（時刻の一貫性を保つ）
 
     // 1. トークン検証（トランザクション外で実施）
     // トークン形式の基本チェック
@@ -205,7 +206,7 @@ export async function acceptInvitationAction(
       };
     }
 
-    if (invitationToken.expiresAt <= new Date()) {
+    if (invitationToken.expiresAt <= now) {
       return {
         success: false,
         error: "招待トークンの有効期限が切れています。",
@@ -235,7 +236,7 @@ export async function acceptInvitationAction(
       where: {
         token,
         isActive: true,
-        expiresAt: { gt: new Date() },
+        expiresAt: { gt: now },
         ...(invitationToken.maxUses !== null
           ? { usedCount: { lt: invitationToken.maxUses } }
           : {}),

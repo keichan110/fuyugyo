@@ -88,16 +88,6 @@ export function validateDateFormat(dateString: string): string | null {
     return `不正な日です: ${day}。${year}-${String(month).padStart(2, "0")}の日は01から${String(maxDay).padStart(2, "0")}の範囲で指定してください`;
   }
 
-  // Dateオブジェクトとして有効かチェック
-  const date = new Date(year, month - 1, day);
-  if (
-    date.getFullYear() !== year ||
-    date.getMonth() !== month - 1 ||
-    date.getDate() !== day
-  ) {
-    return `不正な日付です: "${dateString}"は有効なカレンダー日付ではありません`;
-  }
-
   return null; // 検証成功
 }
 

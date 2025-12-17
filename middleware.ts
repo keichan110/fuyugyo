@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { checkRateLimit } from "@/lib/api/rate-limiting";
+import { getTodayLocalDate } from "@/lib/utils/date";
 import { secureLog } from "@/lib/utils/logging";
 import { getClientIp, isAllowedReferrer } from "@/lib/utils/request";
 
@@ -147,12 +148,8 @@ export function middleware(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.searchParams.set("view", "weekly");
 
-    // 今日の日付をデフォルトの開始日に設定
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = String(today.getMonth() + 1).padStart(2, "0");
-    const day = String(today.getDate()).padStart(2, "0");
-    const dateFrom = `${year}-${month}-${day}`;
+    // 今日の日付をデフォルトの開始日に設定（タイムゾーン安全）
+    const dateFrom = getTodayLocalDate();
     url.searchParams.set("dateFrom", dateFrom);
 
     secureLog(

@@ -1,5 +1,4 @@
 import { cache } from "react";
-import { formatDateString } from "@/app/api/usecases/helpers/formatters";
 import {
   departmentMinimalSelect,
   instructorMinimalSelect,
@@ -11,6 +10,7 @@ import {
   formatShiftsData,
 } from "@/app/api/usecases/helpers/shift-aggregators";
 import { getPrisma } from "@/lib/db";
+import { getMonthRange, getWeekRange, parseLocalDate } from "@/lib/utils/date";
 
 /**
  * 月次ビュー用のシフトデータ型
@@ -69,9 +69,10 @@ export type WeeklyViewData = MonthlyViewData;
  */
 export const getMonthlyShifts = cache(
   async (year: number, month: number): Promise<MonthlyViewData> => {
-    // 月の開始日と終了日を計算
-    const startDate = new Date(year, month - 1, 1);
-    const endDate = new Date(year, month, 0); // 月末日
+    // 月の開始日と終了日を取得（タイムゾーン安全）
+    const { start, end } = getMonthRange(year, month);
+    const startDate = parseLocalDate(start);
+    const endDate = parseLocalDate(end);
 
     const prisma = await getPrisma();
 
@@ -123,8 +124,8 @@ export const getMonthlyShifts = cache(
         totalShifts: formattedShifts.length,
         totalAssignments,
         dateRange: {
-          from: formatDateString(startDate),
-          to: formatDateString(endDate),
+          from: start,
+          to: end,
         },
         byDepartment,
       },
@@ -144,12 +145,10 @@ export const getMonthlyShifts = cache(
  */
 export const getWeeklyShifts = cache(
   async (dateFrom: string): Promise<WeeklyViewData> => {
-    const startDate = new Date(dateFrom);
-
-    // 終了日を計算（開始日から6日後 = 7日間）
-    const endDate = new Date(startDate);
-    const DAYS_IN_WEEK = 7;
-    endDate.setDate(endDate.getDate() + DAYS_IN_WEEK - 1);
+    // 週の開始日と終了日を取得（タイムゾーン安全）
+    const { start, end } = getWeekRange(dateFrom);
+    const startDate = parseLocalDate(start);
+    const endDate = parseLocalDate(end);
 
     const prisma = await getPrisma();
 
@@ -201,8 +200,8 @@ export const getWeeklyShifts = cache(
         totalShifts: formattedShifts.length,
         totalAssignments,
         dateRange: {
-          from: formatDateString(startDate),
-          to: formatDateString(endDate),
+          from: start,
+          to: end,
         },
         byDepartment,
       },

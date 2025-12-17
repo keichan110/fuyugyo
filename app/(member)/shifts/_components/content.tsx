@@ -13,10 +13,14 @@ import { useRequireAuth } from "@/app/_providers/auth";
 import { Button } from "@/components/ui/button";
 import { MOBILE_BREAKPOINT } from "@/constants";
 import { hasManagePermission } from "@/lib/auth/permissions";
+import {
+  formatLocalDate,
+  getTodayLocalDate,
+  parseLocalDate,
+} from "@/lib/utils/date";
 import { isHoliday } from "../_lib/constants";
 import type { ShiftStats } from "../_lib/types";
 import { useShiftDataTransformation } from "../_lib/use-shift-data-transformation";
-import { formatDateToString } from "../_lib/week-calculations";
 import { MonthlyCalendarWithDetails } from "./monthly/calendar-with-details";
 import { ShiftMobileList } from "./shared/mobile-list";
 import { ViewToggle } from "./shared/view-toggle";
@@ -126,9 +130,10 @@ export default function ShiftsContent({
   const currentMonth = monthParam
     ? Number.parseInt(monthParam, 10)
     : now.getMonth() + 1;
+  // 週間ビューの基準日をタイムゾーン安全に取得
   const weeklyBaseDate = dateFromParam
-    ? new Date(dateFromParam)
-    : new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    ? parseLocalDate(dateFromParam)
+    : parseLocalDate(getTodayLocalDate());
 
   const { transformShiftsToStats } = useShiftDataTransformation();
 
@@ -164,7 +169,7 @@ export default function ShiftsContent({
       const newDate = new Date(weeklyBaseDate);
       const DAYS_PER_WEEK = 7;
       newDate.setDate(weeklyBaseDate.getDate() + direction * DAYS_PER_WEEK);
-      const dateFrom = formatDateToString(newDate);
+      const dateFrom = formatLocalDate(newDate);
 
       // URLパラメータを更新してページを再読み込み
       router.push(`/shifts?view=weekly&dateFrom=${dateFrom}`, {
@@ -177,7 +182,7 @@ export default function ShiftsContent({
   // カレンダーで日付選択（週間ビュー用）
   const handleDateSelect = useCallback(
     (date: Date) => {
-      const dateFrom = formatDateToString(date);
+      const dateFrom = formatLocalDate(date);
       router.push(`/shifts?view=weekly&dateFrom=${dateFrom}`, {
         scroll: false,
       });
@@ -216,8 +221,7 @@ export default function ShiftsContent({
     // - 2回目: view="weekly" → 条件false → 何もしない
     // - 以降: viewが変わらない限り条件false → 安定
     if (isMobile && searchParams.get("view") === "monthly") {
-      const today = new Date();
-      const dateFrom = formatDateToString(today);
+      const dateFrom = getTodayLocalDate();
 
       // router.replace()でURLを更新（履歴を残さない）
       router.replace(`/shifts?view=weekly&dateFrom=${dateFrom}`, {
@@ -335,7 +339,7 @@ export default function ShiftsContent({
         } else if (newView === "weekly") {
           // 月間 → 週間: 月間ビューの1日を週間ビューの基準日に設定
           const firstDayOfMonth = new Date(currentYear, currentMonth - 1, 1);
-          const dateFrom = formatDateToString(firstDayOfMonth);
+          const dateFrom = formatLocalDate(firstDayOfMonth);
           router.push(`/shifts?view=weekly&dateFrom=${dateFrom}`, {
             scroll: false,
           });

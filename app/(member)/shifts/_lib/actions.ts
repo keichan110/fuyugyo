@@ -11,6 +11,36 @@ import {
 } from "./schemas";
 
 /**
+ * インストラクター割り当てを作成
+ *
+ * @param prisma - Prismaクライアント
+ * @param shiftId - シフトID
+ * @param instructorIds - 割り当てるインストラクターIDの配列
+ * @param operationType - 操作の種類（作成/更新）
+ * @returns 成功時はnull、失敗時はエラーメッセージ
+ */
+async function createInstructorAssignments(
+  prisma: Awaited<ReturnType<typeof getPrisma>>,
+  shiftId: string,
+  instructorIds: string[],
+  operationType: "作成" | "更新"
+): Promise<string | null> {
+  try {
+    if (instructorIds.length > 0) {
+      await prisma.shiftAssignment.createMany({
+        data: instructorIds.map((instructorId) => ({
+          shiftId,
+          instructorId,
+        })),
+      });
+    }
+    return null;
+  } catch (error) {
+    return `シフトを${operationType}しましたが、インストラクターの割り当てに失敗しました: ${error instanceof Error ? error.message : "不明なエラー"}`;
+  }
+}
+
+/**
  * シフト作成アクション（重複チェック付き）
  */
 export async function createShiftAction(
@@ -88,14 +118,15 @@ export async function createShiftAction(
       shiftId = created.id;
     }
 
-    // 3. インストラクター割り当て
-    if (assignedInstructorIds.length > 0) {
-      await prisma.shiftAssignment.createMany({
-        data: assignedInstructorIds.map((instructorId) => ({
-          shiftId,
-          instructorId,
-        })),
-      });
+    // 3. インストラクター割り当て（失敗時は明示的エラー）
+    const assignmentError = await createInstructorAssignments(
+      prisma,
+      shiftId,
+      assignedInstructorIds,
+      existingShift && force ? "更新" : "作成"
+    );
+    if (assignmentError) {
+      return { success: false, error: assignmentError };
     }
 
     // 4. 完全なデータ取得
@@ -121,7 +152,7 @@ export async function createShiftAction(
     if (error instanceof Error) {
       return { success: false, error: error.message };
     }
-    return { success: false, error: "Failed to create shift" };
+    return { success: false, error: "シフトの作成に失敗しました。" };
   }
 }
 
@@ -153,13 +184,15 @@ export async function updateShiftAction(
         where: { shiftId: id },
       });
 
-      if (assignedInstructorIds.length > 0) {
-        await prisma.shiftAssignment.createMany({
-          data: assignedInstructorIds.map((instructorId) => ({
-            shiftId: id,
-            instructorId,
-          })),
-        });
+      // 割り当て作成（失敗時は明示的エラー）
+      const assignmentError = await createInstructorAssignments(
+        prisma,
+        id,
+        assignedInstructorIds,
+        "更新"
+      );
+      if (assignmentError) {
+        return { success: false, error: assignmentError };
       }
     }
 
@@ -186,7 +219,7 @@ export async function updateShiftAction(
     if (error instanceof Error) {
       return { success: false, error: error.message };
     }
-    return { success: false, error: "Failed to update shift" };
+    return { success: false, error: "シフトの更新に失敗しました。" };
   }
 }
 
@@ -213,6 +246,6 @@ export async function deleteShiftAction(
     if (error instanceof Error) {
       return { success: false, error: error.message };
     }
-    return { success: false, error: "Failed to delete shift" };
+    return { success: false, error: "シフトの削除に失敗しました。" };
   }
 }

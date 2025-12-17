@@ -11,6 +11,36 @@ import {
 } from "./schemas";
 
 /**
+ * インストラクター割り当てを作成
+ *
+ * @param prisma - Prismaクライアント
+ * @param shiftId - シフトID
+ * @param instructorIds - 割り当てるインストラクターIDの配列
+ * @param operationType - 操作の種類（作成/更新）
+ * @returns 成功時はnull、失敗時はエラーメッセージ
+ */
+async function createInstructorAssignments(
+  prisma: Awaited<ReturnType<typeof getPrisma>>,
+  shiftId: string,
+  instructorIds: string[],
+  operationType: "作成" | "更新"
+): Promise<string | null> {
+  try {
+    if (instructorIds.length > 0) {
+      await prisma.shiftAssignment.createMany({
+        data: instructorIds.map((instructorId) => ({
+          shiftId,
+          instructorId,
+        })),
+      });
+    }
+    return null;
+  } catch (error) {
+    return `シフトを${operationType}しましたが、インストラクターの割り当てに失敗しました: ${error instanceof Error ? error.message : "不明なエラー"}`;
+  }
+}
+
+/**
  * シフト作成アクション（重複チェック付き）
  */
 export async function createShiftAction(
@@ -59,58 +89,58 @@ export async function createShiftAction(
       };
     }
 
-    // トランザクション: シフト作成/更新 + インストラクター割り当て
-    const shift = await (await getPrisma()).$transaction(async (tx) => {
-      let result: { id: string };
+    const prisma = await getPrisma();
+    let shiftId: string;
 
-      if (existingShift && force) {
-        // 強制更新: 既存シフトを更新
-        result = await tx.shift.update({
-          where: { id: existingShift.id },
-          data: { description: description || existingShift.description },
-          include: { department: true, shiftType: true },
-        });
+    // 条件分岐: 既存シフト更新 or 新規作成
+    if (existingShift && force) {
+      // 1-a. 既存シフト更新
+      const updated = await prisma.shift.update({
+        where: { id: existingShift.id },
+        data: { description: description || existingShift.description },
+      });
+      shiftId = updated.id;
 
-        // 既存割り当てを削除
-        await tx.shiftAssignment.deleteMany({
-          where: { shiftId: result.id },
-        });
-      } else {
-        // 新規作成
-        result = await tx.shift.create({
-          data: {
-            date: new Date(date),
-            departmentId,
-            shiftTypeId,
-            description: description || null,
-          },
-          include: { department: true, shiftType: true },
-        });
-      }
-
-      // インストラクター割り当て
-      if (assignedInstructorIds.length > 0) {
-        await tx.shiftAssignment.createMany({
-          data: assignedInstructorIds.map((instructorId) => ({
-            shiftId: result.id,
-            instructorId,
-          })),
-        });
-      }
-
-      // 割り当て情報付きで返す
-      return tx.shift.findUnique({
-        where: { id: result.id },
-        include: {
-          department: true,
-          shiftType: true,
-          shiftAssignments: {
-            include: {
-              instructor: true,
-            },
-          },
+      // 1-b. 既存割り当て削除
+      await prisma.shiftAssignment.deleteMany({
+        where: { shiftId },
+      });
+    } else {
+      // 2. 新規シフト作成
+      const created = await prisma.shift.create({
+        data: {
+          date: new Date(date),
+          departmentId,
+          shiftTypeId,
+          description: description || null,
         },
       });
+      shiftId = created.id;
+    }
+
+    // 3. インストラクター割り当て（失敗時は明示的エラー）
+    const assignmentError = await createInstructorAssignments(
+      prisma,
+      shiftId,
+      assignedInstructorIds,
+      existingShift && force ? "更新" : "作成"
+    );
+    if (assignmentError) {
+      return { success: false, error: assignmentError };
+    }
+
+    // 4. 完全なデータ取得
+    const shift = await prisma.shift.findUnique({
+      where: { id: shiftId },
+      include: {
+        department: true,
+        shiftType: true,
+        shiftAssignments: {
+          include: {
+            instructor: true,
+          },
+        },
+      },
     });
 
     // 再検証
@@ -122,7 +152,7 @@ export async function createShiftAction(
     if (error instanceof Error) {
       return { success: false, error: error.message };
     }
-    return { success: false, error: "Failed to create shift" };
+    return { success: false, error: "シフトの作成に失敗しました。" };
   }
 }
 
@@ -140,41 +170,44 @@ export async function updateShiftAction(
     const validated = updateShiftSchema.parse(input);
     const { description, assignedInstructorIds } = validated;
 
-    const shift = await (await getPrisma()).$transaction(async (tx) => {
-      // シフト更新
-      await tx.shift.update({
-        where: { id },
-        data: { description },
+    const prisma = await getPrisma();
+
+    // 1. シフト更新
+    await prisma.shift.update({
+      where: { id },
+      data: { description },
+    });
+
+    // 2. インストラクター割り当て更新（指定された場合のみ）
+    if (assignedInstructorIds) {
+      await prisma.shiftAssignment.deleteMany({
+        where: { shiftId: id },
       });
 
-      // インストラクター割り当て更新（指定された場合のみ）
-      if (assignedInstructorIds) {
-        await tx.shiftAssignment.deleteMany({
-          where: { shiftId: id },
-        });
-
-        if (assignedInstructorIds.length > 0) {
-          await tx.shiftAssignment.createMany({
-            data: assignedInstructorIds.map((instructorId) => ({
-              shiftId: id,
-              instructorId,
-            })),
-          });
-        }
+      // 割り当て作成（失敗時は明示的エラー）
+      const assignmentError = await createInstructorAssignments(
+        prisma,
+        id,
+        assignedInstructorIds,
+        "更新"
+      );
+      if (assignmentError) {
+        return { success: false, error: assignmentError };
       }
+    }
 
-      return tx.shift.findUnique({
-        where: { id },
-        include: {
-          department: true,
-          shiftType: true,
-          shiftAssignments: {
-            include: {
-              instructor: true,
-            },
+    // 3. 更新後のデータ取得
+    const shift = await prisma.shift.findUnique({
+      where: { id },
+      include: {
+        department: true,
+        shiftType: true,
+        shiftAssignments: {
+          include: {
+            instructor: true,
           },
         },
-      });
+      },
     });
 
     revalidatePath("/shifts");
@@ -186,7 +219,7 @@ export async function updateShiftAction(
     if (error instanceof Error) {
       return { success: false, error: error.message };
     }
-    return { success: false, error: "Failed to update shift" };
+    return { success: false, error: "シフトの更新に失敗しました。" };
   }
 }
 
@@ -200,15 +233,9 @@ export async function deleteShiftAction(
     // 認証・権限チェック（マネージャー以上）
     await requireManagerAuth();
 
-    // トランザクション: 割り当て削除 → シフト削除
-    await (await getPrisma()).$transaction(async (tx) => {
-      await tx.shiftAssignment.deleteMany({
-        where: { shiftId: id },
-      });
-
-      await tx.shift.delete({
-        where: { id },
-      });
+    // カスケード削除により、shiftAssignmentも自動削除される
+    await (await getPrisma()).shift.delete({
+      where: { id },
     });
 
     revalidatePath("/shifts");
@@ -219,6 +246,6 @@ export async function deleteShiftAction(
     if (error instanceof Error) {
       return { success: false, error: error.message };
     }
-    return { success: false, error: "Failed to delete shift" };
+    return { success: false, error: "シフトの削除に失敗しました。" };
   }
 }

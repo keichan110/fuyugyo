@@ -24,38 +24,44 @@ export async function createInstructorAction(
     const validated = createInstructorSchema.parse(input);
     const { certificationIds, ...instructorData } = validated;
 
-    // トランザクション: インストラクター作成 + 資格紐付け
-    const instructor = await (await getPrisma()).$transaction(async (tx) => {
-      // インストラクター作成
-      const newInstructor = await tx.instructor.create({
-        data: instructorData,
-      });
+    const prisma = await getPrisma();
 
-      // 資格紐付け
+    // 1. インストラクター作成
+    const newInstructor = await prisma.instructor.create({
+      data: instructorData,
+    });
+
+    // 2. 資格紐付け（失敗時は明示的エラー）
+    try {
       if (certificationIds.length > 0) {
-        await tx.instructorCertification.createMany({
+        await prisma.instructorCertification.createMany({
           data: certificationIds.map((certId) => ({
             instructorId: newInstructor.id,
             certificationId: certId,
           })),
         });
       }
+    } catch (certError) {
+      return {
+        success: false,
+        error: `インストラクターを作成しましたが、資格の紐付けに失敗しました: ${certError instanceof Error ? certError.message : "Unknown error"}`,
+      };
+    }
 
-      // 作成したインストラクターを資格情報付きで返す
-      return tx.instructor.findUnique({
-        where: { id: newInstructor.id },
-        include: {
-          certifications: {
-            include: {
-              certification: {
-                include: {
-                  department: true,
-                },
+    // 3. 完全なデータを取得
+    const instructor = await prisma.instructor.findUnique({
+      where: { id: newInstructor.id },
+      include: {
+        certifications: {
+          include: {
+            certification: {
+              include: {
+                department: true,
               },
             },
           },
         },
-      });
+      },
     });
 
     // 再検証
@@ -85,44 +91,50 @@ export async function updateInstructorAction(
     const validated = updateInstructorSchema.parse(input);
     const { certificationIds, ...instructorData } = validated;
 
-    // トランザクション: インストラクター更新 + 資格再設定
-    const instructor = await (await getPrisma()).$transaction(async (tx) => {
-      // インストラクター更新
-      await tx.instructor.update({
-        where: { id },
-        data: instructorData,
-      });
+    const prisma = await getPrisma();
 
-      // 既存の資格紐付けを削除
-      await tx.instructorCertification.deleteMany({
-        where: { instructorId: id },
-      });
+    // 1. インストラクター更新
+    await prisma.instructor.update({
+      where: { id },
+      data: instructorData,
+    });
 
-      // 新しい資格紐付けを作成
+    // 2. 既存の資格紐付けを削除
+    await prisma.instructorCertification.deleteMany({
+      where: { instructorId: id },
+    });
+
+    // 3. 新しい資格紐付けを作成（失敗時は明示的エラー）
+    try {
       if (certificationIds.length > 0) {
-        await tx.instructorCertification.createMany({
+        await prisma.instructorCertification.createMany({
           data: certificationIds.map((certId) => ({
             instructorId: id,
             certificationId: certId,
           })),
         });
       }
+    } catch (certError) {
+      return {
+        success: false,
+        error: `インストラクター情報を更新しましたが、資格の紐付けに失敗しました: ${certError instanceof Error ? certError.message : "Unknown error"}`,
+      };
+    }
 
-      // 更新したインストラクターを資格情報付きで返す
-      return tx.instructor.findUnique({
-        where: { id },
-        include: {
-          certifications: {
-            include: {
-              certification: {
-                include: {
-                  department: true,
-                },
+    // 4. 更新したインストラクターを取得
+    const instructor = await prisma.instructor.findUnique({
+      where: { id },
+      include: {
+        certifications: {
+          include: {
+            certification: {
+              include: {
+                department: true,
               },
             },
           },
         },
-      });
+      },
     });
 
     revalidatePath("/instructors");

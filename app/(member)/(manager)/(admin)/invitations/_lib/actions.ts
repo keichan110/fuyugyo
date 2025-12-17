@@ -54,7 +54,8 @@ export async function createInvitationAction(
     if (user.role !== "ADMIN" && user.role !== "MANAGER") {
       return {
         success: false,
-        error: "Insufficient permissions. Admin or Manager role required.",
+        error:
+          "権限が不足しています。管理者またはマネージャーロールが必要です。",
       };
     }
 
@@ -75,7 +76,7 @@ export async function createInvitationAction(
     if (expiresAt <= now) {
       return {
         success: false,
-        error: "Expiration date must be in the future",
+        error: "有効期限は未来の日時を指定してください。",
       };
     }
 
@@ -84,7 +85,7 @@ export async function createInvitationAction(
     if (expiresAt > maxExpiresAt) {
       return {
         success: false,
-        error: "Expiration date cannot be more than 1 month in the future",
+        error: "有効期限は1ヶ月以内で指定してください。",
       };
     }
 
@@ -126,7 +127,7 @@ export async function createInvitationAction(
     if (error instanceof Error) {
       return { success: false, error: error.message };
     }
-    return { success: false, error: "Failed to create invitation" };
+    return { success: false, error: "招待の作成に失敗しました。" };
   }
 }
 
@@ -165,12 +166,18 @@ export async function acceptInvitationAction(
     // 1. トークン検証（トランザクション外で実施）
     // トークン形式の基本チェック
     if (!token || typeof token !== "string") {
-      return { success: false, error: "Invalid token format" };
+      return {
+        success: false,
+        error: "招待トークンの形式が正しくありません。",
+      };
     }
 
     // プレフィックスチェック
     if (!token.startsWith(invitationConfig.tokenPrefix)) {
-      return { success: false, error: "Invalid token prefix" };
+      return {
+        success: false,
+        error: "招待トークンの形式が正しくありません。",
+      };
     }
 
     // トークン取得
@@ -188,15 +195,21 @@ export async function acceptInvitationAction(
     });
 
     if (!invitationToken) {
-      return { success: false, error: "Invitation token not found" };
+      return { success: false, error: "招待トークンが見つかりません。" };
     }
 
     if (!invitationToken.isActive) {
-      return { success: false, error: "Invitation token is disabled" };
+      return {
+        success: false,
+        error: "この招待トークンは無効化されています。",
+      };
     }
 
     if (invitationToken.expiresAt <= new Date()) {
-      return { success: false, error: "Invitation token has expired" };
+      return {
+        success: false,
+        error: "招待トークンの有効期限が切れています。",
+      };
     }
 
     if (
@@ -205,7 +218,7 @@ export async function acceptInvitationAction(
     ) {
       return {
         success: false,
-        error: "Invitation token has reached maximum uses",
+        error: "招待トークンの使用回数上限に達しています。",
       };
     }
 
@@ -214,7 +227,7 @@ export async function acceptInvitationAction(
       where: { lineUserId },
     });
     if (existingUser) {
-      return { success: false, error: "User already exists" };
+      return { success: false, error: "このユーザーは既に登録されています。" };
     }
 
     // 3. 楽観的同時実行制御: usedCountをatomicに更新
@@ -238,7 +251,8 @@ export async function acceptInvitationAction(
     if (updateResult.count === 0) {
       return {
         success: false,
-        error: "Invitation token is no longer available",
+        error:
+          "招待トークンが使用できなくなりました。既に使用されたか、有効期限が切れた可能性があります。",
       };
     }
 
@@ -270,7 +284,7 @@ export async function acceptInvitationAction(
     if (error instanceof Error) {
       return { success: false, error: error.message };
     }
-    return { success: false, error: "Failed to accept invitation" };
+    return { success: false, error: "招待の受諾に失敗しました。" };
   }
 }
 
@@ -301,7 +315,7 @@ export async function deleteInvitationAction(
     if (user.role !== "ADMIN" && user.role !== "MANAGER") {
       return {
         success: false,
-        error: "Insufficient permissions. Admin or Manager role required.",
+        error: "権限が不足しています。管理者またはマネージャー権限が必要です。",
       };
     }
 
@@ -317,6 +331,6 @@ export async function deleteInvitationAction(
     if (error instanceof Error) {
       return { success: false, error: error.message };
     }
-    return { success: false, error: "Failed to delete invitation" };
+    return { success: false, error: "招待の削除に失敗しました。" };
   }
 }

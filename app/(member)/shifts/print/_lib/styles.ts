@@ -64,7 +64,7 @@ export function getInlineStyles(): string {
     }
 
     .shift-table thead th.date-col {
-      width: 45px;
+      width: 60px;
     }
 
     .shift-table thead th.dept-col {

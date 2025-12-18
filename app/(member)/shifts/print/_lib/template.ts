@@ -165,6 +165,12 @@ export function generatePDFTemplate(
     minute: "2-digit",
   });
 
+  // 部門列の幅を計算（日付列60px固定、残りを均等分配）
+  const deptColumnWidth =
+    departments.length > 0
+      ? `calc((100% - 60px) / ${departments.length})`
+      : "auto";
+
   return `
     <!DOCTYPE html>
     <html lang="ja">
@@ -174,6 +180,15 @@ export function generatePDFTemplate(
       <title>${year}年${month}月 シフト表</title>
       <style>
         ${getInlineStyles()}
+        /* テーブルレイアウトを固定にして列幅を確実に適用 */
+        .shift-table {
+          table-layout: fixed;
+        }
+        /* 部門列の幅を均等に固定 */
+        .shift-table thead th.dept-col,
+        .shift-table tbody td.dept-cell {
+          width: ${deptColumnWidth};
+        }
       </style>
     </head>
     <body>

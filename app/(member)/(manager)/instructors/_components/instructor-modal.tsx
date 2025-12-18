@@ -98,6 +98,11 @@ export default function InstructorModal({
   >([]);
 
   useEffect(() => {
+    // モーダルが開いたときにフォーム状態を初期化
+    if (!isOpen) {
+      return;
+    }
+
     if (instructor) {
       // 編集モード
       setFormData({
@@ -133,7 +138,7 @@ export default function InstructorModal({
     }
     setSelectedDepartment("");
     setSelectedCertification("");
-  }, [instructor]);
+  }, [isOpen, instructor]);
 
   const loadCertifications = useCallback(async () => {
     try {

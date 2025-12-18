@@ -57,10 +57,10 @@ export function maskSensitiveData(data: SensitiveData): SensitiveData {
  * 機密情報をマスクしてログ出力
  *
  * - error: 本番環境でも出力（Cloudflare Logsに記録）
- * - info/warn: 開発環境でのみ出力
+ * - info/warn/debug: 開発環境でのみ出力
  */
 export function secureLog(
-  level: "info" | "warn" | "error",
+  level: "info" | "warn" | "error" | "debug",
   message: string,
   data?: SensitiveData
 ) {
@@ -83,6 +83,10 @@ export function secureLog(
     case "error":
       // biome-ignore lint/suspicious/noConsole: ロギングユーティリティの本質的機能
       console.error(`❌ ${message}`, maskedData);
+      break;
+    case "debug":
+      // biome-ignore lint/suspicious/noConsole: ロギングユーティリティの本質的機能
+      console.debug(`🐛 ${message}`, maskedData);
       break;
     default:
       // biome-ignore lint/suspicious/noConsole: ロギングユーティリティの本質的機能

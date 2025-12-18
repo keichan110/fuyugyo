@@ -2,9 +2,9 @@ import { useCallback, useMemo, useState } from "react";
 import type { ShiftQueryParams } from "./types";
 import {
   formatDateToString,
-  getMonday,
-  getSunday,
+  getWeekEnd,
   getWeekPeriodDisplay,
+  getWeekStart,
 } from "./week-calculations";
 
 // 週の日数定数
@@ -20,12 +20,12 @@ export function useWeekNavigation(initialDate?: Date) {
 
   // 週間ビュー用のクエリパラメータ計算
   const weeklyQueryParams = useMemo<ShiftQueryParams>(() => {
-    const monday = getMonday(weeklyBaseDate);
-    const sunday = getSunday(weeklyBaseDate);
+    const weekStart = getWeekStart(weeklyBaseDate);
+    const weekEnd = getWeekEnd(weeklyBaseDate);
 
     return {
-      dateFrom: formatDateToString(monday),
-      dateTo: formatDateToString(sunday),
+      dateFrom: formatDateToString(weekStart),
+      dateTo: formatDateToString(weekEnd),
     };
   }, [weeklyBaseDate]);
 

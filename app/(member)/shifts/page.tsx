@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { authenticateFromCookies } from "@/lib/auth/middleware";
-import { getTodayLocalDate } from "@/lib/utils/date";
+import { getTodayLocalDate, getWeekStartDate } from "@/lib/utils/date";
 import ShiftsContent from "./_components/content";
 import {
   getDepartments,
@@ -89,11 +89,15 @@ async function ShiftsPageContent({ searchParams }: ShiftsPageProps) {
   // ビューモードに応じたデータ取得
   let shiftsData: MonthlyViewData;
   if (viewMode === "weekly") {
-    // 週間ビュー: URLパラメータまたは今日から始まる1週間（タイムゾーン安全）
+    // 週間ビュー: URLパラメータまたは今日の週の開始日
     const dateFromParam = getSearchParam(params.dateFrom);
     const defaultDateFrom = getTodayLocalDate();
-    const dateFrom = dateFromParam ?? defaultDateFrom;
-    shiftsData = await getWeeklyShifts(dateFrom);
+    const baseDate = dateFromParam ?? defaultDateFrom;
+
+    // 重要: dateFrom を週の開始日に正規化
+    // これにより、URLと表示期間が常に一致し、ナビゲーションがシンプルになる
+    const weekStartDate = getWeekStartDate(baseDate);
+    shiftsData = await getWeeklyShifts(weekStartDate);
   } else {
     // 月間ビュー: URLパラメータまたは今月
     const yearParam = getSearchParam(params.year);

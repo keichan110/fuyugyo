@@ -12,6 +12,29 @@
  */
 
 /**
+ * 週の開始曜日（0 = 日曜日, 1 = 月曜日, ..., 6 = 土曜日）
+ *
+ * @remarks
+ * この定数を変更することで、週の開始曜日を一括で変更できます。
+ * デフォルトは月曜日（1）です。
+ *
+ * @example
+ * ```typescript
+ * // 日曜日を週の開始日にしたい場合
+ * export const WEEK_START_DAY = 0;
+ *
+ * // 月曜日を週の開始日にしたい場合（デフォルト）
+ * export const WEEK_START_DAY = 1;
+ * ```
+ */
+export const WEEK_START_DAY = 1; // 月曜日
+
+/**
+ * 1週間の日数
+ */
+const DAYS_IN_WEEK = 7;
+
+/**
  * YYYY-MM-DD形式の日付文字列を検証する正規表現
  *
  * @remarks
@@ -187,40 +210,57 @@ export function getTodayLocalDate(): string {
 }
 
 /**
- * 指定日付を含む週の月曜日をYYYY-MM-DD形式で取得
+ * 指定日付を含む週の開始日をYYYY-MM-DD形式で取得
  *
  * @remarks
- * この関数は、指定された日付を含む週の月曜日を計算します。
+ * この関数は、指定された日付を含む週の開始日（WEEK_START_DAY定数で定義）を計算します。
  * 週の開始日として使用することで、データ取得と表示の一貫性を保ちます。
+ * 週の開始曜日を変更したい場合は、WEEK_START_DAY定数を変更してください。
  *
  * @param dateString - 基準となる日付（YYYY-MM-DD形式）
- * @returns その週の月曜日（YYYY-MM-DD形式）
+ * @returns その週の開始日（YYYY-MM-DD形式）
  *
  * @example
  * ```typescript
+ * // WEEK_START_DAY = 1 (月曜日) の場合
  * // 2025-01-16 は木曜日
- * getMondayOfWeek("2025-01-16"); // "2025-01-13"（その週の月曜日）
+ * getWeekStartDate("2025-01-16"); // "2025-01-13"（その週の月曜日）
  *
  * // 2025-01-13 は月曜日
- * getMondayOfWeek("2025-01-13"); // "2025-01-13"（同じ日）
+ * getWeekStartDate("2025-01-13"); // "2025-01-13"（同じ日）
  *
  * // 2025-01-19 は日曜日
- * getMondayOfWeek("2025-01-19"); // "2025-01-13"（その週の月曜日）
+ * getWeekStartDate("2025-01-19"); // "2025-01-13"（その週の月曜日）
  * ```
  */
-export function getMondayOfWeek(dateString: string): string {
+export function getWeekStartDate(dateString: string): string {
   const date = parseLocalDate(dateString);
-  const dayOfWeek = date.getDay(); // 0 = Sunday, 1 = Monday, ...
+  const dayOfWeek = date.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
 
-  // 日曜日の場合は6日前（月曜日）、それ以外は今週の月曜日
-  const SUNDAY_TO_MONDAY_OFFSET = -6;
-  const mondayOffset =
-    dayOfWeek === 0 ? SUNDAY_TO_MONDAY_OFFSET : 1 - dayOfWeek;
+  // 週の開始日までのオフセットを計算
+  // dayOfWeek < WEEK_START_DAY の場合、前週の開始日を参照する必要がある
+  let offset = WEEK_START_DAY - dayOfWeek;
+  if (offset > 0) {
+    offset -= DAYS_IN_WEEK; // 前週の開始日
+  }
 
-  const monday = new Date(date);
-  monday.setDate(date.getDate() + mondayOffset);
+  const weekStart = new Date(date);
+  weekStart.setDate(date.getDate() + offset);
 
-  return formatLocalDate(monday);
+  return formatLocalDate(weekStart);
+}
+
+/**
+ * 指定日付を含む週の月曜日をYYYY-MM-DD形式で取得
+ *
+ * @deprecated この関数は後方互換性のために残されています。
+ * 新しいコードでは getWeekStartDate() を使用してください。
+ *
+ * @param dateString - 基準となる日付（YYYY-MM-DD形式）
+ * @returns その週の月曜日（YYYY-MM-DD形式）
+ */
+export function getMondayOfWeek(dateString: string): string {
+  return getWeekStartDate(dateString);
 }
 
 /**

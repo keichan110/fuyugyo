@@ -187,6 +187,43 @@ export function getTodayLocalDate(): string {
 }
 
 /**
+ * 指定日付を含む週の月曜日をYYYY-MM-DD形式で取得
+ *
+ * @remarks
+ * この関数は、指定された日付を含む週の月曜日を計算します。
+ * 週の開始日として使用することで、データ取得と表示の一貫性を保ちます。
+ *
+ * @param dateString - 基準となる日付（YYYY-MM-DD形式）
+ * @returns その週の月曜日（YYYY-MM-DD形式）
+ *
+ * @example
+ * ```typescript
+ * // 2025-01-16 は木曜日
+ * getMondayOfWeek("2025-01-16"); // "2025-01-13"（その週の月曜日）
+ *
+ * // 2025-01-13 は月曜日
+ * getMondayOfWeek("2025-01-13"); // "2025-01-13"（同じ日）
+ *
+ * // 2025-01-19 は日曜日
+ * getMondayOfWeek("2025-01-19"); // "2025-01-13"（その週の月曜日）
+ * ```
+ */
+export function getMondayOfWeek(dateString: string): string {
+  const date = parseLocalDate(dateString);
+  const dayOfWeek = date.getDay(); // 0 = Sunday, 1 = Monday, ...
+
+  // 日曜日の場合は6日前（月曜日）、それ以外は今週の月曜日
+  const SUNDAY_TO_MONDAY_OFFSET = -6;
+  const mondayOffset =
+    dayOfWeek === 0 ? SUNDAY_TO_MONDAY_OFFSET : 1 - dayOfWeek;
+
+  const monday = new Date(date);
+  monday.setDate(date.getDate() + mondayOffset);
+
+  return formatLocalDate(monday);
+}
+
+/**
  * 指定日付からN日後の日付を取得
  *
  * @remarks

@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { checkRateLimit } from "@/lib/api/rate-limiting";
-import { getTodayLocalDate } from "@/lib/utils/date";
+import { getMondayOfWeek, getTodayLocalDate } from "@/lib/utils/date";
 import { secureLog } from "@/lib/utils/logging";
 import { getClientIp, isAllowedReferrer } from "@/lib/utils/request";
 
@@ -148,14 +148,15 @@ export function middleware(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.searchParams.set("view", "weekly");
 
-    // 今日の日付をデフォルトの開始日に設定（タイムゾーン安全）
-    const dateFrom = getTodayLocalDate();
+    const today = getTodayLocalDate();
+    const dateFrom = getMondayOfWeek(today);
     url.searchParams.set("dateFrom", dateFrom);
 
     secureLog(
-      "info",
+      "debug",
       "Middleware: Redirecting to /shifts with default weekly view",
       {
+        today,
         dateFrom,
       }
     );

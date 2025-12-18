@@ -78,6 +78,11 @@ export default function UserModal({
 
   // ユーザー情報をフォームに設定
   useEffect(() => {
+    // モーダルが開いたときにフォーム状態を初期化
+    if (!isOpen) {
+      return;
+    }
+
     if (user) {
       setFormData({
         displayName: user.displayName,
@@ -92,7 +97,7 @@ export default function UserModal({
       });
     }
     setError(null);
-  }, [user]);
+  }, [isOpen, user]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

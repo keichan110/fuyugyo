@@ -61,6 +61,11 @@ export default function ShiftTypeModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
+    // モーダルが開いたときにフォーム状態を初期化
+    if (!isOpen) {
+      return;
+    }
+
     if (shiftType) {
       // 編集モード
       setFormData({
@@ -74,7 +79,7 @@ export default function ShiftTypeModal({
         isActive: true,
       });
     }
-  }, [shiftType]);
+  }, [isOpen, shiftType]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

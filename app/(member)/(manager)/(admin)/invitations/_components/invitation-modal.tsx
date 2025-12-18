@@ -122,6 +122,11 @@ export default function InvitationModal({
   const isEditing = !!invitation;
 
   useEffect(() => {
+    // モーダルが開いたときにフォーム状態を初期化
+    if (!isOpen) {
+      return;
+    }
+
     if (invitation) {
       setFormData({
         description: invitation.description || "",
@@ -136,7 +141,7 @@ export default function InvitationModal({
       });
     }
     setError(null);
-  }, [invitation]);
+  }, [isOpen, invitation]);
 
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) {

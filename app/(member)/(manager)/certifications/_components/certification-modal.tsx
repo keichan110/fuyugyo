@@ -114,6 +114,11 @@ export default function CertificationModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
+    // モーダルが開いたときにフォーム状態を初期化
+    if (!isOpen) {
+      return;
+    }
+
     if (certification) {
       // 編集モード
       const deptCode = certification.department.code.toLowerCase() as
@@ -139,7 +144,7 @@ export default function CertificationModal({
         status: "active",
       });
     }
-  }, [certification]);
+  }, [isOpen, certification]);
 
   /**
    * 部門IDを取得するヘルパー関数

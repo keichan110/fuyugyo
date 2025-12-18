@@ -15,8 +15,8 @@ import { MOBILE_BREAKPOINT } from "@/constants";
 import { hasManagePermission } from "@/lib/auth/permissions";
 import {
   formatLocalDate,
-  getMondayOfWeek,
   getTodayLocalDate,
+  getWeekStartDate,
   parseLocalDate,
 } from "@/lib/utils/date";
 import { isHoliday } from "../_lib/constants";
@@ -131,10 +131,11 @@ export default function ShiftsContent({
   const currentMonth = monthParam
     ? Number.parseInt(monthParam, 10)
     : now.getMonth() + 1;
-  // 週間ビューの基準日をタイムゾーン安全に取得
+  // 週間ビューの基準日（常に週の開始日）をタイムゾーン安全に取得
+  // page.tsx で dateFrom は既に週の開始日に正規化されているため、そのまま使用
   const weeklyBaseDate = dateFromParam
     ? parseLocalDate(dateFromParam)
-    : parseLocalDate(getTodayLocalDate());
+    : parseLocalDate(getWeekStartDate(getTodayLocalDate()));
 
   const { transformShiftsToStats } = useShiftDataTransformation();
 
@@ -167,8 +168,9 @@ export default function ShiftsContent({
   // 週間ナビゲーション（URLパラメータを更新）
   const navigateWeek = useCallback(
     (direction: number) => {
-      const newDate = new Date(weeklyBaseDate);
+      // weeklyBaseDate は既に週の開始日なので、単純に±7日するだけ
       const DAYS_PER_WEEK = 7;
+      const newDate = new Date(weeklyBaseDate);
       newDate.setDate(weeklyBaseDate.getDate() + direction * DAYS_PER_WEEK);
       const dateFrom = formatLocalDate(newDate);
 
@@ -183,8 +185,9 @@ export default function ShiftsContent({
   // カレンダーで日付選択（週間ビュー用）
   const handleDateSelect = useCallback(
     (date: Date) => {
+      // 選択された日付を含む週の開始日に正規化
       const selectedDateString = formatLocalDate(date);
-      const dateFrom = getMondayOfWeek(selectedDateString);
+      const dateFrom = getWeekStartDate(selectedDateString);
       router.push(`/shifts?view=weekly&dateFrom=${dateFrom}`, {
         scroll: false,
       });
@@ -224,7 +227,7 @@ export default function ShiftsContent({
     // - 以降: viewが変わらない限り条件false → 安定
     if (isMobile && searchParams.get("view") === "monthly") {
       const today = getTodayLocalDate();
-      const dateFrom = getMondayOfWeek(today);
+      const dateFrom = getWeekStartDate(today);
 
       // router.replace()でURLを更新（履歴を残さない）
       router.replace(`/shifts?view=weekly&dateFrom=${dateFrom}`, {
@@ -340,9 +343,10 @@ export default function ShiftsContent({
             scroll: false,
           });
         } else if (newView === "weekly") {
+          // 月間 → 週間: 月の初日を含む週の開始日を設定
           const firstDayOfMonth = new Date(currentYear, currentMonth - 1, 1);
           const firstDayString = formatLocalDate(firstDayOfMonth);
-          const dateFrom = getMondayOfWeek(firstDayString);
+          const dateFrom = getWeekStartDate(firstDayString);
           router.push(`/shifts?view=weekly&dateFrom=${dateFrom}`, {
             scroll: false,
           });

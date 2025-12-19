@@ -166,8 +166,6 @@ export default function InvitationModal({
 
       await onSave(formData);
 
-      setFormData(getInitialInvitationFormData());
-
       onClose();
     } catch (saveError) {
       setError(

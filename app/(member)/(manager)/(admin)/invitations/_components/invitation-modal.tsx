@@ -28,6 +28,16 @@ const DEFAULT_EXPIRY_DAYS = 7;
 /** 最大有効期限月数 */
 const MAX_EXPIRY_MONTHS = 1;
 
+/**
+ * 招待フォームの初期状態を取得する関数
+ *
+ * @returns 招待フォームの初期状態
+ */
+const getInitialInvitationFormData = (): InvitationFormData => ({
+  description: "",
+  expiresAt: addDays(new Date(), DEFAULT_EXPIRY_DAYS),
+});
+
 type InvitationModalProps = {
   isOpen: boolean;
   onClose: () => void;
@@ -112,16 +122,20 @@ export default function InvitationModal({
   invitation,
   onDeactivate,
 }: InvitationModalProps) {
-  const [formData, setFormData] = useState<InvitationFormData>({
-    description: "",
-    expiresAt: addDays(new Date(), DEFAULT_EXPIRY_DAYS),
-  });
+  const [formData, setFormData] = useState<InvitationFormData>(
+    getInitialInvitationFormData
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showConfirmDeactivate, setShowConfirmDeactivate] = useState(false);
   const isEditing = !!invitation;
 
   useEffect(() => {
+    // モーダルが開いたときにフォーム状態を初期化
+    if (!isOpen) {
+      return;
+    }
+
     if (invitation) {
       setFormData({
         description: invitation.description || "",
@@ -130,13 +144,10 @@ export default function InvitationModal({
           : addDays(new Date(), DEFAULT_EXPIRY_DAYS),
       });
     } else {
-      setFormData({
-        description: "",
-        expiresAt: addDays(new Date(), DEFAULT_EXPIRY_DAYS),
-      });
+      setFormData(getInitialInvitationFormData());
     }
     setError(null);
-  }, [invitation]);
+  }, [isOpen, invitation]);
 
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) {
@@ -154,11 +165,6 @@ export default function InvitationModal({
       setError(null);
 
       await onSave(formData);
-
-      setFormData({
-        description: "",
-        expiresAt: addDays(new Date(), DEFAULT_EXPIRY_DAYS),
-      });
 
       onClose();
     } catch (saveError) {

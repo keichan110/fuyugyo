@@ -28,6 +28,15 @@ type UserModalProps = {
 };
 
 /**
+ * ユーザーフォームの初期状態
+ */
+const INITIAL_USER_FORM_DATA: UserFormData = {
+  displayName: "",
+  role: "MEMBER",
+  isActive: true,
+};
+
+/**
  * ユーザー詳細・編集モーダルコンポーネント
  *
  * @description
@@ -67,17 +76,20 @@ export default function UserModal({
   onSave,
   onDeactivate,
 }: UserModalProps) {
-  const [formData, setFormData] = useState<UserFormData>({
-    displayName: "",
-    role: "MEMBER",
-    isActive: true,
-  });
+  const [formData, setFormData] = useState<UserFormData>(
+    INITIAL_USER_FORM_DATA
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showConfirmDeactivate, setShowConfirmDeactivate] = useState(false);
 
   // ユーザー情報をフォームに設定
   useEffect(() => {
+    // モーダルが開いたときにフォーム状態を初期化
+    if (!isOpen) {
+      return;
+    }
+
     if (user) {
       setFormData({
         displayName: user.displayName,
@@ -85,14 +97,10 @@ export default function UserModal({
         isActive: user.isActive,
       });
     } else {
-      setFormData({
-        displayName: "",
-        role: "MEMBER",
-        isActive: true,
-      });
+      setFormData(INITIAL_USER_FORM_DATA);
     }
     setError(null);
-  }, [user]);
+  }, [isOpen, user]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

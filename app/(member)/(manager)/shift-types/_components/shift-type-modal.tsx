@@ -19,6 +19,14 @@ import { Switch } from "@/components/ui/switch";
 import type { ShiftTypeFormData, ShiftTypeModalProps } from "../_lib/types";
 
 /**
+ * シフト種類フォームの初期状態
+ */
+const INITIAL_SHIFT_TYPE_FORM_DATA: ShiftTypeFormData = {
+  name: "",
+  isActive: true,
+};
+
+/**
  * シフト種類の作成・編集モーダルコンポーネント
  *
  * @description
@@ -54,13 +62,17 @@ export default function ShiftTypeModal({
   onSave,
 }: ShiftTypeModalProps) {
   const { showNotification } = useNotification();
-  const [formData, setFormData] = useState<ShiftTypeFormData>({
-    name: "",
-    isActive: true,
-  });
+  const [formData, setFormData] = useState<ShiftTypeFormData>(
+    INITIAL_SHIFT_TYPE_FORM_DATA
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
+    // モーダルが開いたときにフォーム状態を初期化
+    if (!isOpen) {
+      return;
+    }
+
     if (shiftType) {
       // 編集モード
       setFormData({
@@ -69,12 +81,9 @@ export default function ShiftTypeModal({
       });
     } else {
       // 新規追加モード
-      setFormData({
-        name: "",
-        isActive: true,
-      });
+      setFormData(INITIAL_SHIFT_TYPE_FORM_DATA);
     }
-  }, [shiftType]);
+  }, [isOpen, shiftType]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -58,6 +58,18 @@ type CertificationModalProps = {
 };
 
 /**
+ * 資格フォームの初期状態
+ */
+const INITIAL_CERTIFICATION_FORM_DATA: CertificationFormData = {
+  name: "",
+  shortName: "",
+  department: "ski",
+  organization: "",
+  description: "",
+  status: "active",
+};
+
+/**
  * 資格の作成・編集モーダルコンポーネント
  *
  * @description
@@ -103,14 +115,9 @@ export default function CertificationModal({
 }: CertificationModalProps) {
   const router = useRouter();
   const { showNotification } = useNotification();
-  const [formData, setFormData] = useState<CertificationFormData>({
-    name: "",
-    shortName: "",
-    department: "ski",
-    organization: "",
-    description: "",
-    status: "active",
-  });
+  const [formData, setFormData] = useState<CertificationFormData>(
+    INITIAL_CERTIFICATION_FORM_DATA
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -135,14 +142,7 @@ export default function CertificationModal({
       });
     } else {
       // 新規追加モード
-      setFormData({
-        name: "",
-        shortName: "",
-        department: "ski",
-        organization: "",
-        description: "",
-        status: "active",
-      });
+      setFormData(INITIAL_CERTIFICATION_FORM_DATA);
     }
   }, [isOpen, certification]);
 

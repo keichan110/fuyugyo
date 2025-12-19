@@ -30,6 +30,19 @@ import { Textarea } from "@/components/ui/textarea";
 import type { InstructorFormData, InstructorModalProps } from "../_lib/types";
 
 /**
+ * インストラクターフォームの初期状態
+ */
+const INITIAL_INSTRUCTOR_FORM_DATA: InstructorFormData = {
+  lastName: "",
+  firstName: "",
+  lastNameKana: "",
+  firstNameKana: "",
+  status: "active",
+  notes: "",
+  certificationIds: [],
+};
+
+/**
  * インストラクターの作成・編集モーダルコンポーネント
  *
  * @description
@@ -70,15 +83,9 @@ export default function InstructorModal({
   onSave,
 }: InstructorModalProps) {
   const { showNotification } = useNotification();
-  const [formData, setFormData] = useState<InstructorFormData>({
-    lastName: "",
-    firstName: "",
-    lastNameKana: "",
-    firstNameKana: "",
-    status: "active",
-    notes: "",
-    certificationIds: [],
-  });
+  const [formData, setFormData] = useState<InstructorFormData>(
+    INITIAL_INSTRUCTOR_FORM_DATA
+  );
   const [availableCertifications, setAvailableCertifications] = useState<
     CertificationWithDepartment[]
   >([]);
@@ -125,15 +132,7 @@ export default function InstructorModal({
       setAssignedCertifications(instructor.certifications);
     } else {
       // 新規追加モード
-      setFormData({
-        lastName: "",
-        firstName: "",
-        lastNameKana: "",
-        firstNameKana: "",
-        status: "active",
-        notes: "",
-        certificationIds: [],
-      });
+      setFormData(INITIAL_INSTRUCTOR_FORM_DATA);
       setAssignedCertifications([]);
     }
     setSelectedDepartment("");

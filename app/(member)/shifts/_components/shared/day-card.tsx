@@ -1,6 +1,6 @@
 "use client";
 
-import { PencilSimple } from "@phosphor-icons/react/dist/ssr";
+import { PencilSimple } from "@phosphor-icons/react";
 import React, { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { cn } from "@/lib/utils";

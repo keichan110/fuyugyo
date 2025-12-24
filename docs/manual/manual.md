@@ -50,7 +50,7 @@
 1.  **シフトページへ移動**
     ダッシュボードから「全て表示」をタップするか、メニュー（≡ アイコン）から「シフト」を選択し、シフト確認ページに移動します。
 
-    <img src="images/shift.png" alt="シフト週間ビュー" width="200px" />
+    <img src="images/shift.png" alt="シフト" width="200px" />
 
 2.  **表示モードの切り替え**
     シフトページは、デフォルトで週間表示になっています。
@@ -80,4 +80,4 @@
     プリンターの選択や「PDF として保存」は、ブラウザの印刷ダイアログから設定できます。
     内容を確認し、印刷を完了してください。
 
-    <img src="images/shift_print.png" alt="印刷ボタン" width="200px" />
+    <img src="images/shift_print.png" alt="印刷画面" width="200px" />

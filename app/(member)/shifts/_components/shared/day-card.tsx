@@ -155,7 +155,6 @@ export const ShiftDayCard = React.memo<ShiftDayCardProps>(
                   <button
                     aria-label="シフト編集"
                     className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
-                    onClick={() => setIsDepartmentPopoverOpen(true)}
                     type="button"
                   >
                     <PencilSimple className="h-5 w-5" weight="bold" />

@@ -5,45 +5,23 @@
  * Testing Library の拡張機能やカスタムレンダリング関数を含みます。
  */
 
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { type RenderOptions, render } from "@testing-library/react";
 import { ThemeProvider } from "next-themes";
 import React from "react";
 
-// TanStack Query クライアントのテスト用設定
-const createTestQueryClient = () =>
-  new QueryClient({
-    defaultOptions: {
-      queries: {
-        retry: false, // テストでは再試行しない
-        gcTime: 0, // ガベージコレクションを無効化
-      },
-      mutations: {
-        retry: false, // テストでは再試行しない
-      },
-    },
-  });
-
 // プロバイダーラッパーコンポーネント
 type ProvidersProps = {
   children: React.ReactNode;
-  queryClient?: QueryClient;
 };
 
-const TestProviders: React.FC<ProvidersProps> = ({
-  children,
-  queryClient = createTestQueryClient(),
-}) => (
-  <QueryClientProvider client={queryClient}>
-    <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-      {children}
-    </ThemeProvider>
-  </QueryClientProvider>
+const TestProviders: React.FC<ProvidersProps> = ({ children }) => (
+  <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+    {children}
+  </ThemeProvider>
 );
 
 // カスタムレンダリング関数の型定義
 interface CustomRenderOptions extends Omit<RenderOptions, "wrapper"> {
-  queryClient?: QueryClient;
   initialProps?: Record<string, unknown>;
 }
 
@@ -57,7 +35,7 @@ export const renderWithProviders = (
   ui: React.ReactElement,
   options: CustomRenderOptions = {}
 ) => {
-  const { queryClient, initialProps, ...renderOptions } = options;
+  const { initialProps, ...renderOptions } = options;
 
   // プロパティが指定されている場合はコンポーネントを cloneElement で拡張
   const elementWithProps = initialProps
@@ -65,15 +43,10 @@ export const renderWithProviders = (
     : ui;
 
   const Wrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-    <TestProviders queryClient={queryClient || createTestQueryClient()}>
-      {children}
-    </TestProviders>
+    <TestProviders>{children}</TestProviders>
   );
 
-  return {
-    ...render(elementWithProps, { wrapper: Wrapper, ...renderOptions }),
-    queryClient: queryClient || createTestQueryClient(),
-  };
+  return render(elementWithProps, { wrapper: Wrapper, ...renderOptions });
 };
 
 /**

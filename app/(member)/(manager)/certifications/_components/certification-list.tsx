@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus } from "@phosphor-icons/react/dist/ssr";
+import { Plus } from "@phosphor-icons/react";
 import { useState } from "react";
 import { CertificationBadge } from "@/app/_components/certification-badge";
 import { DepartmentIcon } from "@/app/(member)/_components/department-icon";

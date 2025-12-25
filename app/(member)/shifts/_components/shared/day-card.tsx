@@ -1,5 +1,6 @@
 "use client";
 
+import { PencilSimple } from "@phosphor-icons/react";
 import React, { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -141,17 +142,36 @@ export const ShiftDayCard = React.memo<ShiftDayCardProps>(
               )}
             </div>
 
-            {/* シフト総数 */}
-            {dayData.shifts && dayData.shifts.length > 0 && (
-              <div className="text-right">
-                <div className="font-medium text-[0.625rem] text-muted-foreground/80">
-                  総シフト数
+            {/* シフト総数と編集ボタン */}
+            <div className="flex items-center gap-2">
+              {/* 編集ボタン（管理権限がある場合のみ） */}
+              {canManage && departments.length > 0 && (
+                <DepartmentSelectionPopover
+                  departments={departments}
+                  onOpenChange={setIsDepartmentPopoverOpen}
+                  onSelectDepartment={handleDepartmentSelect}
+                  open={isDepartmentPopoverOpen}
+                >
+                  <button
+                    aria-label="シフト編集"
+                    className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
+                    type="button"
+                  >
+                    <PencilSimple className="h-5 w-5" weight="bold" />
+                  </button>
+                </DepartmentSelectionPopover>
+              )}
+              {dayData.shifts && dayData.shifts.length > 0 && (
+                <div className="text-right">
+                  <div className="font-medium text-[0.625rem] text-muted-foreground/80">
+                    総シフト数
+                  </div>
+                  <div className="font-bold text-base text-primary">
+                    {shiftStats.totalCount}名
+                  </div>
                 </div>
-                <div className="font-bold text-base text-primary">
-                  {shiftStats.totalCount}名
-                </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </CardHeader>
 
@@ -163,52 +183,12 @@ export const ShiftDayCard = React.memo<ShiftDayCardProps>(
                 <div className="text-base text-muted-foreground">
                   シフトなし
                 </div>
-                {canManage && departments.length > 0 && (
-                  <div className="mt-6 flex justify-center">
-                    <DepartmentSelectionPopover
-                      departments={departments}
-                      onOpenChange={setIsDepartmentPopoverOpen}
-                      onSelectDepartment={handleDepartmentSelect}
-                      open={isDepartmentPopoverOpen}
-                    >
-                      <button
-                        className="flex items-center gap-2 rounded-lg border-2 border-muted-foreground/30 border-dashed bg-background px-4 py-2.5 font-medium text-muted-foreground text-sm shadow-sm transition-all hover:border-primary/50 hover:bg-primary/5 hover:text-primary hover:shadow-md"
-                        onClick={() => setIsDepartmentPopoverOpen(true)}
-                        type="button"
-                      >
-                        <span className="text-xl">+</span>
-                        シフト編集
-                      </button>
-                    </DepartmentSelectionPopover>
-                  </div>
-                )}
               </div>
             ) : (
               /* シフトがある場合 - 統合版関数を使用 */
               <>
                 {/* 部門別セクション表示（表示専用） */}
                 {renderDepartmentSections(dayData.shifts)}
-
-                {/* 新規追加ボタン（管理権限がある場合のみ表示） */}
-                {canManage && departments.length > 0 && (
-                  <div className="mt-5 flex justify-center">
-                    <DepartmentSelectionPopover
-                      departments={departments}
-                      onOpenChange={setIsDepartmentPopoverOpen}
-                      onSelectDepartment={handleDepartmentSelect}
-                      open={isDepartmentPopoverOpen}
-                    >
-                      <button
-                        className="flex items-center gap-2 rounded-lg border-2 border-muted-foreground/30 border-dashed bg-background px-4 py-2.5 font-medium text-muted-foreground text-sm shadow-sm transition-all hover:border-primary/50 hover:bg-primary/5 hover:text-primary hover:shadow-md"
-                        onClick={() => setIsDepartmentPopoverOpen(true)}
-                        type="button"
-                      >
-                        <span className="text-xl">+</span>
-                        シフト編集
-                      </button>
-                    </DepartmentSelectionPopover>
-                  </div>
-                )}
               </>
             )}
           </div>

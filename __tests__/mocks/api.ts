@@ -2,7 +2,7 @@
  * API モック設定
  *
  * REST API呼び出しの統一的なモック設定を提供します。
- * fetch, Next.js API Routes, TanStack Query との統合をサポートします。
+ * fetch, Next.js API Routes との統合をサポートします。
  */
 
 import { jest } from "@jest/globals";
@@ -476,23 +476,4 @@ export const resetApiMocks = () => {
   if (jest.isMockFunction(global.fetch)) {
     (global.fetch as jest.Mock).mockClear();
   }
-};
-
-/**
- * TanStack Query 用のクエリクライアント設定
- */
-export const createTestQueryClient = () => {
-  const { QueryClient } = require("@tanstack/react-query");
-
-  return new QueryClient({
-    defaultOptions: {
-      queries: {
-        retry: false,
-        gcTime: 0,
-      },
-      mutations: {
-        retry: false,
-      },
-    },
-  });
 };

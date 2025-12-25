@@ -88,7 +88,7 @@ const customJestConfig = {
   ],
   // Transform ignore patterns for ES modules
   transformIgnorePatterns: [
-    "node_modules/(?!(.*\\.mjs$|@tanstack|lucide-react|date-fns|japanese-holidays|jose))",
+    "node_modules/(?!(.*\\.mjs$|lucide-react|date-fns|japanese-holidays|jose))",
   ],
   // Global setup for tests
   globalSetup: undefined,

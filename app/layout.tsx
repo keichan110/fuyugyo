@@ -3,7 +3,6 @@ import "./globals.css";
 import Background from "@/app/_components/background";
 import Footer from "@/app/_components/footer";
 import { NotificationProvider } from "@/app/_providers/notifications";
-import { QueryProvider } from "@/app/_providers/query-client";
 import { ThemeProvider } from "@/app/_providers/theme-provider";
 
 export const metadata: Metadata = {
@@ -36,29 +35,27 @@ export default function RootLayout({
   return (
     <html lang="ja" suppressHydrationWarning>
       <body className="bg-background text-foreground antialiased">
-        <QueryProvider>
-          <ThemeProvider
-            attribute="class"
-            defaultTheme="system"
-            enableSystem
-            storageKey="fuyugyo-theme"
-            value={{
-              light: "light",
-              dark: "dark",
-              system: "system",
-            }}
-          >
-            <NotificationProvider>
-              <Background />
-              <div className="flex min-h-screen flex-col">
-                <main className="mx-auto w-full max-w-7xl flex-1 px-4 pt-32 sm:px-6 lg:px-8">
-                  {children}
-                </main>
-                <Footer />
-              </div>
-            </NotificationProvider>
-          </ThemeProvider>
-        </QueryProvider>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          storageKey="fuyugyo-theme"
+          value={{
+            light: "light",
+            dark: "dark",
+            system: "system",
+          }}
+        >
+          <NotificationProvider>
+            <Background />
+            <div className="flex min-h-screen flex-col">
+              <main className="mx-auto w-full max-w-7xl flex-1 px-4 pt-32 sm:px-6 lg:px-8">
+                {children}
+              </main>
+              <Footer />
+            </div>
+          </NotificationProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

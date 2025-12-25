@@ -63,11 +63,6 @@ declare module "@jest/expect" {
 declare module "@testing-library/react" {
   type RenderOptions = {
     /**
-     * テスト用QueryClient
-     */
-    queryClient?: import("@tanstack/react-query").QueryClient;
-
-    /**
      * 初期プロパティ
      */
     initialProps?: Record<string, unknown>;

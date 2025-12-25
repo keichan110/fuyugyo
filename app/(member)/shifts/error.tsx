@@ -23,8 +23,8 @@ type ShiftsErrorProps = {
  * シフトページのエラーハンドリングコンポーネント
  *
  * @remarks
- * Server Componentsへの移行により、React Queryではなく
- * router.refresh()でServer Componentを再実行してデータを再取得します。
+ * Server Components を使用しており、
+ * router.refresh() で Server Component を再実行してデータを再取得します。
  */
 export default function ShiftsError({ error, reset }: ShiftsErrorProps) {
   const router = useRouter();

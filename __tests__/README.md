@@ -9,7 +9,6 @@
 - **Jest 29.7**: テスト実行フレームワーク
 - **React Testing Library**: Reactコンポーネントテスト
 - **Prisma Client Mock**: データベース操作モック
-- **TanStack Query**: 非同期データ管理テスト
 - **Next.js App Router**: ルーティング・ナビゲーションテスト
 
 ## 🚀 テストコマンド
@@ -189,7 +188,7 @@ test('should sort departments by name', () => {
 - **カバレッジ**: 70%閾値、HTMLレポート出力
 - **パフォーマンス**: 50%ワーカー、10秒タイムアウト
 - **モジュールマッピング**: `@/*` エイリアス、Prismaクライアント
-- **変換無視**: ES modules対応（TanStack Query等）
+- **変換無視**: ES modules対応
 
 ### Jest Setup (`jest.setup.js`)
 

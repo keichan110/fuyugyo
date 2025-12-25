@@ -74,7 +74,7 @@ import { getPrisma } from "@/lib/db";
  * - 必要最小限のフィールドのみselect
  * - サーバー側でフルネーム結合・資格要約を実行
  * - データ転送量を約80%削減（40KB → 8KB）
- * - React Queryでキャッシュ可能（推奨: staleTime 3分）
+ * - Next.js の fetch キャッシュで効率的にキャッシュ可能（推奨: revalidate 180秒）
  */
 export async function GET(
   request: NextRequest,

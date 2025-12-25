@@ -21,7 +21,6 @@ Fuyugyō - スキー・スノーボードスクールの運営管理システム
 - **データベース**: Prisma ORM 6.2 + SQLite
 - **スタイリング**: Tailwind CSS 3.4 + shadcn/ui, Radix UI コンポーネント
 - **開発ツール**: ESLint 9.17, Prettier 3.6, Jest 29.7
-- **状態管理**: TanStack Query 5.85
 - **UI 拡張**: Vaul（drawer），React Day Picker，Lucide React（アイコン），Phosphor Icons
 - **認証**: LINE Login API, jsonwebtoken
 - **その他**: Zod（バリデーション），date-fns（日付操作），japanese-holidays, React Error Boundary
@@ -187,7 +186,7 @@ docs/                       # プロジェクトドキュメント
 - **Server/Client Component 分離**: データフェッチングは Server、インタラクションは Client
 - **並列データフェッチング**: Promise.all による効率的なデータ取得
 - **Features 層アーキテクチャ**: ドメイン駆動で api/handlers/services/types 分離
-- **Hooks 活用**: TanStack Query（データ状態管理）、カスタム Hooks（ロジック抽出）
+- **Hooks 活用**: カスタム Hooks によるロジック抽出と再利用
 - **shadcn/ui + Radix UI**: アクセシブルで再利用可能なコンポーネント基盤
 
 # 開発ワークフロー
@@ -251,7 +250,7 @@ docs/                       # プロジェクトドキュメント
 - **画像最適化**: Next.js Image コンポーネント使用（ただし unoptimized: true）
 - **アイコン最適化**: Lucide React、Phosphor Icons の効率的な読み込み
 - **パッケージ最適化**: optimizePackageImports でバンドルサイズ削減
-- **TanStack Query**: 効率的なデータフェッチング・キャッシュ戦略
+- **Next.js キャッシュ**: fetch の revalidate オプションによる効率的なキャッシュ戦略
 - **インデックス最適化**: データベースクエリの高速化
 
 # 重要な実装パターン
@@ -333,7 +332,7 @@ try {
 - **Server Actions**: try/catch + revalidatePath() パターンで安全性確保
 - **React Error Boundaries**: `error.tsx`ファイルによるエラー境界実装
 - **404 ハンドリング**: `not-found.tsx`による適切な 404 ページ表示
-- **クライアントサイド**: TanStack Query + React Error Boundary による包括的エラー管理
+- **クライアントサイド**: React Error Boundary による包括的エラー管理
 
 # テストとコード品質
 

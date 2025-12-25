@@ -9,7 +9,6 @@
 - **Runtime要件**: Node.js >=22.0.0
 - **データベース**: Prisma ORM 6.2 + SQLite
 - **スタイリング**: Tailwind CSS 3.4 + shadcn/ui, Radix UI
-- **状態管理**: TanStack Query 5.85
 - **開発ツール**: ESLint 9.17, Prettier 3.6, Jest 29.7
 - **UI拡張**: Vaul（drawer），React Day Picker，Lucide React
 - **その他**: Zod（バリデーション），date-fns，japanese-holidays
@@ -147,13 +146,13 @@ npm test -- --testPathPattern="shifts"  # 特定パス指定実行
 - **TypeScript厳格設定**: strict, noUncheckedIndexedAccess, exactOptionalPropertyTypes有効
 - **Zodバリデーション**: API入力・出力の型安全性確保
 - **統一レスポンス形式**: `ApiResponse<T>`型による一貫したAPI設計
-- **エラーハンドリング**: React Error Boundary + TanStack Query統合
+- **エラーハンドリング**: React Error Boundary による包括的エラー管理
 
 ### Features層アーキテクチャ
 
 - **ドメイン駆動設計**: 機能別にapi/handlers/services/types分離
 - **コンポーネント分離**: Container-Presentationalパターン採用
-- **カスタムHooks**: TanStack Query統合、ロジック抽出・再利用
+- **カスタムHooks**: ロジック抽出・再利用によるコード品質向上
 
 ## 詳細ドキュメント
 

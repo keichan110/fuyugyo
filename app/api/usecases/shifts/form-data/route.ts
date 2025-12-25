@@ -45,7 +45,7 @@ import { getPrisma } from "@/lib/db";
  * @performance
  * - Promise.allで並列クエリ実行により高速化
  * - 必要最小限のフィールドのみselect
- * - React Queryでキャッシュ可能（推奨: staleTime 5分）
+ * - Next.js の fetch キャッシュで効率的にキャッシュ可能（推奨: revalidate 300秒）
  */
 export async function GET(
   request: NextRequest

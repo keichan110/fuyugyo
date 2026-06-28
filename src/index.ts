@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { authRoute } from '@/features/auth/api';
+import { departmentsRoute } from '@/features/departments/api';
 import { healthRoute } from '@/features/health/api';
 import type { Env } from '@/server/types';
 
@@ -23,7 +24,8 @@ app.onError((err, c) => {
 // 各 feature の Hono ルートを mount する。クライアントは AppType を type import するだけ。
 const routes = app
   .route('/api/health', healthRoute)
-  .route('/api/auth', authRoute);
+  .route('/api/auth', authRoute)
+  .route('/api/departments', departmentsRoute);
 
 /** Hono RPC 用のアプリ型。クライアントは `import type { AppType }` でのみ参照する。 */
 export type AppType = typeof routes;

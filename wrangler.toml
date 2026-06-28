@@ -1,28 +1,26 @@
 name = "fuyugyo"
-main = ".open-next/worker.js"
-compatibility_date = "2024-09-23"
+main = "src/index.ts"
+compatibility_date = "2024-11-01"
 compatibility_flags = ["nodejs_compat"]
 
-# D1データベースバインディング
+# D1 データベースバインディング（既存 DB をそのまま利用）
 [[d1_databases]]
 binding = "DB"
 database_name = "fuyugyo"
 database_id = "8a945c24-aea6-49f5-aca3-92dcd4203949"
-migrations_dir = "prisma/migrations_d1"
+migrations_dir = "drizzle"
 
-# 静的アセット設定
+# 静的アセット（Vite ビルド成果物の SPA）配信。/api/* のみ Worker を先に通す
 [assets]
-directory = ".open-next/assets"
 binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*"]
 
-# 環境変数（非機密情報のみ）
+# 環境変数（非機密情報のみ。シークレットは `wrangler secret` で管理）
 [vars]
-NODE_ENV = "production"
-NEXTAUTH_URL = "https://fuyugyo.ittooco.workers.dev"
-JWT_EXPIRES_IN = "48h"
+JWT_EXPIRES_IN = "12h"
 INVITE_DEFAULT_EXPIRES = "168h"
 
-# Observability設定
 [observability]
 enabled = true
 head_sampling_rate = 1.0

@@ -16,10 +16,22 @@ binding = "ASSETS"
 not_found_handling = "single-page-application"
 run_worker_first = ["/api/*"]
 
-# 環境変数（非機密情報のみ。シークレットは `wrangler secret` で管理）
+# 環境変数（非機密情報のみ。JWT_SECRET / LINE_CHANNEL_SECRET は `wrangler secret` で管理）
 [vars]
 JWT_EXPIRES_IN = "12h"
 INVITE_DEFAULT_EXPIRES = "168h"
+# アプリのベース URL。LINE コールバック URL とログイン後リダイレクトの基点（本番値に差し替える）
+APP_URL = "http://localhost:8787"
+# LINE Login のチャネル ID（機密ではないため vars で管理。本番値に差し替える）
+LINE_CHANNEL_ID = "0000000000"
+
+# 認証系エンドポイント用の CF ネイティブ Rate Limiting バインディング（ADR 0004）。
+# 未認証の攻撃面（login/callback/招待検証）のみに適用する。60 秒あたり 20 リクエストまで。
+[[unsafe.bindings]]
+name = "AUTH_RATE_LIMITER"
+type = "ratelimit"
+namespace_id = "1001"
+simple = { limit = 20, period = 60 }
 
 [observability]
 enabled = true

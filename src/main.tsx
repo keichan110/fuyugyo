@@ -6,7 +6,7 @@ import { queryClient } from '@/lib/query-client';
 import { routeTree } from './routeTree.gen';
 import './styles.css';
 
-const router = createRouter({ routeTree });
+const router = createRouter({ routeTree, context: { queryClient } });
 
 declare module '@tanstack/react-router' {
   interface Register {

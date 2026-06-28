@@ -8,6 +8,11 @@ declare global {
       ASSETS: Fetcher;
       JWT_EXPIRES_IN: string;
       INVITE_DEFAULT_EXPIRES: string;
+      JWT_SECRET: string;
+      LINE_CHANNEL_ID: string;
+      LINE_CHANNEL_SECRET: string;
+      APP_URL: string;
+      AUTH_RATE_LIMITER: import('@cloudflare/workers-types').RateLimit;
       /** vitest.config.ts の miniflare バインディングから渡されるマイグレーション一覧 */
       TEST_MIGRATIONS: D1Migration[];
     }

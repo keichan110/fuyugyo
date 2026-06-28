@@ -41,20 +41,19 @@ export default tseslint.config(
     files: ['src/routes/**/*.{ts,tsx}', 'src/components/ui/**/*.tsx'],
     rules: { 'react-refresh/only-export-components': 'off' },
   },
-  // クライアント（components / queries / routes / lib / SPA エントリ）から
-  // サーバー専用モジュール（api.ts・server/・Worker エントリ）の値 import を禁止する。
-  // type import（`import type`）は RPC 型取得のため許可する（ADR 0002）。
+  // クライアントコードからサーバー専用モジュール（api.ts・server/・Worker エントリ）の
+  // 値 import を禁止する。type import（`import type`）は RPC 型取得のため許可する（ADR 0002）。
+  // feature 配下のクライアントファイルを広く対象にし、サーバー側の api.ts のみ除外する。
+  // schema.ts は isomorphic（zod のみ依存）なので対象に含めても違反は生じない。
   {
     files: [
-      'src/**/components/**/*.{ts,tsx}',
-      // データフェッチ層は命名揺れ（queries.ts / hooks/ / queries/）を広めにカバーする
-      'src/**/queries.ts',
-      'src/**/queries/**/*.ts',
-      'src/**/hooks/**/*.ts',
+      'src/features/**/*.{ts,tsx}',
+      'src/components/**/*.{ts,tsx}',
       'src/routes/**/*.{ts,tsx}',
       'src/lib/**/*.ts',
       'src/main.tsx',
     ],
+    ignores: ['src/features/**/api.ts'],
     rules: {
       'no-restricted-imports': [
         'error',

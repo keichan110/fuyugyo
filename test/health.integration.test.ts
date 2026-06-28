@@ -13,6 +13,7 @@ describe('GET /api/health', () => {
     expect(body.status).toBe('ok');
     // マイグレーション適用直後の空 D1 なので 0 件
     expect(body.departmentCount).toBe(0);
-    expect(typeof body.timestamp).toBe('string');
+    // timestamp が ISO 8601 形式であること（string 型自体は parse で保証済み）
+    expect(body.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
   });
 });

@@ -22,11 +22,6 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": [
-    "src",
-    "vite.config.ts",
-    "drizzle.config.ts",
-    "eslint.config.js"
-  ],
+  "include": ["src", "vite.config.ts", "drizzle.config.ts"],
   "exclude": ["node_modules", "legacy", "dist", "test", "vitest.config.ts"]
 }

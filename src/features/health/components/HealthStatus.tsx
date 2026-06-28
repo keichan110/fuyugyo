@@ -15,9 +15,11 @@ export function HealthStatus() {
         Hono + Drizzle/D1 + Vite + React 19 walking skeleton
       </p>
 
-      {isLoading && <p className="text-muted-foreground">確認中…</p>}
+      {isLoading && !data && (
+        <p className="text-muted-foreground">確認中…</p>
+      )}
       {isError && <p className="text-red-600">API への接続に失敗しました</p>}
-      {data && (
+      {data && !isError && (
         <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
           <dt className="text-muted-foreground">status</dt>
           <dd className="font-mono">{data.status}</dd>

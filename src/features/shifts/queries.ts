@@ -5,11 +5,13 @@ import {
   type CreateShiftInput,
   type ShiftEditData,
   type ShiftFormData,
+  type ShiftViewResponse,
   type ShiftWithAssignments,
   type UpdateShiftInput,
   shiftEditDataSchema,
   shiftFormDataSchema,
   shiftListSchema,
+  shiftViewResponseSchema,
   shiftWithAssignmentsSchema,
 } from './schema';
 
@@ -66,6 +68,48 @@ export function useShift(id: string) {
       return shiftWithAssignmentsSchema.parse(await res.json());
     },
     enabled: !!id,
+  });
+}
+
+/**
+ * 週次ビューを取得する（開始日から7日間のシフト + 集計）。
+ * @param dateFrom - 週の開始日（YYYY-MM-DD）。未指定なら取得を行わない
+ */
+export function useWeeklyView(dateFrom: string | undefined) {
+  return useQuery<ShiftViewResponse>({
+    queryKey: [...SHIFTS_QUERY_KEY, 'weekly-view', dateFrom],
+    queryFn: async () => {
+      const res = await client.api.shifts['weekly-view'].$get({
+        query: { dateFrom: dateFrom ?? '' },
+      });
+      if (!res.ok) {
+        const body = apiErrorSchema.parse(await res.json());
+        throw new Error(body.message ?? '週次ビューの取得に失敗しました');
+      }
+      return shiftViewResponseSchema.parse(await res.json());
+    },
+    enabled: !!dateFrom,
+  });
+}
+
+/**
+ * 月次ビューを取得する（指定月の全シフト + 集計）。
+ * @param month - 対象月（YYYY-MM）。未指定なら取得を行わない
+ */
+export function useMonthlyView(month: string | undefined) {
+  return useQuery<ShiftViewResponse>({
+    queryKey: [...SHIFTS_QUERY_KEY, 'monthly-view', month],
+    queryFn: async () => {
+      const res = await client.api.shifts['monthly-view'].$get({
+        query: { month: month ?? '' },
+      });
+      if (!res.ok) {
+        const body = apiErrorSchema.parse(await res.json());
+        throw new Error(body.message ?? '月次ビューの取得に失敗しました');
+      }
+      return shiftViewResponseSchema.parse(await res.json());
+    },
+    enabled: !!month,
   });
 }
 

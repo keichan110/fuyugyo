@@ -8,15 +8,7 @@ import {
   useUpdateShift,
 } from '../queries';
 import type { AvailableInstructor } from '../schema';
-
-/** 今日の日付を YYYY-MM-DD で返す（date 入力の初期値用・ローカルタイムゾーン基準） */
-function todayString(): string {
-  const d = new Date();
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
+import { todayString } from '../view-utils';
 
 /**
  * シフト枠（日付 × 部門 × シフト種別）の作成・編集・割り当て変更を行う管理コンポーネント。

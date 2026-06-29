@@ -20,7 +20,14 @@ import {
 } from '@/server/middleware/auth';
 import type { Database } from '@/server/db/client';
 import type { Env } from '@/server/types';
-import { createShiftSchema, dateStringSchema, updateShiftSchema } from './schema';
+import { summarizeShifts } from './aggregators';
+import {
+  createShiftSchema,
+  dateStringSchema,
+  monthStringSchema,
+  type ShiftViewItem,
+  updateShiftSchema,
+} from './schema';
 
 /**
  * YYYY-MM-DD 文字列を UTC 0時の Date に変換する。
@@ -68,6 +75,83 @@ async function allInstructorsExist(
     .from(instructors)
     .where(inArray(instructors.id, ids));
   return rows.length === ids.length;
+}
+
+/**
+ * 指定期間 [from, to]（両端含む）のシフトを表示ビュー用に整形する（2クエリ・N+1 なし）。
+ * shifts × departments × shiftTypes を JOIN し、割り当てを別クエリでまとめて付与する。
+ * 週次/月次ビューが共有する読み取りロジック。
+ */
+async function loadShiftView(
+  db: Database,
+  from: Date,
+  to: Date
+): Promise<ShiftViewItem[]> {
+  const shiftRows = await db
+    .select({
+      id: shifts.id,
+      date: shifts.date,
+      description: shifts.description,
+      departmentId: departments.id,
+      departmentName: departments.name,
+      departmentCode: departments.code,
+      shiftTypeId: shiftTypes.id,
+      shiftTypeName: shiftTypes.name,
+    })
+    .from(shifts)
+    .innerJoin(departments, eq(departments.id, shifts.departmentId))
+    .innerJoin(shiftTypes, eq(shiftTypes.id, shifts.shiftTypeId))
+    .where(and(gte(shifts.date, from), lte(shifts.date, to)))
+    .orderBy(
+      asc(shifts.date),
+      asc(shifts.departmentId),
+      asc(shifts.shiftTypeId)
+    );
+
+  const shiftIds = shiftRows.map((s) => s.id);
+  const assignRows =
+    shiftIds.length > 0
+      ? await db
+          .select({
+            shiftId: shiftAssignments.shiftId,
+            instructorId: instructors.id,
+            lastName: instructors.lastName,
+            firstName: instructors.firstName,
+          })
+          .from(shiftAssignments)
+          .innerJoin(
+            instructors,
+            eq(instructors.id, shiftAssignments.instructorId)
+          )
+          .where(inArray(shiftAssignments.shiftId, shiftIds))
+      : [];
+
+  // shiftId → 割り当て済み Instructor（表示名付き）のマップを1パスで構築する
+  const assignedByShift = new Map<
+    string,
+    { id: string; displayName: string }[]
+  >();
+  for (const row of assignRows) {
+    const list = assignedByShift.get(row.shiftId) ?? [];
+    list.push({
+      id: row.instructorId,
+      displayName: formatName(row.lastName, row.firstName),
+    });
+    assignedByShift.set(row.shiftId, list);
+  }
+
+  return shiftRows.map((s) => ({
+    id: s.id,
+    date: formatDate(s.date),
+    description: s.description,
+    department: {
+      id: s.departmentId,
+      name: s.departmentName,
+      code: s.departmentCode,
+    },
+    shiftType: { id: s.shiftTypeId, name: s.shiftTypeName },
+    assignedInstructors: assignedByShift.get(s.id) ?? [],
+  }));
 }
 
 /**
@@ -313,6 +397,64 @@ export const shiftsRoute = new Hono<{
         : null,
       availableInstructors,
       conflicts,
+    });
+  })
+  /**
+   * 週次ビュー: `dateFrom` から7日間（両端含む）のシフトとサマリを1リクエストで返す。
+   * データ（部門・種別・割り当て込み）と集計（件数・部門別）を同梱する。MEMBER 以上。
+   */
+  .get('/weekly-view', requireAuth, async (c) => {
+    const dateFrom = c.req.query('dateFrom');
+    if (!(dateFrom && dateStringSchema.safeParse(dateFrom).success)) {
+      throw new HTTPException(400, {
+        message: 'dateFrom は YYYY-MM-DD 形式で指定してください',
+      });
+    }
+
+    const db = createDb(c.env.DB);
+    const from = parseShiftDate(dateFrom);
+    // 開始日から6日後までの7日間（UTC 基準で日を加算する）
+    const to = new Date(from);
+    to.setUTCDate(to.getUTCDate() + 6);
+
+    const shiftsView = await loadShiftView(db, from, to);
+    return c.json({
+      shifts: shiftsView,
+      summary: summarizeShifts(shiftsView, {
+        from: formatDate(from),
+        to: formatDate(to),
+      }),
+    });
+  })
+  /**
+   * 月次ビュー: `month`（YYYY-MM）の当月シフトとサマリを1リクエストで返す。
+   * データと集計を同梱する。MEMBER 以上。
+   */
+  .get('/monthly-view', requireAuth, async (c) => {
+    const month = c.req.query('month');
+    if (!(month && monthStringSchema.safeParse(month).success)) {
+      throw new HTTPException(400, {
+        message: 'month は YYYY-MM 形式で指定してください',
+      });
+    }
+
+    // monthStringSchema が形式と月範囲（01〜12）を検証済み
+    const [yearStr, monthStr] = month.split('-');
+    const year = Number(yearStr);
+    const monthNumber = Number(monthStr);
+
+    const db = createDb(c.env.DB);
+    // 当月の初日〜末日（UTC 基準）。翌月0日が当月末日になる。
+    const from = new Date(Date.UTC(year, monthNumber - 1, 1));
+    const to = new Date(Date.UTC(year, monthNumber, 0));
+
+    const shiftsView = await loadShiftView(db, from, to);
+    return c.json({
+      shifts: shiftsView,
+      summary: summarizeShifts(shiftsView, {
+        from: formatDate(from),
+        to: formatDate(to),
+      }),
     });
   })
   /**

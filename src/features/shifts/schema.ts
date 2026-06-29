@@ -12,6 +12,15 @@ export const dateStringSchema = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, '日付は YYYY-MM-DD 形式で指定してください');
 
+/** 月文字列（YYYY-MM・月は 01〜12）。月次ビューの対象月指定に使う。 */
+export const monthStringSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}$/, '月は YYYY-MM 形式で指定してください')
+  .refine((value) => {
+    const month = Number(value.slice(5));
+    return month >= 1 && month <= 12;
+  }, '月は 01〜12 で指定してください');
+
 /** Shift の単一レコード */
 export const shiftSchema = z.object({
   id: z.string(),
@@ -156,3 +165,59 @@ export const shiftEditDataSchema = z.object({
 });
 
 export type ShiftEditData = z.infer<typeof shiftEditDataSchema>;
+
+// ─── 表示ビュー（週次/月次） ─────────────────────────────────────────────────
+
+/** 表示ビューの割り当て済み Instructor（表示名のみ） */
+const viewInstructorSchema = z.object({
+  id: z.string(),
+  displayName: z.string(),
+});
+
+/**
+ * 表示ビューのシフト1件。部門・シフト種別・割り当て済み Instructor を同梱する。
+ * 週次/月次ビューのカレンダー描画はこの形を直接消費する。
+ */
+export const shiftViewItemSchema = z.object({
+  id: z.string(),
+  /** 勤務日（YYYY-MM-DD・UTC 基準） */
+  date: dateStringSchema,
+  description: z.string().nullable(),
+  department: z.object({
+    id: z.string(),
+    name: z.string(),
+    code: z.string(),
+  }),
+  shiftType: z.object({ id: z.string(), name: z.string() }),
+  assignedInstructors: z.array(viewInstructorSchema),
+});
+
+export type ShiftViewItem = z.infer<typeof shiftViewItemSchema>;
+
+/**
+ * 表示ビューのサマリ（集計）。件数・割り当て総数・対象期間・部門別件数を持つ。
+ * 旧 usecases の集計レスポンスと同型で、純粋関数（aggregators）が組み立てる。
+ */
+export const shiftViewSummarySchema = z.object({
+  /** 期間内のシフト枠数 */
+  totalShifts: z.number(),
+  /** 期間内の割り当て総数（Instructor 配置数の合計） */
+  totalAssignments: z.number(),
+  /** 対象期間（YYYY-MM-DD） */
+  dateRange: z.object({ from: dateStringSchema, to: dateStringSchema }),
+  /** 部門名 → シフト件数 */
+  byDepartment: z.record(z.string(), z.number()),
+});
+
+export type ShiftViewSummary = z.infer<typeof shiftViewSummarySchema>;
+
+/**
+ * 週次/月次ビューのレスポンス（データ + 集計を1リクエストで同梱）。
+ * 1リクエストで描画に必要なデータと統計を揃え、追加往復を不要にする。
+ */
+export const shiftViewResponseSchema = z.object({
+  shifts: z.array(shiftViewItemSchema),
+  summary: shiftViewSummarySchema,
+});
+
+export type ShiftViewResponse = z.infer<typeof shiftViewResponseSchema>;

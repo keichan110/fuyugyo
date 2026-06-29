@@ -12,11 +12,17 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as UsersRouteImport } from './routes/users'
 import { Route as ShiftTypesRouteImport } from './routes/shift-types'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as InvitationsRouteImport } from './routes/invitations'
 import { Route as InstructorsRouteImport } from './routes/instructors'
 import { Route as DepartmentsRouteImport } from './routes/departments'
 import { Route as CertificationsRouteImport } from './routes/certifications'
 import { Route as IndexRouteImport } from './routes/index'
 
+const InvitationsRoute = InvitationsRouteImport.update({
+  id: '/invitations',
+  path: '/invitations',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const UsersRoute = UsersRouteImport.update({
   id: '/users',
   path: '/users',
@@ -58,6 +64,7 @@ export interface FileRoutesByFullPath {
   '/certifications': typeof CertificationsRoute
   '/departments': typeof DepartmentsRoute
   '/instructors': typeof InstructorsRoute
+  '/invitations': typeof InvitationsRoute
   '/login': typeof LoginRoute
   '/shift-types': typeof ShiftTypesRoute
   '/users': typeof UsersRoute
@@ -67,6 +74,7 @@ export interface FileRoutesByTo {
   '/certifications': typeof CertificationsRoute
   '/departments': typeof DepartmentsRoute
   '/instructors': typeof InstructorsRoute
+  '/invitations': typeof InvitationsRoute
   '/login': typeof LoginRoute
   '/shift-types': typeof ShiftTypesRoute
   '/users': typeof UsersRoute
@@ -77,6 +85,7 @@ export interface FileRoutesById {
   '/certifications': typeof CertificationsRoute
   '/departments': typeof DepartmentsRoute
   '/instructors': typeof InstructorsRoute
+  '/invitations': typeof InvitationsRoute
   '/login': typeof LoginRoute
   '/shift-types': typeof ShiftTypesRoute
   '/users': typeof UsersRoute
@@ -88,6 +97,7 @@ export interface FileRouteTypes {
     | '/certifications'
     | '/departments'
     | '/instructors'
+    | '/invitations'
     | '/login'
     | '/shift-types'
     | '/users'
@@ -97,6 +107,7 @@ export interface FileRouteTypes {
     | '/certifications'
     | '/departments'
     | '/instructors'
+    | '/invitations'
     | '/login'
     | '/shift-types'
     | '/users'
@@ -106,6 +117,7 @@ export interface FileRouteTypes {
     | '/certifications'
     | '/departments'
     | '/instructors'
+    | '/invitations'
     | '/login'
     | '/shift-types'
     | '/users'
@@ -116,6 +128,7 @@ export interface RootRouteChildren {
   CertificationsRoute: typeof CertificationsRoute
   DepartmentsRoute: typeof DepartmentsRoute
   InstructorsRoute: typeof InstructorsRoute
+  InvitationsRoute: typeof InvitationsRoute
   LoginRoute: typeof LoginRoute
   ShiftTypesRoute: typeof ShiftTypesRoute
   UsersRoute: typeof UsersRoute
@@ -142,6 +155,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/invitations': {
+      id: '/invitations'
+      path: '/invitations'
+      fullPath: '/invitations'
+      preLoaderRoute: typeof InvitationsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/instructors': {
@@ -180,6 +200,7 @@ const rootRouteChildren: RootRouteChildren = {
   CertificationsRoute: CertificationsRoute,
   DepartmentsRoute: DepartmentsRoute,
   InstructorsRoute: InstructorsRoute,
+  InvitationsRoute: InvitationsRoute,
   LoginRoute: LoginRoute,
   ShiftTypesRoute: ShiftTypesRoute,
   UsersRoute: UsersRoute,

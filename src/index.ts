@@ -3,6 +3,7 @@ import { HTTPException } from 'hono/http-exception';
 import { authRoute } from '@/features/auth/api';
 import { departmentsRoute } from '@/features/departments/api';
 import { healthRoute } from '@/features/health/api';
+import { shiftTypesRoute } from '@/features/shift-types/api';
 import type { Env } from '@/server/types';
 
 const app = new Hono<{ Bindings: Env }>();
@@ -25,7 +26,8 @@ app.onError((err, c) => {
 const routes = app
   .route('/api/health', healthRoute)
   .route('/api/auth', authRoute)
-  .route('/api/departments', departmentsRoute);
+  .route('/api/departments', departmentsRoute)
+  .route('/api/shift-types', shiftTypesRoute);
 
 /** Hono RPC 用のアプリ型。クライアントは `import type { AppType }` でのみ参照する。 */
 export type AppType = typeof routes;

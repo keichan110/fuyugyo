@@ -9,10 +9,16 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as ShiftTypesRouteImport } from './routes/shift-types'
 import { Route as DepartmentsRouteImport } from './routes/departments'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as IndexRouteImport } from './routes/index'
 
+const ShiftTypesRoute = ShiftTypesRouteImport.update({
+  id: '/shift-types',
+  path: '/shift-types',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DepartmentsRoute = DepartmentsRouteImport.update({
   id: '/departments',
   path: '/departments',
@@ -33,30 +39,34 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/departments': typeof DepartmentsRoute
+  '/shift-types': typeof ShiftTypesRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/departments': typeof DepartmentsRoute
+  '/shift-types': typeof ShiftTypesRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/departments': typeof DepartmentsRoute
+  '/shift-types': typeof ShiftTypesRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login' | '/departments'
+  fullPaths: '/' | '/login' | '/departments' | '/shift-types'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/login' | '/departments'
-  id: '__root__' | '/' | '/login' | '/departments'
+  to: '/' | '/login' | '/departments' | '/shift-types'
+  id: '__root__' | '/' | '/login' | '/departments' | '/shift-types'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   LoginRoute: typeof LoginRoute
   DepartmentsRoute: typeof DepartmentsRoute
+  ShiftTypesRoute: typeof ShiftTypesRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -82,6 +92,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DepartmentsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/shift-types': {
+      id: '/shift-types'
+      path: '/shift-types'
+      fullPath: '/shift-types'
+      preLoaderRoute: typeof ShiftTypesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -89,6 +106,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   LoginRoute: LoginRoute,
   DepartmentsRoute: DepartmentsRoute,
+  ShiftTypesRoute: ShiftTypesRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

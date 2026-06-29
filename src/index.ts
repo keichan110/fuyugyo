@@ -6,6 +6,7 @@ import { departmentsRoute } from '@/features/departments/api';
 import { healthRoute } from '@/features/health/api';
 import { instructorsRoute } from '@/features/instructors/api';
 import { shiftTypesRoute } from '@/features/shift-types/api';
+import { usersRoute } from '@/features/users/api';
 import type { Env } from '@/server/types';
 
 const app = new Hono<{ Bindings: Env }>();
@@ -31,7 +32,8 @@ const routes = app
   .route('/api/departments', departmentsRoute)
   .route('/api/certifications', certificationsRoute)
   .route('/api/shift-types', shiftTypesRoute)
-  .route('/api/instructors', instructorsRoute);
+  .route('/api/instructors', instructorsRoute)
+  .route('/api/users', usersRoute);
 
 /** Hono RPC 用のアプリ型。クライアントは `import type { AppType }` でのみ参照する。 */
 export type AppType = typeof routes;

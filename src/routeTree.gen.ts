@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as UsersRouteImport } from './routes/users'
 import { Route as ShiftTypesRouteImport } from './routes/shift-types'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as InstructorsRouteImport } from './routes/instructors'
@@ -16,6 +17,11 @@ import { Route as DepartmentsRouteImport } from './routes/departments'
 import { Route as CertificationsRouteImport } from './routes/certifications'
 import { Route as IndexRouteImport } from './routes/index'
 
+const UsersRoute = UsersRouteImport.update({
+  id: '/users',
+  path: '/users',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ShiftTypesRoute = ShiftTypesRouteImport.update({
   id: '/shift-types',
   path: '/shift-types',
@@ -54,6 +60,7 @@ export interface FileRoutesByFullPath {
   '/instructors': typeof InstructorsRoute
   '/login': typeof LoginRoute
   '/shift-types': typeof ShiftTypesRoute
+  '/users': typeof UsersRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -62,6 +69,7 @@ export interface FileRoutesByTo {
   '/instructors': typeof InstructorsRoute
   '/login': typeof LoginRoute
   '/shift-types': typeof ShiftTypesRoute
+  '/users': typeof UsersRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -71,6 +79,7 @@ export interface FileRoutesById {
   '/instructors': typeof InstructorsRoute
   '/login': typeof LoginRoute
   '/shift-types': typeof ShiftTypesRoute
+  '/users': typeof UsersRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -81,6 +90,7 @@ export interface FileRouteTypes {
     | '/instructors'
     | '/login'
     | '/shift-types'
+    | '/users'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -89,6 +99,7 @@ export interface FileRouteTypes {
     | '/instructors'
     | '/login'
     | '/shift-types'
+    | '/users'
   id:
     | '__root__'
     | '/'
@@ -97,6 +108,7 @@ export interface FileRouteTypes {
     | '/instructors'
     | '/login'
     | '/shift-types'
+    | '/users'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -106,10 +118,18 @@ export interface RootRouteChildren {
   InstructorsRoute: typeof InstructorsRoute
   LoginRoute: typeof LoginRoute
   ShiftTypesRoute: typeof ShiftTypesRoute
+  UsersRoute: typeof UsersRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/users': {
+      id: '/users'
+      path: '/users'
+      fullPath: '/users'
+      preLoaderRoute: typeof UsersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/shift-types': {
       id: '/shift-types'
       path: '/shift-types'
@@ -162,6 +182,7 @@ const rootRouteChildren: RootRouteChildren = {
   InstructorsRoute: InstructorsRoute,
   LoginRoute: LoginRoute,
   ShiftTypesRoute: ShiftTypesRoute,
+  UsersRoute: UsersRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

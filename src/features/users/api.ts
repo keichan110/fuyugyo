@@ -4,17 +4,10 @@ import { HTTPException } from 'hono/http-exception';
 import { validator } from 'hono/validator';
 import { type AuthVariables, requireAuth, requireRole } from '@/server/middleware/auth';
 import { createDb } from '@/server/db/client';
+import { isUniqueViolation } from '@/server/db/errors';
 import { instructors, users } from '@/server/db/schema';
 import type { Env } from '@/server/types';
 import { changeRoleSchema, linkInstructorSchema } from './schema';
-
-/** SQLite UNIQUE 制約違反かどうかを判定する */
-function isUniqueViolation(e: unknown): boolean {
-  if (!(e instanceof Error)) return false;
-  if (e.message.includes('UNIQUE constraint failed')) return true;
-  if (e.cause instanceof Error && e.cause.message.includes('UNIQUE constraint failed')) return true;
-  return false;
-}
 
 type Db = ReturnType<typeof createDb>;
 

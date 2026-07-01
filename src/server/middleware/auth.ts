@@ -2,8 +2,9 @@ import type { Context } from 'hono';
 import { getCookie } from 'hono/cookie';
 import { createMiddleware } from 'hono/factory';
 import { HTTPException } from 'hono/http-exception';
+
 import { AUTH_COOKIE } from '@/server/auth/cookies';
-import { type JwtPayload, type UserRole, verifyJwt } from '@/server/auth/jwt';
+import { verifyJwt, type JwtPayload, type UserRole } from '@/server/auth/jwt';
 import { hasMinimumRole } from '@/server/auth/roles';
 import type { Env } from '@/server/types';
 
@@ -67,15 +68,13 @@ export const requireAuth = createMiddleware<{
  * @param required - 要求する最低ロール（ADMIN/MANAGER/MEMBER）
  */
 export function requireRole(required: UserRole) {
-  return createMiddleware<{ Bindings: Env; Variables: AuthVariables }>(
-    async (c, next) => {
-      const user = c.get('user');
-      if (!hasMinimumRole(user.role, required)) {
-        throw new HTTPException(403, {
-          message: `Insufficient permissions. Required: ${required}`,
-        });
-      }
-      await next();
+  return createMiddleware<{ Bindings: Env; Variables: AuthVariables }>(async (c, next) => {
+    const user = c.get('user');
+    if (!hasMinimumRole(user.role, required)) {
+      throw new HTTPException(403, {
+        message: `Insufficient permissions. Required: ${required}`,
+      });
     }
-  );
+    await next();
+  });
 }

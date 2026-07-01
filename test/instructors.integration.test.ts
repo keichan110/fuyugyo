@@ -1,5 +1,6 @@
 import { env } from 'cloudflare:test';
 import { beforeEach, describe, expect, it } from 'vitest';
+
 import {
   activeInstructorInDepartmentListSchema,
   instructorCertificationSchema,
@@ -61,7 +62,7 @@ async function seedManagerToken(): Promise<string> {
       isActive: true,
     },
     env.JWT_SECRET,
-    env.JWT_EXPIRES_IN
+    env.JWT_EXPIRES_IN,
   );
 }
 
@@ -87,7 +88,7 @@ async function seedMemberToken(): Promise<string> {
       isActive: true,
     },
     env.JWT_SECRET,
-    env.JWT_EXPIRES_IN
+    env.JWT_EXPIRES_IN,
   );
 }
 
@@ -120,13 +121,10 @@ async function seedCertification(departmentId: string, name = 'スキー指導�
 async function seedInstructor(
   lastName = '山田',
   firstName = '太郎',
-  status: 'ACTIVE' | 'INACTIVE' = 'ACTIVE'
+  status: 'ACTIVE' | 'INACTIVE' = 'ACTIVE',
 ): Promise<string> {
   const db = createDb(env.DB);
-  const [inst] = await db
-    .insert(instructors)
-    .values({ lastName, firstName, status })
-    .returning();
+  const [inst] = await db.insert(instructors).values({ lastName, firstName, status }).returning();
   if (!inst) throw new Error('seedInstructor: insert failed');
   return inst.id;
 }
@@ -179,7 +177,7 @@ describe('GET /api/instructors', () => {
     const res = await app.request(
       '/api/instructors?status=INACTIVE',
       authHeader(token),
-      envWith({})
+      envWith({}),
     );
 
     expect(res.status).toBe(200);
@@ -204,7 +202,7 @@ describe('GET /api/instructors/:id', () => {
     const res = await app.request(
       `/api/instructors/${instructorId}`,
       authHeader(token),
-      envWith({})
+      envWith({}),
     );
 
     expect(res.status).toBe(200);
@@ -220,7 +218,7 @@ describe('GET /api/instructors/:id', () => {
     const res = await app.request(
       '/api/instructors/nonexistent-id',
       authHeader(token),
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(404);
   });
@@ -237,7 +235,7 @@ describe('POST /api/instructors', () => {
         method: 'POST',
         ...authJsonRequest(token, { lastName: '山田', firstName: '太郎' }),
       },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(403);
   });
@@ -256,7 +254,7 @@ describe('POST /api/instructors', () => {
           notes: 'テスト備考',
         }),
       },
-      envWith({})
+      envWith({}),
     );
 
     expect(res.status).toBe(201);
@@ -274,7 +272,7 @@ describe('POST /api/instructors', () => {
     const res = await app.request(
       '/api/instructors',
       { method: 'POST', ...authJsonRequest(token, { lastName: '', firstName: '太郎' }) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(400);
   });
@@ -299,7 +297,7 @@ describe('PATCH /api/instructors/:id', () => {
           notes: '更新済み',
         }),
       },
-      envWith({})
+      envWith({}),
     );
 
     expect(res.status).toBe(200);
@@ -316,7 +314,7 @@ describe('PATCH /api/instructors/:id', () => {
     const res = await app.request(
       '/api/instructors/nonexistent-id',
       { method: 'PATCH', ...authJsonRequest(token, { lastName: '変更後' }) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(404);
   });
@@ -327,7 +325,7 @@ describe('PATCH /api/instructors/:id', () => {
     const res = await app.request(
       `/api/instructors/${instructorId}`,
       { method: 'PATCH', ...authJsonRequest(token, {}) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(400);
   });
@@ -338,7 +336,7 @@ describe('PATCH /api/instructors/:id', () => {
     const res = await app.request(
       `/api/instructors/${instructorId}`,
       { method: 'PATCH', ...authJsonRequest(token, { lastName: '変更後' }) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(403);
   });
@@ -354,7 +352,7 @@ describe('POST /api/instructors/:id/change-status', () => {
     const res = await app.request(
       `/api/instructors/${instructorId}/change-status`,
       { method: 'POST', ...authJsonRequest(token, { status: 'INACTIVE' }) },
-      envWith({})
+      envWith({}),
     );
 
     expect(res.status).toBe(200);
@@ -369,7 +367,7 @@ describe('POST /api/instructors/:id/change-status', () => {
     const res = await app.request(
       `/api/instructors/${instructorId}/change-status`,
       { method: 'POST', ...authJsonRequest(token, { status: 'ACTIVE' }) },
-      envWith({})
+      envWith({}),
     );
 
     expect(res.status).toBe(200);
@@ -384,7 +382,7 @@ describe('POST /api/instructors/:id/change-status', () => {
     const res = await app.request(
       `/api/instructors/${instructorId}/change-status`,
       { method: 'POST', ...authJsonRequest(token, { status: 'INVALID' }) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(400);
   });
@@ -394,7 +392,7 @@ describe('POST /api/instructors/:id/change-status', () => {
     const res = await app.request(
       '/api/instructors/nonexistent-id/change-status',
       { method: 'POST', ...authJsonRequest(token, { status: 'INACTIVE' }) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(404);
   });
@@ -412,7 +410,7 @@ describe('POST /api/instructors/:id/certifications', () => {
     const res = await app.request(
       `/api/instructors/${instructorId}/certifications`,
       { method: 'POST', ...authJsonRequest(token, { certificationId: certId }) },
-      envWith({})
+      envWith({}),
     );
 
     expect(res.status).toBe(201);
@@ -430,13 +428,13 @@ describe('POST /api/instructors/:id/certifications', () => {
     await app.request(
       `/api/instructors/${instructorId}/certifications`,
       { method: 'POST', ...authJsonRequest(token, { certificationId: certId }) },
-      envWith({})
+      envWith({}),
     );
 
     const res = await app.request(
       `/api/instructors/${instructorId}/certifications`,
       { method: 'POST', ...authJsonRequest(token, { certificationId: certId }) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(409);
   });
@@ -449,7 +447,7 @@ describe('POST /api/instructors/:id/certifications', () => {
     const res = await app.request(
       '/api/instructors/nonexistent-id/certifications',
       { method: 'POST', ...authJsonRequest(token, { certificationId: certId }) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(404);
   });
@@ -464,7 +462,7 @@ describe('POST /api/instructors/:id/certifications', () => {
         method: 'POST',
         ...authJsonRequest(token, { certificationId: 'nonexistent-cert-id' }),
       },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(404);
   });
@@ -478,7 +476,7 @@ describe('POST /api/instructors/:id/certifications', () => {
     const res = await app.request(
       `/api/instructors/${instructorId}/certifications`,
       { method: 'POST', ...authJsonRequest(token, { certificationId: certId }) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(403);
   });
@@ -498,7 +496,7 @@ describe('DELETE /api/instructors/:id/certifications/:certId', () => {
     const res = await app.request(
       `/api/instructors/${instructorId}/certifications/${certId}`,
       { method: 'DELETE', ...authHeader(token) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(200);
 
@@ -506,7 +504,7 @@ describe('DELETE /api/instructors/:id/certifications/:certId', () => {
     const detailRes = await app.request(
       `/api/instructors/${instructorId}`,
       authHeader(token),
-      envWith({})
+      envWith({}),
     );
     const detail = instructorWithCertificationsSchema.parse(await detailRes.json());
     expect(detail.certifications).toHaveLength(0);
@@ -519,7 +517,7 @@ describe('DELETE /api/instructors/:id/certifications/:certId', () => {
     const res = await app.request(
       `/api/instructors/${instructorId}/certifications/nonexistent-cert-id`,
       { method: 'DELETE', ...authHeader(token) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(404);
   });
@@ -535,7 +533,7 @@ describe('DELETE /api/instructors/:id/certifications/:certId', () => {
     const res = await app.request(
       `/api/instructors/${instructorId}/certifications/${certId}`,
       { method: 'DELETE', ...authHeader(token) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(403);
   });
@@ -557,7 +555,7 @@ describe('GET /api/instructors/by-department/:departmentId/active', () => {
     const res = await app.request(
       `/api/instructors/by-department/${deptId}/active`,
       authHeader(token),
-      envWith({})
+      envWith({}),
     );
 
     expect(res.status).toBe(200);
@@ -578,7 +576,7 @@ describe('GET /api/instructors/by-department/:departmentId/active', () => {
     const res = await app.request(
       `/api/instructors/by-department/${deptId}/active`,
       authHeader(token),
-      envWith({})
+      envWith({}),
     );
 
     expect(res.status).toBe(200);
@@ -594,14 +592,18 @@ describe('GET /api/instructors/by-department/:departmentId/active', () => {
     const instSki = await seedInstructor('山田', '太郎', 'ACTIVE');
     const instSb = await seedInstructor('鈴木', '花子', 'ACTIVE');
     const db = createDb(env.DB);
-    await db.insert(instructorCertifications).values({ instructorId: instSki, certificationId: certSki });
-    await db.insert(instructorCertifications).values({ instructorId: instSb, certificationId: certSb });
+    await db
+      .insert(instructorCertifications)
+      .values({ instructorId: instSki, certificationId: certSki });
+    await db
+      .insert(instructorCertifications)
+      .values({ instructorId: instSb, certificationId: certSb });
 
     const token = await seedManagerToken();
     const res = await app.request(
       `/api/instructors/by-department/${deptId1}/active`,
       authHeader(token),
-      envWith({})
+      envWith({}),
     );
 
     expect(res.status).toBe(200);
@@ -634,7 +636,7 @@ describe('GET /api/instructors/by-department/:departmentId/active', () => {
     const res = await app.request(
       `/api/instructors/by-department/${deptId}/active`,
       authHeader(token),
-      envWith({})
+      envWith({}),
     );
 
     expect(res.status).toBe(200);
@@ -647,7 +649,7 @@ describe('GET /api/instructors/by-department/:departmentId/active', () => {
     const res = await app.request(
       '/api/instructors/by-department/nonexistent-dept/active',
       authHeader(token),
-      envWith({})
+      envWith({}),
     );
 
     expect(res.status).toBe(200);

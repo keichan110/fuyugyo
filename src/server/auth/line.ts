@@ -20,8 +20,7 @@ export type LineUserProfile = {
 };
 
 /** state に使う文字種 */
-const STATE_CHARS =
-  'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+const STATE_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
 
 /**
  * CSRF 防止用のランダムな state 文字列を生成する。
@@ -45,11 +44,7 @@ export function generateState(length = 32): string {
  * @param state - CSRF 防止用 state
  * @param inviteToken - 招待トークン（招待経由の場合）
  */
-export function buildLineAuthUrl(
-  config: LineConfig,
-  state: string,
-  inviteToken?: string
-): string {
+export function buildLineAuthUrl(config: LineConfig, state: string, inviteToken?: string): string {
   const params = new URLSearchParams({
     response_type: 'code',
     client_id: config.channelId,
@@ -73,10 +68,7 @@ export type StateValidation = {
  * @param receivedState - コールバックの state（`state` または `state:invite`）
  * @param expectedState - Cookie に保存した state
  */
-export function validateState(
-  receivedState: string,
-  expectedState: string
-): StateValidation {
+export function validateState(receivedState: string, expectedState: string): StateValidation {
   if (!(receivedState && expectedState)) {
     return { isValid: false };
   }
@@ -98,7 +90,7 @@ export function validateState(
  */
 export async function exchangeCodeForToken(
   config: LineConfig,
-  code: string
+  code: string,
 ): Promise<string | null> {
   const params = new URLSearchParams({
     grant_type: 'authorization_code',
@@ -127,9 +119,7 @@ export async function exchangeCodeForToken(
  *
  * @returns プロフィール。失敗時は null
  */
-export async function fetchLineUserProfile(
-  accessToken: string
-): Promise<LineUserProfile | null> {
+export async function fetchLineUserProfile(accessToken: string): Promise<LineUserProfile | null> {
   const response = await fetch('https://api.line.me/v2/profile', {
     headers: { Authorization: `Bearer ${accessToken}` },
   });

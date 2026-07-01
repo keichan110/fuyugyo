@@ -96,7 +96,7 @@ export const updateInstructorSchema = z
       v.lastNameKana !== undefined ||
       v.firstNameKana !== undefined ||
       v.notes !== undefined,
-    { message: '更新するフィールドを1つ以上指定してください' }
+    { message: '更新するフィールドを1つ以上指定してください' },
   );
 
 export type UpdateInstructorInput = z.infer<typeof updateInstructorSchema>;

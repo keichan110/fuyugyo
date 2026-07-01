@@ -1,4 +1,5 @@
 import { createFileRoute, redirect } from '@tanstack/react-router';
+
 import { ensureAuthenticated } from '@/features/auth/auth-guard';
 import { CertificationList } from '@/features/certifications/components/CertificationList';
 

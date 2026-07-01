@@ -1,11 +1,5 @@
 import { sql } from 'drizzle-orm';
-import {
-  index,
-  integer,
-  sqliteTable,
-  text,
-  uniqueIndex,
-} from 'drizzle-orm/sqlite-core';
+import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
 
 /**
  * 全テーブル共通の作成・更新タイムスタンプ列。
@@ -38,7 +32,7 @@ export const departments = sqliteTable(
     isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
     ...timestamps,
   },
-  (t) => [index('idx_departments_active').on(t.isActive)]
+  (t) => [index('idx_departments_active').on(t.isActive)],
 );
 
 /** 資格テーブル（インストラクター資格を管理） */
@@ -60,7 +54,7 @@ export const certifications = sqliteTable(
     index('idx_certifications_department_id').on(t.departmentId),
     index('idx_certifications_active').on(t.isActive),
     index('idx_certifications_organization').on(t.organization),
-  ]
+  ],
 );
 
 /** インストラクターテーブル（インストラクター基本情報を管理） */
@@ -81,12 +75,8 @@ export const instructors = sqliteTable(
     index('idx_instructors_name').on(t.lastName, t.firstName),
     index('idx_instructors_kana').on(t.lastNameKana, t.firstNameKana),
     index('idx_instructors_status_name').on(t.status, t.lastName, t.firstName),
-    index('idx_instructors_status_kana').on(
-      t.status,
-      t.lastNameKana,
-      t.firstNameKana
-    ),
-  ]
+    index('idx_instructors_status_kana').on(t.status, t.lastNameKana, t.firstNameKana),
+  ],
 );
 
 /** インストラクター資格関連テーブル（多対多の中間テーブル） */
@@ -103,13 +93,10 @@ export const instructorCertifications = sqliteTable(
     ...timestamps,
   },
   (t) => [
-    uniqueIndex('idx_instructor_cert_unique').on(
-      t.instructorId,
-      t.certificationId
-    ),
+    uniqueIndex('idx_instructor_cert_unique').on(t.instructorId, t.certificationId),
     index('idx_instructor_cert_instructor_id').on(t.instructorId),
     index('idx_instructor_cert_certification_id').on(t.certificationId),
-  ]
+  ],
 );
 
 /** シフト種類テーブル（シフトの種類を管理するマスタ） */
@@ -121,7 +108,7 @@ export const shiftTypes = sqliteTable(
     isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
     ...timestamps,
   },
-  (t) => [index('idx_shift_types_active').on(t.isActive)]
+  (t) => [index('idx_shift_types_active').on(t.isActive)],
 );
 
 /** シフトテーブル（シフト枠を管理） */
@@ -141,22 +128,14 @@ export const shifts = sqliteTable(
   },
   (t) => [
     // (日付 × 部門 × シフト種別) の重複枠を DB レベルで禁止する
-    uniqueIndex('unique_shift_per_day').on(
-      t.date,
-      t.departmentId,
-      t.shiftTypeId
-    ),
+    uniqueIndex('unique_shift_per_day').on(t.date, t.departmentId, t.shiftTypeId),
     index('idx_shifts_department_id').on(t.departmentId),
     index('idx_shifts_shift_type_id').on(t.shiftTypeId),
     index('idx_shifts_date').on(t.date),
     index('idx_shifts_date_department').on(t.date, t.departmentId),
-    index('idx_shifts_department_type_date').on(
-      t.departmentId,
-      t.shiftTypeId,
-      t.date
-    ),
+    index('idx_shifts_department_type_date').on(t.departmentId, t.shiftTypeId, t.date),
     index('idx_shifts_date_type').on(t.date, t.shiftTypeId),
-  ]
+  ],
 );
 
 /** シフト割り当てテーブル（シフトとインストラクターの多対多関係を管理） */
@@ -181,7 +160,7 @@ export const shiftAssignments = sqliteTable(
     index('idx_shift_assignments_assigned_at').on(t.assignedAt),
     index('idx_assignments_instructor_date').on(t.instructorId, t.assignedAt),
     index('idx_assignments_date_instructor').on(t.assignedAt, t.instructorId),
-  ]
+  ],
 );
 
 /** ユーザー認証・権限管理テーブル */
@@ -206,7 +185,7 @@ export const users = sqliteTable(
     index('idx_users_active').on(t.isActive),
     index('idx_users_role_active').on(t.role, t.isActive),
     uniqueIndex('idx_users_instructor_id').on(t.instructorId),
-  ]
+  ],
 );
 
 /** 招待 URL 管理テーブル */
@@ -229,5 +208,5 @@ export const invitationTokens = sqliteTable(
     index('idx_invitation_tokens_active').on(t.isActive),
     index('idx_invitation_tokens_created_by').on(t.createdBy),
     index('idx_invitation_tokens_active_expires').on(t.isActive, t.expiresAt),
-  ]
+  ],
 );

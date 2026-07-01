@@ -1,7 +1,9 @@
 import type { QueryClient } from '@tanstack/react-query';
+
 import { client } from '@/lib/rpc';
-import { type MeResponse, meResponseSchema } from './schema';
+
 import { ME_QUERY_KEY } from './queries';
+import { meResponseSchema, type MeResponse } from './schema';
 
 /**
  * 現在の認証状態を取得する（未認証なら null）。
@@ -32,11 +34,8 @@ async function fetchMe(queryClient: QueryClient): Promise<MeResponse | null> {
  */
 export async function ensureAuthenticated(
   queryClient: QueryClient,
-  currentPath: string
-): Promise<
-  | { authenticated: true; user: MeResponse }
-  | { authenticated: false; loginTo: string }
-> {
+  currentPath: string,
+): Promise<{ authenticated: true; user: MeResponse } | { authenticated: false; loginTo: string }> {
   const user = await fetchMe(queryClient);
   if (user) {
     return { authenticated: true, user };
@@ -46,8 +45,6 @@ export async function ensureAuthenticated(
 }
 
 /** ログインページ用。既に認証済みかどうかを返す（認証済みなら遷移先を弾く） */
-export async function isAuthenticated(
-  queryClient: QueryClient
-): Promise<boolean> {
+export async function isAuthenticated(queryClient: QueryClient): Promise<boolean> {
   return (await fetchMe(queryClient)) !== null;
 }

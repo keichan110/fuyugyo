@@ -1,4 +1,5 @@
 import { createFileRoute, redirect } from '@tanstack/react-router';
+
 import { ensureAuthenticated } from '@/features/auth/auth-guard';
 import { DepartmentList } from '@/features/departments/components/DepartmentList';
 

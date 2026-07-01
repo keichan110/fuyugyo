@@ -1,6 +1,8 @@
 import { useState } from 'react';
+
 import { Button } from '@/components/ui/button';
 import { useCertifications } from '@/features/certifications/queries';
+
 import {
   useAssignCertification,
   useChangeInstructorStatus,
@@ -21,30 +23,23 @@ export function InstructorList() {
   const activeData = useInstructors('ACTIVE');
   const inactiveData = useInstructors('INACTIVE');
 
-  const allInstructors = [
-    ...(activeData.data ?? []),
-    ...(inactiveData.data ?? []),
-  ];
+  const allInstructors = [...(activeData.data ?? []), ...(inactiveData.data ?? [])];
   const isLoading = activeData.isLoading || inactiveData.isLoading;
   const isError = activeData.isError || inactiveData.isError;
 
   return (
     <section className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <h2 className="font-bold text-xl">インストラクター管理</h2>
+        <h2 className="text-xl font-bold">インストラクター管理</h2>
         <Button onClick={() => setShowForm((prev) => !prev)}>
           {showForm ? 'キャンセル' : 'インストラクターを追加'}
         </Button>
       </div>
 
-      {showForm && (
-        <InstructorForm onSuccess={() => setShowForm(false)} />
-      )}
+      {showForm && <InstructorForm onSuccess={() => setShowForm(false)} />}
 
       {isLoading && <p className="text-muted-foreground text-sm">読み込み中…</p>}
-      {isError && (
-        <p className="text-red-600 text-sm">インストラクター一覧の取得に失敗しました</p>
-      )}
+      {isError && <p className="text-sm text-red-600">インストラクター一覧の取得に失敗しました</p>}
 
       {!isLoading && allInstructors.length === 0 && (
         <p className="text-muted-foreground text-sm">インストラクターがいません</p>
@@ -72,20 +67,10 @@ function InstructorItem({ instructor }: InstructorItemProps) {
   const [mode, setMode] = useState<'display' | 'edit' | 'cert'>('display');
 
   if (mode === 'edit') {
-    return (
-      <InstructorItemEdit
-        instructor={instructor}
-        onCancel={() => setMode('display')}
-      />
-    );
+    return <InstructorItemEdit instructor={instructor} onCancel={() => setMode('display')} />;
   }
   if (mode === 'cert') {
-    return (
-      <InstructorCertManager
-        instructor={instructor}
-        onBack={() => setMode('display')}
-      />
-    );
+    return <InstructorCertManager instructor={instructor} onBack={() => setMode('display')} />;
   }
   return (
     <InstructorItemDisplay
@@ -114,7 +99,7 @@ function InstructorItemDisplay({ instructor, onEdit, onManageCert }: InstructorI
       : null;
 
   return (
-    <li className="flex flex-col gap-2 rounded-md border border-border bg-card p-4">
+    <li className="border-border bg-card flex flex-col gap-2 rounded-md border p-4">
       <div className="flex items-start justify-between gap-2">
         <div className="flex flex-col gap-0.5">
           <div className="flex items-center gap-2">
@@ -123,14 +108,12 @@ function InstructorItemDisplay({ instructor, onEdit, onManageCert }: InstructorI
               <span className="text-muted-foreground text-sm">（{fullNameKana}）</span>
             )}
             {!isActive && (
-              <span className="rounded bg-muted px-1.5 py-0.5 text-muted-foreground text-xs">
+              <span className="bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-xs">
                 非アクティブ
               </span>
             )}
           </div>
-          {instructor.notes && (
-            <p className="text-muted-foreground text-sm">{instructor.notes}</p>
-          )}
+          {instructor.notes && <p className="text-muted-foreground text-sm">{instructor.notes}</p>}
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <Button variant="outline" size="sm" onClick={onEdit}>
@@ -143,17 +126,13 @@ function InstructorItemDisplay({ instructor, onEdit, onManageCert }: InstructorI
             variant="outline"
             size="sm"
             disabled={changeStatus.isPending}
-            onClick={() =>
-              changeStatus.mutate({ status: isActive ? 'INACTIVE' : 'ACTIVE' })
-            }
+            onClick={() => changeStatus.mutate({ status: isActive ? 'INACTIVE' : 'ACTIVE' })}
           >
             {isActive ? '非アクティブ化' : 'アクティブ化'}
           </Button>
         </div>
       </div>
-      {changeStatus.isError && (
-        <p className="text-red-600 text-sm">{changeStatus.error.message}</p>
-      )}
+      {changeStatus.isError && <p className="text-sm text-red-600">{changeStatus.error.message}</p>}
     </li>
   );
 }
@@ -182,12 +161,12 @@ function InstructorItemEdit({ instructor, onCancel }: InstructorItemEditProps) {
         firstNameKana: firstNameKana || null,
         notes: notes || null,
       },
-      { onSuccess: onCancel }
+      { onSuccess: onCancel },
     );
   };
 
   return (
-    <li className="rounded-md border border-border bg-card p-4">
+    <li className="border-border bg-card rounded-md border p-4">
       <form onSubmit={handleUpdate} className="flex flex-col gap-2">
         <div className="flex gap-2">
           <input
@@ -198,7 +177,7 @@ function InstructorItemEdit({ instructor, onCancel }: InstructorItemEditProps) {
             maxLength={50}
             placeholder="姓"
             autoFocus
-            className="flex-1 rounded-md border border-input bg-background px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            className="border-input bg-background focus-visible:ring-ring flex-1 rounded-md border px-3 py-1.5 text-sm focus-visible:ring-1 focus-visible:outline-none"
           />
           <input
             type="text"
@@ -207,7 +186,7 @@ function InstructorItemEdit({ instructor, onCancel }: InstructorItemEditProps) {
             required
             maxLength={50}
             placeholder="名"
-            className="flex-1 rounded-md border border-input bg-background px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            className="border-input bg-background focus-visible:ring-ring flex-1 rounded-md border px-3 py-1.5 text-sm focus-visible:ring-1 focus-visible:outline-none"
           />
         </div>
         <div className="flex gap-2">
@@ -217,7 +196,7 @@ function InstructorItemEdit({ instructor, onCancel }: InstructorItemEditProps) {
             onChange={(e) => setLastNameKana(e.target.value)}
             maxLength={50}
             placeholder="姓（カナ）"
-            className="flex-1 rounded-md border border-input bg-background px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            className="border-input bg-background focus-visible:ring-ring flex-1 rounded-md border px-3 py-1.5 text-sm focus-visible:ring-1 focus-visible:outline-none"
           />
           <input
             type="text"
@@ -225,7 +204,7 @@ function InstructorItemEdit({ instructor, onCancel }: InstructorItemEditProps) {
             onChange={(e) => setFirstNameKana(e.target.value)}
             maxLength={50}
             placeholder="名（カナ）"
-            className="flex-1 rounded-md border border-input bg-background px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            className="border-input bg-background focus-visible:ring-ring flex-1 rounded-md border px-3 py-1.5 text-sm focus-visible:ring-1 focus-visible:outline-none"
           />
         </div>
         <textarea
@@ -234,7 +213,7 @@ function InstructorItemEdit({ instructor, onCancel }: InstructorItemEditProps) {
           maxLength={500}
           rows={2}
           placeholder="備考（任意）"
-          className="resize-none rounded-md border border-input bg-background px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          className="border-input bg-background focus-visible:ring-ring resize-none rounded-md border px-3 py-1.5 text-sm focus-visible:ring-1 focus-visible:outline-none"
         />
         <div className="flex gap-2">
           <Button type="submit" size="sm" disabled={update.isPending}>
@@ -245,9 +224,7 @@ function InstructorItemEdit({ instructor, onCancel }: InstructorItemEditProps) {
           </Button>
         </div>
       </form>
-      {update.isError && (
-        <p className="text-red-600 text-sm">{update.error.message}</p>
-      )}
+      {update.isError && <p className="text-sm text-red-600">{update.error.message}</p>}
     </li>
   );
 }
@@ -279,14 +256,11 @@ function InstructorCertManager({ instructor, onBack }: InstructorCertManagerProp
   const handleAssign = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedCertId) return;
-    assign.mutate(
-      { certificationId: selectedCertId },
-      { onSuccess: () => setSelectedCertId('') }
-    );
+    assign.mutate({ certificationId: selectedCertId }, { onSuccess: () => setSelectedCertId('') });
   };
 
   return (
-    <li className="flex flex-col gap-3 rounded-md border border-border bg-card p-4">
+    <li className="border-border bg-card flex flex-col gap-3 rounded-md border p-4">
       <div className="flex items-center justify-between">
         <span className="font-medium">
           {instructor.lastName} {instructor.firstName} — 資格管理
@@ -299,16 +273,14 @@ function InstructorCertManager({ instructor, onBack }: InstructorCertManagerProp
       {detailLoading && <p className="text-muted-foreground text-sm">読み込み中…</p>}
 
       {/* 割り当て済み一覧 */}
-      {!detailLoading && (
-        detail && detail.certifications.length > 0 ? (
+      {!detailLoading &&
+        (detail && detail.certifications.length > 0 ? (
           <ul className="flex flex-col gap-1">
             {detail.certifications.map((ic) => {
               const cert = certMap.get(ic.certificationId);
               return (
                 <li key={ic.id} className="flex items-center justify-between gap-2 text-sm">
-                  <span>
-                    {cert ? `${cert.name}（${cert.shortName}）` : ic.certificationId}
-                  </span>
+                  <span>{cert ? `${cert.name}（${cert.shortName}）` : ic.certificationId}</span>
                   <Button
                     type="button"
                     variant="outline"
@@ -324,8 +296,7 @@ function InstructorCertManager({ instructor, onBack }: InstructorCertManagerProp
           </ul>
         ) : (
           <p className="text-muted-foreground text-sm">割り当て済みの資格がありません</p>
-        )
-      )}
+        ))}
 
       {/* 資格割り当てフォーム */}
       {availableCerts.length > 0 && (
@@ -334,7 +305,7 @@ function InstructorCertManager({ instructor, onBack }: InstructorCertManagerProp
             value={selectedCertId}
             onChange={(e) => setSelectedCertId(e.target.value)}
             required
-            className="flex-1 rounded-md border border-input bg-background px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            className="border-input bg-background focus-visible:ring-ring flex-1 rounded-md border px-3 py-1.5 text-sm focus-visible:ring-1 focus-visible:outline-none"
           >
             <option value="">資格を選択してください</option>
             {availableCerts.map((cert) => (
@@ -349,12 +320,8 @@ function InstructorCertManager({ instructor, onBack }: InstructorCertManagerProp
         </form>
       )}
 
-      {assign.isError && (
-        <p className="text-red-600 text-sm">{assign.error.message}</p>
-      )}
-      {unassign.isError && (
-        <p className="text-red-600 text-sm">{unassign.error.message}</p>
-      )}
+      {assign.isError && <p className="text-sm text-red-600">{assign.error.message}</p>}
+      {unassign.isError && <p className="text-sm text-red-600">{unassign.error.message}</p>}
     </li>
   );
 }

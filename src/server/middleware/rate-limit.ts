@@ -1,5 +1,6 @@
 import { createMiddleware } from 'hono/factory';
 import { HTTPException } from 'hono/http-exception';
+
 import type { Env } from '@/server/types';
 
 /**
@@ -11,11 +12,7 @@ import type { Env } from '@/server/types';
 
 /** クライアント IP を取得する。CF 配下では `CF-Connecting-IP` が信頼できる送信元 */
 function getClientIp(headers: Headers): string {
-  return (
-    headers.get('cf-connecting-ip') ??
-    headers.get('x-forwarded-for') ??
-    'unknown'
-  );
+  return headers.get('cf-connecting-ip') ?? headers.get('x-forwarded-for') ?? 'unknown';
 }
 
 /**

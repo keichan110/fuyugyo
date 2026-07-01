@@ -2,10 +2,12 @@ import { and, eq } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { validator } from 'hono/validator';
-import { type AuthVariables, requireAuth, requireRole } from '@/server/middleware/auth';
+
 import { createDb } from '@/server/db/client';
 import { certifications, departments } from '@/server/db/schema';
+import { requireAuth, requireRole, type AuthVariables } from '@/server/middleware/auth';
 import type { Env } from '@/server/types';
+
 import { createCertificationSchema, updateCertificationSchema } from './schema';
 
 /**
@@ -99,7 +101,7 @@ export const certificationsRoute = new Hono<{
         throw new HTTPException(500, { message: 'Failed to create certification' });
       }
       return c.json(created, 201);
-    }
+    },
   )
   /** 資格情報を更新する（MANAGER 以上） */
   .patch(
@@ -142,7 +144,7 @@ export const certificationsRoute = new Hono<{
         throw new HTTPException(500, { message: 'Failed to update certification' });
       }
       return c.json(updated);
-    }
+    },
   )
   /**
    * 資格を無効化する（isActive=false）（MANAGER 以上）。

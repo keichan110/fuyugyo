@@ -1,6 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
+
 import { client } from '@/lib/rpc';
-import { type HealthResponse, healthResponseSchema } from './schema';
+
+import { healthResponseSchema, type HealthResponse } from './schema';
 
 /**
  * ヘルスチェックエンドポイントを Hono RPC 経由で取得する。

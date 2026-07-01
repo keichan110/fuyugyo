@@ -1,6 +1,8 @@
 import { useState } from 'react';
+
 import { Button } from '@/components/ui/button';
 import { useInstructors } from '@/features/instructors/queries';
+
 import {
   useActivateUser,
   useChangeRole,
@@ -10,7 +12,7 @@ import {
   useUsers,
 } from '../queries';
 import type { User } from '../schema';
-import { type UserRole, userRoleSchema } from '../schema';
+import { userRoleSchema, type UserRole } from '../schema';
 
 /** ロールの表示名 */
 const ROLE_LABELS: Record<UserRole, string> = {
@@ -27,12 +29,10 @@ export function UserList() {
 
   return (
     <section className="flex flex-col gap-4">
-      <h2 className="font-bold text-xl">ユーザー管理</h2>
+      <h2 className="text-xl font-bold">ユーザー管理</h2>
 
       {isLoading && <p className="text-muted-foreground text-sm">読み込み中…</p>}
-      {isError && (
-        <p className="text-red-600 text-sm">ユーザー一覧の取得に失敗しました</p>
-      )}
+      {isError && <p className="text-sm text-red-600">ユーザー一覧の取得に失敗しました</p>}
 
       {!isLoading && userList?.length === 0 && (
         <p className="text-muted-foreground text-sm">ユーザーがいません</p>
@@ -84,21 +84,21 @@ function UserItemDisplay({ user, onChangeRole, onLinkInstructor }: UserItemDispl
   const activate = useActivateUser(user.id);
 
   return (
-    <li className="flex flex-col gap-2 rounded-md border border-border bg-card p-4">
+    <li className="border-border bg-card flex flex-col gap-2 rounded-md border p-4">
       <div className="flex items-start justify-between gap-2">
         <div className="flex flex-col gap-0.5">
           <div className="flex items-center gap-2">
             <span className="font-medium">{user.displayName}</span>
-            <span className="rounded bg-muted px-1.5 py-0.5 text-muted-foreground text-xs">
+            <span className="bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-xs">
               {ROLE_LABELS[user.role]}
             </span>
             {!user.isActive && (
-              <span className="rounded bg-destructive/10 px-1.5 py-0.5 text-destructive text-xs">
+              <span className="bg-destructive/10 text-destructive rounded px-1.5 py-0.5 text-xs">
                 無効
               </span>
             )}
             {user.instructorId && (
-              <span className="rounded bg-blue-100 px-1.5 py-0.5 text-blue-700 text-xs">
+              <span className="rounded bg-blue-100 px-1.5 py-0.5 text-xs text-blue-700">
                 Instructor リンク済み
               </span>
             )}
@@ -132,12 +132,8 @@ function UserItemDisplay({ user, onChangeRole, onLinkInstructor }: UserItemDispl
           )}
         </div>
       </div>
-      {deactivate.isError && (
-        <p className="text-red-600 text-sm">{deactivate.error.message}</p>
-      )}
-      {activate.isError && (
-        <p className="text-red-600 text-sm">{activate.error.message}</p>
-      )}
+      {deactivate.isError && <p className="text-sm text-red-600">{deactivate.error.message}</p>}
+      {activate.isError && <p className="text-sm text-red-600">{activate.error.message}</p>}
     </li>
   );
 }
@@ -158,7 +154,7 @@ function UserRoleChanger({ user, onBack }: UserRoleChangerProps) {
   };
 
   return (
-    <li className="rounded-md border border-border bg-card p-4">
+    <li className="border-border bg-card rounded-md border p-4">
       <div className="mb-3 flex items-center justify-between">
         <span className="font-medium">{user.displayName} — ロール変更</span>
         <Button type="button" variant="outline" size="sm" onClick={onBack}>
@@ -169,7 +165,7 @@ function UserRoleChanger({ user, onBack }: UserRoleChangerProps) {
         <select
           value={role}
           onChange={(e) => setRole(userRoleSchema.parse(e.target.value))}
-          className="rounded-md border border-input bg-background px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          className="border-input bg-background focus-visible:ring-ring rounded-md border px-3 py-1.5 text-sm focus-visible:ring-1 focus-visible:outline-none"
         >
           {userRoleSchema.options.map((r) => (
             <option key={r} value={r}>
@@ -187,7 +183,7 @@ function UserRoleChanger({ user, onBack }: UserRoleChangerProps) {
         </div>
       </form>
       {changeRole.isError && (
-        <p className="mt-2 text-red-600 text-sm">{changeRole.error.message}</p>
+        <p className="mt-2 text-sm text-red-600">{changeRole.error.message}</p>
       )}
     </li>
   );
@@ -211,10 +207,7 @@ function UserInstructorLinker({ user, onBack }: UserInstructorLinkerProps) {
   const handleLink = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedInstructorId) return;
-    linkInstructor.mutate(
-      { instructorId: selectedInstructorId },
-      { onSuccess: onBack }
-    );
+    linkInstructor.mutate({ instructorId: selectedInstructorId }, { onSuccess: onBack });
   };
 
   const handleUnlink = () => {
@@ -224,7 +217,7 @@ function UserInstructorLinker({ user, onBack }: UserInstructorLinkerProps) {
   const linkedInstructor = activeInstructors?.find((i) => i.id === user.instructorId);
 
   return (
-    <li className="flex flex-col gap-3 rounded-md border border-border bg-card p-4">
+    <li className="border-border bg-card flex flex-col gap-3 rounded-md border p-4">
       <div className="flex items-center justify-between">
         <span className="font-medium">{user.displayName} — Instructor リンク</span>
         <Button type="button" variant="outline" size="sm" onClick={onBack}>
@@ -234,7 +227,7 @@ function UserInstructorLinker({ user, onBack }: UserInstructorLinkerProps) {
 
       {/* 現在のリンク状態 */}
       {user.instructorId ? (
-        <div className="flex items-center justify-between gap-2 rounded-md bg-muted px-3 py-2 text-sm">
+        <div className="bg-muted flex items-center justify-between gap-2 rounded-md px-3 py-2 text-sm">
           <span>
             リンク中:{' '}
             {linkedInstructor
@@ -262,7 +255,7 @@ function UserInstructorLinker({ user, onBack }: UserInstructorLinkerProps) {
             value={selectedInstructorId}
             onChange={(e) => setSelectedInstructorId(e.target.value)}
             required
-            className="flex-1 rounded-md border border-input bg-background px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            className="border-input bg-background focus-visible:ring-ring flex-1 rounded-md border px-3 py-1.5 text-sm focus-visible:ring-1 focus-visible:outline-none"
           >
             <option value="">インストラクターを選択してください</option>
             {activeInstructors.map((inst) => (
@@ -285,10 +278,10 @@ function UserInstructorLinker({ user, onBack }: UserInstructorLinkerProps) {
       )}
 
       {linkInstructor.isError && (
-        <p className="text-red-600 text-sm">{linkInstructor.error.message}</p>
+        <p className="text-sm text-red-600">{linkInstructor.error.message}</p>
       )}
       {unlinkInstructor.isError && (
-        <p className="text-red-600 text-sm">{unlinkInstructor.error.message}</p>
+        <p className="text-sm text-red-600">{unlinkInstructor.error.message}</p>
       )}
     </li>
   );

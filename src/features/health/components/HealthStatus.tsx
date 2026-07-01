@@ -1,4 +1,5 @@
 import { Button } from '@/components/ui/button';
+
 import { useHealth } from '../queries';
 
 /**
@@ -9,15 +10,13 @@ export function HealthStatus() {
   const { data, isLoading, isError, refetch, isRefetching } = useHealth();
 
   return (
-    <section className="flex flex-col items-center gap-4 rounded-lg border border-border bg-card p-8 text-card-foreground">
-      <h1 className="font-bold text-2xl">Fuyugyō</h1>
+    <section className="border-border bg-card text-card-foreground flex flex-col items-center gap-4 rounded-lg border p-8">
+      <h1 className="text-2xl font-bold">Fuyugyō</h1>
       <p className="text-muted-foreground text-sm">
         Hono + Drizzle/D1 + Vite + React 19 walking skeleton
       </p>
 
-      {isLoading && !data && (
-        <p className="text-muted-foreground">確認中…</p>
-      )}
+      {isLoading && !data && <p className="text-muted-foreground">確認中…</p>}
       {isError && <p className="text-red-600">API への接続に失敗しました</p>}
       {data && !isError && (
         <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">

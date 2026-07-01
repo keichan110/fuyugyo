@@ -1,5 +1,5 @@
 import type { QueryClient } from '@tanstack/react-query';
-import { Outlet, createRootRouteWithContext } from '@tanstack/react-router';
+import { createRootRouteWithContext, Outlet } from '@tanstack/react-router';
 
 /** ルーターコンテキスト。ガードのデータ取得に QueryClient を共有する（ADR 0002） */
 export type RouterContext = {

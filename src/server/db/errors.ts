@@ -15,10 +15,7 @@ export function isUniqueViolation(e: unknown): boolean {
   if (e.message.includes('UNIQUE constraint failed')) {
     return true;
   }
-  if (
-    e.cause instanceof Error &&
-    e.cause.message.includes('UNIQUE constraint failed')
-  ) {
+  if (e.cause instanceof Error && e.cause.message.includes('UNIQUE constraint failed')) {
     return true;
   }
   return false;

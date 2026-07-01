@@ -1,5 +1,7 @@
 import { useState } from 'react';
+
 import { Button } from '@/components/ui/button';
+
 import { useCreateDepartment } from '../queries';
 
 type Props = {
@@ -19,14 +21,14 @@ export function DepartmentForm({ onSuccess }: Props) {
     e.preventDefault();
     create.mutate(
       { code, name, description: description || undefined },
-      onSuccess ? { onSuccess } : undefined
+      onSuccess ? { onSuccess } : undefined,
     );
   };
 
   return (
     <form
       onSubmit={handleSubmit}
-      className="flex flex-col gap-3 rounded-md border border-border bg-card p-4"
+      className="border-border bg-card flex flex-col gap-3 rounded-md border p-4"
     >
       <div className="flex flex-col gap-1">
         <label htmlFor="dept-code" className="text-sm font-medium">
@@ -40,7 +42,7 @@ export function DepartmentForm({ onSuccess }: Props) {
           required
           maxLength={32}
           placeholder="例: ski"
-          className="rounded-md border border-input bg-background px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          className="border-input bg-background focus-visible:ring-ring rounded-md border px-3 py-1.5 text-sm focus-visible:ring-1 focus-visible:outline-none"
         />
       </div>
 
@@ -56,7 +58,7 @@ export function DepartmentForm({ onSuccess }: Props) {
           required
           maxLength={100}
           placeholder="例: スキー"
-          className="rounded-md border border-input bg-background px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          className="border-input bg-background focus-visible:ring-ring rounded-md border px-3 py-1.5 text-sm focus-visible:ring-1 focus-visible:outline-none"
         />
       </div>
 
@@ -71,13 +73,11 @@ export function DepartmentForm({ onSuccess }: Props) {
           maxLength={500}
           rows={2}
           placeholder="部門の説明（任意）"
-          className="rounded-md border border-input bg-background px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
+          className="border-input bg-background focus-visible:ring-ring resize-none rounded-md border px-3 py-1.5 text-sm focus-visible:ring-1 focus-visible:outline-none"
         />
       </div>
 
-      {create.isError && (
-        <p className="text-red-600 text-sm">{create.error.message}</p>
-      )}
+      {create.isError && <p className="text-sm text-red-600">{create.error.message}</p>}
 
       <Button type="submit" disabled={create.isPending}>
         {create.isPending ? '作成中…' : '作成'}

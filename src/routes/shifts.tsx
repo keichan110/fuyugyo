@@ -1,9 +1,7 @@
 import { createFileRoute, redirect } from '@tanstack/react-router';
+
 import { ensureAuthenticated } from '@/features/auth/auth-guard';
-import {
-  type ShiftViewMode,
-  ShiftViewer,
-} from '@/features/shifts/components/ShiftViewer';
+import { ShiftViewer, type ShiftViewMode } from '@/features/shifts/components/ShiftViewer';
 import { todayString } from '@/features/shifts/view-utils';
 
 /** 表示ビューの検索パラメータ（共有可能な深いリンクの状態を URL に保持する） */

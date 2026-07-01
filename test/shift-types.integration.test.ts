@@ -1,5 +1,6 @@
 import { env } from 'cloudflare:test';
 import { beforeEach, describe, expect, it } from 'vitest';
+
 import { shiftTypeListSchema, shiftTypeSchema } from '../src/features/shift-types/schema';
 import app from '../src/index';
 import { signJwt } from '../src/server/auth/jwt';
@@ -50,7 +51,7 @@ async function seedManagerToken(): Promise<string> {
       isActive: true,
     },
     env.JWT_SECRET,
-    env.JWT_EXPIRES_IN
+    env.JWT_EXPIRES_IN,
   );
 }
 
@@ -77,7 +78,7 @@ async function seedMemberToken(): Promise<string> {
       isActive: true,
     },
     env.JWT_SECRET,
-    env.JWT_EXPIRES_IN
+    env.JWT_EXPIRES_IN,
   );
 }
 
@@ -123,11 +124,7 @@ describe('GET /api/shift-types', () => {
     await db.insert(shiftTypes).values({ name: '廃止種別', isActive: false });
 
     const token = await seedManagerToken();
-    const res = await app.request(
-      '/api/shift-types?active=false',
-      authHeader(token),
-      envWith({})
-    );
+    const res = await app.request('/api/shift-types?active=false', authHeader(token), envWith({}));
 
     expect(res.status).toBe(200);
     const body = shiftTypeListSchema.parse(await res.json());
@@ -138,18 +135,11 @@ describe('GET /api/shift-types', () => {
 describe('GET /api/shift-types/:id', () => {
   it('存在するシフト種別を返す', async () => {
     const db = createDb(env.DB);
-    const [st] = await db
-      .insert(shiftTypes)
-      .values({ name: '終日' })
-      .returning();
+    const [st] = await db.insert(shiftTypes).values({ name: '終日' }).returning();
     if (!st) throw new Error('insert failed');
 
     const token = await seedManagerToken();
-    const res = await app.request(
-      `/api/shift-types/${st.id}`,
-      authHeader(token),
-      envWith({})
-    );
+    const res = await app.request(`/api/shift-types/${st.id}`, authHeader(token), envWith({}));
 
     expect(res.status).toBe(200);
     const body = shiftTypeSchema.parse(await res.json());
@@ -163,7 +153,7 @@ describe('GET /api/shift-types/:id', () => {
     const res = await app.request(
       '/api/shift-types/nonexistent-id',
       authHeader(token),
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(404);
   });
@@ -175,7 +165,7 @@ describe('POST /api/shift-types', () => {
     const res = await app.request(
       '/api/shift-types',
       { method: 'POST', ...authJsonRequest(token, { name: '終日' }) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(403);
   });
@@ -185,7 +175,7 @@ describe('POST /api/shift-types', () => {
     const res = await app.request(
       '/api/shift-types',
       { method: 'POST', ...authJsonRequest(token, { name: '終日' }) },
-      envWith({})
+      envWith({}),
     );
 
     expect(res.status).toBe(201);
@@ -199,7 +189,7 @@ describe('POST /api/shift-types', () => {
     const res = await app.request(
       '/api/shift-types',
       { method: 'POST', ...authJsonRequest(token, { name: '' }) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(400);
   });
@@ -208,17 +198,14 @@ describe('POST /api/shift-types', () => {
 describe('PATCH /api/shift-types/:id', () => {
   it('name を更新できる', async () => {
     const db = createDb(env.DB);
-    const [st] = await db
-      .insert(shiftTypes)
-      .values({ name: '終日' })
-      .returning();
+    const [st] = await db.insert(shiftTypes).values({ name: '終日' }).returning();
     if (!st) throw new Error('insert failed');
 
     const token = await seedManagerToken();
     const res = await app.request(
       `/api/shift-types/${st.id}`,
       { method: 'PATCH', ...authJsonRequest(token, { name: '全日' }) },
-      envWith({})
+      envWith({}),
     );
 
     expect(res.status).toBe(200);
@@ -232,41 +219,35 @@ describe('PATCH /api/shift-types/:id', () => {
     const res = await app.request(
       '/api/shift-types/nonexistent-id',
       { method: 'PATCH', ...authJsonRequest(token, { name: '変更後' }) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(404);
   });
 
   it('空文字の name は 400 を返す', async () => {
     const db = createDb(env.DB);
-    const [st] = await db
-      .insert(shiftTypes)
-      .values({ name: '終日' })
-      .returning();
+    const [st] = await db.insert(shiftTypes).values({ name: '終日' }).returning();
     if (!st) throw new Error('insert failed');
 
     const token = await seedManagerToken();
     const res = await app.request(
       `/api/shift-types/${st.id}`,
       { method: 'PATCH', ...authJsonRequest(token, { name: '' }) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(400);
   });
 
   it('MEMBER は 403 で拒否される', async () => {
     const db = createDb(env.DB);
-    const [st] = await db
-      .insert(shiftTypes)
-      .values({ name: '終日' })
-      .returning();
+    const [st] = await db.insert(shiftTypes).values({ name: '終日' }).returning();
     if (!st) throw new Error('insert failed');
 
     const token = await seedMemberToken();
     const res = await app.request(
       `/api/shift-types/${st.id}`,
       { method: 'PATCH', ...authJsonRequest(token, { name: '変更後' }) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(403);
   });
@@ -275,17 +256,14 @@ describe('PATCH /api/shift-types/:id', () => {
 describe('POST /api/shift-types/:id/deactivate', () => {
   it('シフト種別を無効化できる（isActive=false）', async () => {
     const db = createDb(env.DB);
-    const [st] = await db
-      .insert(shiftTypes)
-      .values({ name: '終日', isActive: true })
-      .returning();
+    const [st] = await db.insert(shiftTypes).values({ name: '終日', isActive: true }).returning();
     if (!st) throw new Error('insert failed');
 
     const token = await seedManagerToken();
     const res = await app.request(
       `/api/shift-types/${st.id}/deactivate`,
       { method: 'POST', ...authHeader(token) },
-      envWith({})
+      envWith({}),
     );
 
     expect(res.status).toBe(200);
@@ -293,11 +271,7 @@ describe('POST /api/shift-types/:id/deactivate', () => {
     expect(body.isActive).toBe(false);
 
     // 無効化後は通常の一覧（アクティブのみ）に出ない
-    const listRes = await app.request(
-      '/api/shift-types',
-      authHeader(token),
-      envWith({})
-    );
+    const listRes = await app.request('/api/shift-types', authHeader(token), envWith({}));
     const list = shiftTypeListSchema.parse(await listRes.json());
     expect(list.find((s) => s.id === st.id)).toBeUndefined();
   });
@@ -307,24 +281,21 @@ describe('POST /api/shift-types/:id/deactivate', () => {
     const res = await app.request(
       '/api/shift-types/nonexistent-id/deactivate',
       { method: 'POST', ...authHeader(token) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(404);
   });
 
   it('MEMBER は 403 で拒否される', async () => {
     const db = createDb(env.DB);
-    const [st] = await db
-      .insert(shiftTypes)
-      .values({ name: '終日' })
-      .returning();
+    const [st] = await db.insert(shiftTypes).values({ name: '終日' }).returning();
     if (!st) throw new Error('insert failed');
 
     const token = await seedMemberToken();
     const res = await app.request(
       `/api/shift-types/${st.id}/deactivate`,
       { method: 'POST', ...authHeader(token) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(403);
   });

@@ -21,10 +21,7 @@ export const SESSION_MAX_AGE = 10 * 60;
  * @param maxAge - 有効期間（秒）。JWT の有効期限と揃える
  * @param isProduction - 本番環境かどうか
  */
-export function authCookieOptions(
-  maxAge: number,
-  isProduction: boolean
-): CookieOptions {
+export function authCookieOptions(maxAge: number, isProduction: boolean): CookieOptions {
   return {
     httpOnly: true,
     secure: isProduction,

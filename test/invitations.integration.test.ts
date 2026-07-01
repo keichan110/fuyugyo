@@ -1,7 +1,12 @@
-import { and, eq, gt, isNull, or, sql } from 'drizzle-orm';
 import { env } from 'cloudflare:test';
+import { and, eq, gt, isNull, or, sql } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { invitationListSchema, invitationSchema, verifyInvitationResponseSchema } from '../src/features/invitations/schema';
+
+import {
+  invitationListSchema,
+  invitationSchema,
+  verifyInvitationResponseSchema,
+} from '../src/features/invitations/schema';
 import app from '../src/index';
 import { signJwt } from '../src/server/auth/jwt';
 import { createDb } from '../src/server/db/client';
@@ -40,7 +45,7 @@ function authJsonRequest(token: string, body: unknown): RequestInit {
  * 各テスト用 seed 関数はこれを呼ぶ。
  */
 async function seedUserToken(
-  role: 'ADMIN' | 'MANAGER' | 'MEMBER'
+  role: 'ADMIN' | 'MANAGER' | 'MEMBER',
 ): Promise<{ token: string; userId: string }> {
   const db = createDb(env.DB);
   const [user] = await db
@@ -63,7 +68,7 @@ async function seedUserToken(
       isActive: true,
     },
     env.JWT_SECRET,
-    env.JWT_EXPIRES_IN
+    env.JWT_EXPIRES_IN,
   );
   return { token, userId: user.id };
 }
@@ -75,7 +80,7 @@ async function seedUserToken(
  */
 async function seedInvitation(
   createdBy: string,
-  overrides: Partial<typeof invitationTokens.$inferInsert> = {}
+  overrides: Partial<typeof invitationTokens.$inferInsert> = {},
 ): Promise<typeof invitationTokens.$inferSelect> {
   const db = createDb(env.DB);
   const expiresAt = overrides.expiresAt ?? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
@@ -109,7 +114,7 @@ describe('POST /api/invitations', () => {
     const res = await app.request(
       '/api/invitations',
       { method: 'POST', ...noAuth, headers: { 'Content-Type': 'application/json' }, body: '{}' },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(401);
   });
@@ -119,7 +124,7 @@ describe('POST /api/invitations', () => {
     const res = await app.request(
       '/api/invitations',
       { method: 'POST', ...authJsonRequest(token, {}) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(403);
   });
@@ -132,7 +137,7 @@ describe('POST /api/invitations', () => {
         method: 'POST',
         ...authJsonRequest(token, { description: 'テスト招待', maxUses: 5 }),
       },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(201);
 
@@ -148,7 +153,7 @@ describe('POST /api/invitations', () => {
     const res = await app.request(
       '/api/invitations',
       { method: 'POST', ...authJsonRequest(token, {}) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(201);
 
@@ -163,7 +168,7 @@ describe('POST /api/invitations', () => {
     const res = await app.request(
       '/api/invitations',
       { method: 'POST', ...authJsonRequest(token, { expiresInHours: 24 }) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(201);
 
@@ -180,7 +185,7 @@ describe('POST /api/invitations', () => {
       '/api/invitations',
       { method: 'POST', ...authJsonRequest(token, {}) },
       // INVITE_DEFAULT_EXPIRES = "168h"（7日）
-      envWith({ INVITE_DEFAULT_EXPIRES: '168h' })
+      envWith({ INVITE_DEFAULT_EXPIRES: '168h' }),
     );
     expect(res.status).toBe(201);
 
@@ -194,7 +199,7 @@ describe('POST /api/invitations', () => {
     const res = await app.request(
       '/api/invitations',
       { method: 'POST', ...authJsonRequest(token, { maxUses: 0 }) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(400);
   });
@@ -248,7 +253,7 @@ describe('POST /api/invitations/:token/deactivate', () => {
     const res = await app.request(
       `/api/invitations/${inv.token}/deactivate`,
       { method: 'POST', ...noAuth, headers: { 'Content-Type': 'application/json' } },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(401);
   });
@@ -261,7 +266,7 @@ describe('POST /api/invitations/:token/deactivate', () => {
     const res = await app.request(
       `/api/invitations/${inv.token}/deactivate`,
       { method: 'POST', ...authHeader(memberToken) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(403);
   });
@@ -273,7 +278,7 @@ describe('POST /api/invitations/:token/deactivate', () => {
     const res = await app.request(
       `/api/invitations/${inv.token}/deactivate`,
       { method: 'POST', ...authHeader(token) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(200);
 
@@ -288,7 +293,7 @@ describe('POST /api/invitations/:token/deactivate', () => {
     const res = await app.request(
       `/api/invitations/${inv.token}/deactivate`,
       { method: 'POST', ...authHeader(token) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(200);
 
@@ -301,7 +306,7 @@ describe('POST /api/invitations/:token/deactivate', () => {
     const res = await app.request(
       '/api/invitations/nonexistent-token/deactivate',
       { method: 'POST', ...authHeader(token) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(404);
   });
@@ -316,11 +321,7 @@ describe('GET /api/invitations/:token/verify', () => {
     const { userId } = await seedUserToken('ADMIN');
     const inv = await seedInvitation(userId, { description: '有効招待' });
 
-    const res = await app.request(
-      `/api/invitations/${inv.token}/verify`,
-      noAuth,
-      reqEnv()
-    );
+    const res = await app.request(`/api/invitations/${inv.token}/verify`, noAuth, reqEnv());
     expect(res.status).toBe(200);
 
     const body = verifyInvitationResponseSchema.parse(await res.json());
@@ -333,11 +334,7 @@ describe('GET /api/invitations/:token/verify', () => {
   });
 
   it('存在しないトークンは 404 を返す', async () => {
-    const res = await app.request(
-      '/api/invitations/nonexistent-token/verify',
-      noAuth,
-      reqEnv()
-    );
+    const res = await app.request('/api/invitations/nonexistent-token/verify', noAuth, reqEnv());
     expect(res.status).toBe(404);
   });
 
@@ -345,11 +342,7 @@ describe('GET /api/invitations/:token/verify', () => {
     const { userId } = await seedUserToken('ADMIN');
     const inv = await seedInvitation(userId, { isActive: false });
 
-    const res = await app.request(
-      `/api/invitations/${inv.token}/verify`,
-      noAuth,
-      reqEnv()
-    );
+    const res = await app.request(`/api/invitations/${inv.token}/verify`, noAuth, reqEnv());
     expect(res.status).toBe(410);
   });
 
@@ -359,11 +352,7 @@ describe('GET /api/invitations/:token/verify', () => {
       expiresAt: new Date(Date.now() - 1000),
     });
 
-    const res = await app.request(
-      `/api/invitations/${inv.token}/verify`,
-      noAuth,
-      reqEnv()
-    );
+    const res = await app.request(`/api/invitations/${inv.token}/verify`, noAuth, reqEnv());
     expect(res.status).toBe(410);
   });
 
@@ -371,11 +360,7 @@ describe('GET /api/invitations/:token/verify', () => {
     const { userId } = await seedUserToken('ADMIN');
     const inv = await seedInvitation(userId, { maxUses: 3, usedCount: 3 });
 
-    const res = await app.request(
-      `/api/invitations/${inv.token}/verify`,
-      noAuth,
-      reqEnv()
-    );
+    const res = await app.request(`/api/invitations/${inv.token}/verify`, noAuth, reqEnv());
     expect(res.status).toBe(422);
   });
 
@@ -383,11 +368,7 @@ describe('GET /api/invitations/:token/verify', () => {
     const { userId } = await seedUserToken('ADMIN');
     const inv = await seedInvitation(userId, { maxUses: null, usedCount: 9999 });
 
-    const res = await app.request(
-      `/api/invitations/${inv.token}/verify`,
-      noAuth,
-      reqEnv()
-    );
+    const res = await app.request(`/api/invitations/${inv.token}/verify`, noAuth, reqEnv());
     expect(res.status).toBe(200);
   });
 
@@ -434,9 +415,9 @@ describe('used_count の原子的インクリメント（consumeInvitation 相�
           gt(invitationTokens.expiresAt, now),
           or(
             isNull(invitationTokens.maxUses),
-            gt(invitationTokens.maxUses, invitationTokens.usedCount)
-          )
-        )
+            gt(invitationTokens.maxUses, invitationTokens.usedCount),
+          ),
+        ),
       );
     return result.meta.rows_written > 0;
   }

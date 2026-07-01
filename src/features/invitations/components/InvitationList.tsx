@@ -1,5 +1,7 @@
 import { useState } from 'react';
+
 import { Button } from '@/components/ui/button';
+
 import { useCreateInvitation, useDeactivateInvitation, useInvitations } from '../queries';
 import type { Invitation } from '../schema';
 
@@ -25,7 +27,7 @@ export function InvitationList() {
   return (
     <section className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <h2 className="font-bold text-xl">招待管理</h2>
+        <h2 className="text-xl font-bold">招待管理</h2>
         <Button size="sm" onClick={() => setShowForm((prev) => !prev)}>
           {showForm ? 'キャンセル' : '新規招待を作成'}
         </Button>
@@ -34,9 +36,7 @@ export function InvitationList() {
       {showForm && <InvitationCreateForm onCreated={() => setShowForm(false)} />}
 
       {isLoading && <p className="text-muted-foreground text-sm">読み込み中…</p>}
-      {isError && (
-        <p className="text-red-600 text-sm">招待一覧の取得に失敗しました</p>
-      )}
+      {isError && <p className="text-sm text-red-600">招待一覧の取得に失敗しました</p>}
 
       {!isLoading && invitations?.length === 0 && (
         <p className="text-muted-foreground text-sm">招待がありません</p>
@@ -72,14 +72,14 @@ function InvitationCreateForm({ onCreated }: InvitationCreateFormProps) {
         maxUses: maxUses ? Number(maxUses) : undefined,
         expiresInHours: expiresInHours ? Number(expiresInHours) : undefined,
       },
-      { onSuccess: onCreated }
+      { onSuccess: onCreated },
     );
   };
 
   return (
     <form
       onSubmit={handleSubmit}
-      className="flex flex-col gap-3 rounded-md border border-border bg-card p-4"
+      className="border-border bg-card flex flex-col gap-3 rounded-md border p-4"
     >
       <div className="flex flex-col gap-1">
         <label htmlFor="description" className="text-sm font-medium">
@@ -92,7 +92,7 @@ function InvitationCreateForm({ onCreated }: InvitationCreateFormProps) {
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           placeholder="例: スタッフ採用用"
-          className="rounded-md border border-input bg-background px-3 py-1.5 text-sm"
+          className="border-input bg-background rounded-md border px-3 py-1.5 text-sm"
         />
       </div>
 
@@ -108,7 +108,7 @@ function InvitationCreateForm({ onCreated }: InvitationCreateFormProps) {
             value={maxUses}
             onChange={(e) => setMaxUses(e.target.value)}
             placeholder="無制限"
-            className="w-28 rounded-md border border-input bg-background px-3 py-1.5 text-sm"
+            className="border-input bg-background w-28 rounded-md border px-3 py-1.5 text-sm"
           />
         </div>
 
@@ -124,14 +124,12 @@ function InvitationCreateForm({ onCreated }: InvitationCreateFormProps) {
             value={expiresInHours}
             onChange={(e) => setExpiresInHours(e.target.value)}
             placeholder="デフォルト"
-            className="w-28 rounded-md border border-input bg-background px-3 py-1.5 text-sm"
+            className="border-input bg-background w-28 rounded-md border px-3 py-1.5 text-sm"
           />
         </div>
       </div>
 
-      {create.isError && (
-        <p className="text-red-600 text-sm">{create.error.message}</p>
-      )}
+      {create.isError && <p className="text-sm text-red-600">{create.error.message}</p>}
 
       <Button type="submit" size="sm" disabled={create.isPending}>
         {create.isPending ? '作成中…' : '作成する'}
@@ -149,8 +147,7 @@ function InvitationItem({ invitation }: InvitationItemProps) {
   const deactivate = useDeactivateInvitation(invitation.token);
   const [copied, setCopied] = useState(false);
   const isExpired = invitation.expiresAt <= new Date();
-  const isOverLimit =
-    invitation.maxUses !== null && invitation.usedCount >= invitation.maxUses;
+  const isOverLimit = invitation.maxUses !== null && invitation.usedCount >= invitation.maxUses;
   const isInvalid = !invitation.isActive || isExpired || isOverLimit;
 
   const inviteUrl = `${window.location.origin}/api/auth/line/login?invite=${invitation.token}&redirect=/`;
@@ -167,13 +164,11 @@ function InvitationItem({ invitation }: InvitationItemProps) {
   };
 
   return (
-    <li className="flex flex-col gap-2 rounded-md border border-border bg-card p-4">
+    <li className="border-border bg-card flex flex-col gap-2 rounded-md border p-4">
       <div className="flex items-start justify-between gap-2">
         <div className="flex flex-col gap-0.5">
-          {invitation.description && (
-            <span className="font-medium">{invitation.description}</span>
-          )}
-          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          {invitation.description && <span className="font-medium">{invitation.description}</span>}
+          <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
             <span>
               使用回数: {invitation.usedCount}
               {invitation.maxUses !== null ? ` / ${invitation.maxUses}` : ''}
@@ -181,24 +176,24 @@ function InvitationItem({ invitation }: InvitationItemProps) {
             <span>有効期限: {formatDate(invitation.expiresAt)}</span>
           </div>
 
-          <div className="flex flex-wrap gap-1 mt-1">
+          <div className="mt-1 flex flex-wrap gap-1">
             {!invitation.isActive && (
-              <span className="rounded bg-muted px-1.5 py-0.5 text-muted-foreground text-xs">
+              <span className="bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-xs">
                 無効化済み
               </span>
             )}
             {invitation.isActive && isExpired && (
-              <span className="rounded bg-destructive/10 px-1.5 py-0.5 text-destructive text-xs">
+              <span className="bg-destructive/10 text-destructive rounded px-1.5 py-0.5 text-xs">
                 期限切れ
               </span>
             )}
             {invitation.isActive && !isExpired && isOverLimit && (
-              <span className="rounded bg-orange-100 px-1.5 py-0.5 text-orange-700 text-xs">
+              <span className="rounded bg-orange-100 px-1.5 py-0.5 text-xs text-orange-700">
                 上限到達
               </span>
             )}
             {!isInvalid && (
-              <span className="rounded bg-green-100 px-1.5 py-0.5 text-green-700 text-xs">
+              <span className="rounded bg-green-100 px-1.5 py-0.5 text-xs text-green-700">
                 有効
               </span>
             )}

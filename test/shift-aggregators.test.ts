@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+
 import {
   aggregateByDepartment,
   calculateTotalAssignments,
@@ -15,7 +16,7 @@ import type { ShiftViewItem } from '../src/features/shifts/schema';
 function makeShift(
   departmentName: string,
   instructorCount: number,
-  overrides: Partial<ShiftViewItem> = {}
+  overrides: Partial<ShiftViewItem> = {},
 ): ShiftViewItem {
   return {
     id: crypto.randomUUID(),
@@ -33,11 +34,7 @@ function makeShift(
 
 describe('aggregateByDepartment', () => {
   it('部門名ごとにシフト件数を集計する', () => {
-    const shifts = [
-      makeShift('スキー', 2),
-      makeShift('スキー', 1),
-      makeShift('スノーボード', 3),
-    ];
+    const shifts = [makeShift('スキー', 2), makeShift('スキー', 1), makeShift('スノーボード', 3)];
     expect(aggregateByDepartment(shifts)).toEqual({
       スキー: 2,
       スノーボード: 1,
@@ -51,11 +48,7 @@ describe('aggregateByDepartment', () => {
 
 describe('calculateTotalAssignments', () => {
   it('全シフトの割り当て数を合計する', () => {
-    const shifts = [
-      makeShift('スキー', 2),
-      makeShift('スノーボード', 3),
-      makeShift('スキー', 0),
-    ];
+    const shifts = [makeShift('スキー', 2), makeShift('スノーボード', 3), makeShift('スキー', 0)];
     expect(calculateTotalAssignments(shifts)).toBe(5);
   });
 
@@ -66,11 +59,7 @@ describe('calculateTotalAssignments', () => {
 
 describe('summarizeShifts', () => {
   it('件数・割り当て総数・期間・部門別集計をまとめて返す', () => {
-    const shifts = [
-      makeShift('スキー', 2),
-      makeShift('スキー', 1),
-      makeShift('スノーボード', 3),
-    ];
+    const shifts = [makeShift('スキー', 2), makeShift('スキー', 1), makeShift('スノーボード', 3)];
     const summary = summarizeShifts(shifts, {
       from: '2026-01-13',
       to: '2026-01-19',

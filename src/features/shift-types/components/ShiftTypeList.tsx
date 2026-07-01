@@ -1,5 +1,7 @@
 import { useState } from 'react';
+
 import { Button } from '@/components/ui/button';
+
 import { useDeactivateShiftType, useShiftTypes, useUpdateShiftType } from '../queries';
 import { ShiftTypeForm } from './ShiftTypeForm';
 
@@ -14,20 +16,16 @@ export function ShiftTypeList() {
   return (
     <section className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <h2 className="font-bold text-xl">シフト種別管理</h2>
+        <h2 className="text-xl font-bold">シフト種別管理</h2>
         <Button onClick={() => setShowForm((prev) => !prev)}>
           {showForm ? 'キャンセル' : 'シフト種別を追加'}
         </Button>
       </div>
 
-      {showForm && (
-        <ShiftTypeForm onSuccess={() => setShowForm(false)} />
-      )}
+      {showForm && <ShiftTypeForm onSuccess={() => setShowForm(false)} />}
 
       {isLoading && <p className="text-muted-foreground text-sm">読み込み中…</p>}
-      {isError && (
-        <p className="text-red-600 text-sm">シフト種別一覧の取得に失敗しました</p>
-      )}
+      {isError && <p className="text-sm text-red-600">シフト種別一覧の取得に失敗しました</p>}
 
       {data && data.length === 0 && (
         <p className="text-muted-foreground text-sm">シフト種別がありません</p>
@@ -71,7 +69,7 @@ function ShiftTypeItem({ id, name, isActive }: ShiftTypeItemProps) {
   };
 
   return (
-    <li className="flex flex-col gap-2 rounded-md border border-border bg-card p-4">
+    <li className="border-border bg-card flex flex-col gap-2 rounded-md border p-4">
       {editing ? (
         <form onSubmit={handleUpdate} className="flex flex-1 items-center gap-2">
           <input
@@ -81,7 +79,7 @@ function ShiftTypeItem({ id, name, isActive }: ShiftTypeItemProps) {
             required
             maxLength={100}
             autoFocus
-            className="flex-1 rounded-md border border-input bg-background px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            className="border-input bg-background focus-visible:ring-ring flex-1 rounded-md border px-3 py-1.5 text-sm focus-visible:ring-1 focus-visible:outline-none"
           />
           <Button type="submit" size="sm" disabled={update.isPending}>
             {update.isPending ? '保存中…' : '保存'}
@@ -103,18 +101,14 @@ function ShiftTypeItem({ id, name, isActive }: ShiftTypeItemProps) {
           <div className="flex items-center gap-2">
             <span className="font-medium">{name}</span>
             {!isActive && (
-              <span className="rounded bg-muted px-1.5 py-0.5 text-muted-foreground text-xs">
+              <span className="bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-xs">
                 無効
               </span>
             )}
           </div>
           {isActive && (
             <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setEditing(true)}
-              >
+              <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
                 編集
               </Button>
               <Button
@@ -130,12 +124,8 @@ function ShiftTypeItem({ id, name, isActive }: ShiftTypeItemProps) {
         </div>
       )}
 
-      {update.isError && (
-        <p className="text-red-600 text-sm">{update.error.message}</p>
-      )}
-      {deactivate.isError && (
-        <p className="text-red-600 text-sm">{deactivate.error.message}</p>
-      )}
+      {update.isError && <p className="text-sm text-red-600">{update.error.message}</p>}
+      {deactivate.isError && <p className="text-sm text-red-600">{deactivate.error.message}</p>}
     </li>
   );
 }

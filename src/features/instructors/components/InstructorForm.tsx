@@ -1,5 +1,7 @@
 import { useState } from 'react';
+
 import { Button } from '@/components/ui/button';
+
 import { useCreateInstructor } from '../queries';
 
 type Props = {
@@ -28,14 +30,14 @@ export function InstructorForm({ onSuccess }: Props) {
         firstNameKana: firstNameKana || undefined,
         notes: notes || undefined,
       },
-      onSuccess ? { onSuccess } : undefined
+      onSuccess ? { onSuccess } : undefined,
     );
   };
 
   return (
     <form
       onSubmit={handleSubmit}
-      className="flex flex-col gap-3 rounded-md border border-border bg-card p-4"
+      className="border-border bg-card flex flex-col gap-3 rounded-md border p-4"
     >
       <div className="flex gap-2">
         <div className="flex flex-1 flex-col gap-1">
@@ -50,7 +52,7 @@ export function InstructorForm({ onSuccess }: Props) {
             required
             maxLength={50}
             placeholder="例: 山田"
-            className="rounded-md border border-input bg-background px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            className="border-input bg-background focus-visible:ring-ring rounded-md border px-3 py-1.5 text-sm focus-visible:ring-1 focus-visible:outline-none"
           />
         </div>
         <div className="flex flex-1 flex-col gap-1">
@@ -65,7 +67,7 @@ export function InstructorForm({ onSuccess }: Props) {
             required
             maxLength={50}
             placeholder="例: 太郎"
-            className="rounded-md border border-input bg-background px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            className="border-input bg-background focus-visible:ring-ring rounded-md border px-3 py-1.5 text-sm focus-visible:ring-1 focus-visible:outline-none"
           />
         </div>
       </div>
@@ -82,7 +84,7 @@ export function InstructorForm({ onSuccess }: Props) {
             onChange={(e) => setLastNameKana(e.target.value)}
             maxLength={50}
             placeholder="例: ヤマダ"
-            className="rounded-md border border-input bg-background px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            className="border-input bg-background focus-visible:ring-ring rounded-md border px-3 py-1.5 text-sm focus-visible:ring-1 focus-visible:outline-none"
           />
         </div>
         <div className="flex flex-1 flex-col gap-1">
@@ -96,7 +98,7 @@ export function InstructorForm({ onSuccess }: Props) {
             onChange={(e) => setFirstNameKana(e.target.value)}
             maxLength={50}
             placeholder="例: タロウ"
-            className="rounded-md border border-input bg-background px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            className="border-input bg-background focus-visible:ring-ring rounded-md border px-3 py-1.5 text-sm focus-visible:ring-1 focus-visible:outline-none"
           />
         </div>
       </div>
@@ -112,13 +114,11 @@ export function InstructorForm({ onSuccess }: Props) {
           maxLength={500}
           rows={2}
           placeholder="備考（任意）"
-          className="resize-none rounded-md border border-input bg-background px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          className="border-input bg-background focus-visible:ring-ring resize-none rounded-md border px-3 py-1.5 text-sm focus-visible:ring-1 focus-visible:outline-none"
         />
       </div>
 
-      {create.isError && (
-        <p className="text-red-600 text-sm">{create.error.message}</p>
-      )}
+      {create.isError && <p className="text-sm text-red-600">{create.error.message}</p>}
 
       <Button type="submit" disabled={create.isPending}>
         {create.isPending ? '作成中…' : '作成'}

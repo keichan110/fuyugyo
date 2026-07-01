@@ -2,11 +2,13 @@ import { eq } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { validator } from 'hono/validator';
-import { type AuthVariables, requireAuth, requireRole } from '@/server/middleware/auth';
+
 import { createDb } from '@/server/db/client';
 import { isUniqueViolation } from '@/server/db/errors';
 import { instructors, users } from '@/server/db/schema';
+import { requireAuth, requireRole, type AuthVariables } from '@/server/middleware/auth';
 import type { Env } from '@/server/types';
+
 import { changeRoleSchema, linkInstructorSchema } from './schema';
 
 type Db = ReturnType<typeof createDb>;
@@ -16,21 +18,13 @@ type Db = ReturnType<typeof createDb>;
  * 存在確認 → update → returning を一本化し DRY を守る。
  */
 async function setUserActive(db: Db, id: string, isActive: boolean) {
-  const [existing] = await db
-    .select({ id: users.id })
-    .from(users)
-    .where(eq(users.id, id))
-    .limit(1);
+  const [existing] = await db.select({ id: users.id }).from(users).where(eq(users.id, id)).limit(1);
 
   if (!existing) {
     throw new HTTPException(404, { message: 'User not found' });
   }
 
-  const [updated] = await db
-    .update(users)
-    .set({ isActive })
-    .where(eq(users.id, id))
-    .returning();
+  const [updated] = await db.update(users).set({ isActive }).where(eq(users.id, id)).returning();
 
   if (!updated) {
     throw new HTTPException(500, {
@@ -111,7 +105,7 @@ export const usersRoute = new Hono<{
         throw new HTTPException(500, { message: 'Failed to change role' });
       }
       return c.json(updated);
-    }
+    },
   )
   /**
    * ユーザーを無効化する（isActive=false）（ADMIN のみ・自己無効化は禁止）。
@@ -152,11 +146,7 @@ export const usersRoute = new Hono<{
       const db = createDb(c.env.DB);
       const id = c.req.param('id');
 
-      const [user] = await db
-        .select({ id: users.id })
-        .from(users)
-        .where(eq(users.id, id))
-        .limit(1);
+      const [user] = await db.select({ id: users.id }).from(users).where(eq(users.id, id)).limit(1);
 
       if (!user) {
         throw new HTTPException(404, { message: 'User not found' });
@@ -191,7 +181,7 @@ export const usersRoute = new Hono<{
         }
         throw err;
       }
-    }
+    },
   )
   /** User から Instructor リンクを解除する（ADMIN のみ） */
   .delete('/:id/link-instructor', requireAuth, requireRole('ADMIN'), async (c) => {

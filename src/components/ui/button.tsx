@@ -1,5 +1,7 @@
-import { type VariantProps, cva } from 'class-variance-authority';
 import type { ButtonHTMLAttributes } from 'react';
+
+import { cva, type VariantProps } from 'class-variance-authority';
+
 import { cn } from '@/lib/utils';
 
 export const buttonVariants = cva(
@@ -8,8 +10,7 @@ export const buttonVariants = cva(
     variants: {
       variant: {
         default: 'bg-primary text-primary-foreground hover:bg-primary/90',
-        outline:
-          'border border-input bg-background hover:bg-accent hover:text-accent-foreground',
+        outline: 'border border-input bg-background hover:bg-accent hover:text-accent-foreground',
         ghost: 'hover:bg-accent hover:text-accent-foreground',
       },
       size: {
@@ -22,19 +23,14 @@ export const buttonVariants = cva(
       variant: 'default',
       size: 'default',
     },
-  }
+  },
 );
 
-type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> &
-  VariantProps<typeof buttonVariants>;
+type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & VariantProps<typeof buttonVariants>;
 
 /** shadcn/ui ベースの Button。Tailwind 4 のデザイントークンを利用する。 */
 export function Button({ className, variant, size, ...props }: ButtonProps) {
   return (
-    <button
-      className={cn(buttonVariants({ variant, size, className }))}
-      type="button"
-      {...props}
-    />
+    <button className={cn(buttonVariants({ variant, size, className }))} type="button" {...props} />
   );
 }

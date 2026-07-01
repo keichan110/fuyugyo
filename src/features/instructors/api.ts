@@ -2,15 +2,13 @@ import { and, eq } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { validator } from 'hono/validator';
-import { type AuthVariables, requireAuth, requireRole } from '@/server/middleware/auth';
+
 import { createDb } from '@/server/db/client';
 import { isUniqueViolation } from '@/server/db/errors';
-import {
-  certifications,
-  instructorCertifications,
-  instructors,
-} from '@/server/db/schema';
+import { certifications, instructorCertifications, instructors } from '@/server/db/schema';
+import { requireAuth, requireRole, type AuthVariables } from '@/server/middleware/auth';
 import type { Env } from '@/server/types';
+
 import {
   assignCertificationSchema,
   changeInstructorStatusSchema,
@@ -56,18 +54,15 @@ export const instructorsRoute = new Hono<{
       .from(instructors)
       .innerJoin(
         instructorCertifications,
-        eq(instructorCertifications.instructorId, instructors.id)
+        eq(instructorCertifications.instructorId, instructors.id),
       )
-      .innerJoin(
-        certifications,
-        eq(certifications.id, instructorCertifications.certificationId)
-      )
+      .innerJoin(certifications, eq(certifications.id, instructorCertifications.certificationId))
       .where(
         and(
           eq(instructors.status, 'ACTIVE'),
           eq(certifications.departmentId, departmentId),
-          eq(certifications.isActive, true)
-        )
+          eq(certifications.isActive, true),
+        ),
       );
 
     // JS 側で instructor ごとに certifications をグルーピングする
@@ -104,9 +99,7 @@ export const instructorsRoute = new Hono<{
           notes: row.notes,
           createdAt: row.createdAt,
           updatedAt: row.updatedAt,
-          certifications: [
-            { id: row.certId, name: row.certName, shortName: row.certShortName },
-          ],
+          certifications: [{ id: row.certId, name: row.certName, shortName: row.certShortName }],
         });
       }
     }
@@ -119,14 +112,8 @@ export const instructorsRoute = new Hono<{
     const statusFilter = c.req.query('status');
 
     const rows = statusFilter
-      ? await db
-          .select()
-          .from(instructors)
-          .where(eq(instructors.status, statusFilter))
-      : await db
-          .select()
-          .from(instructors)
-          .where(eq(instructors.status, 'ACTIVE'));
+      ? await db.select().from(instructors).where(eq(instructors.status, statusFilter))
+      : await db.select().from(instructors).where(eq(instructors.status, 'ACTIVE'));
 
     return c.json(rows);
   })
@@ -135,11 +122,7 @@ export const instructorsRoute = new Hono<{
     const db = createDb(c.env.DB);
     const id = c.req.param('id');
 
-    const [instructor] = await db
-      .select()
-      .from(instructors)
-      .where(eq(instructors.id, id))
-      .limit(1);
+    const [instructor] = await db.select().from(instructors).where(eq(instructors.id, id)).limit(1);
 
     if (!instructor) {
       throw new HTTPException(404, { message: 'Instructor not found' });
@@ -183,7 +166,7 @@ export const instructorsRoute = new Hono<{
         throw new HTTPException(500, { message: 'Failed to create instructor' });
       }
       return c.json(created, 201);
-    }
+    },
   )
   /** インストラクター情報を更新する（MANAGER 以上） */
   .patch(
@@ -202,11 +185,7 @@ export const instructorsRoute = new Hono<{
       const db = createDb(c.env.DB);
       const id = c.req.param('id');
 
-      const [existing] = await db
-        .select()
-        .from(instructors)
-        .where(eq(instructors.id, id))
-        .limit(1);
+      const [existing] = await db.select().from(instructors).where(eq(instructors.id, id)).limit(1);
 
       if (!existing) {
         throw new HTTPException(404, { message: 'Instructor not found' });
@@ -228,7 +207,7 @@ export const instructorsRoute = new Hono<{
         throw new HTTPException(500, { message: 'Failed to update instructor' });
       }
       return c.json(updated);
-    }
+    },
   )
   /** インストラクターのステータスを変更する（MANAGER 以上） */
   .post(
@@ -247,11 +226,7 @@ export const instructorsRoute = new Hono<{
       const db = createDb(c.env.DB);
       const id = c.req.param('id');
 
-      const [existing] = await db
-        .select()
-        .from(instructors)
-        .where(eq(instructors.id, id))
-        .limit(1);
+      const [existing] = await db.select().from(instructors).where(eq(instructors.id, id)).limit(1);
 
       if (!existing) {
         throw new HTTPException(404, { message: 'Instructor not found' });
@@ -267,7 +242,7 @@ export const instructorsRoute = new Hono<{
         throw new HTTPException(500, { message: 'Failed to change instructor status' });
       }
       return c.json(updated);
-    }
+    },
   )
   /** インストラクターに Certification を割り当てる（MANAGER 以上・ユニーク制約あり） */
   .post(
@@ -322,7 +297,7 @@ export const instructorsRoute = new Hono<{
         }
         throw err;
       }
-    }
+    },
   )
   /** インストラクターから Certification を解除する（MANAGER 以上） */
   .delete('/:id/certifications/:certId', requireAuth, requireRole('MANAGER'), async (c) => {
@@ -336,8 +311,8 @@ export const instructorsRoute = new Hono<{
       .where(
         and(
           eq(instructorCertifications.instructorId, instructorId),
-          eq(instructorCertifications.certificationId, certId)
-        )
+          eq(instructorCertifications.certificationId, certId),
+        ),
       )
       .limit(1);
 
@@ -350,8 +325,8 @@ export const instructorsRoute = new Hono<{
       .where(
         and(
           eq(instructorCertifications.instructorId, instructorId),
-          eq(instructorCertifications.certificationId, certId)
-        )
+          eq(instructorCertifications.certificationId, certId),
+        ),
       );
 
     return c.json({ message: 'Certification unassigned' });

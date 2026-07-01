@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
+
 import { Button } from '@/components/ui/button';
+
 import {
   useCreateShift,
   useDeleteShift,
@@ -38,19 +40,15 @@ export function ShiftManager() {
 
   return (
     <section className="flex flex-col gap-4">
-      <h2 className="font-bold text-xl">シフト管理</h2>
+      <h2 className="text-xl font-bold">シフト管理</h2>
 
-      {formData.isLoading && (
-        <p className="text-muted-foreground text-sm">読み込み中…</p>
-      )}
+      {formData.isLoading && <p className="text-muted-foreground text-sm">読み込み中…</p>}
       {formData.isError && (
-        <p className="text-red-600 text-sm">
-          フォームデータの取得に失敗しました
-        </p>
+        <p className="text-sm text-red-600">フォームデータの取得に失敗しました</p>
       )}
 
       {formData.data && (
-        <div className="flex flex-col gap-3 rounded-md border border-border bg-card p-4">
+        <div className="border-border bg-card flex flex-col gap-3 rounded-md border p-4">
           <div className="flex flex-wrap gap-3">
             <label className="flex flex-col gap-1 text-sm">
               <span className="text-muted-foreground">日付</span>
@@ -58,7 +56,7 @@ export function ShiftManager() {
                 type="date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="rounded-md border border-input bg-background px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                className="border-input bg-background focus-visible:ring-ring rounded-md border px-3 py-1.5 text-sm focus-visible:ring-1 focus-visible:outline-none"
               />
             </label>
             <label className="flex flex-col gap-1 text-sm">
@@ -66,7 +64,7 @@ export function ShiftManager() {
               <select
                 value={departmentId}
                 onChange={(e) => setDepartmentId(e.target.value)}
-                className="rounded-md border border-input bg-background px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                className="border-input bg-background focus-visible:ring-ring rounded-md border px-3 py-1.5 text-sm focus-visible:ring-1 focus-visible:outline-none"
               >
                 {formData.data.departments.map((dept) => (
                   <option key={dept.id} value={dept.id}>
@@ -80,7 +78,7 @@ export function ShiftManager() {
               <select
                 value={shiftTypeId}
                 onChange={(e) => setShiftTypeId(e.target.value)}
-                className="rounded-md border border-input bg-background px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                className="border-input bg-background focus-visible:ring-ring rounded-md border px-3 py-1.5 text-sm focus-visible:ring-1 focus-visible:outline-none"
               >
                 {formData.data.shiftTypes.map((st) => (
                   <option key={st.id} value={st.id}>
@@ -142,7 +140,7 @@ function ShiftEditor({ date, departmentId, shiftTypeId }: ShiftEditorProps) {
   }
   if (editData.isError || !editData.data) {
     return (
-      <p className="text-red-600 text-sm">
+      <p className="text-sm text-red-600">
         {editData.error?.message ?? '編集データの取得に失敗しました'}
       </p>
     );
@@ -192,11 +190,9 @@ function ShiftEditor({ date, departmentId, shiftTypeId }: ShiftEditorProps) {
   const saveError = createShift.error ?? updateShift.error;
 
   return (
-    <div className="flex flex-col gap-3 rounded-md border border-border bg-card p-4">
+    <div className="border-border bg-card flex flex-col gap-3 rounded-md border p-4">
       <div className="flex items-center justify-between">
-        <span className="font-medium">
-          {isEdit ? 'シフトを編集' : '新規シフトを作成'}
-        </span>
+        <span className="font-medium">{isEdit ? 'シフトを編集' : '新規シフトを作成'}</span>
         {isEdit && (
           <Button
             type="button"
@@ -234,7 +230,7 @@ function ShiftEditor({ date, departmentId, shiftTypeId }: ShiftEditorProps) {
           onChange={(e) => setDescription(e.target.value)}
           maxLength={500}
           rows={2}
-          className="resize-none rounded-md border border-input bg-background px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          className="border-input bg-background focus-visible:ring-ring resize-none rounded-md border px-3 py-1.5 text-sm focus-visible:ring-1 focus-visible:outline-none"
         />
       </label>
 
@@ -244,10 +240,8 @@ function ShiftEditor({ date, departmentId, shiftTypeId }: ShiftEditorProps) {
         </Button>
       </div>
 
-      {saveError && <p className="text-red-600 text-sm">{saveError.message}</p>}
-      {deleteShift.isError && (
-        <p className="text-red-600 text-sm">{deleteShift.error.message}</p>
-      )}
+      {saveError && <p className="text-sm text-red-600">{saveError.message}</p>}
+      {deleteShift.isError && <p className="text-sm text-red-600">{deleteShift.error.message}</p>}
     </div>
   );
 }
@@ -259,11 +253,7 @@ type InstructorCheckboxProps = {
 };
 
 /** 割り当て候補インストラクターの1行（チェックボックス + 競合警告）。 */
-function InstructorCheckbox({
-  instructor,
-  checked,
-  onToggle,
-}: InstructorCheckboxProps) {
+function InstructorCheckbox({ instructor, checked, onToggle }: InstructorCheckboxProps) {
   return (
     <li className="flex items-center justify-between gap-2 text-sm">
       <label className="flex items-center gap-2">
@@ -276,7 +266,7 @@ function InstructorCheckbox({
         )}
       </label>
       {instructor.hasConflict && (
-        <span className="rounded bg-amber-100 px-1.5 py-0.5 text-amber-700 text-xs">
+        <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-700">
           同日に別シフトあり
         </span>
       )}

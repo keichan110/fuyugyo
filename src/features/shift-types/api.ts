@@ -2,10 +2,12 @@ import { eq } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { validator } from 'hono/validator';
-import { type AuthVariables, requireAuth, requireRole } from '@/server/middleware/auth';
+
 import { createDb } from '@/server/db/client';
 import { shiftTypes } from '@/server/db/schema';
+import { requireAuth, requireRole, type AuthVariables } from '@/server/middleware/auth';
 import type { Env } from '@/server/types';
+
 import { createShiftTypeSchema, updateShiftTypeSchema } from './schema';
 
 /**
@@ -24,10 +26,7 @@ export const shiftTypesRoute = new Hono<{
     const activeOnly = c.req.query('active') !== 'false';
 
     const rows = activeOnly
-      ? await db
-          .select()
-          .from(shiftTypes)
-          .where(eq(shiftTypes.isActive, true))
+      ? await db.select().from(shiftTypes).where(eq(shiftTypes.isActive, true))
       : await db.select().from(shiftTypes);
 
     return c.json(rows);
@@ -62,16 +61,13 @@ export const shiftTypesRoute = new Hono<{
       const input = c.req.valid('json');
       const db = createDb(c.env.DB);
 
-      const [created] = await db
-        .insert(shiftTypes)
-        .values({ name: input.name })
-        .returning();
+      const [created] = await db.insert(shiftTypes).values({ name: input.name }).returning();
 
       if (!created) {
         throw new HTTPException(500, { message: 'Failed to create shift type' });
       }
       return c.json(created, 201);
-    }
+    },
   )
   /** シフト種別名を更新する（MANAGER 以上） */
   .patch(
@@ -109,7 +105,7 @@ export const shiftTypesRoute = new Hono<{
         throw new HTTPException(500, { message: 'Failed to update shift type' });
       }
       return c.json(updated);
-    }
+    },
   )
   /**
    * シフト種別を無効化する（isActive=false）（MANAGER 以上）。

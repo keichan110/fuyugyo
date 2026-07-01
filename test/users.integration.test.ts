@@ -1,5 +1,6 @@
 import { env } from 'cloudflare:test';
 import { beforeEach, describe, expect, it } from 'vitest';
+
 import { userListSchema, userSchema } from '../src/features/users/schema';
 import app from '../src/index';
 import { signJwt } from '../src/server/auth/jwt';
@@ -50,7 +51,7 @@ async function seedAdminToken(): Promise<{ token: string; userId: string }> {
       isActive: true,
     },
     env.JWT_SECRET,
-    env.JWT_EXPIRES_IN
+    env.JWT_EXPIRES_IN,
   );
   return { token, userId: user.id };
 }
@@ -78,7 +79,7 @@ async function seedManagerToken(): Promise<string> {
       isActive: true,
     },
     env.JWT_SECRET,
-    env.JWT_EXPIRES_IN
+    env.JWT_EXPIRES_IN,
   );
 }
 
@@ -176,7 +177,7 @@ describe('POST /api/users/:id/change-role', () => {
     const res = await app.request(
       `/api/users/${userId}/change-role`,
       { method: 'POST', ...authJsonRequest(token, { role: 'MANAGER' }) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(200);
 
@@ -191,7 +192,7 @@ describe('POST /api/users/:id/change-role', () => {
     const res = await app.request(
       `/api/users/${userId}/change-role`,
       { method: 'POST', ...authJsonRequest(token, { role: 'ADMIN' }) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(403);
   });
@@ -203,7 +204,7 @@ describe('POST /api/users/:id/change-role', () => {
     const res = await app.request(
       `/api/users/${userId}/change-role`,
       { method: 'POST', ...authJsonRequest(token, { role: 'SUPER_ADMIN' }) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(400);
   });
@@ -213,7 +214,7 @@ describe('POST /api/users/:id/change-role', () => {
     const res = await app.request(
       '/api/users/nonexistent-id/change-role',
       { method: 'POST', ...authJsonRequest(token, { role: 'MANAGER' }) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(404);
   });
@@ -223,7 +224,7 @@ describe('POST /api/users/:id/change-role', () => {
     const res = await app.request(
       `/api/users/${userId}/change-role`,
       { method: 'POST', ...authJsonRequest(token, { role: 'MEMBER' }) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(400);
   });
@@ -239,7 +240,7 @@ describe('POST /api/users/:id/deactivate', () => {
     const res = await app.request(
       `/api/users/${userId}/deactivate`,
       { method: 'POST', ...authHeader(token) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(200);
 
@@ -254,7 +255,7 @@ describe('POST /api/users/:id/deactivate', () => {
     const res = await app.request(
       `/api/users/${userId}/deactivate`,
       { method: 'POST', ...authHeader(token) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(403);
   });
@@ -264,7 +265,7 @@ describe('POST /api/users/:id/deactivate', () => {
     const res = await app.request(
       '/api/users/nonexistent-id/deactivate',
       { method: 'POST', ...authHeader(token) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(404);
   });
@@ -274,7 +275,7 @@ describe('POST /api/users/:id/deactivate', () => {
     const res = await app.request(
       `/api/users/${userId}/deactivate`,
       { method: 'POST', ...authHeader(token) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(400);
   });
@@ -291,13 +292,13 @@ describe('POST /api/users/:id/activate', () => {
     await app.request(
       `/api/users/${userId}/deactivate`,
       { method: 'POST', ...authHeader(token) },
-      envWith({})
+      envWith({}),
     );
 
     const res = await app.request(
       `/api/users/${userId}/activate`,
       { method: 'POST', ...authHeader(token) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(200);
 
@@ -312,7 +313,7 @@ describe('POST /api/users/:id/activate', () => {
     const res = await app.request(
       `/api/users/${userId}/activate`,
       { method: 'POST', ...authHeader(token) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(403);
   });
@@ -322,7 +323,7 @@ describe('POST /api/users/:id/activate', () => {
     const res = await app.request(
       '/api/users/nonexistent-id/activate',
       { method: 'POST', ...authHeader(token) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(404);
   });
@@ -339,7 +340,7 @@ describe('POST /api/users/:id/link-instructor', () => {
     const res = await app.request(
       `/api/users/${userId}/link-instructor`,
       { method: 'POST', ...authJsonRequest(token, { instructorId }) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(200);
 
@@ -357,7 +358,7 @@ describe('POST /api/users/:id/link-instructor', () => {
     const res1 = await app.request(
       `/api/users/${userId1}/link-instructor`,
       { method: 'POST', ...authJsonRequest(token, { instructorId }) },
-      envWith({})
+      envWith({}),
     );
     expect(res1.status).toBe(200);
 
@@ -365,7 +366,7 @@ describe('POST /api/users/:id/link-instructor', () => {
     const res2 = await app.request(
       `/api/users/${userId2}/link-instructor`,
       { method: 'POST', ...authJsonRequest(token, { instructorId }) },
-      envWith({})
+      envWith({}),
     );
     expect(res2.status).toBe(409);
   });
@@ -393,7 +394,7 @@ describe('POST /api/users/:id/link-instructor', () => {
     const res = await app.request(
       '/api/users/nonexistent-id/link-instructor',
       { method: 'POST', ...authJsonRequest(token, { instructorId }) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(404);
   });
@@ -405,7 +406,7 @@ describe('POST /api/users/:id/link-instructor', () => {
     const res = await app.request(
       `/api/users/${userId}/link-instructor`,
       { method: 'POST', ...authJsonRequest(token, { instructorId: 'nonexistent-instructor-id' }) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(404);
   });
@@ -418,7 +419,7 @@ describe('POST /api/users/:id/link-instructor', () => {
     const res = await app.request(
       `/api/users/${userId}/link-instructor`,
       { method: 'POST', ...authJsonRequest(token, { instructorId }) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(403);
   });
@@ -436,14 +437,14 @@ describe('DELETE /api/users/:id/link-instructor', () => {
     await app.request(
       `/api/users/${userId}/link-instructor`,
       { method: 'POST', ...authJsonRequest(token, { instructorId }) },
-      envWith({})
+      envWith({}),
     );
 
     // 解除する
     const res = await app.request(
       `/api/users/${userId}/link-instructor`,
       { method: 'DELETE', ...authHeader(token) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(200);
 
@@ -458,7 +459,7 @@ describe('DELETE /api/users/:id/link-instructor', () => {
     const res = await app.request(
       `/api/users/${userId}/link-instructor`,
       { method: 'DELETE', ...authHeader(token) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(409);
   });
@@ -468,7 +469,7 @@ describe('DELETE /api/users/:id/link-instructor', () => {
     const res = await app.request(
       '/api/users/nonexistent-id/link-instructor',
       { method: 'DELETE', ...authHeader(token) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(404);
   });
@@ -480,7 +481,7 @@ describe('DELETE /api/users/:id/link-instructor', () => {
     const res = await app.request(
       `/api/users/${userId}/link-instructor`,
       { method: 'DELETE', ...authHeader(token) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(403);
   });

@@ -53,13 +53,10 @@ export function MonthlyView({ month, shifts, onSelectDay }: MonthlyViewProps) {
   const cells = buildCells(month);
 
   return (
-    <div className="rounded-md border border-border bg-card p-2">
+    <div className="border-border bg-card rounded-md border p-2">
       <div className="grid grid-cols-7 gap-1">
         {WEEKDAY_LABELS.map((label, index) => (
-          <div
-            key={label}
-            className={`py-1 text-center font-medium text-xs ${headerClass(index)}`}
-          >
+          <div key={label} className={`py-1 text-center text-xs font-medium ${headerClass(index)}`}>
             {label}
           </div>
         ))}
@@ -74,11 +71,11 @@ export function MonthlyView({ month, shifts, onSelectDay }: MonthlyViewProps) {
               type="button"
               key={cell.dateStr}
               onClick={() => onSelectDay(cell.dateStr)}
-              className="flex aspect-square flex-col items-center gap-0.5 rounded border border-border/60 bg-background p-1 text-xs hover:border-ring focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              className="border-border/60 bg-background hover:border-ring focus-visible:ring-ring flex aspect-square flex-col items-center gap-0.5 rounded border p-1 text-xs focus-visible:ring-1 focus-visible:outline-none"
             >
               <span className="text-foreground">{cell.day}</span>
               {count > 0 && (
-                <span className="rounded-full bg-primary/10 px-1.5 text-[10px] text-primary leading-tight">
+                <span className="bg-primary/10 text-primary rounded-full px-1.5 text-[10px] leading-tight">
                   {count}
                 </span>
               )}

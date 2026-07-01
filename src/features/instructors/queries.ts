@@ -1,7 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
+
 import { client } from '@/lib/rpc';
+
 import {
+  activeInstructorInDepartmentListSchema,
+  instructorCertificationSchema,
+  instructorListSchema,
+  instructorSchema,
+  instructorWithCertificationsSchema,
   type ActiveInstructorInDepartment,
   type AssignCertificationInput,
   type ChangeInstructorStatusInput,
@@ -10,11 +17,6 @@ import {
   type InstructorCertification,
   type InstructorWithCertifications,
   type UpdateInstructorInput,
-  activeInstructorInDepartmentListSchema,
-  instructorCertificationSchema,
-  instructorListSchema,
-  instructorSchema,
-  instructorWithCertificationsSchema,
 } from './schema';
 
 /** API エラーレスポンスのスキーマ（型アサーションを避けるためランタイム検証する） */

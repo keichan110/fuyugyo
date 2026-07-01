@@ -2,7 +2,9 @@ import { and, asc, count, eq, gte, inArray, lte, ne } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { validator } from 'hono/validator';
+
 import { createDb } from '@/server/db/client';
+import type { Database } from '@/server/db/client';
 import { isUniqueViolation } from '@/server/db/errors';
 import {
   certifications,
@@ -10,23 +12,19 @@ import {
   instructorCertifications,
   instructors,
   shiftAssignments,
-  shiftTypes,
   shifts,
+  shiftTypes,
 } from '@/server/db/schema';
-import {
-  type AuthVariables,
-  requireAuth,
-  requireRole,
-} from '@/server/middleware/auth';
-import type { Database } from '@/server/db/client';
+import { requireAuth, requireRole, type AuthVariables } from '@/server/middleware/auth';
 import type { Env } from '@/server/types';
+
 import { summarizeShifts } from './aggregators';
 import {
   createShiftSchema,
   dateStringSchema,
   monthStringSchema,
-  type ShiftViewItem,
   updateShiftSchema,
+  type ShiftViewItem,
 } from './schema';
 
 /**
@@ -49,10 +47,7 @@ function formatName(lastName: string, firstName: string): string {
 }
 
 /** インストラクター表示名カナ（両方揃っているときのみ） */
-function formatNameKana(
-  lastNameKana: string | null,
-  firstNameKana: string | null
-): string | null {
+function formatNameKana(lastNameKana: string | null, firstNameKana: string | null): string | null {
   if (lastNameKana && firstNameKana) {
     return `${lastNameKana} ${firstNameKana}`;
   }
@@ -63,10 +58,7 @@ function formatNameKana(
  * 指定された Instructor ID が全て実在するかを1クエリで検証する（N+1 なし）。
  * 空配列は常に true。割り当て対象の妥当性チェックに使う。
  */
-async function allInstructorsExist(
-  db: Database,
-  ids: string[]
-): Promise<boolean> {
+async function allInstructorsExist(db: Database, ids: string[]): Promise<boolean> {
   if (ids.length === 0) {
     return true;
   }
@@ -82,11 +74,7 @@ async function allInstructorsExist(
  * shifts × departments × shiftTypes を JOIN し、割り当てを別クエリでまとめて付与する。
  * 週次/月次ビューが共有する読み取りロジック。
  */
-async function loadShiftView(
-  db: Database,
-  from: Date,
-  to: Date
-): Promise<ShiftViewItem[]> {
+async function loadShiftView(db: Database, from: Date, to: Date): Promise<ShiftViewItem[]> {
   const shiftRows = await db
     .select({
       id: shifts.id,
@@ -102,11 +90,7 @@ async function loadShiftView(
     .innerJoin(departments, eq(departments.id, shifts.departmentId))
     .innerJoin(shiftTypes, eq(shiftTypes.id, shifts.shiftTypeId))
     .where(and(gte(shifts.date, from), lte(shifts.date, to)))
-    .orderBy(
-      asc(shifts.date),
-      asc(shifts.departmentId),
-      asc(shifts.shiftTypeId)
-    );
+    .orderBy(asc(shifts.date), asc(shifts.departmentId), asc(shifts.shiftTypeId));
 
   const shiftIds = shiftRows.map((s) => s.id);
   const assignRows =
@@ -119,18 +103,12 @@ async function loadShiftView(
             firstName: instructors.firstName,
           })
           .from(shiftAssignments)
-          .innerJoin(
-            instructors,
-            eq(instructors.id, shiftAssignments.instructorId)
-          )
+          .innerJoin(instructors, eq(instructors.id, shiftAssignments.instructorId))
           .where(inArray(shiftAssignments.shiftId, shiftIds))
       : [];
 
   // shiftId → 割り当て済み Instructor（表示名付き）のマップを1パスで構築する
-  const assignedByShift = new Map<
-    string,
-    { id: string; displayName: string }[]
-  >();
+  const assignedByShift = new Map<string, { id: string; displayName: string }[]>();
   for (const row of assignRows) {
     const list = assignedByShift.get(row.shiftId) ?? [];
     list.push({
@@ -186,10 +164,7 @@ export const shiftsRoute = new Hono<{
         .from(shiftTypes)
         .where(eq(shiftTypes.isActive, true))
         .orderBy(asc(shiftTypes.name)),
-      db
-        .select({ value: count() })
-        .from(instructors)
-        .where(eq(instructors.status, 'ACTIVE')),
+      db.select({ value: count() }).from(instructors).where(eq(instructors.status, 'ACTIVE')),
     ]);
 
     const activeInstructorsCount = activeCountRows[0]?.value ?? 0;
@@ -236,8 +211,8 @@ export const shiftsRoute = new Hono<{
         and(
           eq(shifts.date, date),
           eq(shifts.departmentId, departmentId),
-          eq(shifts.shiftTypeId, shiftTypeId)
-        )
+          eq(shifts.shiftTypeId, shiftTypeId),
+        ),
       )
       .limit(1);
 
@@ -267,18 +242,15 @@ export const shiftsRoute = new Hono<{
       .from(instructors)
       .innerJoin(
         instructorCertifications,
-        eq(instructorCertifications.instructorId, instructors.id)
+        eq(instructorCertifications.instructorId, instructors.id),
       )
-      .innerJoin(
-        certifications,
-        eq(certifications.id, instructorCertifications.certificationId)
-      )
+      .innerJoin(certifications, eq(certifications.id, instructorCertifications.certificationId))
       .where(
         and(
           eq(instructors.status, 'ACTIVE'),
           eq(certifications.departmentId, departmentId),
-          eq(certifications.isActive, true)
-        )
+          eq(certifications.isActive, true),
+        ),
       )
       .orderBy(asc(instructors.lastName), asc(instructors.firstName));
 
@@ -295,7 +267,7 @@ export const shiftsRoute = new Hono<{
       .where(
         existingShift
           ? and(eq(shifts.date, date), ne(shifts.id, existingShift.id))
-          : eq(shifts.date, date)
+          : eq(shifts.date, date),
       );
 
     const otherShiftIds = otherShiftRows.map((s) => s.id);
@@ -509,7 +481,7 @@ export const shiftsRoute = new Hono<{
       shiftRows.map((s) => ({
         ...s,
         assignedInstructorIds: assignedByShift.get(s.id) ?? [],
-      }))
+      })),
     );
   })
   /** シフトを1件取得する（割り当て済み Instructor ID 付き） */
@@ -517,11 +489,7 @@ export const shiftsRoute = new Hono<{
     const db = createDb(c.env.DB);
     const id = c.req.param('id');
 
-    const [shift] = await db
-      .select()
-      .from(shifts)
-      .where(eq(shifts.id, id))
-      .limit(1);
+    const [shift] = await db.select().from(shifts).where(eq(shifts.id, id)).limit(1);
 
     if (!shift) {
       throw new HTTPException(404, { message: 'Shift not found' });
@@ -581,7 +549,7 @@ export const shiftsRoute = new Hono<{
             })
             .returning(),
           ...uniqueInstructorIds.map((instructorId) =>
-            db.insert(shiftAssignments).values({ shiftId, instructorId })
+            db.insert(shiftAssignments).values({ shiftId, instructorId }),
           ),
         ]);
 
@@ -589,20 +557,16 @@ export const shiftsRoute = new Hono<{
         if (!created) {
           throw new HTTPException(500, { message: 'Failed to create shift' });
         }
-        return c.json(
-          { ...created, assignedInstructorIds: uniqueInstructorIds },
-          201
-        );
+        return c.json({ ...created, assignedInstructorIds: uniqueInstructorIds }, 201);
       } catch (err) {
         if (isUniqueViolation(err)) {
           throw new HTTPException(409, {
-            message:
-              'Shift already exists for this date, department, and shift type',
+            message: 'Shift already exists for this date, department, and shift type',
           });
         }
         throw err;
       }
-    }
+    },
   )
   /**
    * シフトを更新する（MANAGER 以上）。
@@ -625,24 +589,15 @@ export const shiftsRoute = new Hono<{
       const db = createDb(c.env.DB);
       const id = c.req.param('id');
 
-      const [existing] = await db
-        .select()
-        .from(shifts)
-        .where(eq(shifts.id, id))
-        .limit(1);
+      const [existing] = await db.select().from(shifts).where(eq(shifts.id, id)).limit(1);
 
       if (!existing) {
         throw new HTTPException(404, { message: 'Shift not found' });
       }
 
       const uniqueInstructorIds =
-        input.instructorIds !== undefined
-          ? [...new Set(input.instructorIds)]
-          : undefined;
-      if (
-        uniqueInstructorIds &&
-        !(await allInstructorsExist(db, uniqueInstructorIds))
-      ) {
+        input.instructorIds !== undefined ? [...new Set(input.instructorIds)] : undefined;
+      if (uniqueInstructorIds && !(await allInstructorsExist(db, uniqueInstructorIds))) {
         throw new HTTPException(400, {
           message: 'One or more instructors do not exist',
         });
@@ -655,21 +610,15 @@ export const shiftsRoute = new Hono<{
       const assignmentStatements =
         uniqueInstructorIds !== undefined
           ? [
-              db
-                .delete(shiftAssignments)
-                .where(eq(shiftAssignments.shiftId, id)),
+              db.delete(shiftAssignments).where(eq(shiftAssignments.shiftId, id)),
               ...uniqueInstructorIds.map((instructorId) =>
-                db.insert(shiftAssignments).values({ shiftId: id, instructorId })
+                db.insert(shiftAssignments).values({ shiftId: id, instructorId }),
               ),
             ]
           : [];
 
       const result = await db.batch([
-        db
-          .update(shifts)
-          .set({ description: newDescription })
-          .where(eq(shifts.id, id))
-          .returning(),
+        db.update(shifts).set({ description: newDescription }).where(eq(shifts.id, id)).returning(),
         ...assignmentStatements,
       ]);
 
@@ -691,7 +640,7 @@ export const shiftsRoute = new Hono<{
       }
 
       return c.json({ ...updated, assignedInstructorIds });
-    }
+    },
   )
   /** シフトを削除する（MANAGER 以上・割り当てはカスケード削除） */
   .delete('/:id', requireAuth, requireRole('MANAGER'), async (c) => {

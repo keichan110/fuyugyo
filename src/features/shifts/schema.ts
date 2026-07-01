@@ -78,10 +78,9 @@ export const updateShiftSchema = z
     /** 割り当てる Instructor の ID 群（指定時は割り当てを総入れ替えする） */
     instructorIds: z.array(z.string().min(1)).optional(),
   })
-  .refine(
-    (v) => v.description !== undefined || v.instructorIds !== undefined,
-    { message: '更新するフィールドを1つ以上指定してください' }
-  );
+  .refine((v) => v.description !== undefined || v.instructorIds !== undefined, {
+    message: '更新するフィールドを1つ以上指定してください',
+  });
 
 export type UpdateShiftInput = z.infer<typeof updateShiftSchema>;
 

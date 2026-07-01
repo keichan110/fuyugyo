@@ -1,5 +1,6 @@
 import { env } from 'cloudflare:test';
 import { beforeEach, describe, expect, it } from 'vitest';
+
 import { shiftViewResponseSchema } from '../src/features/shifts/schema';
 import app from '../src/index';
 import { signJwt } from '../src/server/auth/jwt';
@@ -8,8 +9,8 @@ import {
   departments,
   instructors,
   shiftAssignments,
-  shiftTypes,
   shifts,
+  shiftTypes,
   users,
 } from '../src/server/db/schema';
 import type { Env } from '../src/server/types';
@@ -51,16 +52,13 @@ async function seedToken(role: 'MANAGER' | 'MEMBER' = 'MEMBER'): Promise<string>
       isActive: true,
     },
     env.JWT_SECRET,
-    env.JWT_EXPIRES_IN
+    env.JWT_EXPIRES_IN,
   );
 }
 
 async function seedDepartment(name: string, code: string): Promise<string> {
   const db = createDb(env.DB);
-  const [dept] = await db
-    .insert(departments)
-    .values({ code, name, isActive: true })
-    .returning();
+  const [dept] = await db.insert(departments).values({ code, name, isActive: true }).returning();
   if (!dept) {
     throw new Error('seedDepartment: insert failed');
   }
@@ -69,10 +67,7 @@ async function seedDepartment(name: string, code: string): Promise<string> {
 
 async function seedShiftType(name = '終日'): Promise<string> {
   const db = createDb(env.DB);
-  const [st] = await db
-    .insert(shiftTypes)
-    .values({ name, isActive: true })
-    .returning();
+  const [st] = await db.insert(shiftTypes).values({ name, isActive: true }).returning();
   if (!st) {
     throw new Error('seedShiftType: insert failed');
   }
@@ -96,7 +91,7 @@ async function seedShift(
   dateStr: string,
   departmentId: string,
   shiftTypeId: string,
-  instructorIds: string[] = []
+  instructorIds: string[] = [],
 ): Promise<string> {
   const db = createDb(env.DB);
   const shiftId = crypto.randomUUID();
@@ -142,7 +137,7 @@ describe('GET /api/shifts/weekly-view', () => {
     const res = await app.request(
       '/api/shifts/weekly-view?dateFrom=2026-01-13',
       authHeader(token),
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(200);
     const body = shiftViewResponseSchema.parse(await res.json());
@@ -158,9 +153,7 @@ describe('GET /api/shifts/weekly-view', () => {
     // 割り当て済み Instructor が表示名付きで含まれる
     const first = body.shifts[0];
     expect(first?.assignedInstructors).toHaveLength(2);
-    expect(first?.assignedInstructors.map((i) => i.displayName)).toContain(
-      '山田 太郎'
-    );
+    expect(first?.assignedInstructors.map((i) => i.displayName)).toContain('山田 太郎');
   });
 
   it('該当シフトが無くても期間付きの空サマリを返す', async () => {
@@ -168,7 +161,7 @@ describe('GET /api/shifts/weekly-view', () => {
     const res = await app.request(
       '/api/shifts/weekly-view?dateFrom=2026-03-02',
       authHeader(token),
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(200);
     const body = shiftViewResponseSchema.parse(await res.json());
@@ -183,26 +176,18 @@ describe('GET /api/shifts/weekly-view', () => {
 
   it('dateFrom が無い・不正形式は 400 を返す', async () => {
     const token = await seedToken('MEMBER');
-    const missing = await app.request(
-      '/api/shifts/weekly-view',
-      authHeader(token),
-      envWith({})
-    );
+    const missing = await app.request('/api/shifts/weekly-view', authHeader(token), envWith({}));
     expect(missing.status).toBe(400);
     const bad = await app.request(
       '/api/shifts/weekly-view?dateFrom=2026/01/13',
       authHeader(token),
-      envWith({})
+      envWith({}),
     );
     expect(bad.status).toBe(400);
   });
 
   it('未認証は 401 を返す', async () => {
-    const res = await app.request(
-      '/api/shifts/weekly-view?dateFrom=2026-01-13',
-      {},
-      envWith({})
-    );
+    const res = await app.request('/api/shifts/weekly-view?dateFrom=2026-01-13', {}, envWith({}));
     expect(res.status).toBe(401);
   });
 });
@@ -226,7 +211,7 @@ describe('GET /api/shifts/monthly-view', () => {
     const res = await app.request(
       '/api/shifts/monthly-view?month=2026-01',
       authHeader(token),
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(200);
     const body = shiftViewResponseSchema.parse(await res.json());
@@ -246,23 +231,19 @@ describe('GET /api/shifts/monthly-view', () => {
     const bad = await app.request(
       '/api/shifts/monthly-view?month=2026-1',
       authHeader(token),
-      envWith({})
+      envWith({}),
     );
     expect(bad.status).toBe(400);
     const outOfRange = await app.request(
       '/api/shifts/monthly-view?month=2026-13',
       authHeader(token),
-      envWith({})
+      envWith({}),
     );
     expect(outOfRange.status).toBe(400);
   });
 
   it('未認証は 401 を返す', async () => {
-    const res = await app.request(
-      '/api/shifts/monthly-view?month=2026-01',
-      {},
-      envWith({})
-    );
+    const res = await app.request('/api/shifts/monthly-view?month=2026-01', {}, envWith({}));
     expect(res.status).toBe(401);
   });
 });

@@ -1,32 +1,28 @@
 import { and, eq, gt, isNull, or, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
+
 import {
   AUTH_COOKIE,
   authCookieOptions,
   SESSION_COOKIE,
   sessionCookieOptions,
 } from '@/server/auth/cookies';
-import {
-  type JwtPayload,
-  signJwt,
-  type UserRole,
-  VALID_ROLES,
-} from '@/server/auth/jwt';
+import { signJwt, VALID_ROLES, type JwtPayload, type UserRole } from '@/server/auth/jwt';
 import {
   buildLineAuthUrl,
   exchangeCodeForToken,
   fetchLineUserProfile,
   generateState,
+  validateState,
   type LineConfig,
   type LineUserProfile,
-  validateState,
 } from '@/server/auth/line';
 import { durationToSeconds } from '@/server/auth/roles';
-import { type AuthVariables, requireAuth } from '@/server/middleware/auth';
-import { rateLimit } from '@/server/middleware/rate-limit';
 import { createDb, type Database } from '@/server/db/client';
 import { invitationTokens, users } from '@/server/db/schema';
+import { requireAuth, type AuthVariables } from '@/server/middleware/auth';
+import { rateLimit } from '@/server/middleware/rate-limit';
 import type { Env } from '@/server/types';
 
 /**
@@ -99,10 +95,7 @@ function toJwtPayload(user: {
  *
  * @returns 招待が有効で消費できたら true
  */
-async function consumeInvitation(
-  db: Database,
-  token: string
-): Promise<boolean> {
+async function consumeInvitation(db: Database, token: string): Promise<boolean> {
   const now = new Date();
   const result = await db
     .update(invitationTokens)
@@ -114,9 +107,9 @@ async function consumeInvitation(
         gt(invitationTokens.expiresAt, now),
         or(
           isNull(invitationTokens.maxUses),
-          gt(invitationTokens.maxUses, invitationTokens.usedCount)
-        )
-      )
+          gt(invitationTokens.maxUses, invitationTokens.usedCount),
+        ),
+      ),
     );
   return result.meta.rows_written > 0;
 }
@@ -125,11 +118,8 @@ async function consumeInvitation(
 async function getOrCreateUser(
   db: Database,
   profile: LineUserProfile,
-  inviteToken: string | undefined
-): Promise<
-  | { ok: true; user: typeof users.$inferSelect }
-  | { ok: false; reason: string }
-> {
+  inviteToken: string | undefined,
+): Promise<{ ok: true; user: typeof users.$inferSelect } | { ok: false; reason: string }> {
   const [existing] = await db
     .select()
     .from(users)
@@ -139,10 +129,7 @@ async function getOrCreateUser(
   if (existing) {
     // 表示名・画像に変更があれば追従する
     const nextPicture = profile.pictureUrl ?? null;
-    if (
-      existing.displayName !== profile.displayName ||
-      existing.pictureUrl !== nextPicture
-    ) {
+    if (existing.displayName !== profile.displayName || existing.pictureUrl !== nextPicture) {
       const [updated] = await db
         .update(users)
         .set({ displayName: profile.displayName, pictureUrl: nextPicture })
@@ -202,7 +189,7 @@ export const authRoute = new Hono<{
       c,
       SESSION_COOKIE,
       JSON.stringify(session),
-      sessionCookieOptions(isProduction(c.env))
+      sessionCookieOptions(isProduction(c.env)),
     );
 
     const authUrl = buildLineAuthUrl(lineConfig(c.env), state, inviteToken);
@@ -259,18 +246,9 @@ export const authRoute = new Hono<{
     }
 
     // JWT 発行（12h）→ Cookie に載せてログインセッションとする
-    const token = await signJwt(
-      toJwtPayload(result.user),
-      c.env.JWT_SECRET,
-      c.env.JWT_EXPIRES_IN
-    );
+    const token = await signJwt(toJwtPayload(result.user), c.env.JWT_SECRET, c.env.JWT_EXPIRES_IN);
     const maxAge = durationToSeconds(c.env.JWT_EXPIRES_IN);
-    setCookie(
-      c,
-      AUTH_COOKIE,
-      token,
-      authCookieOptions(maxAge, isProduction(c.env))
-    );
+    setCookie(c, AUTH_COOKIE, token, authCookieOptions(maxAge, isProduction(c.env)));
     deleteCookie(c, SESSION_COOKIE, { path: '/' });
 
     const redirectPath = safeRedirectPath(session.redirectUrl);
@@ -289,11 +267,7 @@ export const authRoute = new Hono<{
   .get('/me', requireAuth, async (c) => {
     const { userId } = c.get('user');
     const db = createDb(c.env.DB);
-    const [user] = await db
-      .select()
-      .from(users)
-      .where(eq(users.id, userId))
-      .limit(1);
+    const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
 
     if (!user) {
       return c.json({ message: 'User not found' }, 404);

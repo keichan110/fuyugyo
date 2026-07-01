@@ -1,16 +1,13 @@
 import { env } from 'cloudflare:test';
 import { Hono } from 'hono';
 import { beforeEach, describe, expect, it } from 'vitest';
+
 import { meResponseSchema } from '../src/features/auth/schema';
 import app from '../src/index';
 import { signJwt, type UserRole } from '../src/server/auth/jwt';
-import {
-  type AuthVariables,
-  requireAuth,
-  requireRole,
-} from '../src/server/middleware/auth';
 import { createDb } from '../src/server/db/client';
 import { users } from '../src/server/db/schema';
+import { requireAuth, requireRole, type AuthVariables } from '../src/server/middleware/auth';
 import type { Env } from '../src/server/types';
 
 /**
@@ -63,7 +60,7 @@ async function seedUser(overrides: Partial<typeof users.$inferInsert> = {}) {
 async function tokenFor(
   user: { id: string; lineUserId: string; displayName: string },
   role: UserRole,
-  isActive = true
+  isActive = true,
 ) {
   return await signJwt(
     {
@@ -74,7 +71,7 @@ async function tokenFor(
       isActive,
     },
     env.JWT_SECRET,
-    env.JWT_EXPIRES_IN
+    env.JWT_EXPIRES_IN,
   );
 }
 
@@ -88,7 +85,7 @@ describe('GET /api/auth/line/login', () => {
     const res = await app.request(
       '/api/auth/line/login?redirect=/shifts',
       {},
-      envWith({ AUTH_RATE_LIMITER: makeRateLimiter(20) })
+      envWith({ AUTH_RATE_LIMITER: makeRateLimiter(20) }),
     );
 
     expect(res.status).toBe(302);
@@ -109,11 +106,7 @@ describe('GET /api/auth/me', () => {
     const user = await seedUser({ role: 'MANAGER' });
     const token = await tokenFor(user, 'MANAGER');
 
-    const res = await app.request(
-      '/api/auth/me',
-      cookieHeader(token),
-      envWith({})
-    );
+    const res = await app.request('/api/auth/me', cookieHeader(token), envWith({}));
 
     expect(res.status).toBe(200);
     const body = meResponseSchema.parse(await res.json());
@@ -126,11 +119,7 @@ describe('GET /api/auth/me', () => {
     const user = await seedUser({ isActive: false });
     const token = await tokenFor(user, 'MEMBER', false);
 
-    const res = await app.request(
-      '/api/auth/me',
-      cookieHeader(token),
-      envWith({})
-    );
+    const res = await app.request('/api/auth/me', cookieHeader(token), envWith({}));
 
     expect(res.status).toBe(403);
   });
@@ -142,39 +131,27 @@ describe('ロールミドルウェア（requireRole）', () => {
     '/protected',
     requireAuth,
     requireRole('MANAGER'),
-    (c) => c.json({ ok: true } as const)
+    (c) => c.json({ ok: true } as const),
   );
 
   it('MEMBER は 403 で拒否される', async () => {
     const user = await seedUser({ role: 'MEMBER' });
     const token = await tokenFor(user, 'MEMBER');
-    const res = await roleApp.request(
-      '/protected',
-      cookieHeader(token),
-      envWith({})
-    );
+    const res = await roleApp.request('/protected', cookieHeader(token), envWith({}));
     expect(res.status).toBe(403);
   });
 
   it('MANAGER は通過する', async () => {
     const user = await seedUser({ role: 'MANAGER' });
     const token = await tokenFor(user, 'MANAGER');
-    const res = await roleApp.request(
-      '/protected',
-      cookieHeader(token),
-      envWith({})
-    );
+    const res = await roleApp.request('/protected', cookieHeader(token), envWith({}));
     expect(res.status).toBe(200);
   });
 
   it('ADMIN は通過する（上位ロール）', async () => {
     const user = await seedUser({ role: 'ADMIN' });
     const token = await tokenFor(user, 'ADMIN');
-    const res = await roleApp.request(
-      '/protected',
-      cookieHeader(token),
-      envWith({})
-    );
+    const res = await roleApp.request('/protected', cookieHeader(token), envWith({}));
     expect(res.status).toBe(200);
   });
 });
@@ -205,11 +182,7 @@ describe('Rate Limit（認証系のみ）', () => {
 
 describe('POST /api/auth/logout', () => {
   it('JWT Cookie を破棄してセッションを終了する', async () => {
-    const res = await app.request(
-      '/api/auth/logout',
-      { method: 'POST' },
-      envWith({})
-    );
+    const res = await app.request('/api/auth/logout', { method: 'POST' }, envWith({}));
 
     expect(res.status).toBe(200);
     const setCookie = res.headers.get('set-cookie') ?? '';

@@ -1,11 +1,9 @@
 import { useState } from 'react';
+
 import { Button } from '@/components/ui/button';
 import { useDepartments } from '@/features/departments/queries';
-import {
-  useCertifications,
-  useDeactivateCertification,
-  useUpdateCertification,
-} from '../queries';
+
+import { useCertifications, useDeactivateCertification, useUpdateCertification } from '../queries';
 import { CertificationForm } from './CertificationForm';
 
 /**
@@ -23,20 +21,16 @@ export function CertificationList() {
   return (
     <section className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <h2 className="font-bold text-xl">資格管理</h2>
+        <h2 className="text-xl font-bold">資格管理</h2>
         <Button onClick={() => setShowForm((prev) => !prev)}>
           {showForm ? 'キャンセル' : '資格を追加'}
         </Button>
       </div>
 
-      {showForm && (
-        <CertificationForm onSuccess={() => setShowForm(false)} />
-      )}
+      {showForm && <CertificationForm onSuccess={() => setShowForm(false)} />}
 
       {isLoading && <p className="text-muted-foreground text-sm">読み込み中…</p>}
-      {isError && (
-        <p className="text-red-600 text-sm">資格一覧の取得に失敗しました</p>
-      )}
+      {isError && <p className="text-sm text-red-600">資格一覧の取得に失敗しました</p>}
 
       {data && data.length === 0 && (
         <p className="text-muted-foreground text-sm">資格がありません</p>
@@ -102,14 +96,14 @@ function CertificationItemDisplay({
   const deactivate = useDeactivateCertification();
 
   return (
-    <li className="flex flex-col gap-2 rounded-md border border-border bg-card p-4">
+    <li className="border-border bg-card flex flex-col gap-2 rounded-md border p-4">
       <div className="flex items-start justify-between gap-2">
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-2">
             <span className="font-medium">{name}</span>
-            <span className="font-mono text-sm text-muted-foreground">({shortName})</span>
+            <span className="text-muted-foreground font-mono text-sm">({shortName})</span>
             {!isActive && (
-              <span className="rounded bg-muted px-1.5 py-0.5 text-muted-foreground text-xs">
+              <span className="bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-xs">
                 無効
               </span>
             )}
@@ -117,9 +111,7 @@ function CertificationItemDisplay({
           <p className="text-muted-foreground text-sm">
             {departmentName} ／ {organization}
           </p>
-          {description && (
-            <p className="text-muted-foreground text-sm">{description}</p>
-          )}
+          {description && <p className="text-muted-foreground text-sm">{description}</p>}
         </div>
         {isActive && (
           <div className="flex shrink-0 items-center gap-2">
@@ -137,9 +129,7 @@ function CertificationItemDisplay({
           </div>
         )}
       </div>
-      {deactivate.isError && (
-        <p className="text-red-600 text-sm">{deactivate.error.message}</p>
-      )}
+      {deactivate.isError && <p className="text-sm text-red-600">{deactivate.error.message}</p>}
     </li>
   );
 }
@@ -172,12 +162,12 @@ function CertificationItemEdit({
         organization: editOrganization,
         description: editDescription || null,
       },
-      { onSuccess: onCancel }
+      { onSuccess: onCancel },
     );
   };
 
   return (
-    <li className="flex flex-col gap-2 rounded-md border border-border bg-card p-4">
+    <li className="border-border bg-card flex flex-col gap-2 rounded-md border p-4">
       <form onSubmit={handleUpdate} className="flex flex-col gap-2">
         <div className="flex gap-2">
           <input
@@ -188,7 +178,7 @@ function CertificationItemEdit({
             maxLength={100}
             placeholder="資格名"
             autoFocus
-            className="flex-1 rounded-md border border-input bg-background px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            className="border-input bg-background focus-visible:ring-ring flex-1 rounded-md border px-3 py-1.5 text-sm focus-visible:ring-1 focus-visible:outline-none"
           />
           <input
             type="text"
@@ -197,7 +187,7 @@ function CertificationItemEdit({
             required
             maxLength={20}
             placeholder="省略名"
-            className="w-24 rounded-md border border-input bg-background px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            className="border-input bg-background focus-visible:ring-ring w-24 rounded-md border px-3 py-1.5 text-sm focus-visible:ring-1 focus-visible:outline-none"
           />
         </div>
         <input
@@ -207,7 +197,7 @@ function CertificationItemEdit({
           required
           maxLength={100}
           placeholder="発行団体"
-          className="rounded-md border border-input bg-background px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          className="border-input bg-background focus-visible:ring-ring rounded-md border px-3 py-1.5 text-sm focus-visible:ring-1 focus-visible:outline-none"
         />
         <textarea
           value={editDescription}
@@ -215,7 +205,7 @@ function CertificationItemEdit({
           maxLength={500}
           rows={2}
           placeholder="説明（任意）"
-          className="rounded-md border border-input bg-background px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
+          className="border-input bg-background focus-visible:ring-ring resize-none rounded-md border px-3 py-1.5 text-sm focus-visible:ring-1 focus-visible:outline-none"
         />
         <div className="flex gap-2">
           <Button type="submit" size="sm" disabled={update.isPending}>
@@ -226,9 +216,7 @@ function CertificationItemEdit({
           </Button>
         </div>
       </form>
-      {update.isError && (
-        <p className="text-red-600 text-sm">{update.error.message}</p>
-      )}
+      {update.isError && <p className="text-sm text-red-600">{update.error.message}</p>}
     </li>
   );
 }

@@ -2,14 +2,13 @@ import { eq } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { validator } from 'hono/validator';
-import { type AuthVariables, requireAuth, requireRole } from '@/server/middleware/auth';
+
 import { createDb } from '@/server/db/client';
 import { departments } from '@/server/db/schema';
+import { requireAuth, requireRole, type AuthVariables } from '@/server/middleware/auth';
 import type { Env } from '@/server/types';
-import {
-  createDepartmentSchema,
-  updateDepartmentSchema,
-} from './schema';
+
+import { createDepartmentSchema, updateDepartmentSchema } from './schema';
 
 /** SQLite UNIQUE 制約違反かどうかを判定する。Drizzle が DrizzleQueryError でラップするため cause も確認する */
 function isUniqueViolation(e: unknown): boolean {
@@ -35,10 +34,7 @@ export const departmentsRoute = new Hono<{
     const activeOnly = c.req.query('active') !== 'false';
 
     const rows = activeOnly
-      ? await db
-          .select()
-          .from(departments)
-          .where(eq(departments.isActive, true))
+      ? await db.select().from(departments).where(eq(departments.isActive, true))
       : await db.select().from(departments);
 
     return c.json(rows);
@@ -95,7 +91,7 @@ export const departmentsRoute = new Hono<{
         }
         throw err;
       }
-    }
+    },
   )
   /** 部門情報を更新する（MANAGER 以上） */
   .patch(
@@ -127,9 +123,7 @@ export const departmentsRoute = new Hono<{
         .update(departments)
         .set({
           ...(input.name !== undefined ? { name: input.name } : {}),
-          ...(input.description !== undefined
-            ? { description: input.description }
-            : {}),
+          ...(input.description !== undefined ? { description: input.description } : {}),
         })
         .where(eq(departments.id, c.req.param('id')))
         .returning();
@@ -138,7 +132,7 @@ export const departmentsRoute = new Hono<{
         throw new HTTPException(500, { message: 'Failed to update department' });
       }
       return c.json(updated);
-    }
+    },
   )
   /**
    * 部門を無効化する（isActive=false）（MANAGER 以上）。

@@ -1,5 +1,7 @@
 import { useState } from 'react';
+
 import { Button } from '@/components/ui/button';
+
 import { useCreateShiftType } from '../queries';
 
 type Props = {
@@ -15,16 +17,13 @@ export function ShiftTypeForm({ onSuccess }: Props) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    create.mutate(
-      { name },
-      onSuccess ? { onSuccess } : undefined
-    );
+    create.mutate({ name }, onSuccess ? { onSuccess } : undefined);
   };
 
   return (
     <form
       onSubmit={handleSubmit}
-      className="flex flex-col gap-3 rounded-md border border-border bg-card p-4"
+      className="border-border bg-card flex flex-col gap-3 rounded-md border p-4"
     >
       <div className="flex flex-col gap-1">
         <label htmlFor="shift-type-name" className="text-sm font-medium">
@@ -38,13 +37,11 @@ export function ShiftTypeForm({ onSuccess }: Props) {
           required
           maxLength={100}
           placeholder="例: 終日、午前、午後"
-          className="rounded-md border border-input bg-background px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          className="border-input bg-background focus-visible:ring-ring rounded-md border px-3 py-1.5 text-sm focus-visible:ring-1 focus-visible:outline-none"
         />
       </div>
 
-      {create.isError && (
-        <p className="text-red-600 text-sm">{create.error.message}</p>
-      )}
+      {create.isError && <p className="text-sm text-red-600">{create.error.message}</p>}
 
       <Button type="submit" disabled={create.isPending}>
         {create.isPending ? '作成中…' : '作成'}

@@ -39,43 +39,30 @@ export function WeeklyView({ dateFrom, shifts }: WeeklyViewProps) {
       {days.map((day) => {
         const dayShifts = byDate.get(day) ?? [];
         return (
-          <li
-            key={day}
-            className="rounded-md border border-border bg-card p-3"
-          >
-            <div className={`font-medium text-sm ${weekdayClass(day)}`}>
-              {shortDateLabel(day)}
-            </div>
+          <li key={day} className="border-border bg-card rounded-md border p-3">
+            <div className={`text-sm font-medium ${weekdayClass(day)}`}>{shortDateLabel(day)}</div>
             {dayShifts.length === 0 ? (
-              <p className="mt-1 text-muted-foreground text-xs">シフトなし</p>
+              <p className="text-muted-foreground mt-1 text-xs">シフトなし</p>
             ) : (
               <ul className="mt-2 flex flex-col gap-1.5">
                 {dayShifts.map((shift) => (
                   <li
                     key={shift.id}
-                    className="rounded border border-border/60 bg-background p-2 text-sm"
+                    className="border-border/60 bg-background rounded border p-2 text-sm"
                   >
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                       <span className="font-medium">{shift.department.name}</span>
-                      <span className="text-muted-foreground text-xs">
-                        {shift.shiftType.name}
-                      </span>
+                      <span className="text-muted-foreground text-xs">{shift.shiftType.name}</span>
                     </div>
                     {shift.assignedInstructors.length > 0 ? (
-                      <p className="mt-0.5 text-muted-foreground text-xs">
-                        {shift.assignedInstructors
-                          .map((inst) => inst.displayName)
-                          .join('、')}
+                      <p className="text-muted-foreground mt-0.5 text-xs">
+                        {shift.assignedInstructors.map((inst) => inst.displayName).join('、')}
                       </p>
                     ) : (
-                      <p className="mt-0.5 text-muted-foreground text-xs">
-                        割り当てなし
-                      </p>
+                      <p className="text-muted-foreground mt-0.5 text-xs">割り当てなし</p>
                     )}
                     {shift.description && (
-                      <p className="mt-0.5 text-muted-foreground text-xs">
-                        {shift.description}
-                      </p>
+                      <p className="text-muted-foreground mt-0.5 text-xs">{shift.description}</p>
                     )}
                   </li>
                 ))}

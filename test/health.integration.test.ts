@@ -1,5 +1,6 @@
 import { env } from 'cloudflare:test';
 import { describe, expect, it } from 'vitest';
+
 import { healthResponseSchema } from '../src/features/health/schema';
 import app from '../src/index';
 

@@ -1,5 +1,6 @@
 import { env } from 'cloudflare:test';
 import { beforeEach, describe, expect, it } from 'vitest';
+
 import { departmentListSchema, departmentSchema } from '../src/features/departments/schema';
 import app from '../src/index';
 import { signJwt } from '../src/server/auth/jwt';
@@ -50,7 +51,7 @@ async function seedManagerToken(): Promise<string> {
       isActive: true,
     },
     env.JWT_SECRET,
-    env.JWT_EXPIRES_IN
+    env.JWT_EXPIRES_IN,
   );
 }
 
@@ -77,7 +78,7 @@ async function seedMemberToken(): Promise<string> {
       isActive: true,
     },
     env.JWT_SECRET,
-    env.JWT_EXPIRES_IN
+    env.JWT_EXPIRES_IN,
   );
 }
 
@@ -123,11 +124,7 @@ describe('GET /api/departments', () => {
     await db.insert(departments).values({ code: 'snow', name: 'スノーボード', isActive: false });
 
     const token = await seedManagerToken();
-    const res = await app.request(
-      '/api/departments?active=false',
-      authHeader(token),
-      envWith({})
-    );
+    const res = await app.request('/api/departments?active=false', authHeader(token), envWith({}));
 
     expect(res.status).toBe(200);
     const body = departmentListSchema.parse(await res.json());
@@ -138,18 +135,11 @@ describe('GET /api/departments', () => {
 describe('GET /api/departments/:id', () => {
   it('存在する部門を返す', async () => {
     const db = createDb(env.DB);
-    const [dept] = await db
-      .insert(departments)
-      .values({ code: 'ski', name: 'スキー' })
-      .returning();
+    const [dept] = await db.insert(departments).values({ code: 'ski', name: 'スキー' }).returning();
     if (!dept) throw new Error('insert failed');
 
     const token = await seedManagerToken();
-    const res = await app.request(
-      `/api/departments/${dept.id}`,
-      authHeader(token),
-      envWith({})
-    );
+    const res = await app.request(`/api/departments/${dept.id}`, authHeader(token), envWith({}));
 
     expect(res.status).toBe(200);
     const body = departmentSchema.parse(await res.json());
@@ -163,7 +153,7 @@ describe('GET /api/departments/:id', () => {
     const res = await app.request(
       '/api/departments/nonexistent-id',
       authHeader(token),
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(404);
   });
@@ -175,7 +165,7 @@ describe('POST /api/departments', () => {
     const res = await app.request(
       '/api/departments',
       { method: 'POST', ...authJsonRequest(token, { code: 'ski', name: 'スキー' }) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(403);
   });
@@ -192,7 +182,7 @@ describe('POST /api/departments', () => {
           description: 'スキー部門',
         }),
       },
-      envWith({})
+      envWith({}),
     );
 
     expect(res.status).toBe(201);
@@ -209,7 +199,7 @@ describe('POST /api/departments', () => {
       app.request(
         '/api/departments',
         { method: 'POST', ...authJsonRequest(token, { code: 'ski', name: 'スキー' }) },
-        envWith({})
+        envWith({}),
       );
 
     const first = await create();
@@ -224,7 +214,7 @@ describe('POST /api/departments', () => {
     const res = await app.request(
       '/api/departments',
       { method: 'POST', ...authJsonRequest(token, { code: '', name: 'スキー' }) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(400);
   });
@@ -233,10 +223,7 @@ describe('POST /api/departments', () => {
 describe('PATCH /api/departments/:id', () => {
   it('name と description を更新できる', async () => {
     const db = createDb(env.DB);
-    const [dept] = await db
-      .insert(departments)
-      .values({ code: 'ski', name: 'スキー' })
-      .returning();
+    const [dept] = await db.insert(departments).values({ code: 'ski', name: 'スキー' }).returning();
     if (!dept) throw new Error('insert failed');
 
     const token = await seedManagerToken();
@@ -246,7 +233,7 @@ describe('PATCH /api/departments/:id', () => {
         method: 'PATCH',
         ...authJsonRequest(token, { name: 'アルペンスキー', description: '更新済み' }),
       },
-      envWith({})
+      envWith({}),
     );
 
     expect(res.status).toBe(200);
@@ -262,24 +249,21 @@ describe('PATCH /api/departments/:id', () => {
     const res = await app.request(
       '/api/departments/nonexistent-id',
       { method: 'PATCH', ...authJsonRequest(token, { name: '変更後' }) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(404);
   });
 
   it('更新フィールドが1つもない空ボディは 400 を返す', async () => {
     const db = createDb(env.DB);
-    const [dept] = await db
-      .insert(departments)
-      .values({ code: 'ski', name: 'スキー' })
-      .returning();
+    const [dept] = await db.insert(departments).values({ code: 'ski', name: 'スキー' }).returning();
     if (!dept) throw new Error('insert failed');
 
     const token = await seedManagerToken();
     const res = await app.request(
       `/api/departments/${dept.id}`,
       { method: 'PATCH', ...authJsonRequest(token, {}) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(400);
   });
@@ -298,7 +282,7 @@ describe('POST /api/departments/:id/deactivate', () => {
     const res = await app.request(
       `/api/departments/${dept.id}/deactivate`,
       { method: 'POST', ...authHeader(token) },
-      envWith({})
+      envWith({}),
     );
 
     expect(res.status).toBe(200);
@@ -306,11 +290,7 @@ describe('POST /api/departments/:id/deactivate', () => {
     expect(body.isActive).toBe(false);
 
     // 無効化後は通常の一覧（アクティブのみ）に出ない
-    const listRes = await app.request(
-      '/api/departments',
-      authHeader(token),
-      envWith({})
-    );
+    const listRes = await app.request('/api/departments', authHeader(token), envWith({}));
     const list = departmentListSchema.parse(await listRes.json());
     expect(list.find((d) => d.id === dept.id)).toBeUndefined();
   });
@@ -320,24 +300,21 @@ describe('POST /api/departments/:id/deactivate', () => {
     const res = await app.request(
       '/api/departments/nonexistent-id/deactivate',
       { method: 'POST', ...authHeader(token) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(404);
   });
 
   it('MEMBER は 403 で拒否される', async () => {
     const db = createDb(env.DB);
-    const [dept] = await db
-      .insert(departments)
-      .values({ code: 'ski', name: 'スキー' })
-      .returning();
+    const [dept] = await db.insert(departments).values({ code: 'ski', name: 'スキー' }).returning();
     if (!dept) throw new Error('insert failed');
 
     const token = await seedMemberToken();
     const res = await app.request(
       `/api/departments/${dept.id}/deactivate`,
       { method: 'POST', ...authHeader(token) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(403);
   });

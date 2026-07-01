@@ -50,7 +50,7 @@ function toSecretKey(secret: string): Uint8Array {
 export async function signJwt(
   payload: JwtPayload,
   secret: string,
-  expiresIn: string
+  expiresIn: string,
 ): Promise<string> {
   const claims: JwtClaims = payload;
   return await new SignJWT({ ...claims })
@@ -64,14 +64,11 @@ export async function signJwt(
 
 /** JWT 検証結果 */
 export type JwtVerifyResult =
-  | { success: true; payload: JwtPayload }
-  | { success: false; error: string };
+  { success: true; payload: JwtPayload } | { success: false; error: string };
 
 /** role 値が UserRole か判定する */
 function isUserRole(value: unknown): value is UserRole {
-  return (
-    typeof value === 'string' && VALID_ROLES.includes(value as UserRole)
-  );
+  return typeof value === 'string' && VALID_ROLES.includes(value as UserRole);
 }
 
 /**
@@ -99,10 +96,7 @@ function parsePayload(claims: Record<string, unknown>): JwtPayload | null {
  * @param secret - 署名用シークレット（`c.env.JWT_SECRET`）
  * @returns 検証結果
  */
-export async function verifyJwt(
-  token: string,
-  secret: string
-): Promise<JwtVerifyResult> {
+export async function verifyJwt(token: string, secret: string): Promise<JwtVerifyResult> {
   if (!token) {
     return { success: false, error: 'Token is required' };
   }

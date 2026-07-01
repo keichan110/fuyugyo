@@ -1,8 +1,4 @@
-import type {
-  D1Database,
-  Fetcher,
-  RateLimit,
-} from '@cloudflare/workers-types';
+import type { D1Database, Fetcher, RateLimit } from '@cloudflare/workers-types';
 
 /**
  * Worker のバインディング型。Hono の `Bindings` および各 `c.env` の型として使う。

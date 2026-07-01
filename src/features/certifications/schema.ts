@@ -52,7 +52,7 @@ export const updateCertificationSchema = z
       v.shortName !== undefined ||
       v.organization !== undefined ||
       v.description !== undefined,
-    { message: '更新するフィールドを1つ以上指定してください' }
+    { message: '更新するフィールドを1つ以上指定してください' },
   );
 
 export type UpdateCertificationInput = z.infer<typeof updateCertificationSchema>;

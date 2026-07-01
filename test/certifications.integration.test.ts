@@ -1,5 +1,6 @@
 import { env } from 'cloudflare:test';
 import { beforeEach, describe, expect, it } from 'vitest';
+
 import {
   certificationListSchema,
   certificationSchema,
@@ -53,7 +54,7 @@ async function seedManagerToken(): Promise<string> {
       isActive: true,
     },
     env.JWT_SECRET,
-    env.JWT_EXPIRES_IN
+    env.JWT_EXPIRES_IN,
   );
 }
 
@@ -80,7 +81,7 @@ async function seedMemberToken(): Promise<string> {
       isActive: true,
     },
     env.JWT_SECRET,
-    env.JWT_EXPIRES_IN
+    env.JWT_EXPIRES_IN,
   );
 }
 
@@ -166,7 +167,7 @@ describe('GET /api/certifications', () => {
     const res = await app.request(
       '/api/certifications?active=false',
       authHeader(token),
-      envWith({})
+      envWith({}),
     );
 
     expect(res.status).toBe(200);
@@ -200,7 +201,7 @@ describe('GET /api/certifications', () => {
     const res = await app.request(
       `/api/certifications?departmentId=${deptId1}`,
       authHeader(token),
-      envWith({})
+      envWith({}),
     );
 
     expect(res.status).toBe(200);
@@ -226,11 +227,7 @@ describe('GET /api/certifications/:id', () => {
     if (!cert) throw new Error('insert failed');
 
     const token = await seedManagerToken();
-    const res = await app.request(
-      `/api/certifications/${cert.id}`,
-      authHeader(token),
-      envWith({})
-    );
+    const res = await app.request(`/api/certifications/${cert.id}`, authHeader(token), envWith({}));
 
     expect(res.status).toBe(200);
     const body = certificationSchema.parse(await res.json());
@@ -245,7 +242,7 @@ describe('GET /api/certifications/:id', () => {
     const res = await app.request(
       '/api/certifications/nonexistent-id',
       authHeader(token),
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(404);
   });
@@ -266,7 +263,7 @@ describe('POST /api/certifications', () => {
           organization: '全日本スキー連盟',
         }),
       },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(403);
   });
@@ -286,7 +283,7 @@ describe('POST /api/certifications', () => {
           description: 'スキー部門の指導員資格',
         }),
       },
-      envWith({})
+      envWith({}),
     );
 
     expect(res.status).toBe(201);
@@ -312,7 +309,7 @@ describe('POST /api/certifications', () => {
           organization: '全日本スキー連盟',
         }),
       },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(404);
   });
@@ -331,7 +328,7 @@ describe('POST /api/certifications', () => {
           organization: '全日本スキー連盟',
         }),
       },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(400);
   });
@@ -364,7 +361,7 @@ describe('PATCH /api/certifications/:id', () => {
           description: '更新済み',
         }),
       },
-      envWith({})
+      envWith({}),
     );
 
     expect(res.status).toBe(200);
@@ -382,7 +379,7 @@ describe('PATCH /api/certifications/:id', () => {
     const res = await app.request(
       '/api/certifications/nonexistent-id',
       { method: 'PATCH', ...authJsonRequest(token, { name: '変更後' }) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(404);
   });
@@ -405,7 +402,7 @@ describe('PATCH /api/certifications/:id', () => {
     const res = await app.request(
       `/api/certifications/${cert.id}`,
       { method: 'PATCH', ...authJsonRequest(token, {}) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(400);
   });
@@ -428,7 +425,7 @@ describe('PATCH /api/certifications/:id', () => {
     const res = await app.request(
       `/api/certifications/${cert.id}`,
       { method: 'PATCH', ...authJsonRequest(token, { name: '変更後' }) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(403);
   });
@@ -454,7 +451,7 @@ describe('POST /api/certifications/:id/deactivate', () => {
     const res = await app.request(
       `/api/certifications/${cert.id}/deactivate`,
       { method: 'POST', ...authHeader(token) },
-      envWith({})
+      envWith({}),
     );
 
     expect(res.status).toBe(200);
@@ -462,11 +459,7 @@ describe('POST /api/certifications/:id/deactivate', () => {
     expect(body.isActive).toBe(false);
 
     // 無効化後は通常の一覧（アクティブのみ）に出ない
-    const listRes = await app.request(
-      '/api/certifications',
-      authHeader(token),
-      envWith({})
-    );
+    const listRes = await app.request('/api/certifications', authHeader(token), envWith({}));
     const list = certificationListSchema.parse(await listRes.json());
     expect(list.find((c) => c.id === cert.id)).toBeUndefined();
   });
@@ -476,7 +469,7 @@ describe('POST /api/certifications/:id/deactivate', () => {
     const res = await app.request(
       '/api/certifications/nonexistent-id/deactivate',
       { method: 'POST', ...authHeader(token) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(404);
   });
@@ -499,7 +492,7 @@ describe('POST /api/certifications/:id/deactivate', () => {
     const res = await app.request(
       `/api/certifications/${cert.id}/deactivate`,
       { method: 'POST', ...authHeader(token) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(403);
   });

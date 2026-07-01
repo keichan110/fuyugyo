@@ -2,12 +2,14 @@ import { eq } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { validator } from 'hono/validator';
+
 import { durationToSeconds } from '@/server/auth/roles';
-import { type AuthVariables, requireAuth, requireRole } from '@/server/middleware/auth';
-import { rateLimit } from '@/server/middleware/rate-limit';
 import { createDb } from '@/server/db/client';
 import { invitationTokens } from '@/server/db/schema';
+import { requireAuth, requireRole, type AuthVariables } from '@/server/middleware/auth';
+import { rateLimit } from '@/server/middleware/rate-limit';
 import type { Env } from '@/server/types';
+
 import { createInvitationSchema } from './schema';
 
 /**
@@ -59,7 +61,7 @@ export const invitationsRoute = new Hono<{
         throw new HTTPException(500, { message: 'Failed to create invitation' });
       }
       return c.json(created, 201);
-    }
+    },
   )
   /** 招待トークン一覧を返す（ADMIN/MANAGER のみ）。アクティブ・失効済みを含む全件 */
   .get('/', requireAuth, requireRole('MANAGER'), async (c) => {

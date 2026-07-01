@@ -11,9 +11,7 @@ import type { ShiftViewItem, ShiftViewSummary } from './schema';
  * @param shifts - 整形済みシフト配列
  * @returns 部門名をキー、シフト件数を値とするオブジェクト（同名部門は合算）
  */
-export function aggregateByDepartment(
-  shifts: ShiftViewItem[]
-): Record<string, number> {
+export function aggregateByDepartment(shifts: ShiftViewItem[]): Record<string, number> {
   const byDepartment: Record<string, number> = {};
   for (const shift of shifts) {
     const name = shift.department.name;
@@ -28,10 +26,7 @@ export function aggregateByDepartment(
  * @returns 割り当て総数
  */
 export function calculateTotalAssignments(shifts: ShiftViewItem[]): number {
-  return shifts.reduce(
-    (sum, shift) => sum + shift.assignedInstructors.length,
-    0
-  );
+  return shifts.reduce((sum, shift) => sum + shift.assignedInstructors.length, 0);
 }
 
 /**
@@ -42,7 +37,7 @@ export function calculateTotalAssignments(shifts: ShiftViewItem[]): number {
  */
 export function summarizeShifts(
   shifts: ShiftViewItem[],
-  dateRange: { from: string; to: string }
+  dateRange: { from: string; to: string },
 ): ShiftViewSummary {
   return {
     totalShifts: shifts.length,

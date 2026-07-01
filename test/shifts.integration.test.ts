@@ -1,5 +1,6 @@
 import { env } from 'cloudflare:test';
 import { beforeEach, describe, expect, it } from 'vitest';
+
 import {
   shiftEditDataSchema,
   shiftFormDataSchema,
@@ -15,8 +16,8 @@ import {
   instructorCertifications,
   instructors,
   shiftAssignments,
-  shiftTypes,
   shifts,
+  shiftTypes,
   users,
 } from '../src/server/db/schema';
 import type { Env } from '../src/server/types';
@@ -67,7 +68,7 @@ async function seedToken(role: 'MANAGER' | 'MEMBER'): Promise<string> {
       isActive: true,
     },
     env.JWT_SECRET,
-    env.JWT_EXPIRES_IN
+    env.JWT_EXPIRES_IN,
   );
 }
 
@@ -85,20 +86,14 @@ async function seedDepartment(name = 'スキー', isActive = true): Promise<stri
 
 async function seedShiftType(name = '終日', isActive = true): Promise<string> {
   const db = createDb(env.DB);
-  const [st] = await db
-    .insert(shiftTypes)
-    .values({ name, isActive })
-    .returning();
+  const [st] = await db.insert(shiftTypes).values({ name, isActive }).returning();
   if (!st) {
     throw new Error('seedShiftType: insert failed');
   }
   return st.id;
 }
 
-async function seedCertification(
-  departmentId: string,
-  name = 'スキー指導員'
-): Promise<string> {
+async function seedCertification(departmentId: string, name = 'スキー指導員'): Promise<string> {
   const db = createDb(env.DB);
   const [cert] = await db
     .insert(certifications)
@@ -119,13 +114,10 @@ async function seedCertification(
 async function seedInstructor(
   lastName = '山田',
   firstName = '太郎',
-  status: 'ACTIVE' | 'INACTIVE' = 'ACTIVE'
+  status: 'ACTIVE' | 'INACTIVE' = 'ACTIVE',
 ): Promise<string> {
   const db = createDb(env.DB);
-  const [inst] = await db
-    .insert(instructors)
-    .values({ lastName, firstName, status })
-    .returning();
+  const [inst] = await db.insert(instructors).values({ lastName, firstName, status }).returning();
   if (!inst) {
     throw new Error('seedInstructor: insert failed');
   }
@@ -133,14 +125,9 @@ async function seedInstructor(
 }
 
 /** Instructor に Certification を割り当てる（edit-data の候補に載せるため） */
-async function linkCertification(
-  instructorId: string,
-  certificationId: string
-): Promise<void> {
+async function linkCertification(instructorId: string, certificationId: string): Promise<void> {
   const db = createDb(env.DB);
-  await db
-    .insert(instructorCertifications)
-    .values({ instructorId, certificationId });
+  await db.insert(instructorCertifications).values({ instructorId, certificationId });
 }
 
 /** 全 shift_assignments の件数を数える（原子性検証用） */
@@ -178,7 +165,7 @@ describe('POST /api/shifts', () => {
           shiftTypeId: 's',
         }),
       },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(401);
   });
@@ -197,7 +184,7 @@ describe('POST /api/shifts', () => {
           shiftTypeId: stId,
         }),
       },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(403);
   });
@@ -221,7 +208,7 @@ describe('POST /api/shifts', () => {
           instructorIds: [inst1, inst2],
         }),
       },
-      envWith({})
+      envWith({}),
     );
 
     expect(res.status).toBe(201);
@@ -250,7 +237,7 @@ describe('POST /api/shifts', () => {
           shiftTypeId: stId,
         }),
       },
-      envWith({})
+      envWith({}),
     );
 
     expect(res.status).toBe(201);
@@ -274,7 +261,7 @@ describe('POST /api/shifts', () => {
           shiftTypeId: stId,
         }),
       },
-      envWith({})
+      envWith({}),
     );
     expect(first.status).toBe(201);
 
@@ -288,7 +275,7 @@ describe('POST /api/shifts', () => {
           shiftTypeId: stId,
         }),
       },
-      envWith({})
+      envWith({}),
     );
     expect(dup.status).toBe(409);
   });
@@ -310,7 +297,7 @@ describe('POST /api/shifts', () => {
           shiftTypeId: stId,
         }),
       },
-      envWith({})
+      envWith({}),
     );
     expect(await countAssignments()).toBe(0);
 
@@ -326,7 +313,7 @@ describe('POST /api/shifts', () => {
           instructorIds: [inst],
         }),
       },
-      envWith({})
+      envWith({}),
     );
     expect(dup.status).toBe(409);
     // 半端な割り当てが残っていないこと（原子性）
@@ -349,7 +336,7 @@ describe('POST /api/shifts', () => {
           instructorIds: ['nonexistent-instructor'],
         }),
       },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(400);
     expect(await countAssignments()).toBe(0);
@@ -370,7 +357,7 @@ describe('POST /api/shifts', () => {
           shiftTypeId: stId,
         }),
       },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(400);
   });
@@ -384,7 +371,7 @@ describe('GET /api/shifts', () => {
     date: string,
     deptId: string,
     stId: string,
-    instructorIds: string[] = []
+    instructorIds: string[] = [],
   ): Promise<string> {
     const res = await app.request(
       '/api/shifts',
@@ -397,7 +384,7 @@ describe('GET /api/shifts', () => {
           instructorIds,
         }),
       },
-      envWith({})
+      envWith({}),
     );
     const body = shiftWithAssignmentsSchema.parse(await res.json());
     return body.id;
@@ -428,7 +415,7 @@ describe('GET /api/shifts', () => {
     const res = await app.request(
       '/api/shifts?dateFrom=2026-01-15&dateTo=2026-01-31',
       authHeader(token),
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(200);
     const body = shiftListSchema.parse(await res.json());
@@ -461,15 +448,11 @@ describe('GET /api/shifts/:id', () => {
           instructorIds: [inst],
         }),
       },
-      envWith({})
+      envWith({}),
     );
     const created = shiftWithAssignmentsSchema.parse(await createRes.json());
 
-    const res = await app.request(
-      `/api/shifts/${created.id}`,
-      authHeader(token),
-      envWith({})
-    );
+    const res = await app.request(`/api/shifts/${created.id}`, authHeader(token), envWith({}));
     expect(res.status).toBe(200);
     const body = shiftWithAssignmentsSchema.parse(await res.json());
     expect(body.id).toBe(created.id);
@@ -478,11 +461,7 @@ describe('GET /api/shifts/:id', () => {
 
   it('存在しない ID は 404 を返す', async () => {
     const token = await seedToken('MANAGER');
-    const res = await app.request(
-      '/api/shifts/nonexistent',
-      authHeader(token),
-      envWith({})
-    );
+    const res = await app.request('/api/shifts/nonexistent', authHeader(token), envWith({}));
     expect(res.status).toBe(404);
   });
 });
@@ -494,7 +473,7 @@ describe('PATCH /api/shifts/:id', () => {
     token: string,
     deptId: string,
     stId: string,
-    instructorIds: string[] = []
+    instructorIds: string[] = [],
   ): Promise<string> {
     const res = await app.request(
       '/api/shifts',
@@ -507,7 +486,7 @@ describe('PATCH /api/shifts/:id', () => {
           instructorIds,
         }),
       },
-      envWith({})
+      envWith({}),
     );
     const body = shiftWithAssignmentsSchema.parse(await res.json());
     return body.id;
@@ -524,7 +503,7 @@ describe('PATCH /api/shifts/:id', () => {
     const res = await app.request(
       `/api/shifts/${shiftId}`,
       { method: 'PATCH', ...authJsonRequest(token, { instructorIds: [inst2] }) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(200);
     const body = shiftWithAssignmentsSchema.parse(await res.json());
@@ -543,7 +522,7 @@ describe('PATCH /api/shifts/:id', () => {
     const res = await app.request(
       `/api/shifts/${shiftId}`,
       { method: 'PATCH', ...authJsonRequest(token, { instructorIds: [] }) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(200);
     const body = shiftWithAssignmentsSchema.parse(await res.json());
@@ -561,7 +540,7 @@ describe('PATCH /api/shifts/:id', () => {
     const res = await app.request(
       `/api/shifts/${shiftId}`,
       { method: 'PATCH', ...authJsonRequest(token, { description: '更新済み' }) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(200);
     const body = shiftWithAssignmentsSchema.parse(await res.json());
@@ -578,7 +557,7 @@ describe('PATCH /api/shifts/:id', () => {
     const res = await app.request(
       `/api/shifts/${shiftId}`,
       { method: 'PATCH', ...authJsonRequest(token, {}) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(400);
   });
@@ -588,7 +567,7 @@ describe('PATCH /api/shifts/:id', () => {
     const res = await app.request(
       '/api/shifts/nonexistent',
       { method: 'PATCH', ...authJsonRequest(token, { description: 'x' }) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(404);
   });
@@ -603,7 +582,7 @@ describe('PATCH /api/shifts/:id', () => {
     const res = await app.request(
       `/api/shifts/${shiftId}`,
       { method: 'PATCH', ...authJsonRequest(member, { description: 'x' }) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(403);
   });
@@ -628,23 +607,19 @@ describe('DELETE /api/shifts/:id', () => {
           instructorIds: [inst],
         }),
       },
-      envWith({})
+      envWith({}),
     );
     const created = shiftWithAssignmentsSchema.parse(await createRes.json());
 
     const res = await app.request(
       `/api/shifts/${created.id}`,
       { method: 'DELETE', ...authHeader(token) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(200);
     expect(await countAssignments()).toBe(0);
 
-    const getRes = await app.request(
-      `/api/shifts/${created.id}`,
-      authHeader(token),
-      envWith({})
-    );
+    const getRes = await app.request(`/api/shifts/${created.id}`, authHeader(token), envWith({}));
     expect(getRes.status).toBe(404);
   });
 
@@ -653,7 +628,7 @@ describe('DELETE /api/shifts/:id', () => {
     const res = await app.request(
       '/api/shifts/nonexistent',
       { method: 'DELETE', ...authHeader(token) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(404);
   });
@@ -672,7 +647,7 @@ describe('DELETE /api/shifts/:id', () => {
           shiftTypeId: stId,
         }),
       },
-      envWith({})
+      envWith({}),
     );
     const created = shiftWithAssignmentsSchema.parse(await createRes.json());
     const member = await seedToken('MEMBER');
@@ -680,7 +655,7 @@ describe('DELETE /api/shifts/:id', () => {
     const res = await app.request(
       `/api/shifts/${created.id}`,
       { method: 'DELETE', ...authHeader(member) },
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(403);
   });
@@ -698,11 +673,7 @@ describe('GET /api/shifts/form-data', () => {
     await seedInstructor('鈴木', '花子', 'INACTIVE');
     const token = await seedToken('MEMBER');
 
-    const res = await app.request(
-      '/api/shifts/form-data',
-      authHeader(token),
-      envWith({})
-    );
+    const res = await app.request('/api/shifts/form-data', authHeader(token), envWith({}));
     expect(res.status).toBe(200);
     const body = shiftFormDataSchema.parse(await res.json());
     expect(body.departments).toHaveLength(1);
@@ -734,7 +705,7 @@ describe('GET /api/shifts/edit-data', () => {
     const res = await app.request(
       `/api/shifts/edit-data?date=2026-01-15&departmentId=${deptId}&shiftTypeId=${stId}`,
       authHeader(token),
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(200);
     const body = shiftEditDataSchema.parse(await res.json());
@@ -765,13 +736,13 @@ describe('GET /api/shifts/edit-data', () => {
           instructorIds: [inst],
         }),
       },
-      envWith({})
+      envWith({}),
     );
 
     const res = await app.request(
       `/api/shifts/edit-data?date=2026-01-15&departmentId=${deptId}&shiftTypeId=${stId}`,
       authHeader(token),
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(200);
     const body = shiftEditDataSchema.parse(await res.json());
@@ -792,7 +763,7 @@ describe('GET /api/shifts/edit-data', () => {
     const res = await app.request(
       `/api/shifts/edit-data?date=2026-01-15&departmentId=${deptSki}&shiftTypeId=${stId}`,
       authHeader(token),
-      envWith({})
+      envWith({}),
     );
     const body = shiftEditDataSchema.parse(await res.json());
     expect(body.availableInstructors).toHaveLength(0);
@@ -819,14 +790,14 @@ describe('GET /api/shifts/edit-data', () => {
           instructorIds: [inst],
         }),
       },
-      envWith({})
+      envWith({}),
     );
 
     // 午後シフトの編集データでは午前が競合として現れる
     const res = await app.request(
       `/api/shifts/edit-data?date=2026-01-15&departmentId=${deptId}&shiftTypeId=${stAfternoon}`,
       authHeader(token),
-      envWith({})
+      envWith({}),
     );
     const body = shiftEditDataSchema.parse(await res.json());
     expect(body.availableInstructors[0]?.hasConflict).toBe(true);
@@ -840,7 +811,7 @@ describe('GET /api/shifts/edit-data', () => {
     const res = await app.request(
       '/api/shifts/edit-data?date=2026-01-15',
       authHeader(token),
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(400);
   });
@@ -852,7 +823,7 @@ describe('GET /api/shifts/edit-data', () => {
     const res = await app.request(
       `/api/shifts/edit-data?date=2026-01-15&departmentId=${deptId}&shiftTypeId=${stId}`,
       authHeader(token),
-      envWith({})
+      envWith({}),
     );
     expect(res.status).toBe(403);
   });

@@ -37,6 +37,11 @@
     "tailwind-merge": "^3.6.0",
     "zod": "^4.4.3"
   },
+  "overrides": {
+    "@esbuild-kit/core-utils": {
+      "esbuild": "0.25.12"
+    }
+  },
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.42.3",
     "@cloudflare/vitest-pool-workers": "^0.16.20",

@@ -23,5 +23,5 @@
     }
   },
   "include": ["src", "vite.config.ts", "drizzle.config.ts"],
-  "exclude": ["node_modules", "legacy", "dist", "test", "vitest.config.ts"]
+  "exclude": ["node_modules", "dist", "test", "vitest.config.ts"]
 }

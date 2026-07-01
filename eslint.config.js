@@ -8,7 +8,6 @@ export default tseslint.config(
   {
     ignores: [
       'dist/**',
-      'legacy/**',
       'node_modules/**',
       'coverage/**',
       'drizzle/**',

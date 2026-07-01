@@ -29,7 +29,7 @@ npm run dev          # 開発サーバー起動（Vite + Cloudflare Workers）
 npm run build        # プロダクションビルド（typecheck含む）
 npm run preview      # ビルド結果のプレビュー
 npm run deploy       # ビルド + Cloudflare Workers デプロイ
-npm run format       # Prettier コード整形
+npm run format       # Prettier コード整形（hooks で自動実行されるため手動不要）
 npm run format:check # Prettier 整形チェック
 ```
 

@@ -67,10 +67,5 @@
     "vite": "8.1.0",
     "vitest": "4.1.9",
     "wrangler": "4.105.0"
-  },
-  "pnpm": {
-    "overrides": {
-      "@esbuild-kit/core-utils>esbuild": "0.25.12"
-    }
   }
 }

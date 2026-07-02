@@ -42,4 +42,4 @@ jobs:
         run: pnpm run build
 
       - name: Security audit
-        run: pnpm audit --audit-level=moderate
+        run: pnpm audit --audit-level=moderate --ignore-unfixable

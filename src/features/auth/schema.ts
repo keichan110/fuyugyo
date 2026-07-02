@@ -23,3 +23,10 @@ export const meResponseSchema = z.object({
 });
 
 export type MeResponse = z.infer<typeof meResponseSchema>;
+
+/** `POST /api/auth/me/link-instructor` のリクエスト契約 */
+export const linkInstructorSchema = z.object({
+  instructorId: z.string().min(1),
+});
+
+export type LinkInstructorInput = z.infer<typeof linkInstructorSchema>;

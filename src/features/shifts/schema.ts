@@ -51,8 +51,16 @@ export const shiftWithAssignmentsSchema = shiftSchema.extend({
 
 export type ShiftWithAssignments = z.infer<typeof shiftWithAssignmentsSchema>;
 
-/** Shift 一覧レスポンス（各 Shift に割り当て済み Instructor ID を含む） */
-export const shiftListSchema = z.array(shiftWithAssignmentsSchema);
+/** Shift 一覧の1件（部門名・シフト種別名を JOIN で同梱） */
+export const shiftListItemSchema = shiftWithAssignmentsSchema.extend({
+  departmentName: z.string(),
+  shiftTypeName: z.string(),
+});
+
+export type ShiftListItem = z.infer<typeof shiftListItemSchema>;
+
+/** Shift 一覧レスポンス（各 Shift に割り当て済み Instructor ID・部門名・シフト種別名を含む） */
+export const shiftListSchema = z.array(shiftListItemSchema);
 
 /** Shift 作成リクエスト */
 export const createShiftSchema = z.object({

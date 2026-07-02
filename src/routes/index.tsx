@@ -1,10 +1,12 @@
+import { Container, Stack, Title } from '@mantine/core';
 import { createFileRoute, redirect } from '@tanstack/react-router';
 
 import { ensureAuthenticated } from '@/features/auth/auth-guard';
-import { todayString } from '@/features/shifts/view-utils';
+import { InstructorLinkPanel } from '@/features/dashboard/components/InstructorLinkPanel';
+import { UpcomingShifts } from '@/features/dashboard/components/UpcomingShifts';
 
 /**
- * ルートパス。ダッシュボード実装（Phase 2）までの暫定措置として `/shifts` へリダイレクトする（#157）。
+ * ダッシュボード（ルートパス）。直近の勤務予定とインストラクター連携を表示する（#157）。
  */
 export const Route = createFileRoute('/')({
   beforeLoad: async ({ context }) => {
@@ -12,6 +14,18 @@ export const Route = createFileRoute('/')({
     if (!result.authenticated) {
       throw redirect({ to: result.loginTo });
     }
-    throw redirect({ to: '/shifts', search: { view: 'weekly', date: todayString() } });
   },
+  component: DashboardPage,
 });
+
+function DashboardPage() {
+  return (
+    <Container size="sm" py="md">
+      <Stack gap="md">
+        <Title order={2}>ダッシュボード</Title>
+        <InstructorLinkPanel />
+        <UpcomingShifts />
+      </Stack>
+    </Container>
+  );
+}

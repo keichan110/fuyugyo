@@ -422,6 +422,56 @@ describe('GET /api/shifts', () => {
     expect(body).toHaveLength(1);
   });
 
+  it('部門名・シフト種別名を JOIN で同梱する', async () => {
+    const deptId = await seedDepartment('スキー');
+    const stId = await seedShiftType('終日');
+    const token = await seedToken('MANAGER');
+    await createShift(token, '2026-01-15', deptId, stId);
+
+    const res = await app.request('/api/shifts', authHeader(token), envWith({}));
+    expect(res.status).toBe(200);
+    const body = shiftListSchema.parse(await res.json());
+    expect(body[0]?.departmentName).toBe('スキー');
+    expect(body[0]?.shiftTypeName).toBe('終日');
+  });
+
+  it('instructorId で絞り込むと、その Instructor が割り当てられたシフトのみ返す', async () => {
+    const deptId = await seedDepartment();
+    const stId = await seedShiftType();
+    const inst1 = await seedInstructor('山田', '太郎');
+    const inst2 = await seedInstructor('鈴木', '花子');
+    const token = await seedToken('MANAGER');
+    const shift1Id = await createShift(token, '2026-01-10', deptId, stId, [inst1]);
+    await createShift(token, '2026-01-20', deptId, stId, [inst2]);
+
+    const res = await app.request(
+      `/api/shifts?instructorId=${inst1}`,
+      authHeader(token),
+      envWith({}),
+    );
+    expect(res.status).toBe(200);
+    const body = shiftListSchema.parse(await res.json());
+    expect(body).toHaveLength(1);
+    expect(body[0]?.id).toBe(shift1Id);
+  });
+
+  it('割り当てのない instructorId を指定すると空配列を返す', async () => {
+    const deptId = await seedDepartment();
+    const stId = await seedShiftType();
+    const inst = await seedInstructor();
+    const token = await seedToken('MANAGER');
+    await createShift(token, '2026-01-10', deptId, stId);
+
+    const res = await app.request(
+      `/api/shifts?instructorId=${inst}`,
+      authHeader(token),
+      envWith({}),
+    );
+    expect(res.status).toBe(200);
+    const body = shiftListSchema.parse(await res.json());
+    expect(body).toHaveLength(0);
+  });
+
   it('未認証は 401 を返す', async () => {
     const res = await app.request('/api/shifts', {}, envWith({}));
     expect(res.status).toBe(401);

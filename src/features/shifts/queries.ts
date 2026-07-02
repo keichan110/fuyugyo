@@ -12,6 +12,7 @@ import {
   type CreateShiftInput,
   type ShiftEditData,
   type ShiftFormData,
+  type ShiftListItem,
   type ShiftViewResponse,
   type ShiftWithAssignments,
   type UpdateShiftInput,
@@ -32,10 +33,11 @@ export type ShiftEditDataParams = {
 
 /**
  * シフト一覧を取得する。
- * @param params - `dateFrom`/`dateTo`（YYYY-MM-DD）で期間を絞り込める
+ * @param params - `dateFrom`/`dateTo`（YYYY-MM-DD）で期間を、`instructorId` で
+ * その Instructor が割り当てられたシフトのみに絞り込める
  */
-export function useShifts(params?: { dateFrom?: string; dateTo?: string }) {
-  return useQuery<ShiftWithAssignments[]>({
+export function useShifts(params?: { dateFrom?: string; dateTo?: string; instructorId?: string }) {
+  return useQuery<ShiftListItem[]>({
     queryKey: [...SHIFTS_QUERY_KEY, 'list', params ?? {}],
     queryFn: async () => {
       const query: Record<string, string> = {};
@@ -44,6 +46,9 @@ export function useShifts(params?: { dateFrom?: string; dateTo?: string }) {
       }
       if (params?.dateTo) {
         query['dateTo'] = params.dateTo;
+      }
+      if (params?.instructorId) {
+        query['instructorId'] = params.instructorId;
       }
 
       const res = await client.api.shifts.$get({ query });

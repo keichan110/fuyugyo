@@ -430,13 +430,15 @@ export const shiftsRoute = new Hono<{
     });
   })
   /**
-   * シフト一覧を返す。`dateFrom`/`dateTo`（YYYY-MM-DD）で期間を絞り込める。
-   * 各 Shift に割り当て済み Instructor ID を付与する（N+1 なし）。
+   * シフト一覧を返す。`dateFrom`/`dateTo`（YYYY-MM-DD）で期間を、`instructorId` で
+   * その Instructor が割り当てられたシフトのみに絞り込める。
+   * 部門・シフト種別名を JOIN で同梱し、割り当て済み Instructor ID を付与する（N+1 なし）。
    */
   .get('/', requireAuth, async (c) => {
     const db = createDb(c.env.DB);
     const dateFrom = c.req.query('dateFrom');
     const dateTo = c.req.query('dateTo');
+    const instructorId = c.req.query('instructorId');
 
     const conditions = [];
     if (dateFrom && dateStringSchema.safeParse(dateFrom).success) {
@@ -445,15 +447,38 @@ export const shiftsRoute = new Hono<{
     if (dateTo && dateStringSchema.safeParse(dateTo).success) {
       conditions.push(lte(shifts.date, parseShiftDate(dateTo)));
     }
+    if (instructorId) {
+      const assignedShiftRows = await db
+        .select({ shiftId: shiftAssignments.shiftId })
+        .from(shiftAssignments)
+        .where(eq(shiftAssignments.instructorId, instructorId));
+      const assignedShiftIds = assignedShiftRows.map((r) => r.shiftId);
+      if (assignedShiftIds.length === 0) {
+        return c.json([]);
+      }
+      conditions.push(inArray(shifts.id, assignedShiftIds));
+    }
+
+    const baseQuery = db
+      .select({
+        id: shifts.id,
+        date: shifts.date,
+        departmentId: shifts.departmentId,
+        shiftTypeId: shifts.shiftTypeId,
+        description: shifts.description,
+        createdAt: shifts.createdAt,
+        updatedAt: shifts.updatedAt,
+        departmentName: departments.name,
+        shiftTypeName: shiftTypes.name,
+      })
+      .from(shifts)
+      .innerJoin(departments, eq(departments.id, shifts.departmentId))
+      .innerJoin(shiftTypes, eq(shiftTypes.id, shifts.shiftTypeId));
 
     const shiftRows =
       conditions.length > 0
-        ? await db
-            .select()
-            .from(shifts)
-            .where(and(...conditions))
-            .orderBy(asc(shifts.date))
-        : await db.select().from(shifts).orderBy(asc(shifts.date));
+        ? await baseQuery.where(and(...conditions)).orderBy(asc(shifts.date))
+        : await baseQuery.orderBy(asc(shifts.date));
 
     const shiftIds = shiftRows.map((s) => s.id);
     const assignRows =

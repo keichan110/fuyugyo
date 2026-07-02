@@ -1,8 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { z } from 'zod';
 
 import { client } from '@/lib/rpc';
 
-import { meResponseSchema, type MeResponse } from './schema';
+import { meResponseSchema, type LinkInstructorInput, type MeResponse } from './schema';
+
+/** API エラーレスポンスのスキーマ（型アサーションを避けるためランタイム検証する） */
+const apiErrorSchema = z.object({ message: z.string().optional() });
 
 /** 認証状態のクエリキー */
 export const ME_QUERY_KEY = ['auth', 'me'] as const;
@@ -41,6 +45,48 @@ export function useLogout() {
     },
     onSuccess: () => {
       queryClient.setQueryData(ME_QUERY_KEY, null);
+    },
+  });
+}
+
+/**
+ * 自分自身を Instructor にリンクするミューテーション（セルフサービス）。
+ * 成功後は返却された最新の User で認証状態キャッシュを直接更新する。
+ */
+export function useLinkInstructor() {
+  const queryClient = useQueryClient();
+  return useMutation<MeResponse, Error, LinkInstructorInput>({
+    mutationFn: async (input) => {
+      const res = await client.api.auth.me['link-instructor'].$post({ json: input });
+      if (!res.ok) {
+        const body = apiErrorSchema.parse(await res.json());
+        throw new Error(body.message ?? 'インストラクターの連携に失敗しました');
+      }
+      return meResponseSchema.parse(await res.json());
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData(ME_QUERY_KEY, data);
+    },
+  });
+}
+
+/**
+ * 自分自身の Instructor リンクを解除するミューテーション（セルフサービス）。
+ * 成功後は返却された最新の User で認証状態キャッシュを直接更新する。
+ */
+export function useUnlinkInstructor() {
+  const queryClient = useQueryClient();
+  return useMutation<MeResponse, Error, void>({
+    mutationFn: async () => {
+      const res = await client.api.auth.me['link-instructor'].$delete();
+      if (!res.ok) {
+        const body = apiErrorSchema.parse(await res.json());
+        throw new Error(body.message ?? 'インストラクターの連携解除に失敗しました');
+      }
+      return meResponseSchema.parse(await res.json());
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData(ME_QUERY_KEY, data);
     },
   });
 }

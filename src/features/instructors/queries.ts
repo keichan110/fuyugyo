@@ -59,6 +59,7 @@ export function useInstructor(id: string) {
       }
       return instructorWithCertificationsSchema.parse(await res.json());
     },
+    enabled: !!id,
   });
 }
 

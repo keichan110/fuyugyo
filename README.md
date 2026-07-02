@@ -4,160 +4,180 @@
 
 ## 技術スタック
 
-- **フレームワーク**: Next.js 15.1 (App Router)
-- **言語**: TypeScript 5.7 (厳格設定)
-- **Runtime要件**: Node.js >=22.0.0
-- **データベース**: Prisma ORM 6.2 + SQLite
-- **スタイリング**: Tailwind CSS 3.4 + shadcn/ui, Radix UI
-- **状態管理**: TanStack Query 5.85
-- **開発ツール**: ESLint 9.17, Prettier 3.6, Jest 29.7
-- **UI拡張**: Vaul（drawer），React Day Picker，Lucide React
-- **その他**: Zod（バリデーション），date-fns，japanese-holidays
+- **Runtime**: Cloudflare Workers + D1 (SQLite)
+- **API サーバー**: Hono
+- **フロントエンド**: React 19 + TanStack Router + TanStack Query
+- **言語**: TypeScript 6.0 (厳格設定)
+- **ビルド**: Vite 8 + @cloudflare/vite-plugin
+- **ORM**: Drizzle ORM + Drizzle Kit
+- **スタイリング**: Tailwind CSS 4 + shadcn/ui
+- **テスト**: Vitest + @cloudflare/vitest-pool-workers
+- **開発ツール**: ESLint 9, Wrangler
+- **認証**: LINE Login API, jose (JWT)
+- **その他**: Zod (バリデーション), Lucide React (アイコン)
+- **パッケージマネージャー**: pnpm
+- **Node.js**: >=26.0.0
 
 ## 開発環境のセットアップ
 
 1. 依存関係のインストール:
 
 ```bash
-npm install
+pnpm install
 ```
 
 2. データベースのセットアップ:
 
 ```bash
-npm run db:generate
-npm run db:push
-npm run db:seed
+pnpm run db:generate
+pnpm run db:migrate:local
 ```
 
 3. 開発サーバーの起動:
 
 ```bash
-npm run dev
+pnpm run dev
 ```
 
 ## プロジェクト構成
 
 ```
 .
-├── app/                      # Next.js App Router
-│   ├── admin/                # 管理者機能
-│   │   ├── shifts/           # シフト管理（作成・編集・割り当て）
-│   │   ├── instructors/      # インストラクター管理
-│   │   ├── certifications/   # 資格マスタ管理
-│   │   └── shift-types/      # シフト種別マスタ管理
-│   ├── shifts/               # 公開シフト表示機能
-│   │   ├── components/       # シフト表示専用コンポーネント
-│   │   ├── hooks/            # データ変換・ナビゲーション hooks
-│   │   └── utils/            # 週・月計算ユーティリティ
-│   ├── api/                  # API Routes (RESTful設計)
-│   │   ├── departments/[id]/ # 部門CRUD
-│   │   ├── instructors/[id]/ # インストラクター CRUD
-│   │   ├── certifications/[id]/ # 資格 CRUD
-│   │   ├── shifts/[id]/      # シフト CRUD
-│   │   ├── shift-types/[id]/ # シフト種別 CRUD
-│   │   ├── health/           # ヘルスチェック
-│   │   └── shifts/prepare/   # シフト作成準備データ
-│   ├── layout.tsx            # ルートレイアウト
-│   ├── page.tsx              # ホームページ
-│   └── globals.css           # グローバルスタイル
-├── components/               # 再利用可能UIコンポーネント
-├── features/                 # 機能別モジュール（ドメイン駆動）
-├── shared/                   # 共有ユーティリティ・型定義
-├── hooks/                    # カスタムフック集
-├── lib/                      # ライブラリ設定・ユーティリティ
-├── prisma/                   # データベーススキーマ・シード
-├── docs/                     # プロジェクトドキュメント
-└── public/                   # 静的アセット
+├── src/
+│   ├── index.ts                  # Hono アプリ定義・ルートマウント
+│   ├── main.tsx                  # React エントリポイント（SPA）
+│   ├── routeTree.gen.ts          # TanStack Router 自動生成ルートツリー
+│   ├── styles.css                # グローバルスタイル
+│   ├── components/
+│   │   └── ui/                   # shadcn/ui コンポーネント
+│   ├── features/                 # 機能別モジュール（colocation）
+│   │   ├── auth/                 # LINE 認証（API・ガード・コンポーネント）
+│   │   ├── certifications/       # 資格マスタ管理
+│   │   ├── departments/          # 部門管理
+│   │   ├── health/               # ヘルスチェック
+│   │   ├── instructors/          # インストラクター管理
+│   │   ├── invitations/          # 招待システム
+│   │   ├── shift-types/          # シフト種別管理
+│   │   ├── shifts/               # シフト管理・表示
+│   │   └── users/                # ユーザー管理
+│   ├── lib/                      # 共有ライブラリ（RPC クライアント・ユーティリティ）
+│   ├── routes/                   # TanStack Router ページ定義
+│   └── server/                   # サーバーサイド専用コード
+│       ├── auth/                 # JWT・LINE 認証・Cookie・ロール
+│       ├── db/                   # Drizzle スキーマ・クライアント・エラー
+│       ├── middleware/           # Hono ミドルウェア（認証・Rate Limit）
+│       └── types.ts              # Cloudflare Env 型定義
+├── drizzle/                      # Drizzle マイグレーション SQL
+├── test/                         # 統合テスト（Vitest + Cloudflare Workers Pool）
+├── public/                       # 静的アセット
+├── docs/                         # プロジェクトドキュメント
+├── vite.config.ts                # Vite 設定（React + TanStack Router + Cloudflare）
+├── vitest.config.ts              # Vitest 設定（D1 マイグレーション付き）
+├── drizzle.config.ts             # Drizzle Kit 設定
+├── wrangler.toml                 # Cloudflare Workers 設定
+├── tsconfig.json                 # TypeScript 設定（クライアント + サーバー）
+└── tsconfig.worker.json          # TypeScript 設定（Worker 用）
+```
+
+### features ディレクトリ構成
+
+各 feature は以下のファイルで構成される:
+
+```
+features/<name>/
+├── api.ts            # Hono ルート定義（サーバーサイド）
+├── schema.ts         # Zod バリデーションスキーマ
+├── queries.ts        # TanStack Query フック（クライアントサイド）
+└── components/       # React コンポーネント
 ```
 
 ## 主要機能
 
-### 実装済み機能
-
-#### 管理者機能
+### 管理者機能
 
 - **部門管理**: 部門の作成・編集・削除・有効化切り替え
 - **資格マスタ管理**: 資格情報・必要資格レベル・部門関連付け
 - **インストラクター管理**: 個人情報・資格情報・有効状態管理
 - **シフト種別管理**: シフトの種類・時間帯・必要資格設定
 - **シフト管理**: シフト作成・編集・インストラクター割り当て
+- **ユーザー管理**: LINE 認証ユーザーの権限管理
+- **招待管理**: 招待 URL の発行・管理
 
-#### 公開機能
+### 公開機能
 
-- **週別シフト表示**: インストラクター向け公開シフト表
-- **月間ナビゲーション**: 月・週単位での表示切り替え
-- **レスポンシブ対応**: PC・タブレット・スマートフォン対応
+- **週別・月別シフト表示**: インストラクター向け公開シフト表
 
-#### API Routes (RESTful設計)
+### API Routes
 
 - `/api/health` - ヘルスチェック
+- `/api/auth` - LINE 認証（login, callback, logout, me）
 - `/api/departments` - 部門管理 (CRUD)
 - `/api/instructors` - インストラクター管理 (CRUD)
 - `/api/certifications` - 資格管理 (CRUD)
 - `/api/shifts` - シフト管理 (CRUD)
 - `/api/shift-types` - シフト種別管理 (CRUD)
-- `/api/shifts/prepare` - シフト作成準備データ
+- `/api/users` - ユーザー管理 (CRUD)
+- `/api/invitations` - 招待管理
 
-### 開発用コマンド
+## 開発用コマンド
 
-#### 必須チェック（作業前後）
+### 必須チェック（作業前後）
 
 ```bash
-npm run typecheck && npm run lint  # 型チェック + ESLint
+pnpm run typecheck    # TypeScript 型チェック
+pnpm run lint         # ESLint 静的解析
 ```
 
-#### 日常開発
+### 日常開発
 
 ```bash
-npm run dev           # 開発サーバー起動
-npm run build         # プロダクションビルド
-npm run start         # 本番モードで起動
-npm test              # Jest単体テスト
-npm run test:watch    # テストwatchモード
-npm run format        # Prettierコード整形
-npm run format:check  # 整形チェック
+pnpm run dev          # 開発サーバー起動（Vite + Wrangler）
+pnpm run build        # プロダクションビルド（typecheck 込み）
+pnpm run preview      # ビルド成果物のプレビュー
+pnpm run deploy       # Cloudflare Workers へデプロイ
 ```
 
-#### データベース操作
+### テスト
 
 ```bash
-npm run db:generate   # Prismaクライアント生成（スキーマ変更時必須）
-npm run db:push       # スキーマをDBに反映
-npm run db:studio     # Prisma Studio起動
-npm run db:seed       # サンプルデータ投入（tsx実行）
+pnpm run test             # 全テスト実行（Vitest）
+pnpm run test:watch   # ウォッチモード
 ```
 
-#### 特定テスト実行
+### データベース操作
 
 ```bash
-npm test -- --testPathPattern="shifts"  # 特定パス指定実行
+pnpm run db:generate       # Drizzle マイグレーション SQL 生成
+pnpm run db:migrate:local  # ローカル D1 にマイグレーション適用
+pnpm run db:migrate:remote # リモート D1 にマイグレーション適用
+pnpm run db:studio         # Drizzle Studio 起動
 ```
 
 ## アーキテクチャ特徴
 
-### Next.js App Router設計
+### SPA + API Worker 構成
 
-- **Server Components優先**: デフォルトでServer Componentを使用
-- **Client Component最小化**: `"use client"`は必要最小限に抑制
-- **並列データフェッチング**: Promise.allによる効率的なデータ取得
+- **フロントエンド**: Vite でビルドした React SPA を Cloudflare Workers の静的アセットとして配信
+- **バックエンド**: Hono による API サーバーが同一 Worker 上で動作
+- **ルーティング**: `/api/*` は Worker (Hono) が処理、それ以外は SPA にフォールバック
 
-### 型安全性・品質保証
+### Hono RPC
 
-- **TypeScript厳格設定**: strict, noUncheckedIndexedAccess, exactOptionalPropertyTypes有効
-- **Zodバリデーション**: API入力・出力の型安全性確保
-- **統一レスポンス形式**: `ApiResponse<T>`型による一貫したAPI設計
-- **エラーハンドリング**: React Error Boundary + TanStack Query統合
+- サーバー側で定義した Hono ルートの型 (`AppType`) をクライアントから `hc<AppType>()` で型安全に呼び出し
+- API スキーマの変更がクライアント側に即座に反映される
 
-### Features層アーキテクチャ
+### 型安全性
 
-- **ドメイン駆動設計**: 機能別にapi/handlers/services/types分離
-- **コンポーネント分離**: Container-Presentationalパターン採用
-- **カスタムHooks**: TanStack Query統合、ロジック抽出・再利用
+- **TypeScript 厳格設定**: strict, noUncheckedIndexedAccess, exactOptionalPropertyTypes 有効
+- **Zod バリデーション**: API 入力の型安全性確保
+- **Drizzle ORM**: 型安全なデータベースクエリ
+
+### Feature-based アーキテクチャ
+
+- 各機能を `features/` 配下に colocation し、API・スキーマ・クエリ・コンポーネントをまとめて管理
+- サーバーサイドコードは `server/` に集約（DB・認証・ミドルウェア）
 
 ## 詳細ドキュメント
 
-- [OpenAPI仕様書](./docs/openapi.yaml) - REST API仕様
-- [データベース設計](./docs/db.md) - Prismaスキーマ・ER図
-- [開発ガイド](./docs/nextjs.md) - Next.js実装指針
-- [CLAUDE.md](./CLAUDE.md) - AI開発ガイダンス
+- [CLAUDE.md](./CLAUDE.md) - AI 開発ガイダンス
+- [docs/](./docs/) - 設計ドキュメント・ADR

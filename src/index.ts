@@ -1,0 +1,46 @@
+import { Hono } from 'hono';
+import { HTTPException } from 'hono/http-exception';
+
+import { authRoute } from '@/features/auth/api';
+import { certificationsRoute } from '@/features/certifications/api';
+import { departmentsRoute } from '@/features/departments/api';
+import { healthRoute } from '@/features/health/api';
+import { instructorsRoute } from '@/features/instructors/api';
+import { invitationsRoute } from '@/features/invitations/api';
+import { shiftTypesRoute } from '@/features/shift-types/api';
+import { shiftsRoute } from '@/features/shifts/api';
+import { usersRoute } from '@/features/users/api';
+import type { Env } from '@/server/types';
+
+const app = new Hono<{ Bindings: Env }>();
+
+/**
+ * 中央エラーハンドラ（ADR 0005）。
+ * `HTTPException` は指定ステータスで、それ以外は 500 で統一形 `{ message }` に変換する。
+ * 成功ルートのレスポンス型を汚さないため、エラーはここに集約する。
+ */
+app.onError((err, c) => {
+  if (err instanceof HTTPException) {
+    return c.json({ message: err.message }, err.status);
+  }
+  // 予期せぬ例外は Cloudflare Logs に残し、原因調査できるようにする
+  console.error('[onError] Unhandled error:', err);
+  return c.json({ message: 'Internal Server Error' }, 500);
+});
+
+// 各 feature の Hono ルートを mount する。クライアントは AppType を type import するだけ。
+const routes = app
+  .route('/api/health', healthRoute)
+  .route('/api/auth', authRoute)
+  .route('/api/departments', departmentsRoute)
+  .route('/api/certifications', certificationsRoute)
+  .route('/api/shift-types', shiftTypesRoute)
+  .route('/api/instructors', instructorsRoute)
+  .route('/api/invitations', invitationsRoute)
+  .route('/api/users', usersRoute)
+  .route('/api/shifts', shiftsRoute);
+
+/** Hono RPC 用のアプリ型。クライアントは `import type { AppType }` でのみ参照する。 */
+export type AppType = typeof routes;
+
+export default routes;

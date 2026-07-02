@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2022"],
+    "types": ["@cloudflare/workers-types", "node"],
+    "noEmit": true,
+    "tsBuildInfoFile": "./node_modules/.tmp/worker.tsbuildinfo"
+  },
+  "include": [
+    "test",
+    "vitest.config.ts",
+    "node_modules/@cloudflare/vitest-pool-workers/types/cloudflare-test.d.ts"
+  ],
+  "exclude": ["node_modules/.tmp"]
+}

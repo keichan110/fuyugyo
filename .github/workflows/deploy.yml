@@ -3,117 +3,90 @@ name: Deploy to Cloudflare Workers
 on:
   push:
     branches: [main]
-  workflow_dispatch: # 手動実行も可能
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    if: github.repository == 'keichan110/fuyugyo' # 意図しないforkでの実行防止
-    outputs:
-      nextauth_url: ${{ steps.load_nextauth_url.outputs.nextauth_url }}
+    if: github.repository == 'keichan110/fuyugyo'
+    timeout-minutes: 10
     env:
-      PRISMA_DUMMY_DATABASE_URL: file:./tmp/prisma-deploy.db # D1本番とは無関係なCI専用ダミー
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
-          cache: 'npm'
+          node-version-file: '.node-version'
+          cache: 'pnpm'
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
-      - name: Generate Prisma client
-        run: npm run db:generate
-        env:
-          DATABASE_URL: ${{ env.PRISMA_DUMMY_DATABASE_URL }}
-
-      - name: Validate Prisma schema
-        run: npx prisma validate
-        env:
-          DATABASE_URL: ${{ env.PRISMA_DUMMY_DATABASE_URL }}
-
-      - name: Load NEXTAUTH_URL from wrangler.toml
-        id: load_nextauth_url
+      - name: Validate required secrets and variables
         run: |
-          value=$(node scripts/get-wrangler-config.js 'vars.NEXTAUTH_URL')
-          echo "NEXTAUTH_URL=$value" >> "$GITHUB_ENV"
-          echo "nextauth_url=$value" >> "$GITHUB_OUTPUT"
-
-      - name: Load D1_DATABASE_ID from wrangler.toml
-        id: load_d1_database_id
-        run: |
-          value=$(node scripts/get-wrangler-config.js 'd1_databases.0.database_id')
-          echo "D1_DATABASE_ID=$value" >> "$GITHUB_ENV"
-
-      - name: Build application with OpenNext Cloudflare
-        run: npx @opennextjs/cloudflare build
+          for name in JWT_SECRET LINE_CHANNEL_SECRET APP_URL LINE_CHANNEL_ID; do
+            if [ -z "${!name}" ]; then
+              echo "::error::$name is not set"
+              exit 1
+            fi
+          done
         env:
-          NODE_ENV: production
-          DATABASE_URL: ${{ env.PRISMA_DUMMY_DATABASE_URL }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
-          LINE_CHANNEL_ID: ${{ vars.LINE_CHANNEL_ID }}
           LINE_CHANNEL_SECRET: ${{ secrets.LINE_CHANNEL_SECRET }}
-          NEXTAUTH_URL: ${{ env.NEXTAUTH_URL }}
-
-      - name: Configure Cloudflare Workers runtime environment
-        run: |
-          npx wrangler secret put JWT_SECRET <<< "$JWT_SECRET"
-          npx wrangler secret put LINE_CHANNEL_ID <<< "$LINE_CHANNEL_ID"
-          npx wrangler secret put LINE_CHANNEL_SECRET <<< "$LINE_CHANNEL_SECRET"
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          APP_URL: ${{ vars.APP_URL }}
           LINE_CHANNEL_ID: ${{ vars.LINE_CHANNEL_ID }}
+
+      - name: Build application
+        run: pnpm run build
+
+      - name: Set Cloudflare secrets
+        run: |
+          pnpm exec wrangler secret put JWT_SECRET <<< "$JWT_SECRET"
+          pnpm exec wrangler secret put LINE_CHANNEL_SECRET <<< "$LINE_CHANNEL_SECRET"
+        env:
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
           LINE_CHANNEL_SECRET: ${{ secrets.LINE_CHANNEL_SECRET }}
 
       - name: Deploy to Cloudflare Workers
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: deploy
-
-      - name: Prepare D1 migrations
-        run: node scripts/prepare-d1-migrations.js
+        run: pnpm exec wrangler deploy --var "APP_URL:$APP_URL" --var "LINE_CHANNEL_ID:$LINE_CHANNEL_ID"
+        env:
+          APP_URL: ${{ vars.APP_URL }}
+          LINE_CHANNEL_ID: ${{ vars.LINE_CHANNEL_ID }}
 
       - name: Apply database migrations
-        id: migrate
-        run: npx wrangler d1 migrations apply fuyugyo --remote
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-
-      - name: Notify deployment status
-        if: failure()
-        run: |
-          echo "Deployment failed! Check the logs above for details."
-          exit 1
+        run: pnpm exec wrangler d1 migrations apply fuyugyo --remote
 
   health-check:
     runs-on: ubuntu-latest
     needs: deploy
-    if: success()
-    env:
-      NEXTAUTH_URL: ${{ needs.deploy.outputs.nextauth_url }}
+    timeout-minutes: 5
 
     steps:
       - name: Health check
         run: |
-          echo "Waiting for deployment to be available..."
-          sleep 30
-
-          # ヘルスチェックAPI呼び出し
-          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" ${NEXTAUTH_URL}/api/health)
-
-          if [ "$RESPONSE" = "200" ]; then
-            echo "✅ Health check passed! Application is running correctly."
-          else
-            echo "❌ Health check failed! HTTP status: $RESPONSE"
-            exit 1
-          fi
+          for i in $(seq 1 10); do
+            RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" "${{ vars.APP_URL }}/api/health")
+            if [ "$RESPONSE" = "200" ]; then
+              echo "Health check passed!"
+              exit 0
+            fi
+            echo "Attempt $i failed (HTTP $RESPONSE). Retrying in 5s..."
+            sleep 5
+          done
+          echo "Health check failed after 10 attempts."
+          exit 1

@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "npm run format"
+            "command": "jq -r '.tool_input.file_path' | xargs npx prettier --write --ignore-unknown"
           }
         ]
       }
@@ -40,6 +40,22 @@
       "Bash(npm run test:*)",
       "Bash(npm run format:*)"
     ],
-    "deny": [".env"]
+    "deny": [
+      "Read(.env)",
+      "Read(.env.*)",
+      "Read(.dev.vars)",
+      "Read(wrangler.toml)",
+      "Edit(.env)",
+      "Edit(.env.*)",
+      "Edit(.dev.vars)",
+      "Edit(wrangler.toml)",
+      "Write(.env)",
+      "Write(.env.*)",
+      "Write(.dev.vars)",
+      "Write(wrangler.toml)",
+      "Bash(cat *env*)",
+      "Bash(cat *wrangler*)",
+      "Bash(cat *.vars)"
+    ]
   }
 }

@@ -25,14 +25,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
-          cache: 'npm'
+          node-version-file: '.node-version'
+          cache: 'pnpm'
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Validate required secrets and variables
         run: |
@@ -49,24 +52,24 @@ jobs:
           LINE_CHANNEL_ID: ${{ vars.LINE_CHANNEL_ID }}
 
       - name: Build application
-        run: npm run build
+        run: pnpm run build
 
       - name: Set Cloudflare secrets
         run: |
-          npx wrangler secret put JWT_SECRET <<< "$JWT_SECRET"
-          npx wrangler secret put LINE_CHANNEL_SECRET <<< "$LINE_CHANNEL_SECRET"
+          pnpm exec wrangler secret put JWT_SECRET <<< "$JWT_SECRET"
+          pnpm exec wrangler secret put LINE_CHANNEL_SECRET <<< "$LINE_CHANNEL_SECRET"
         env:
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           LINE_CHANNEL_SECRET: ${{ secrets.LINE_CHANNEL_SECRET }}
 
       - name: Deploy to Cloudflare Workers
-        run: npx wrangler deploy --var "APP_URL:$APP_URL" --var "LINE_CHANNEL_ID:$LINE_CHANNEL_ID"
+        run: pnpm exec wrangler deploy --var "APP_URL:$APP_URL" --var "LINE_CHANNEL_ID:$LINE_CHANNEL_ID"
         env:
           APP_URL: ${{ vars.APP_URL }}
           LINE_CHANNEL_ID: ${{ vars.LINE_CHANNEL_ID }}
 
       - name: Apply database migrations
-        run: npx wrangler d1 migrations apply fuyugyo --remote
+        run: pnpm exec wrangler d1 migrations apply fuyugyo --remote
 
   health-check:
     runs-on: ubuntu-latest

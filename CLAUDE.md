@@ -18,35 +18,35 @@ Fuyugyō - スキー・スノーボードスクールの運営管理システム
 ## 必須実行（作業前後）
 
 ```bash
-npm run typecheck    # TypeScript型チェック（必須）
-npm run lint         # ESLint静的解析（必須）
+pnpm run typecheck    # TypeScript型チェック（必須）
+pnpm run lint         # ESLint静的解析（必須）
 ```
 
 ## 日常開発
 
 ```bash
-npm run dev          # 開発サーバー起動（Vite + Cloudflare Workers）
-npm run build        # プロダクションビルド（typecheck含む）
-npm run preview      # ビルド結果のプレビュー
-npm run deploy       # ビルド + Cloudflare Workers デプロイ
-npm run format       # Prettier コード整形（hooks で自動実行されるため手動不要）
-npm run format:check # Prettier 整形チェック
+pnpm run dev          # 開発サーバー起動（Vite + Cloudflare Workers）
+pnpm run build        # プロダクションビルド（typecheck含む）
+pnpm run preview      # ビルド結果のプレビュー
+pnpm run deploy       # ビルド + Cloudflare Workers デプロイ
+pnpm run format       # Prettier コード整形（hooks で自動実行されるため手動不要）
+pnpm run format:check # Prettier 整形チェック
 ```
 
 ## データベース操作
 
 ```bash
-npm run db:generate      # Drizzle マイグレーションSQL生成（スキーマ変更時必須）
-npm run db:migrate:local # ローカルD1にマイグレーション適用
-npm run db:migrate:remote # リモートD1にマイグレーション適用
-npm run db:studio        # Drizzle Studio起動
+pnpm run db:generate      # Drizzle マイグレーションSQL生成（スキーマ変更時必須）
+pnpm run db:migrate:local # ローカルD1にマイグレーション適用
+pnpm run db:migrate:remote # リモートD1にマイグレーション適用
+pnpm run db:studio        # Drizzle Studio起動
 ```
 
 ## テスト
 
 ```bash
-npm test             # 全テスト実行（Vitest + 実D1）
-npm run test:watch   # ウォッチモード
+pnpm run test        # 全テスト実行（Vitest + 実D1）
+pnpm run test:watch  # ウォッチモード
 ```
 
 # アーキテクチャ
@@ -89,9 +89,9 @@ docs/                      # ADR・設計ドキュメント
 ## データベーススキーマ変更時
 
 1. `src/server/db/schema.ts` を編集
-2. `npm run db:generate` — マイグレーション SQL 生成
-3. `npm run db:migrate:local` — ローカル D1 に適用
-4. `npm run typecheck` — 型チェック
+2. `pnpm run db:generate` — マイグレーション SQL 生成
+3. `pnpm run db:migrate:local` — ローカル D1 に適用
+4. `pnpm run typecheck` — 型チェック
 
 # コーディング規約
 
@@ -105,6 +105,7 @@ docs/                      # ADR・設計ドキュメント
 ## Feature の構造パターン
 
 各 `src/features/[name]/` は以下の構造を持つ:
+
 - `api.ts` — Hono ルート（サーバー専用、Drizzle で DB 操作）
 - `schema.ts` — Zod バリデーション（サーバー・クライアント双方で使用）
 - `queries.ts` — TanStack Query hooks（クライアント専用、RPC 経由で API 呼び出し）
@@ -115,12 +116,14 @@ docs/                      # ADR・設計ドキュメント
 ## Git コミット規約
 
 ### コミットタイトル
+
 - **Gitmoji**: コミットメッセージの先頭に Gitmoji を付与
   - **コミットのたびに必ず https://gitmoji.dev/ を参照し、定義に合った絵文字を選択すること**（記憶や推測で選ばない）
 - **英語命令形**: タイトルは英語で簡潔に（50文字以内）
 - **先頭は大文字**: タイトルの最初の単語は大文字で始める
 
 ### コミット本文
+
 - **必須言語は日本語**: 本文は**必ず日本語**で記載（英語は厳禁）
 - **簡潔性を重視**: 変更理由を簡潔に（1-3行程度、72文字幅目安）
 - **箇条書き形式**: 複数の理由がある場合は箇条書きで記載
@@ -128,6 +131,6 @@ docs/                      # ADR・設計ドキュメント
 
 ## 作業完了時チェックリスト
 
-- [ ] `npm run typecheck && npm run lint` 成功
+- [ ] `pnpm run typecheck && pnpm run lint` 成功
 - [ ] 関連テスト通過確認
 - [ ] Gitmoji コミットメッセージ作成

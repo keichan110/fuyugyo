@@ -15,27 +15,28 @@
 - **開発ツール**: ESLint 9, Wrangler
 - **認証**: LINE Login API, jose (JWT)
 - **その他**: Zod (バリデーション), Lucide React (アイコン)
-- **Node.js**: >=22.0.0
+- **パッケージマネージャー**: pnpm
+- **Node.js**: >=26.0.0
 
 ## 開発環境のセットアップ
 
 1. 依存関係のインストール:
 
 ```bash
-npm install
+pnpm install
 ```
 
 2. データベースのセットアップ:
 
 ```bash
-npm run db:generate
-npm run db:migrate:local
+pnpm run db:generate
+pnpm run db:migrate:local
 ```
 
 3. 開発サーバーの起動:
 
 ```bash
-npm run dev
+pnpm run dev
 ```
 
 ## プロジェクト構成
@@ -123,33 +124,33 @@ features/<name>/
 ### 必須チェック（作業前後）
 
 ```bash
-npm run typecheck    # TypeScript 型チェック
-npm run lint         # ESLint 静的解析
+pnpm run typecheck    # TypeScript 型チェック
+pnpm run lint         # ESLint 静的解析
 ```
 
 ### 日常開発
 
 ```bash
-npm run dev          # 開発サーバー起動（Vite + Wrangler）
-npm run build        # プロダクションビルド（typecheck 込み）
-npm run preview      # ビルド成果物のプレビュー
-npm run deploy       # Cloudflare Workers へデプロイ
+pnpm run dev          # 開発サーバー起動（Vite + Wrangler）
+pnpm run build        # プロダクションビルド（typecheck 込み）
+pnpm run preview      # ビルド成果物のプレビュー
+pnpm run deploy       # Cloudflare Workers へデプロイ
 ```
 
 ### テスト
 
 ```bash
-npm test             # 全テスト実行（Vitest）
-npm run test:watch   # ウォッチモード
+pnpm run test             # 全テスト実行（Vitest）
+pnpm run test:watch   # ウォッチモード
 ```
 
 ### データベース操作
 
 ```bash
-npm run db:generate       # Drizzle マイグレーション SQL 生成
-npm run db:migrate:local  # ローカル D1 にマイグレーション適用
-npm run db:migrate:remote # リモート D1 にマイグレーション適用
-npm run db:studio         # Drizzle Studio 起動
+pnpm run db:generate       # Drizzle マイグレーション SQL 生成
+pnpm run db:migrate:local  # ローカル D1 にマイグレーション適用
+pnpm run db:migrate:remote # リモート D1 にマイグレーション適用
+pnpm run db:studio         # Drizzle Studio 起動
 ```
 
 ## アーキテクチャ特徴

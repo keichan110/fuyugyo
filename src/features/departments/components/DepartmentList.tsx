@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-import { Button } from '@/components/ui/button';
+import { Button } from '@mantine/core';
 
 import { useDeactivateDepartment, useDepartments } from '../queries';
 import { DepartmentForm } from './DepartmentForm';

@@ -1,4 +1,4 @@
-import { Button } from '@/components/ui/button';
+import { Button } from '@mantine/core';
 
 import { useMonthlyView, useWeeklyView } from '../queries';
 import type { ShiftViewSummary } from '../schema';
@@ -117,7 +117,7 @@ export function ShiftViewer({ view, date, onChange }: ShiftViewerProps) {
         </Button>
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium">{rangeLabel}</span>
-          <Button type="button" variant="ghost" size="sm" onClick={goToday}>
+          <Button type="button" variant="subtle" size="sm" onClick={goToday}>
             今日
           </Button>
         </div>

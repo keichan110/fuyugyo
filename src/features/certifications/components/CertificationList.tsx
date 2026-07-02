@@ -1,6 +1,7 @@
 import { useState } from 'react';
 
-import { Button } from '@/components/ui/button';
+import { Button } from '@mantine/core';
+
 import { useDepartments } from '@/features/departments/queries';
 
 import { useCertifications, useDeactivateCertification, useUpdateCertification } from '../queries';

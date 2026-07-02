@@ -1,6 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 
+import { createTheme, MantineProvider } from '@mantine/core';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { createRouter, RouterProvider } from '@tanstack/react-router';
 
@@ -8,7 +9,13 @@ import { queryClient } from '@/lib/query-client';
 
 import { routeTree } from './routeTree.gen';
 
+import '@mantine/core/styles.css';
 import './styles.css';
+
+/** ブランドカラーはブルー系（ADR 0008） */
+const theme = createTheme({
+  primaryColor: 'blue',
+});
 
 const router = createRouter({ routeTree, context: { queryClient } });
 
@@ -25,8 +32,10 @@ if (!rootElement) {
 
 createRoot(rootElement).render(
   <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
-    </QueryClientProvider>
+    <MantineProvider theme={theme} defaultColorScheme="light">
+      <QueryClientProvider client={queryClient}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>
+    </MantineProvider>
   </StrictMode>,
 );

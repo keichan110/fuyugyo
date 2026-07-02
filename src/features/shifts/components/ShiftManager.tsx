@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 
-import { Button } from '@/components/ui/button';
+import { Button } from '@mantine/core';
 
 import {
   useCreateShift,

@@ -29,16 +29,13 @@ export default tseslint.config(
       'react-hooks/rules-of-hooks': 'error',
       'react-hooks/exhaustive-deps': 'warn',
       // TanStack Router の `export const Route` 等の定数 export は許可する
-      'react-refresh/only-export-components': [
-        'warn',
-        { allowConstantExport: true },
-      ],
+      'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
     },
   },
-  // routes/ は TanStack Router の配線専用、components/ui/ は shadcn プリミティブで
-  // どちらも component と定数（Route / variants）の同居が前提のため Fast Refresh 検査を外す
+  // routes/ は TanStack Router の配線専用で
+  // component と定数（Route）の同居が前提のため Fast Refresh 検査を外す
   {
-    files: ['src/routes/**/*.{ts,tsx}', 'src/components/ui/**/*.tsx'],
+    files: ['src/routes/**/*.{ts,tsx}'],
     rules: { 'react-refresh/only-export-components': 'off' },
   },
   // クライアントコードからサーバー専用モジュール（api.ts・server/・Worker エントリ）の

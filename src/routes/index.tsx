@@ -1,23 +1,17 @@
 import { createFileRoute, redirect } from '@tanstack/react-router';
 
 import { ensureAuthenticated } from '@/features/auth/auth-guard';
-import { HealthStatus } from '@/features/health/components/HealthStatus';
+import { todayString } from '@/features/shifts/view-utils';
 
+/**
+ * ルートパス。ダッシュボード実装（Phase 2）までの暫定措置として `/shifts` へリダイレクトする（#157）。
+ */
 export const Route = createFileRoute('/')({
-  // 認証必須ルート。未認証はログインページへ弾く（ADR 0003）
   beforeLoad: async ({ context }) => {
     const result = await ensureAuthenticated(context.queryClient, '/');
     if (!result.authenticated) {
       throw redirect({ to: result.loginTo });
     }
+    throw redirect({ to: '/shifts', search: { view: 'weekly', date: todayString() } });
   },
-  component: IndexPage,
 });
-
-function IndexPage() {
-  return (
-    <main className="flex min-h-dvh items-center justify-center p-4">
-      <HealthStatus />
-    </main>
-  );
-}

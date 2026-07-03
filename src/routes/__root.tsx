@@ -3,7 +3,7 @@ import type { QueryClient } from '@tanstack/react-query';
 import { createRootRouteWithContext, Link, Outlet } from '@tanstack/react-router';
 
 import { useLogout, useMe } from '@/features/auth/queries';
-import type { MeResponse } from '@/features/auth/schema';
+import { hasMinimumRole, type MeResponse } from '@/features/auth/schema';
 
 /** ルーターコンテキスト。ガードのデータ取得に QueryClient を共有する（ADR 0002） */
 export type RouterContext = {
@@ -38,7 +38,7 @@ function RootLayout() {
             Fuyugyō
           </Text>
           <Group gap="sm">
-            {user.role === 'ADMIN' && <AdminMenu />}
+            {hasMinimumRole(user.role, 'MANAGER') && <AdminMenu isAdmin={user.role === 'ADMIN'} />}
             <UserMenu user={user} />
           </Group>
         </Group>
@@ -50,8 +50,12 @@ function RootLayout() {
   );
 }
 
-/** 管理者向けナビゲーションメニュー（ADR 0009: シフト運用/マスタ管理/ユーザー管理の3グループ） */
-function AdminMenu() {
+/**
+ * 管理者向けナビゲーションメニュー（ADR 0009: シフト運用/マスタ管理/ユーザー管理の3グループ）。
+ * シフト運用・マスタ管理は MANAGER 以上、ユーザー管理は ADMIN のみに表示する
+ * （API 側の `requireRole` と揃える）。
+ */
+function AdminMenu({ isAdmin }: { isAdmin: boolean }) {
   return (
     <Menu shadow="md" width={200}>
       <Menu.Target>
@@ -82,14 +86,18 @@ function AdminMenu() {
           インストラクター
         </Menu.Item>
 
-        <Menu.Divider />
-        <Menu.Label>ユーザー管理</Menu.Label>
-        <Menu.Item component={Link} to="/users">
-          ユーザー
-        </Menu.Item>
-        <Menu.Item component={Link} to="/invitations">
-          招待
-        </Menu.Item>
+        {isAdmin && (
+          <>
+            <Menu.Divider />
+            <Menu.Label>ユーザー管理</Menu.Label>
+            <Menu.Item component={Link} to="/users">
+              ユーザー
+            </Menu.Item>
+            <Menu.Item component={Link} to="/invitations">
+              招待
+            </Menu.Item>
+          </>
+        )}
       </Menu.Dropdown>
     </Menu>
   );

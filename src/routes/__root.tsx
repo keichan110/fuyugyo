@@ -1,6 +1,6 @@
 import { AppShell, Avatar, Group, Menu, Text, UnstyledButton } from '@mantine/core';
 import type { QueryClient } from '@tanstack/react-query';
-import { createRootRouteWithContext, Link, Outlet } from '@tanstack/react-router';
+import { createRootRouteWithContext, Link, Outlet, useNavigate } from '@tanstack/react-router';
 
 import { useLogout, useMe } from '@/features/auth/queries';
 import { hasMinimumRole, type MeResponse } from '@/features/auth/schema';
@@ -106,6 +106,7 @@ function AdminMenu({ isAdmin }: { isAdmin: boolean }) {
 /** アバター + ログアウトメニュー（全ユーザー共通） */
 function UserMenu({ user }: { user: MeResponse }) {
   const logout = useLogout();
+  const navigate = useNavigate();
 
   return (
     <Menu shadow="md" width={180} position="bottom-end">
@@ -123,7 +124,14 @@ function UserMenu({ user }: { user: MeResponse }) {
       <Menu.Dropdown>
         <Menu.Label>{user.displayName}</Menu.Label>
         <Menu.Divider />
-        <Menu.Item onClick={() => logout.mutate()}>ログアウト</Menu.Item>
+        <Menu.Item
+          onClick={() => {
+            // ログアウト後は保護ルート上に取り残されないようルートへ遷移する
+            logout.mutate(undefined, { onSuccess: () => void navigate({ to: '/' }) });
+          }}
+        >
+          ログアウト
+        </Menu.Item>
       </Menu.Dropdown>
     </Menu>
   );

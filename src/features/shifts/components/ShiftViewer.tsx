@@ -1,4 +1,14 @@
-import { Button } from '@mantine/core';
+import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  Group,
+  SegmentedControl,
+  Stack,
+  Text,
+  Title,
+} from '@mantine/core';
 
 import { useMonthlyView, useWeeklyView } from '../queries';
 import type { ShiftViewSummary } from '../schema';
@@ -22,28 +32,33 @@ type ShiftViewerProps = {
 function SummaryPanel({ summary }: { summary: ShiftViewSummary }) {
   const departments = Object.entries(summary.byDepartment);
   return (
-    <div className="border-border bg-card flex flex-col gap-2 rounded-md border p-3 text-sm">
-      <div className="flex flex-wrap gap-x-4 gap-y-1">
-        <span>
-          シフト数 <span className="font-medium">{summary.totalShifts}</span>
-        </span>
-        <span>
-          割り当て総数 <span className="font-medium">{summary.totalAssignments}</span>
-        </span>
-      </div>
-      {departments.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          {departments.map(([name, count]) => (
-            <span
-              key={name}
-              className="bg-secondary text-secondary-foreground rounded-full px-2 py-0.5 text-xs"
-            >
-              {name} {count}
-            </span>
-          ))}
-        </div>
-      )}
-    </div>
+    <Card withBorder padding="sm" radius="md">
+      <Stack gap="xs">
+        <Group gap="lg">
+          <Text size="sm">
+            シフト数{' '}
+            <Text component="span" fw={500}>
+              {summary.totalShifts}
+            </Text>
+          </Text>
+          <Text size="sm">
+            割り当て総数{' '}
+            <Text component="span" fw={500}>
+              {summary.totalAssignments}
+            </Text>
+          </Text>
+        </Group>
+        {departments.length > 0 && (
+          <Group gap={6}>
+            {departments.map(([name, count]) => (
+              <Badge key={name} color="gray" variant="light">
+                {name} {count}
+              </Badge>
+            ))}
+          </Group>
+        )}
+      </Stack>
+    </Card>
   );
 }
 
@@ -82,55 +97,43 @@ export function ShiftViewer({ view, date, onChange }: ShiftViewerProps) {
       : `${month.replace('-', '年')}月`;
 
   return (
-    <section className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-xl font-bold">シフト表</h2>
-        <div className="border-border inline-flex overflow-hidden rounded-md border">
-          <button
-            type="button"
-            onClick={() => onChange({ view: 'weekly', date })}
-            className={`px-3 py-1 text-sm ${
-              view === 'weekly'
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-background text-foreground'
-            }`}
-          >
-            週
-          </button>
-          <button
-            type="button"
-            onClick={() => onChange({ view: 'monthly', date })}
-            className={`px-3 py-1 text-sm ${
-              view === 'monthly'
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-background text-foreground'
-            }`}
-          >
-            月
-          </button>
-        </div>
-      </div>
+    <Stack gap="sm">
+      <Group justify="space-between" wrap="wrap">
+        <Title order={2}>シフト表</Title>
+        <SegmentedControl
+          value={view}
+          onChange={(value) => onChange({ view: value as ShiftViewMode, date })}
+          data={[
+            { label: '週', value: 'weekly' },
+            { label: '月', value: 'monthly' },
+          ]}
+        />
+      </Group>
 
-      <div className="flex items-center justify-between gap-2">
+      <Group justify="space-between">
         <Button type="button" variant="outline" size="sm" onClick={goPrev}>
           ← 前
         </Button>
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium">{rangeLabel}</span>
+        <Group gap="xs">
+          <Text size="sm" fw={500}>
+            {rangeLabel}
+          </Text>
           <Button type="button" variant="subtle" size="sm" onClick={goToday}>
             今日
           </Button>
-        </div>
+        </Group>
         <Button type="button" variant="outline" size="sm" onClick={goNext}>
           次 →
         </Button>
-      </div>
+      </Group>
 
-      {active.isLoading && <p className="text-muted-foreground text-sm">読み込み中…</p>}
+      {active.isLoading && (
+        <Text c="dimmed" size="sm">
+          読み込み中…
+        </Text>
+      )}
       {active.isError && (
-        <p className="text-sm text-red-600">
-          {active.error?.message ?? 'シフトの取得に失敗しました'}
-        </p>
+        <Alert color="red">{active.error?.message ?? 'シフトの取得に失敗しました'}</Alert>
       )}
 
       {active.data && (
@@ -147,6 +150,6 @@ export function ShiftViewer({ view, date, onChange }: ShiftViewerProps) {
           )}
         </>
       )}
-    </section>
+    </Stack>
   );
 }

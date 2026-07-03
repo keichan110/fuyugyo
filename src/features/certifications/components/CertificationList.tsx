@@ -1,6 +1,17 @@
 import { useState } from 'react';
 
-import { Button } from '@mantine/core';
+import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  Group,
+  Stack,
+  Text,
+  Textarea,
+  TextInput,
+  Title,
+} from '@mantine/core';
 
 import { useDepartments } from '@/features/departments/queries';
 
@@ -20,25 +31,31 @@ export function CertificationList() {
   const deptNameMap = new Map(departments?.map((d) => [d.id, d.name]) ?? []);
 
   return (
-    <section className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold">資格管理</h2>
+    <Stack gap="md">
+      <Group justify="space-between">
+        <Title order={2}>資格管理</Title>
         <Button onClick={() => setShowForm((prev) => !prev)}>
           {showForm ? 'キャンセル' : '資格を追加'}
         </Button>
-      </div>
+      </Group>
 
       {showForm && <CertificationForm onSuccess={() => setShowForm(false)} />}
 
-      {isLoading && <p className="text-muted-foreground text-sm">読み込み中…</p>}
-      {isError && <p className="text-sm text-red-600">資格一覧の取得に失敗しました</p>}
+      {isLoading && (
+        <Text c="dimmed" size="sm">
+          読み込み中…
+        </Text>
+      )}
+      {isError && <Alert color="red">資格一覧の取得に失敗しました</Alert>}
 
       {data && data.length === 0 && (
-        <p className="text-muted-foreground text-sm">資格がありません</p>
+        <Text c="dimmed" size="sm">
+          資格がありません
+        </Text>
       )}
 
       {data && data.length > 0 && (
-        <ul className="flex flex-col gap-2">
+        <Stack gap="sm">
           {data.map((cert) => (
             <CertificationItem
               key={cert.id}
@@ -51,9 +68,9 @@ export function CertificationList() {
               departmentName={deptNameMap.get(cert.departmentId) ?? cert.departmentId}
             />
           ))}
-        </ul>
+        </Stack>
       )}
-    </section>
+    </Stack>
   );
 }
 
@@ -97,41 +114,49 @@ function CertificationItemDisplay({
   const deactivate = useDeactivateCertification();
 
   return (
-    <li className="border-border bg-card flex flex-col gap-2 rounded-md border p-4">
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex flex-col gap-1">
-          <div className="flex items-center gap-2">
-            <span className="font-medium">{name}</span>
-            <span className="text-muted-foreground font-mono text-sm">({shortName})</span>
-            {!isActive && (
-              <span className="bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-xs">
-                無効
-              </span>
+    <Card withBorder padding="md" radius="md">
+      <Stack gap="sm">
+        <Group justify="space-between" align="flex-start" wrap="nowrap">
+          <Stack gap={4}>
+            <Group gap="xs">
+              <Text fw={500}>{name}</Text>
+              <Text c="dimmed" size="sm" ff="monospace">
+                ({shortName})
+              </Text>
+              {!isActive && (
+                <Badge color="gray" variant="light" size="sm">
+                  無効
+                </Badge>
+              )}
+            </Group>
+            <Text c="dimmed" size="sm">
+              {departmentName} ／ {organization}
+            </Text>
+            {description && (
+              <Text c="dimmed" size="sm">
+                {description}
+              </Text>
             )}
-          </div>
-          <p className="text-muted-foreground text-sm">
-            {departmentName} ／ {organization}
-          </p>
-          {description && <p className="text-muted-foreground text-sm">{description}</p>}
-        </div>
-        {isActive && (
-          <div className="flex shrink-0 items-center gap-2">
-            <Button variant="outline" size="sm" onClick={onEdit}>
-              編集
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={deactivate.isPending}
-              onClick={() => deactivate.mutate(id)}
-            >
-              無効化
-            </Button>
-          </div>
-        )}
-      </div>
-      {deactivate.isError && <p className="text-sm text-red-600">{deactivate.error.message}</p>}
-    </li>
+          </Stack>
+          {isActive && (
+            <Group gap="xs" wrap="nowrap">
+              <Button variant="outline" size="sm" onClick={onEdit}>
+                編集
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                loading={deactivate.isPending}
+                onClick={() => deactivate.mutate(id)}
+              >
+                無効化
+              </Button>
+            </Group>
+          )}
+        </Group>
+        {deactivate.isError && <Alert color="red">{deactivate.error.message}</Alert>}
+      </Stack>
+    </Card>
   );
 }
 
@@ -168,56 +193,49 @@ function CertificationItemEdit({
   };
 
   return (
-    <li className="border-border bg-card flex flex-col gap-2 rounded-md border p-4">
-      <form onSubmit={handleUpdate} className="flex flex-col gap-2">
-        <div className="flex gap-2">
-          <input
-            type="text"
+    <Card component="form" onSubmit={handleUpdate} withBorder padding="md" radius="md">
+      <Stack gap="sm">
+        <Group grow>
+          <TextInput
             value={editName}
-            onChange={(e) => setEditName(e.target.value)}
+            onChange={(e) => setEditName(e.currentTarget.value)}
             required
             maxLength={100}
             placeholder="資格名"
             autoFocus
-            className="border-input bg-background focus-visible:ring-ring flex-1 rounded-md border px-3 py-1.5 text-sm focus-visible:ring-1 focus-visible:outline-none"
           />
-          <input
-            type="text"
+          <TextInput
             value={editShortName}
-            onChange={(e) => setEditShortName(e.target.value)}
+            onChange={(e) => setEditShortName(e.currentTarget.value)}
             required
             maxLength={20}
             placeholder="省略名"
-            className="border-input bg-background focus-visible:ring-ring w-24 rounded-md border px-3 py-1.5 text-sm focus-visible:ring-1 focus-visible:outline-none"
           />
-        </div>
-        <input
-          type="text"
+        </Group>
+        <TextInput
           value={editOrganization}
-          onChange={(e) => setEditOrganization(e.target.value)}
+          onChange={(e) => setEditOrganization(e.currentTarget.value)}
           required
           maxLength={100}
           placeholder="発行団体"
-          className="border-input bg-background focus-visible:ring-ring rounded-md border px-3 py-1.5 text-sm focus-visible:ring-1 focus-visible:outline-none"
         />
-        <textarea
+        <Textarea
           value={editDescription}
-          onChange={(e) => setEditDescription(e.target.value)}
+          onChange={(e) => setEditDescription(e.currentTarget.value)}
           maxLength={500}
           rows={2}
           placeholder="説明（任意）"
-          className="border-input bg-background focus-visible:ring-ring resize-none rounded-md border px-3 py-1.5 text-sm focus-visible:ring-1 focus-visible:outline-none"
         />
-        <div className="flex gap-2">
-          <Button type="submit" size="sm" disabled={update.isPending}>
-            {update.isPending ? '保存中…' : '保存'}
+        <Group gap="xs">
+          <Button type="submit" size="sm" loading={update.isPending}>
+            保存
           </Button>
           <Button type="button" variant="outline" size="sm" onClick={onCancel}>
             キャンセル
           </Button>
-        </div>
-      </form>
-      {update.isError && <p className="text-sm text-red-600">{update.error.message}</p>}
-    </li>
+        </Group>
+        {update.isError && <Alert color="red">{update.error.message}</Alert>}
+      </Stack>
+    </Card>
   );
 }

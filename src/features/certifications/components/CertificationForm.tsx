@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-import { Button } from '@mantine/core';
+import { Alert, Button, Card, Select, Stack, Textarea, TextInput } from '@mantine/core';
 
 import { useDepartments } from '@/features/departments/queries';
 
@@ -38,98 +38,59 @@ export function CertificationForm({ onSuccess }: Props) {
   };
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="border-border bg-card flex flex-col gap-3 rounded-md border p-4"
-    >
-      <div className="flex flex-col gap-1">
-        <label htmlFor="cert-department" className="text-sm font-medium">
-          部門 <span className="text-red-500">*</span>
-        </label>
-        <select
-          id="cert-department"
-          value={departmentId}
-          onChange={(e) => setDepartmentId(e.target.value)}
+    <Card component="form" onSubmit={handleSubmit} withBorder padding="md" radius="md">
+      <Stack gap="sm">
+        <Select
+          label="部門"
           required
-          className="border-input bg-background focus-visible:ring-ring rounded-md border px-3 py-1.5 text-sm focus-visible:ring-1 focus-visible:outline-none"
-        >
-          <option value="">部門を選択してください</option>
-          {departments?.map((dept) => (
-            <option key={dept.id} value={dept.id}>
-              {dept.name}
-            </option>
-          ))}
-        </select>
-      </div>
+          placeholder="部門を選択してください"
+          data={(departments ?? []).map((dept) => ({ value: dept.id, label: dept.name }))}
+          value={departmentId || null}
+          onChange={(value) => setDepartmentId(value ?? '')}
+        />
 
-      <div className="flex flex-col gap-1">
-        <label htmlFor="cert-name" className="text-sm font-medium">
-          資格名 <span className="text-red-500">*</span>
-        </label>
-        <input
-          id="cert-name"
-          type="text"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
+        <TextInput
+          label="資格名"
           required
+          value={name}
+          onChange={(e) => setName(e.currentTarget.value)}
           maxLength={100}
           placeholder="例: スキー指導員"
-          className="border-input bg-background focus-visible:ring-ring rounded-md border px-3 py-1.5 text-sm focus-visible:ring-1 focus-visible:outline-none"
         />
-      </div>
 
-      <div className="flex flex-col gap-1">
-        <label htmlFor="cert-short-name" className="text-sm font-medium">
-          省略名 <span className="text-red-500">*</span>
-        </label>
-        <input
-          id="cert-short-name"
-          type="text"
-          value={shortName}
-          onChange={(e) => setShortName(e.target.value)}
+        <TextInput
+          label="省略名"
           required
+          value={shortName}
+          onChange={(e) => setShortName(e.currentTarget.value)}
           maxLength={20}
           placeholder="例: 指導員"
-          className="border-input bg-background focus-visible:ring-ring rounded-md border px-3 py-1.5 text-sm focus-visible:ring-1 focus-visible:outline-none"
         />
-      </div>
 
-      <div className="flex flex-col gap-1">
-        <label htmlFor="cert-organization" className="text-sm font-medium">
-          発行団体 <span className="text-red-500">*</span>
-        </label>
-        <input
-          id="cert-organization"
-          type="text"
-          value={organization}
-          onChange={(e) => setOrganization(e.target.value)}
+        <TextInput
+          label="発行団体"
           required
+          value={organization}
+          onChange={(e) => setOrganization(e.currentTarget.value)}
           maxLength={100}
           placeholder="例: 全日本スキー連盟"
-          className="border-input bg-background focus-visible:ring-ring rounded-md border px-3 py-1.5 text-sm focus-visible:ring-1 focus-visible:outline-none"
         />
-      </div>
 
-      <div className="flex flex-col gap-1">
-        <label htmlFor="cert-desc" className="text-sm font-medium">
-          説明
-        </label>
-        <textarea
-          id="cert-desc"
+        <Textarea
+          label="説明"
           value={description}
-          onChange={(e) => setDescription(e.target.value)}
+          onChange={(e) => setDescription(e.currentTarget.value)}
           maxLength={500}
           rows={2}
           placeholder="資格の説明（任意）"
-          className="border-input bg-background focus-visible:ring-ring resize-none rounded-md border px-3 py-1.5 text-sm focus-visible:ring-1 focus-visible:outline-none"
         />
-      </div>
 
-      {create.isError && <p className="text-sm text-red-600">{create.error.message}</p>}
+        {create.isError && <Alert color="red">{create.error.message}</Alert>}
 
-      <Button type="submit" disabled={create.isPending}>
-        {create.isPending ? '作成中…' : '作成'}
-      </Button>
-    </form>
+        <Button type="submit" loading={create.isPending}>
+          作成
+        </Button>
+      </Stack>
+    </Card>
   );
 }

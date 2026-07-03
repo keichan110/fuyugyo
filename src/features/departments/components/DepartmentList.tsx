@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-import { Button } from '@mantine/core';
+import { Alert, Badge, Button, Card, Group, Stack, Text, Title } from '@mantine/core';
 
 import { useDeactivateDepartment, useDepartments } from '../queries';
 import { DepartmentForm } from './DepartmentForm';
@@ -15,58 +15,67 @@ export function DepartmentList() {
   const deactivate = useDeactivateDepartment();
 
   return (
-    <section className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold">部門管理</h2>
+    <Stack gap="md">
+      <Group justify="space-between">
+        <Title order={2}>部門管理</Title>
         <Button onClick={() => setShowForm((prev) => !prev)}>
           {showForm ? 'キャンセル' : '部門を追加'}
         </Button>
-      </div>
+      </Group>
 
       {showForm && <DepartmentForm onSuccess={() => setShowForm(false)} />}
 
-      {isLoading && <p className="text-muted-foreground text-sm">読み込み中…</p>}
-      {isError && <p className="text-sm text-red-600">部門一覧の取得に失敗しました</p>}
+      {isLoading && (
+        <Text c="dimmed" size="sm">
+          読み込み中…
+        </Text>
+      )}
+      {isError && <Alert color="red">部門一覧の取得に失敗しました</Alert>}
 
       {data && data.length === 0 && (
-        <p className="text-muted-foreground text-sm">部門がありません</p>
+        <Text c="dimmed" size="sm">
+          部門がありません
+        </Text>
       )}
 
       {data && data.length > 0 && (
-        <ul className="flex flex-col gap-2">
+        <Stack gap="sm">
           {data.map((dept) => (
-            <li
-              key={dept.id}
-              className="border-border bg-card flex items-center justify-between rounded-md border p-4"
-            >
-              <div className="flex flex-col gap-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-muted-foreground font-mono text-sm">{dept.code}</span>
-                  <span className="font-medium">{dept.name}</span>
-                  {!dept.isActive && (
-                    <span className="bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-xs">
-                      無効
-                    </span>
+            <Card key={dept.id} withBorder padding="md" radius="md">
+              <Group justify="space-between">
+                <Stack gap={4}>
+                  <Group gap="xs">
+                    <Text c="dimmed" size="sm" ff="monospace">
+                      {dept.code}
+                    </Text>
+                    <Text fw={500}>{dept.name}</Text>
+                    {!dept.isActive && (
+                      <Badge color="gray" variant="light" size="sm">
+                        無効
+                      </Badge>
+                    )}
+                  </Group>
+                  {dept.description && (
+                    <Text c="dimmed" size="sm">
+                      {dept.description}
+                    </Text>
                   )}
-                </div>
-                {dept.description && (
-                  <p className="text-muted-foreground text-sm">{dept.description}</p>
+                </Stack>
+                {dept.isActive && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    loading={deactivate.isPending}
+                    onClick={() => deactivate.mutate(dept.id)}
+                  >
+                    無効化
+                  </Button>
                 )}
-              </div>
-              {dept.isActive && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={deactivate.isPending}
-                  onClick={() => deactivate.mutate(dept.id)}
-                >
-                  無効化
-                </Button>
-              )}
-            </li>
+              </Group>
+            </Card>
           ))}
-        </ul>
+        </Stack>
       )}
-    </section>
+    </Stack>
   );
 }

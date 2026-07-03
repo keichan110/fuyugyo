@@ -1,3 +1,5 @@
+import { Badge, Card, SimpleGrid, Stack, Text, UnstyledButton } from '@mantine/core';
+
 import type { ShiftViewItem } from '../schema';
 import { formatDate, parseDate, WEEKDAY_LABELS } from '../view-utils';
 
@@ -29,14 +31,14 @@ function buildCells(month: string): Cell[] {
 }
 
 /** 曜日見出しの色（日=赤・土=青） */
-function headerClass(index: number): string {
+function headerColor(index: number): string | undefined {
   if (index === 0) {
-    return 'text-red-600';
+    return 'red';
   }
   if (index === 6) {
-    return 'text-blue-600';
+    return 'blue';
   }
-  return 'text-muted-foreground';
+  return undefined;
 }
 
 /**
@@ -53,12 +55,19 @@ export function MonthlyView({ month, shifts, onSelectDay }: MonthlyViewProps) {
   const cells = buildCells(month);
 
   return (
-    <div className="border-border bg-card rounded-md border p-2">
-      <div className="grid grid-cols-7 gap-1">
+    <Card withBorder padding="xs" radius="md">
+      <SimpleGrid cols={7} spacing={4}>
         {WEEKDAY_LABELS.map((label, index) => (
-          <div key={label} className={`py-1 text-center text-xs font-medium ${headerClass(index)}`}>
+          <Text
+            key={label}
+            ta="center"
+            size="xs"
+            fw={500}
+            c={headerColor(index) ?? 'dimmed'}
+            py={4}
+          >
             {label}
-          </div>
+          </Text>
         ))}
         {cells.map((cell, index) => {
           if (!cell) {
@@ -67,22 +76,32 @@ export function MonthlyView({ month, shifts, onSelectDay }: MonthlyViewProps) {
           }
           const count = countByDate.get(cell.dateStr) ?? 0;
           return (
-            <button
-              type="button"
+            <UnstyledButton
               key={cell.dateStr}
               onClick={() => onSelectDay(cell.dateStr)}
-              className="border-border/60 bg-background hover:border-ring focus-visible:ring-ring flex aspect-square flex-col items-center gap-0.5 rounded border p-1 text-xs focus-visible:ring-1 focus-visible:outline-none"
+              p={4}
+              style={{
+                aspectRatio: '1',
+                border: '1px solid var(--mantine-color-gray-3)',
+                borderRadius: 4,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 2,
+              }}
             >
-              <span className="text-foreground">{cell.day}</span>
-              {count > 0 && (
-                <span className="bg-primary/10 text-primary rounded-full px-1.5 text-[10px] leading-tight">
-                  {count}
-                </span>
-              )}
-            </button>
+              <Stack gap={2} align="center">
+                <Text size="xs">{cell.day}</Text>
+                {count > 0 && (
+                  <Badge color="blue" variant="light" size="xs">
+                    {count}
+                  </Badge>
+                )}
+              </Stack>
+            </UnstyledButton>
           );
         })}
-      </div>
-    </div>
+      </SimpleGrid>
+    </Card>
   );
 }

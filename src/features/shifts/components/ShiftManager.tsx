@@ -1,6 +1,19 @@
 import { useEffect, useRef, useState } from 'react';
 
-import { Button } from '@mantine/core';
+import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  Checkbox,
+  Group,
+  Select,
+  Stack,
+  Text,
+  Textarea,
+  TextInput,
+  Title,
+} from '@mantine/core';
 
 import {
   useCreateShift,
@@ -39,56 +52,44 @@ export function ShiftManager() {
   const canEdit = !!(date && departmentId && shiftTypeId);
 
   return (
-    <section className="flex flex-col gap-4">
-      <h2 className="text-xl font-bold">シフト管理</h2>
+    <Stack gap="md">
+      <Title order={2}>シフト管理</Title>
 
-      {formData.isLoading && <p className="text-muted-foreground text-sm">読み込み中…</p>}
-      {formData.isError && (
-        <p className="text-sm text-red-600">フォームデータの取得に失敗しました</p>
+      {formData.isLoading && (
+        <Text c="dimmed" size="sm">
+          読み込み中…
+        </Text>
       )}
+      {formData.isError && <Alert color="red">フォームデータの取得に失敗しました</Alert>}
 
       {formData.data && (
-        <div className="border-border bg-card flex flex-col gap-3 rounded-md border p-4">
-          <div className="flex flex-wrap gap-3">
-            <label className="flex flex-col gap-1 text-sm">
-              <span className="text-muted-foreground">日付</span>
-              <input
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="border-input bg-background focus-visible:ring-ring rounded-md border px-3 py-1.5 text-sm focus-visible:ring-1 focus-visible:outline-none"
-              />
-            </label>
-            <label className="flex flex-col gap-1 text-sm">
-              <span className="text-muted-foreground">部門</span>
-              <select
-                value={departmentId}
-                onChange={(e) => setDepartmentId(e.target.value)}
-                className="border-input bg-background focus-visible:ring-ring rounded-md border px-3 py-1.5 text-sm focus-visible:ring-1 focus-visible:outline-none"
-              >
-                {formData.data.departments.map((dept) => (
-                  <option key={dept.id} value={dept.id}>
-                    {dept.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex flex-col gap-1 text-sm">
-              <span className="text-muted-foreground">シフト種別</span>
-              <select
-                value={shiftTypeId}
-                onChange={(e) => setShiftTypeId(e.target.value)}
-                className="border-input bg-background focus-visible:ring-ring rounded-md border px-3 py-1.5 text-sm focus-visible:ring-1 focus-visible:outline-none"
-              >
-                {formData.data.shiftTypes.map((st) => (
-                  <option key={st.id} value={st.id}>
-                    {st.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-        </div>
+        <Card withBorder padding="md" radius="md">
+          <Group gap="md" wrap="wrap">
+            <TextInput
+              type="date"
+              label="日付"
+              value={date}
+              onChange={(e) => setDate(e.currentTarget.value)}
+            />
+            <Select
+              label="部門"
+              data={formData.data.departments.map((dept) => ({
+                value: dept.id,
+                label: dept.name,
+              }))}
+              value={departmentId || null}
+              onChange={(value) => setDepartmentId(value ?? '')}
+              allowDeselect={false}
+            />
+            <Select
+              label="シフト種別"
+              data={formData.data.shiftTypes.map((st) => ({ value: st.id, label: st.name }))}
+              value={shiftTypeId || null}
+              onChange={(value) => setShiftTypeId(value ?? '')}
+              allowDeselect={false}
+            />
+          </Group>
+        </Card>
       )}
 
       {canEdit && (
@@ -99,7 +100,7 @@ export function ShiftManager() {
           shiftTypeId={shiftTypeId}
         />
       )}
-    </section>
+    </Stack>
   );
 }
 
@@ -136,14 +137,14 @@ function ShiftEditor({ date, departmentId, shiftTypeId }: ShiftEditorProps) {
   }, [editData.data]);
 
   if (editData.isLoading) {
-    return <p className="text-muted-foreground text-sm">読み込み中…</p>;
+    return (
+      <Text c="dimmed" size="sm">
+        読み込み中…
+      </Text>
+    );
   }
   if (editData.isError || !editData.data) {
-    return (
-      <p className="text-sm text-red-600">
-        {editData.error?.message ?? '編集データの取得に失敗しました'}
-      </p>
-    );
+    return <Alert color="red">{editData.error?.message ?? '編集データの取得に失敗しました'}</Alert>;
   }
 
   const { mode, shift, availableInstructors } = editData.data;
@@ -190,59 +191,56 @@ function ShiftEditor({ date, departmentId, shiftTypeId }: ShiftEditorProps) {
   const saveError = createShift.error ?? updateShift.error;
 
   return (
-    <div className="border-border bg-card flex flex-col gap-3 rounded-md border p-4">
-      <div className="flex items-center justify-between">
-        <span className="font-medium">{isEdit ? 'シフトを編集' : '新規シフトを作成'}</span>
-        {isEdit && (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={deleteShift.isPending}
-            onClick={handleDelete}
-          >
-            シフトを削除
-          </Button>
+    <Card withBorder padding="md" radius="md">
+      <Stack gap="sm">
+        <Group justify="space-between">
+          <Text fw={500}>{isEdit ? 'シフトを編集' : '新規シフトを作成'}</Text>
+          {isEdit && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              loading={deleteShift.isPending}
+              onClick={handleDelete}
+            >
+              シフトを削除
+            </Button>
+          )}
+        </Group>
+
+        {availableInstructors.length === 0 ? (
+          <Text c="dimmed" size="sm">
+            この部門に割り当て可能なインストラクターがいません
+          </Text>
+        ) : (
+          <Stack gap="xs">
+            {availableInstructors.map((inst) => (
+              <InstructorCheckbox
+                key={inst.id}
+                instructor={inst}
+                checked={selectedIds.has(inst.id)}
+                onToggle={() => toggle(inst.id)}
+              />
+            ))}
+          </Stack>
         )}
-      </div>
 
-      {availableInstructors.length === 0 ? (
-        <p className="text-muted-foreground text-sm">
-          この部門に割り当て可能なインストラクターがいません
-        </p>
-      ) : (
-        <ul className="flex flex-col gap-1">
-          {availableInstructors.map((inst) => (
-            <InstructorCheckbox
-              key={inst.id}
-              instructor={inst}
-              checked={selectedIds.has(inst.id)}
-              onToggle={() => toggle(inst.id)}
-            />
-          ))}
-        </ul>
-      )}
-
-      <label className="flex flex-col gap-1 text-sm">
-        <span className="text-muted-foreground">備考（任意）</span>
-        <textarea
+        <Textarea
+          label="備考（任意）"
           value={description}
-          onChange={(e) => setDescription(e.target.value)}
+          onChange={(e) => setDescription(e.currentTarget.value)}
           maxLength={500}
           rows={2}
-          className="border-input bg-background focus-visible:ring-ring resize-none rounded-md border px-3 py-1.5 text-sm focus-visible:ring-1 focus-visible:outline-none"
         />
-      </label>
 
-      <div className="flex gap-2">
-        <Button type="button" size="sm" disabled={saving} onClick={handleSave}>
-          {saving ? '保存中…' : isEdit ? '更新' : '作成'}
+        <Button type="button" size="sm" loading={saving} onClick={handleSave}>
+          {isEdit ? '更新' : '作成'}
         </Button>
-      </div>
 
-      {saveError && <p className="text-sm text-red-600">{saveError.message}</p>}
-      {deleteShift.isError && <p className="text-sm text-red-600">{deleteShift.error.message}</p>}
-    </div>
+        {saveError && <Alert color="red">{saveError.message}</Alert>}
+        {deleteShift.isError && <Alert color="red">{deleteShift.error.message}</Alert>}
+      </Stack>
+    </Card>
   );
 }
 
@@ -255,21 +253,28 @@ type InstructorCheckboxProps = {
 /** 割り当て候補インストラクターの1行（チェックボックス + 競合警告）。 */
 function InstructorCheckbox({ instructor, checked, onToggle }: InstructorCheckboxProps) {
   return (
-    <li className="flex items-center justify-between gap-2 text-sm">
-      <label className="flex items-center gap-2">
-        <input type="checkbox" checked={checked} onChange={onToggle} />
-        <span>{instructor.displayName}</span>
-        {instructor.certificationSummary && (
-          <span className="text-muted-foreground text-xs">
-            （{instructor.certificationSummary}）
-          </span>
-        )}
-      </label>
+    <Group justify="space-between" gap="xs">
+      <Checkbox
+        checked={checked}
+        onChange={onToggle}
+        label={
+          <Group gap={4} component="span">
+            <Text component="span" size="sm">
+              {instructor.displayName}
+            </Text>
+            {instructor.certificationSummary && (
+              <Text component="span" c="dimmed" size="xs">
+                （{instructor.certificationSummary}）
+              </Text>
+            )}
+          </Group>
+        }
+      />
       {instructor.hasConflict && (
-        <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-700">
+        <Badge color="yellow" variant="light" size="sm">
           同日に別シフトあり
-        </span>
+        </Badge>
       )}
-    </li>
+    </Group>
   );
 }

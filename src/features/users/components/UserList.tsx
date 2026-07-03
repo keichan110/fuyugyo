@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-import { Button } from '@mantine/core';
+import { Alert, Badge, Button, Card, Group, Select, Stack, Text, Title } from '@mantine/core';
 
 import { useInstructors } from '@/features/instructors/queries';
 
@@ -29,24 +29,30 @@ export function UserList() {
   const { data: userList, isLoading, isError } = useUsers();
 
   return (
-    <section className="flex flex-col gap-4">
-      <h2 className="text-xl font-bold">ユーザー管理</h2>
+    <Stack gap="md">
+      <Title order={2}>ユーザー管理</Title>
 
-      {isLoading && <p className="text-muted-foreground text-sm">読み込み中…</p>}
-      {isError && <p className="text-sm text-red-600">ユーザー一覧の取得に失敗しました</p>}
+      {isLoading && (
+        <Text c="dimmed" size="sm">
+          読み込み中…
+        </Text>
+      )}
+      {isError && <Alert color="red">ユーザー一覧の取得に失敗しました</Alert>}
 
       {!isLoading && userList?.length === 0 && (
-        <p className="text-muted-foreground text-sm">ユーザーがいません</p>
+        <Text c="dimmed" size="sm">
+          ユーザーがいません
+        </Text>
       )}
 
       {userList && userList.length > 0 && (
-        <ul className="flex flex-col gap-2">
+        <Stack gap="sm">
           {userList.map((user) => (
             <UserItem key={user.id} user={user} />
           ))}
-        </ul>
+        </Stack>
       )}
-    </section>
+    </Stack>
   );
 }
 
@@ -85,57 +91,57 @@ function UserItemDisplay({ user, onChangeRole, onLinkInstructor }: UserItemDispl
   const activate = useActivateUser(user.id);
 
   return (
-    <li className="border-border bg-card flex flex-col gap-2 rounded-md border p-4">
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex flex-col gap-0.5">
-          <div className="flex items-center gap-2">
-            <span className="font-medium">{user.displayName}</span>
-            <span className="bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-xs">
+    <Card withBorder padding="md" radius="md">
+      <Stack gap="sm">
+        <Group justify="space-between" align="flex-start" wrap="wrap">
+          <Group gap="xs">
+            <Text fw={500}>{user.displayName}</Text>
+            <Badge color="gray" variant="light" size="sm">
               {ROLE_LABELS[user.role]}
-            </span>
+            </Badge>
             {!user.isActive && (
-              <span className="bg-destructive/10 text-destructive rounded px-1.5 py-0.5 text-xs">
+              <Badge color="red" variant="light" size="sm">
                 無効
-              </span>
+              </Badge>
             )}
             {user.instructorId && (
-              <span className="rounded bg-blue-100 px-1.5 py-0.5 text-xs text-blue-700">
+              <Badge color="blue" variant="light" size="sm">
                 Instructor リンク済み
-              </span>
+              </Badge>
             )}
-          </div>
-        </div>
-        <div className="flex shrink-0 flex-wrap items-center gap-2">
-          <Button variant="outline" size="sm" onClick={onChangeRole}>
-            ロール変更
-          </Button>
-          <Button variant="outline" size="sm" onClick={onLinkInstructor}>
-            Instructor リンク
-          </Button>
-          {user.isActive ? (
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={deactivate.isPending}
-              onClick={() => deactivate.mutate()}
-            >
-              {deactivate.isPending ? '処理中…' : '無効化'}
+          </Group>
+          <Group gap="xs" wrap="wrap">
+            <Button variant="outline" size="sm" onClick={onChangeRole}>
+              ロール変更
             </Button>
-          ) : (
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={activate.isPending}
-              onClick={() => activate.mutate()}
-            >
-              {activate.isPending ? '処理中…' : 'アクティブ化'}
+            <Button variant="outline" size="sm" onClick={onLinkInstructor}>
+              Instructor リンク
             </Button>
-          )}
-        </div>
-      </div>
-      {deactivate.isError && <p className="text-sm text-red-600">{deactivate.error.message}</p>}
-      {activate.isError && <p className="text-sm text-red-600">{activate.error.message}</p>}
-    </li>
+            {user.isActive ? (
+              <Button
+                variant="outline"
+                size="sm"
+                loading={deactivate.isPending}
+                onClick={() => deactivate.mutate()}
+              >
+                無効化
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                loading={activate.isPending}
+                onClick={() => activate.mutate()}
+              >
+                アクティブ化
+              </Button>
+            )}
+          </Group>
+        </Group>
+        {deactivate.isError && <Alert color="red">{deactivate.error.message}</Alert>}
+        {activate.isError && <Alert color="red">{activate.error.message}</Alert>}
+      </Stack>
+    </Card>
   );
 }
 
@@ -155,38 +161,36 @@ function UserRoleChanger({ user, onBack }: UserRoleChangerProps) {
   };
 
   return (
-    <li className="border-border bg-card rounded-md border p-4">
-      <div className="mb-3 flex items-center justify-between">
-        <span className="font-medium">{user.displayName} — ロール変更</span>
-        <Button type="button" variant="outline" size="sm" onClick={onBack}>
-          戻る
-        </Button>
-      </div>
-      <form onSubmit={handleSubmit} className="flex flex-col gap-2">
-        <select
-          value={role}
-          onChange={(e) => setRole(userRoleSchema.parse(e.target.value))}
-          className="border-input bg-background focus-visible:ring-ring rounded-md border px-3 py-1.5 text-sm focus-visible:ring-1 focus-visible:outline-none"
-        >
-          {userRoleSchema.options.map((r) => (
-            <option key={r} value={r}>
-              {ROLE_LABELS[r]}
-            </option>
-          ))}
-        </select>
-        <div className="flex gap-2">
-          <Button type="submit" size="sm" disabled={changeRole.isPending || role === user.role}>
-            {changeRole.isPending ? '保存中…' : '保存'}
+    <Card withBorder padding="md" radius="md">
+      <Stack gap="sm">
+        <Group justify="space-between">
+          <Text fw={500}>{user.displayName} — ロール変更</Text>
+          <Button type="button" variant="outline" size="sm" onClick={onBack}>
+            戻る
+          </Button>
+        </Group>
+        <Group component="form" onSubmit={handleSubmit} align="flex-end">
+          <Select
+            data={userRoleSchema.options.map((r) => ({ value: r, label: ROLE_LABELS[r] }))}
+            value={role}
+            onChange={(value) => setRole(userRoleSchema.parse(value))}
+            style={{ flex: 1 }}
+          />
+          <Button
+            type="submit"
+            size="sm"
+            loading={changeRole.isPending}
+            disabled={role === user.role}
+          >
+            保存
           </Button>
           <Button type="button" variant="outline" size="sm" onClick={onBack}>
             キャンセル
           </Button>
-        </div>
-      </form>
-      {changeRole.isError && (
-        <p className="mt-2 text-sm text-red-600">{changeRole.error.message}</p>
-      )}
-    </li>
+        </Group>
+        {changeRole.isError && <Alert color="red">{changeRole.error.message}</Alert>}
+      </Stack>
+    </Card>
   );
 }
 
@@ -218,72 +222,71 @@ function UserInstructorLinker({ user, onBack }: UserInstructorLinkerProps) {
   const linkedInstructor = activeInstructors?.find((i) => i.id === user.instructorId);
 
   return (
-    <li className="border-border bg-card flex flex-col gap-3 rounded-md border p-4">
-      <div className="flex items-center justify-between">
-        <span className="font-medium">{user.displayName} — Instructor リンク</span>
-        <Button type="button" variant="outline" size="sm" onClick={onBack}>
-          戻る
-        </Button>
-      </div>
-
-      {/* 現在のリンク状態 */}
-      {user.instructorId ? (
-        <div className="bg-muted flex items-center justify-between gap-2 rounded-md px-3 py-2 text-sm">
-          <span>
-            リンク中:{' '}
-            {linkedInstructor
-              ? `${linkedInstructor.lastName} ${linkedInstructor.firstName}`
-              : 'インストラクター情報を取得できません'}
-          </span>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={unlinkInstructor.isPending}
-            onClick={handleUnlink}
-          >
-            {unlinkInstructor.isPending ? '解除中…' : 'リンク解除'}
+    <Card withBorder padding="md" radius="md">
+      <Stack gap="sm">
+        <Group justify="space-between">
+          <Text fw={500}>{user.displayName} — Instructor リンク</Text>
+          <Button type="button" variant="outline" size="sm" onClick={onBack}>
+            戻る
           </Button>
-        </div>
-      ) : (
-        <p className="text-muted-foreground text-sm">Instructor にリンクされていません</p>
-      )}
+        </Group>
 
-      {/* リンクフォーム */}
-      {!user.instructorId && activeInstructors && activeInstructors.length > 0 && (
-        <form onSubmit={handleLink} className="flex gap-2">
-          <select
-            value={selectedInstructorId}
-            onChange={(e) => setSelectedInstructorId(e.target.value)}
-            required
-            className="border-input bg-background focus-visible:ring-ring flex-1 rounded-md border px-3 py-1.5 text-sm focus-visible:ring-1 focus-visible:outline-none"
-          >
-            <option value="">インストラクターを選択してください</option>
-            {activeInstructors.map((inst) => (
-              <option key={inst.id} value={inst.id}>
-                {inst.lastName} {inst.firstName}
-                {inst.lastNameKana && inst.firstNameKana
-                  ? `（${inst.lastNameKana} ${inst.firstNameKana}）`
-                  : ''}
-              </option>
-            ))}
-          </select>
-          <Button
-            type="submit"
-            size="sm"
-            disabled={linkInstructor.isPending || !selectedInstructorId}
-          >
-            {linkInstructor.isPending ? 'リンク中…' : 'リンク'}
-          </Button>
-        </form>
-      )}
+        {/* 現在のリンク状態 */}
+        {user.instructorId ? (
+          <Group justify="space-between" bg="gray.0" px="sm" py="xs" style={{ borderRadius: 6 }}>
+            <Text size="sm">
+              リンク中:{' '}
+              {linkedInstructor
+                ? `${linkedInstructor.lastName} ${linkedInstructor.firstName}`
+                : 'インストラクター情報を取得できません'}
+            </Text>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              loading={unlinkInstructor.isPending}
+              onClick={handleUnlink}
+            >
+              リンク解除
+            </Button>
+          </Group>
+        ) : (
+          <Text c="dimmed" size="sm">
+            Instructor にリンクされていません
+          </Text>
+        )}
 
-      {linkInstructor.isError && (
-        <p className="text-sm text-red-600">{linkInstructor.error.message}</p>
-      )}
-      {unlinkInstructor.isError && (
-        <p className="text-sm text-red-600">{unlinkInstructor.error.message}</p>
-      )}
-    </li>
+        {/* リンクフォーム */}
+        {!user.instructorId && activeInstructors && activeInstructors.length > 0 && (
+          <Group component="form" onSubmit={handleLink} wrap="nowrap">
+            <Select
+              placeholder="インストラクターを選択してください"
+              required
+              data={activeInstructors.map((inst) => ({
+                value: inst.id,
+                label:
+                  inst.lastNameKana && inst.firstNameKana
+                    ? `${inst.lastName} ${inst.firstName}（${inst.lastNameKana} ${inst.firstNameKana}）`
+                    : `${inst.lastName} ${inst.firstName}`,
+              }))}
+              value={selectedInstructorId || null}
+              onChange={(value) => setSelectedInstructorId(value ?? '')}
+              style={{ flex: 1 }}
+            />
+            <Button
+              type="submit"
+              size="sm"
+              loading={linkInstructor.isPending}
+              disabled={!selectedInstructorId}
+            >
+              リンク
+            </Button>
+          </Group>
+        )}
+
+        {linkInstructor.isError && <Alert color="red">{linkInstructor.error.message}</Alert>}
+        {unlinkInstructor.isError && <Alert color="red">{unlinkInstructor.error.message}</Alert>}
+      </Stack>
+    </Card>
   );
 }

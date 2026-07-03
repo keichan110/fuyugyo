@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-import { Button } from '@mantine/core';
+import { Alert, Button, Card, Stack, TextInput } from '@mantine/core';
 
 import { useCreateShiftType } from '../queries';
 
@@ -21,31 +21,23 @@ export function ShiftTypeForm({ onSuccess }: Props) {
   };
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="border-border bg-card flex flex-col gap-3 rounded-md border p-4"
-    >
-      <div className="flex flex-col gap-1">
-        <label htmlFor="shift-type-name" className="text-sm font-medium">
-          種別名 <span className="text-red-500">*</span>
-        </label>
-        <input
-          id="shift-type-name"
-          type="text"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
+    <Card component="form" onSubmit={handleSubmit} withBorder padding="md" radius="md">
+      <Stack gap="sm">
+        <TextInput
+          label="種別名"
           required
+          value={name}
+          onChange={(e) => setName(e.currentTarget.value)}
           maxLength={100}
           placeholder="例: 終日、午前、午後"
-          className="border-input bg-background focus-visible:ring-ring rounded-md border px-3 py-1.5 text-sm focus-visible:ring-1 focus-visible:outline-none"
         />
-      </div>
 
-      {create.isError && <p className="text-sm text-red-600">{create.error.message}</p>}
+        {create.isError && <Alert color="red">{create.error.message}</Alert>}
 
-      <Button type="submit" disabled={create.isPending}>
-        {create.isPending ? '作成中…' : '作成'}
-      </Button>
-    </form>
+        <Button type="submit" loading={create.isPending}>
+          作成
+        </Button>
+      </Stack>
+    </Card>
   );
 }

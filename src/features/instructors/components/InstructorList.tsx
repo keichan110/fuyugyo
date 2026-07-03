@@ -1,6 +1,18 @@
 import { useState } from 'react';
 
-import { Button } from '@mantine/core';
+import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  Group,
+  Select,
+  Stack,
+  Text,
+  Textarea,
+  TextInput,
+  Title,
+} from '@mantine/core';
 
 import { useCertifications } from '@/features/certifications/queries';
 
@@ -29,31 +41,37 @@ export function InstructorList() {
   const isError = activeData.isError || inactiveData.isError;
 
   return (
-    <section className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold">インストラクター管理</h2>
+    <Stack gap="md">
+      <Group justify="space-between">
+        <Title order={2}>インストラクター管理</Title>
         <Button onClick={() => setShowForm((prev) => !prev)}>
           {showForm ? 'キャンセル' : 'インストラクターを追加'}
         </Button>
-      </div>
+      </Group>
 
       {showForm && <InstructorForm onSuccess={() => setShowForm(false)} />}
 
-      {isLoading && <p className="text-muted-foreground text-sm">読み込み中…</p>}
-      {isError && <p className="text-sm text-red-600">インストラクター一覧の取得に失敗しました</p>}
+      {isLoading && (
+        <Text c="dimmed" size="sm">
+          読み込み中…
+        </Text>
+      )}
+      {isError && <Alert color="red">インストラクター一覧の取得に失敗しました</Alert>}
 
       {!isLoading && allInstructors.length === 0 && (
-        <p className="text-muted-foreground text-sm">インストラクターがいません</p>
+        <Text c="dimmed" size="sm">
+          インストラクターがいません
+        </Text>
       )}
 
       {allInstructors.length > 0 && (
-        <ul className="flex flex-col gap-2">
+        <Stack gap="sm">
           {allInstructors.map((instructor) => (
             <InstructorItem key={instructor.id} instructor={instructor} />
           ))}
-        </ul>
+        </Stack>
       )}
-    </section>
+    </Stack>
   );
 }
 
@@ -100,41 +118,49 @@ function InstructorItemDisplay({ instructor, onEdit, onManageCert }: InstructorI
       : null;
 
   return (
-    <li className="border-border bg-card flex flex-col gap-2 rounded-md border p-4">
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex flex-col gap-0.5">
-          <div className="flex items-center gap-2">
-            <span className="font-medium">{fullName}</span>
-            {fullNameKana && (
-              <span className="text-muted-foreground text-sm">（{fullNameKana}）</span>
+    <Card withBorder padding="md" radius="md">
+      <Stack gap="sm">
+        <Group justify="space-between" align="flex-start" wrap="nowrap">
+          <Stack gap={4}>
+            <Group gap="xs">
+              <Text fw={500}>{fullName}</Text>
+              {fullNameKana && (
+                <Text c="dimmed" size="sm">
+                  （{fullNameKana}）
+                </Text>
+              )}
+              {!isActive && (
+                <Badge color="gray" variant="light" size="sm">
+                  非アクティブ
+                </Badge>
+              )}
+            </Group>
+            {instructor.notes && (
+              <Text c="dimmed" size="sm">
+                {instructor.notes}
+              </Text>
             )}
-            {!isActive && (
-              <span className="bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-xs">
-                非アクティブ
-              </span>
-            )}
-          </div>
-          {instructor.notes && <p className="text-muted-foreground text-sm">{instructor.notes}</p>}
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <Button variant="outline" size="sm" onClick={onEdit}>
-            編集
-          </Button>
-          <Button variant="outline" size="sm" onClick={onManageCert}>
-            資格管理
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={changeStatus.isPending}
-            onClick={() => changeStatus.mutate({ status: isActive ? 'INACTIVE' : 'ACTIVE' })}
-          >
-            {isActive ? '非アクティブ化' : 'アクティブ化'}
-          </Button>
-        </div>
-      </div>
-      {changeStatus.isError && <p className="text-sm text-red-600">{changeStatus.error.message}</p>}
-    </li>
+          </Stack>
+          <Group gap="xs" wrap="nowrap">
+            <Button variant="outline" size="sm" onClick={onEdit}>
+              編集
+            </Button>
+            <Button variant="outline" size="sm" onClick={onManageCert}>
+              資格管理
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              loading={changeStatus.isPending}
+              onClick={() => changeStatus.mutate({ status: isActive ? 'INACTIVE' : 'ACTIVE' })}
+            >
+              {isActive ? '非アクティブ化' : 'アクティブ化'}
+            </Button>
+          </Group>
+        </Group>
+        {changeStatus.isError && <Alert color="red">{changeStatus.error.message}</Alert>}
+      </Stack>
+    </Card>
   );
 }
 
@@ -167,66 +193,57 @@ function InstructorItemEdit({ instructor, onCancel }: InstructorItemEditProps) {
   };
 
   return (
-    <li className="border-border bg-card rounded-md border p-4">
-      <form onSubmit={handleUpdate} className="flex flex-col gap-2">
-        <div className="flex gap-2">
-          <input
-            type="text"
+    <Card component="form" onSubmit={handleUpdate} withBorder padding="md" radius="md">
+      <Stack gap="sm">
+        <Group grow>
+          <TextInput
             value={lastName}
-            onChange={(e) => setLastName(e.target.value)}
+            onChange={(e) => setLastName(e.currentTarget.value)}
             required
             maxLength={50}
             placeholder="姓"
             autoFocus
-            className="border-input bg-background focus-visible:ring-ring flex-1 rounded-md border px-3 py-1.5 text-sm focus-visible:ring-1 focus-visible:outline-none"
           />
-          <input
-            type="text"
+          <TextInput
             value={firstName}
-            onChange={(e) => setFirstName(e.target.value)}
+            onChange={(e) => setFirstName(e.currentTarget.value)}
             required
             maxLength={50}
             placeholder="名"
-            className="border-input bg-background focus-visible:ring-ring flex-1 rounded-md border px-3 py-1.5 text-sm focus-visible:ring-1 focus-visible:outline-none"
           />
-        </div>
-        <div className="flex gap-2">
-          <input
-            type="text"
+        </Group>
+        <Group grow>
+          <TextInput
             value={lastNameKana}
-            onChange={(e) => setLastNameKana(e.target.value)}
+            onChange={(e) => setLastNameKana(e.currentTarget.value)}
             maxLength={50}
             placeholder="姓（カナ）"
-            className="border-input bg-background focus-visible:ring-ring flex-1 rounded-md border px-3 py-1.5 text-sm focus-visible:ring-1 focus-visible:outline-none"
           />
-          <input
-            type="text"
+          <TextInput
             value={firstNameKana}
-            onChange={(e) => setFirstNameKana(e.target.value)}
+            onChange={(e) => setFirstNameKana(e.currentTarget.value)}
             maxLength={50}
             placeholder="名（カナ）"
-            className="border-input bg-background focus-visible:ring-ring flex-1 rounded-md border px-3 py-1.5 text-sm focus-visible:ring-1 focus-visible:outline-none"
           />
-        </div>
-        <textarea
+        </Group>
+        <Textarea
           value={notes}
-          onChange={(e) => setNotes(e.target.value)}
+          onChange={(e) => setNotes(e.currentTarget.value)}
           maxLength={500}
           rows={2}
           placeholder="備考（任意）"
-          className="border-input bg-background focus-visible:ring-ring resize-none rounded-md border px-3 py-1.5 text-sm focus-visible:ring-1 focus-visible:outline-none"
         />
-        <div className="flex gap-2">
-          <Button type="submit" size="sm" disabled={update.isPending}>
-            {update.isPending ? '保存中…' : '保存'}
+        <Group gap="xs">
+          <Button type="submit" size="sm" loading={update.isPending}>
+            保存
           </Button>
           <Button type="button" variant="outline" size="sm" onClick={onCancel}>
             キャンセル
           </Button>
-        </div>
-      </form>
-      {update.isError && <p className="text-sm text-red-600">{update.error.message}</p>}
-    </li>
+        </Group>
+        {update.isError && <Alert color="red">{update.error.message}</Alert>}
+      </Stack>
+    </Card>
   );
 }
 
@@ -261,68 +278,76 @@ function InstructorCertManager({ instructor, onBack }: InstructorCertManagerProp
   };
 
   return (
-    <li className="border-border bg-card flex flex-col gap-3 rounded-md border p-4">
-      <div className="flex items-center justify-between">
-        <span className="font-medium">
-          {instructor.lastName} {instructor.firstName} — 資格管理
-        </span>
-        <Button type="button" variant="outline" size="sm" onClick={onBack}>
-          戻る
-        </Button>
-      </div>
-
-      {detailLoading && <p className="text-muted-foreground text-sm">読み込み中…</p>}
-
-      {/* 割り当て済み一覧 */}
-      {!detailLoading &&
-        (detail && detail.certifications.length > 0 ? (
-          <ul className="flex flex-col gap-1">
-            {detail.certifications.map((ic) => {
-              const cert = certMap.get(ic.certificationId);
-              return (
-                <li key={ic.id} className="flex items-center justify-between gap-2 text-sm">
-                  <span>{cert ? `${cert.name}（${cert.shortName}）` : ic.certificationId}</span>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={unassign.isPending}
-                    onClick={() => unassign.mutate(ic.certificationId)}
-                  >
-                    解除
-                  </Button>
-                </li>
-              );
-            })}
-          </ul>
-        ) : (
-          <p className="text-muted-foreground text-sm">割り当て済みの資格がありません</p>
-        ))}
-
-      {/* 資格割り当てフォーム */}
-      {availableCerts.length > 0 && (
-        <form onSubmit={handleAssign} className="flex gap-2">
-          <select
-            value={selectedCertId}
-            onChange={(e) => setSelectedCertId(e.target.value)}
-            required
-            className="border-input bg-background focus-visible:ring-ring flex-1 rounded-md border px-3 py-1.5 text-sm focus-visible:ring-1 focus-visible:outline-none"
-          >
-            <option value="">資格を選択してください</option>
-            {availableCerts.map((cert) => (
-              <option key={cert.id} value={cert.id}>
-                {cert.name}（{cert.shortName}）
-              </option>
-            ))}
-          </select>
-          <Button type="submit" size="sm" disabled={assign.isPending || !selectedCertId}>
-            {assign.isPending ? '割り当て中…' : '割り当て'}
+    <Card withBorder padding="md" radius="md">
+      <Stack gap="sm">
+        <Group justify="space-between">
+          <Text fw={500}>
+            {instructor.lastName} {instructor.firstName} — 資格管理
+          </Text>
+          <Button type="button" variant="outline" size="sm" onClick={onBack}>
+            戻る
           </Button>
-        </form>
-      )}
+        </Group>
 
-      {assign.isError && <p className="text-sm text-red-600">{assign.error.message}</p>}
-      {unassign.isError && <p className="text-sm text-red-600">{unassign.error.message}</p>}
-    </li>
+        {detailLoading && (
+          <Text c="dimmed" size="sm">
+            読み込み中…
+          </Text>
+        )}
+
+        {/* 割り当て済み一覧 */}
+        {!detailLoading &&
+          (detail && detail.certifications.length > 0 ? (
+            <Stack gap={4}>
+              {detail.certifications.map((ic) => {
+                const cert = certMap.get(ic.certificationId);
+                return (
+                  <Group key={ic.id} justify="space-between" gap="xs">
+                    <Text size="sm">
+                      {cert ? `${cert.name}（${cert.shortName}）` : ic.certificationId}
+                    </Text>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      loading={unassign.isPending}
+                      onClick={() => unassign.mutate(ic.certificationId)}
+                    >
+                      解除
+                    </Button>
+                  </Group>
+                );
+              })}
+            </Stack>
+          ) : (
+            <Text c="dimmed" size="sm">
+              割り当て済みの資格がありません
+            </Text>
+          ))}
+
+        {/* 資格割り当てフォーム */}
+        {availableCerts.length > 0 && (
+          <Group component="form" onSubmit={handleAssign} wrap="nowrap">
+            <Select
+              placeholder="資格を選択してください"
+              required
+              data={availableCerts.map((cert) => ({
+                value: cert.id,
+                label: `${cert.name}（${cert.shortName}）`,
+              }))}
+              value={selectedCertId || null}
+              onChange={(value) => setSelectedCertId(value ?? '')}
+              style={{ flex: 1 }}
+            />
+            <Button type="submit" size="sm" loading={assign.isPending} disabled={!selectedCertId}>
+              割り当て
+            </Button>
+          </Group>
+        )}
+
+        {assign.isError && <Alert color="red">{assign.error.message}</Alert>}
+        {unassign.isError && <Alert color="red">{unassign.error.message}</Alert>}
+      </Stack>
+    </Card>
   );
 }

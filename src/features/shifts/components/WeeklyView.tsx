@@ -1,3 +1,5 @@
+import { Card, Group, Stack, Text } from '@mantine/core';
+
 import type { ShiftViewItem } from '../schema';
 import { addDays, shortDateLabel, weekdayIndex } from '../view-utils';
 
@@ -7,16 +9,16 @@ type WeeklyViewProps = {
   shifts: ShiftViewItem[];
 };
 
-/** 土日の見出しを淡く色分けするための曜日別クラス */
-function weekdayClass(dateStr: string): string {
+/** 土日の見出しを淡く色分けするための曜日別カラー */
+function weekdayColor(dateStr: string): string | undefined {
   const day = weekdayIndex(dateStr);
   if (day === 0) {
-    return 'text-red-600';
+    return 'red';
   }
   if (day === 6) {
-    return 'text-blue-600';
+    return 'blue';
   }
-  return 'text-foreground';
+  return undefined;
 }
 
 /**
@@ -35,42 +37,51 @@ export function WeeklyView({ dateFrom, shifts }: WeeklyViewProps) {
   const days = Array.from({ length: 7 }, (_, i) => addDays(dateFrom, i));
 
   return (
-    <ul className="flex flex-col gap-2">
+    <Stack gap="sm">
       {days.map((day) => {
         const dayShifts = byDate.get(day) ?? [];
         return (
-          <li key={day} className="border-border bg-card rounded-md border p-3">
-            <div className={`text-sm font-medium ${weekdayClass(day)}`}>{shortDateLabel(day)}</div>
+          <Card key={day} withBorder padding="sm" radius="md">
+            <Text size="sm" fw={500} c={weekdayColor(day) ?? 'inherit'}>
+              {shortDateLabel(day)}
+            </Text>
             {dayShifts.length === 0 ? (
-              <p className="text-muted-foreground mt-1 text-xs">シフトなし</p>
+              <Text c="dimmed" size="xs" mt={4}>
+                シフトなし
+              </Text>
             ) : (
-              <ul className="mt-2 flex flex-col gap-1.5">
+              <Stack gap={6} mt="xs">
                 {dayShifts.map((shift) => (
-                  <li
-                    key={shift.id}
-                    className="border-border/60 bg-background rounded border p-2 text-sm"
-                  >
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                      <span className="font-medium">{shift.department.name}</span>
-                      <span className="text-muted-foreground text-xs">{shift.shiftType.name}</span>
-                    </div>
+                  <Card key={shift.id} withBorder padding="xs" radius="sm" bg="gray.0">
+                    <Group gap="xs">
+                      <Text size="sm" fw={500}>
+                        {shift.department.name}
+                      </Text>
+                      <Text c="dimmed" size="xs">
+                        {shift.shiftType.name}
+                      </Text>
+                    </Group>
                     {shift.assignedInstructors.length > 0 ? (
-                      <p className="text-muted-foreground mt-0.5 text-xs">
+                      <Text c="dimmed" size="xs" mt={2}>
                         {shift.assignedInstructors.map((inst) => inst.displayName).join('、')}
-                      </p>
+                      </Text>
                     ) : (
-                      <p className="text-muted-foreground mt-0.5 text-xs">割り当てなし</p>
+                      <Text c="dimmed" size="xs" mt={2}>
+                        割り当てなし
+                      </Text>
                     )}
                     {shift.description && (
-                      <p className="text-muted-foreground mt-0.5 text-xs">{shift.description}</p>
+                      <Text c="dimmed" size="xs" mt={2}>
+                        {shift.description}
+                      </Text>
                     )}
-                  </li>
+                  </Card>
                 ))}
-              </ul>
+              </Stack>
             )}
-          </li>
+          </Card>
         );
       })}
-    </ul>
+    </Stack>
   );
 }

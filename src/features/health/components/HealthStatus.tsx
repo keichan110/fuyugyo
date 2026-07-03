@@ -1,4 +1,4 @@
-import { Button } from '@mantine/core';
+import { Alert, Button, Card, Stack, Table, Text, Title } from '@mantine/core';
 
 import { useHealth } from '../queries';
 
@@ -10,28 +10,42 @@ export function HealthStatus() {
   const { data, isLoading, isError, refetch, isRefetching } = useHealth();
 
   return (
-    <section className="border-border bg-card text-card-foreground flex flex-col items-center gap-4 rounded-lg border p-8">
-      <h1 className="text-2xl font-bold">Fuyugyō</h1>
-      <p className="text-muted-foreground text-sm">
-        Hono + Drizzle/D1 + Vite + React 19 walking skeleton
-      </p>
+    <Card withBorder padding="xl" radius="lg">
+      <Stack align="center" gap="md">
+        <Title order={1}>Fuyugyō</Title>
+        <Text c="dimmed" size="sm">
+          Hono + Drizzle/D1 + Vite + React 19 walking skeleton
+        </Text>
 
-      {isLoading && !data && <p className="text-muted-foreground">確認中…</p>}
-      {isError && <p className="text-red-600">API への接続に失敗しました</p>}
-      {data && !isError && (
-        <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-          <dt className="text-muted-foreground">status</dt>
-          <dd className="font-mono">{data.status}</dd>
-          <dt className="text-muted-foreground">departmentCount</dt>
-          <dd className="font-mono">{data.departmentCount}</dd>
-          <dt className="text-muted-foreground">timestamp</dt>
-          <dd className="font-mono">{data.timestamp}</dd>
-        </dl>
-      )}
+        {isLoading && !data && (
+          <Text c="dimmed" size="sm">
+            確認中…
+          </Text>
+        )}
+        {isError && <Alert color="red">API への接続に失敗しました</Alert>}
+        {data && !isError && (
+          <Table withRowBorders={false}>
+            <Table.Tbody>
+              <Table.Tr>
+                <Table.Td c="dimmed">status</Table.Td>
+                <Table.Td ff="monospace">{data.status}</Table.Td>
+              </Table.Tr>
+              <Table.Tr>
+                <Table.Td c="dimmed">departmentCount</Table.Td>
+                <Table.Td ff="monospace">{data.departmentCount}</Table.Td>
+              </Table.Tr>
+              <Table.Tr>
+                <Table.Td c="dimmed">timestamp</Table.Td>
+                <Table.Td ff="monospace">{data.timestamp}</Table.Td>
+              </Table.Tr>
+            </Table.Tbody>
+          </Table>
+        )}
 
-      <Button disabled={isRefetching} onClick={() => refetch()}>
-        再取得
-      </Button>
-    </section>
+        <Button loading={isRefetching} onClick={() => refetch()}>
+          再取得
+        </Button>
+      </Stack>
+    </Card>
   );
 }

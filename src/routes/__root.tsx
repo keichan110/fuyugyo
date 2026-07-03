@@ -29,7 +29,7 @@ function RootLayout() {
         <Group h="100%" px="md" justify="space-between">
           <Text
             component={Link}
-            to="/shifts"
+            to="/"
             fw={700}
             size="lg"
             c="blue"

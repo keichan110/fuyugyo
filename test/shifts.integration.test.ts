@@ -2,6 +2,7 @@ import { env } from 'cloudflare:test';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
+  assignmentSetResultSchema,
   shiftEditDataSchema,
   shiftFormDataSchema,
   shiftListSchema,
@@ -137,6 +138,34 @@ async function countAssignments(): Promise<number> {
   return rows.length;
 }
 
+/** upsert API で Shift を用意し、生成された Shift ID を返す */
+async function upsertShift(
+  token: string,
+  date: string,
+  departmentId: string,
+  shiftTypeId: string,
+  instructorIds: string[] = [],
+): Promise<string> {
+  const res = await app.request(
+    '/api/shifts/assignment-set',
+    {
+      method: 'PUT',
+      ...authJsonRequest(token, {
+        date,
+        departmentId,
+        shiftTypeId,
+        instructorIds,
+      }),
+    },
+    envWith({}),
+  );
+  const body = assignmentSetResultSchema.parse(await res.json());
+  if (!body.shift) {
+    throw new Error('upsertShift: shift was not created');
+  }
+  return body.shift.id;
+}
+
 beforeEach(async () => {
   const db = createDb(env.DB);
   // 外部キー依存順に削除する
@@ -150,252 +179,146 @@ beforeEach(async () => {
   await db.delete(users);
 });
 
-// ─── POST /api/shifts ─────────────────────────────────────────────────────────
+// ─── PUT /api/shifts/assignment-set ───────────────────────────────────────────
 
-describe('POST /api/shifts', () => {
-  it('未認証は 401 を返す', async () => {
+describe('PUT /api/shifts/assignment-set', () => {
+  it('空枠への最初の割り当てで Shift を生成し、備考も保存する', async () => {
+    const deptId = await seedDepartment();
+    const stId = await seedShiftType();
+    const inst = await seedInstructor('山田', '太郎');
+    const token = await seedToken('MANAGER');
+
     const res = await app.request(
-      '/api/shifts',
+      '/api/shifts/assignment-set',
       {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        method: 'PUT',
+        ...authJsonRequest(token, {
           date: '2026-01-15',
-          departmentId: 'd',
-          shiftTypeId: 's',
+          departmentId: deptId,
+          shiftTypeId: stId,
+          description: '縮小営業',
+          instructorIds: [inst],
         }),
       },
       envWith({}),
     );
-    expect(res.status).toBe(401);
+
+    expect(res.status).toBe(200);
+    const body = assignmentSetResultSchema.parse(await res.json());
+    expect(body.status).toBe('upserted');
+    expect(body.shift?.description).toBe('縮小営業');
+    expect(body.shift?.assignedInstructorIds).toEqual([inst]);
+
+    const list = await app.request('/api/shifts', authHeader(token), envWith({}));
+    const shiftsBody = shiftListSchema.parse(await list.json());
+    expect(shiftsBody).toHaveLength(1);
+    expect(shiftsBody[0]?.assignedInstructorIds).toEqual([inst]);
+  });
+
+  it('全員を外すと Shift を削除し、備考も残さない', async () => {
+    const deptId = await seedDepartment();
+    const stId = await seedShiftType();
+    const inst = await seedInstructor('山田', '太郎');
+    const token = await seedToken('MANAGER');
+
+    await app.request(
+      '/api/shifts/assignment-set',
+      {
+        method: 'PUT',
+        ...authJsonRequest(token, {
+          date: '2026-01-15',
+          departmentId: deptId,
+          shiftTypeId: stId,
+          description: '消える備考',
+          instructorIds: [inst],
+        }),
+      },
+      envWith({}),
+    );
+
+    const res = await app.request(
+      '/api/shifts/assignment-set',
+      {
+        method: 'PUT',
+        ...authJsonRequest(token, {
+          date: '2026-01-15',
+          departmentId: deptId,
+          shiftTypeId: stId,
+          description: '備考だけでは残さない',
+          instructorIds: [],
+        }),
+      },
+      envWith({}),
+    );
+
+    expect(res.status).toBe(200);
+    const body = assignmentSetResultSchema.parse(await res.json());
+    expect(body.status).toBe('deleted');
+    expect(body.shift).toBeNull();
+    expect(await countAssignments()).toBe(0);
+
+    const list = await app.request('/api/shifts', authHeader(token), envWith({}));
+    const shiftsBody = shiftListSchema.parse(await list.json());
+    expect(shiftsBody).toHaveLength(0);
+  });
+
+  it('存在しない Instructor を含む場合は何も作らず 400 を返す', async () => {
+    const deptId = await seedDepartment();
+    const stId = await seedShiftType();
+    const token = await seedToken('MANAGER');
+
+    const res = await app.request(
+      '/api/shifts/assignment-set',
+      {
+        method: 'PUT',
+        ...authJsonRequest(token, {
+          date: '2026-01-15',
+          departmentId: deptId,
+          shiftTypeId: stId,
+          instructorIds: ['missing'],
+        }),
+      },
+      envWith({}),
+    );
+
+    expect(res.status).toBe(400);
+    const list = await app.request('/api/shifts', authHeader(token), envWith({}));
+    const shiftsBody = shiftListSchema.parse(await list.json());
+    expect(shiftsBody).toHaveLength(0);
   });
 
   it('MEMBER は 403 で拒否される', async () => {
     const deptId = await seedDepartment();
     const stId = await seedShiftType();
     const token = await seedToken('MEMBER');
+
     const res = await app.request(
-      '/api/shifts',
+      '/api/shifts/assignment-set',
       {
-        method: 'POST',
+        method: 'PUT',
         ...authJsonRequest(token, {
           date: '2026-01-15',
           departmentId: deptId,
           shiftTypeId: stId,
+          instructorIds: [],
         }),
       },
       envWith({}),
     );
+
     expect(res.status).toBe(403);
-  });
-
-  it('MANAGER はシフトを割り当て付きで作成できる', async () => {
-    const deptId = await seedDepartment();
-    const stId = await seedShiftType();
-    const inst1 = await seedInstructor('山田', '太郎');
-    const inst2 = await seedInstructor('鈴木', '花子');
-    const token = await seedToken('MANAGER');
-
-    const res = await app.request(
-      '/api/shifts',
-      {
-        method: 'POST',
-        ...authJsonRequest(token, {
-          date: '2026-01-15',
-          departmentId: deptId,
-          shiftTypeId: stId,
-          description: '繁忙日',
-          instructorIds: [inst1, inst2],
-        }),
-      },
-      envWith({}),
-    );
-
-    expect(res.status).toBe(201);
-    const body = shiftWithAssignmentsSchema.parse(await res.json());
-    expect(body.departmentId).toBe(deptId);
-    expect(body.shiftTypeId).toBe(stId);
-    expect(body.description).toBe('繁忙日');
-    expect(body.assignedInstructorIds).toHaveLength(2);
-    expect(body.assignedInstructorIds).toContain(inst1);
-    expect(body.assignedInstructorIds).toContain(inst2);
-    expect(await countAssignments()).toBe(2);
-  });
-
-  it('割り当てなしでもシフトを作成できる', async () => {
-    const deptId = await seedDepartment();
-    const stId = await seedShiftType();
-    const token = await seedToken('MANAGER');
-
-    const res = await app.request(
-      '/api/shifts',
-      {
-        method: 'POST',
-        ...authJsonRequest(token, {
-          date: '2026-01-15',
-          departmentId: deptId,
-          shiftTypeId: stId,
-        }),
-      },
-      envWith({}),
-    );
-
-    expect(res.status).toBe(201);
-    const body = shiftWithAssignmentsSchema.parse(await res.json());
-    expect(body.assignedInstructorIds).toHaveLength(0);
-    expect(await countAssignments()).toBe(0);
-  });
-
-  it('(date × 部門 × 種別) が重複すると 409 を返す（DB ユニーク制約）', async () => {
-    const deptId = await seedDepartment();
-    const stId = await seedShiftType();
-    const token = await seedToken('MANAGER');
-
-    const first = await app.request(
-      '/api/shifts',
-      {
-        method: 'POST',
-        ...authJsonRequest(token, {
-          date: '2026-01-15',
-          departmentId: deptId,
-          shiftTypeId: stId,
-        }),
-      },
-      envWith({}),
-    );
-    expect(first.status).toBe(201);
-
-    const dup = await app.request(
-      '/api/shifts',
-      {
-        method: 'POST',
-        ...authJsonRequest(token, {
-          date: '2026-01-15',
-          departmentId: deptId,
-          shiftTypeId: stId,
-        }),
-      },
-      envWith({}),
-    );
-    expect(dup.status).toBe(409);
-  });
-
-  it('重複シフト作成は割り当てを残さない（db.batch の原子性）', async () => {
-    const deptId = await seedDepartment();
-    const stId = await seedShiftType();
-    const inst = await seedInstructor();
-    const token = await seedToken('MANAGER');
-
-    // 割り当てなしで枠を確保する
-    await app.request(
-      '/api/shifts',
-      {
-        method: 'POST',
-        ...authJsonRequest(token, {
-          date: '2026-01-15',
-          departmentId: deptId,
-          shiftTypeId: stId,
-        }),
-      },
-      envWith({}),
-    );
-    expect(await countAssignments()).toBe(0);
-
-    // 同一キーで割り当て付き作成 → ユニーク違反で全ロールバックされる
-    const dup = await app.request(
-      '/api/shifts',
-      {
-        method: 'POST',
-        ...authJsonRequest(token, {
-          date: '2026-01-15',
-          departmentId: deptId,
-          shiftTypeId: stId,
-          instructorIds: [inst],
-        }),
-      },
-      envWith({}),
-    );
-    expect(dup.status).toBe(409);
-    // 半端な割り当てが残っていないこと（原子性）
-    expect(await countAssignments()).toBe(0);
-  });
-
-  it('存在しない Instructor を割り当てると 400 を返す', async () => {
-    const deptId = await seedDepartment();
-    const stId = await seedShiftType();
-    const token = await seedToken('MANAGER');
-
-    const res = await app.request(
-      '/api/shifts',
-      {
-        method: 'POST',
-        ...authJsonRequest(token, {
-          date: '2026-01-15',
-          departmentId: deptId,
-          shiftTypeId: stId,
-          instructorIds: ['nonexistent-instructor'],
-        }),
-      },
-      envWith({}),
-    );
-    expect(res.status).toBe(400);
-    expect(await countAssignments()).toBe(0);
-  });
-
-  it('不正な日付形式は 400 を返す', async () => {
-    const deptId = await seedDepartment();
-    const stId = await seedShiftType();
-    const token = await seedToken('MANAGER');
-
-    const res = await app.request(
-      '/api/shifts',
-      {
-        method: 'POST',
-        ...authJsonRequest(token, {
-          date: '2026/01/15',
-          departmentId: deptId,
-          shiftTypeId: stId,
-        }),
-      },
-      envWith({}),
-    );
-    expect(res.status).toBe(400);
   });
 });
 
 // ─── GET /api/shifts ──────────────────────────────────────────────────────────
 
 describe('GET /api/shifts', () => {
-  async function createShift(
-    token: string,
-    date: string,
-    deptId: string,
-    stId: string,
-    instructorIds: string[] = [],
-  ): Promise<string> {
-    const res = await app.request(
-      '/api/shifts',
-      {
-        method: 'POST',
-        ...authJsonRequest(token, {
-          date,
-          departmentId: deptId,
-          shiftTypeId: stId,
-          instructorIds,
-        }),
-      },
-      envWith({}),
-    );
-    const body = shiftWithAssignmentsSchema.parse(await res.json());
-    return body.id;
-  }
-
   it('一覧を割り当て済み Instructor ID 付きで返す', async () => {
     const deptId = await seedDepartment();
     const stId = await seedShiftType();
     const inst = await seedInstructor();
     const token = await seedToken('MANAGER');
-    await createShift(token, '2026-01-15', deptId, stId, [inst]);
+    await upsertShift(token, '2026-01-15', deptId, stId, [inst]);
 
     const res = await app.request('/api/shifts', authHeader(token), envWith({}));
     expect(res.status).toBe(200);
@@ -408,9 +331,10 @@ describe('GET /api/shifts', () => {
     const deptId = await seedDepartment();
     const stId = await seedShiftType();
     const token = await seedToken('MANAGER');
-    await createShift(token, '2026-01-10', deptId, stId);
-    await createShift(token, '2026-01-20', deptId, stId);
-    await createShift(token, '2026-02-01', deptId, stId);
+    const inst = await seedInstructor();
+    await upsertShift(token, '2026-01-10', deptId, stId, [inst]);
+    await upsertShift(token, '2026-01-20', deptId, stId, [inst]);
+    await upsertShift(token, '2026-02-01', deptId, stId, [inst]);
 
     const res = await app.request(
       '/api/shifts?dateFrom=2026-01-15&dateTo=2026-01-31',
@@ -426,7 +350,8 @@ describe('GET /api/shifts', () => {
     const deptId = await seedDepartment('スキー');
     const stId = await seedShiftType('終日');
     const token = await seedToken('MANAGER');
-    await createShift(token, '2026-01-15', deptId, stId);
+    const inst = await seedInstructor();
+    await upsertShift(token, '2026-01-15', deptId, stId, [inst]);
 
     const res = await app.request('/api/shifts', authHeader(token), envWith({}));
     expect(res.status).toBe(200);
@@ -441,8 +366,8 @@ describe('GET /api/shifts', () => {
     const inst1 = await seedInstructor('山田', '太郎');
     const inst2 = await seedInstructor('鈴木', '花子');
     const token = await seedToken('MANAGER');
-    const shift1Id = await createShift(token, '2026-01-10', deptId, stId, [inst1]);
-    await createShift(token, '2026-01-20', deptId, stId, [inst2]);
+    const shift1Id = await upsertShift(token, '2026-01-10', deptId, stId, [inst1]);
+    await upsertShift(token, '2026-01-20', deptId, stId, [inst2]);
 
     const res = await app.request(
       `/api/shifts?instructorId=${inst1}`,
@@ -460,7 +385,8 @@ describe('GET /api/shifts', () => {
     const stId = await seedShiftType();
     const inst = await seedInstructor();
     const token = await seedToken('MANAGER');
-    await createShift(token, '2026-01-10', deptId, stId);
+    const assignedInst = await seedInstructor('佐藤', '次郎');
+    await upsertShift(token, '2026-01-10', deptId, stId, [assignedInst]);
 
     const res = await app.request(
       `/api/shifts?instructorId=${inst}`,
@@ -487,25 +413,12 @@ describe('GET /api/shifts/:id', () => {
     const inst = await seedInstructor();
     const token = await seedToken('MANAGER');
 
-    const createRes = await app.request(
-      '/api/shifts',
-      {
-        method: 'POST',
-        ...authJsonRequest(token, {
-          date: '2026-01-15',
-          departmentId: deptId,
-          shiftTypeId: stId,
-          instructorIds: [inst],
-        }),
-      },
-      envWith({}),
-    );
-    const created = shiftWithAssignmentsSchema.parse(await createRes.json());
+    const shiftId = await upsertShift(token, '2026-01-15', deptId, stId, [inst]);
 
-    const res = await app.request(`/api/shifts/${created.id}`, authHeader(token), envWith({}));
+    const res = await app.request(`/api/shifts/${shiftId}`, authHeader(token), envWith({}));
     expect(res.status).toBe(200);
     const body = shiftWithAssignmentsSchema.parse(await res.json());
-    expect(body.id).toBe(created.id);
+    expect(body.id).toBe(shiftId);
     expect(body.assignedInstructorIds).toEqual([inst]);
   });
 
@@ -513,201 +426,6 @@ describe('GET /api/shifts/:id', () => {
     const token = await seedToken('MANAGER');
     const res = await app.request('/api/shifts/nonexistent', authHeader(token), envWith({}));
     expect(res.status).toBe(404);
-  });
-});
-
-// ─── PATCH /api/shifts/:id ────────────────────────────────────────────────────
-
-describe('PATCH /api/shifts/:id', () => {
-  async function createShift(
-    token: string,
-    deptId: string,
-    stId: string,
-    instructorIds: string[] = [],
-  ): Promise<string> {
-    const res = await app.request(
-      '/api/shifts',
-      {
-        method: 'POST',
-        ...authJsonRequest(token, {
-          date: '2026-01-15',
-          departmentId: deptId,
-          shiftTypeId: stId,
-          instructorIds,
-        }),
-      },
-      envWith({}),
-    );
-    const body = shiftWithAssignmentsSchema.parse(await res.json());
-    return body.id;
-  }
-
-  it('割り当てを総入れ替えできる（解除 + 追加）', async () => {
-    const deptId = await seedDepartment();
-    const stId = await seedShiftType();
-    const inst1 = await seedInstructor('山田', '太郎');
-    const inst2 = await seedInstructor('鈴木', '花子');
-    const token = await seedToken('MANAGER');
-    const shiftId = await createShift(token, deptId, stId, [inst1]);
-
-    const res = await app.request(
-      `/api/shifts/${shiftId}`,
-      { method: 'PATCH', ...authJsonRequest(token, { instructorIds: [inst2] }) },
-      envWith({}),
-    );
-    expect(res.status).toBe(200);
-    const body = shiftWithAssignmentsSchema.parse(await res.json());
-    expect(body.assignedInstructorIds).toEqual([inst2]);
-    // 入れ替え後の総件数は1（inst1 は解除され inst2 のみ）
-    expect(await countAssignments()).toBe(1);
-  });
-
-  it('割り当てを空にできる（全解除）', async () => {
-    const deptId = await seedDepartment();
-    const stId = await seedShiftType();
-    const inst = await seedInstructor();
-    const token = await seedToken('MANAGER');
-    const shiftId = await createShift(token, deptId, stId, [inst]);
-
-    const res = await app.request(
-      `/api/shifts/${shiftId}`,
-      { method: 'PATCH', ...authJsonRequest(token, { instructorIds: [] }) },
-      envWith({}),
-    );
-    expect(res.status).toBe(200);
-    const body = shiftWithAssignmentsSchema.parse(await res.json());
-    expect(body.assignedInstructorIds).toHaveLength(0);
-    expect(await countAssignments()).toBe(0);
-  });
-
-  it('備考のみ更新でき、割り当ては維持される', async () => {
-    const deptId = await seedDepartment();
-    const stId = await seedShiftType();
-    const inst = await seedInstructor();
-    const token = await seedToken('MANAGER');
-    const shiftId = await createShift(token, deptId, stId, [inst]);
-
-    const res = await app.request(
-      `/api/shifts/${shiftId}`,
-      { method: 'PATCH', ...authJsonRequest(token, { description: '更新済み' }) },
-      envWith({}),
-    );
-    expect(res.status).toBe(200);
-    const body = shiftWithAssignmentsSchema.parse(await res.json());
-    expect(body.description).toBe('更新済み');
-    expect(body.assignedInstructorIds).toEqual([inst]);
-  });
-
-  it('空ボディは 400 を返す', async () => {
-    const deptId = await seedDepartment();
-    const stId = await seedShiftType();
-    const token = await seedToken('MANAGER');
-    const shiftId = await createShift(token, deptId, stId);
-
-    const res = await app.request(
-      `/api/shifts/${shiftId}`,
-      { method: 'PATCH', ...authJsonRequest(token, {}) },
-      envWith({}),
-    );
-    expect(res.status).toBe(400);
-  });
-
-  it('存在しない ID は 404 を返す', async () => {
-    const token = await seedToken('MANAGER');
-    const res = await app.request(
-      '/api/shifts/nonexistent',
-      { method: 'PATCH', ...authJsonRequest(token, { description: 'x' }) },
-      envWith({}),
-    );
-    expect(res.status).toBe(404);
-  });
-
-  it('MEMBER は 403 で拒否される', async () => {
-    const deptId = await seedDepartment();
-    const stId = await seedShiftType();
-    const manager = await seedToken('MANAGER');
-    const shiftId = await createShift(manager, deptId, stId);
-    const member = await seedToken('MEMBER');
-
-    const res = await app.request(
-      `/api/shifts/${shiftId}`,
-      { method: 'PATCH', ...authJsonRequest(member, { description: 'x' }) },
-      envWith({}),
-    );
-    expect(res.status).toBe(403);
-  });
-});
-
-// ─── DELETE /api/shifts/:id ───────────────────────────────────────────────────
-
-describe('DELETE /api/shifts/:id', () => {
-  it('シフトを削除し割り当てもカスケード削除される', async () => {
-    const deptId = await seedDepartment();
-    const stId = await seedShiftType();
-    const inst = await seedInstructor();
-    const token = await seedToken('MANAGER');
-    const createRes = await app.request(
-      '/api/shifts',
-      {
-        method: 'POST',
-        ...authJsonRequest(token, {
-          date: '2026-01-15',
-          departmentId: deptId,
-          shiftTypeId: stId,
-          instructorIds: [inst],
-        }),
-      },
-      envWith({}),
-    );
-    const created = shiftWithAssignmentsSchema.parse(await createRes.json());
-
-    const res = await app.request(
-      `/api/shifts/${created.id}`,
-      { method: 'DELETE', ...authHeader(token) },
-      envWith({}),
-    );
-    expect(res.status).toBe(200);
-    expect(await countAssignments()).toBe(0);
-
-    const getRes = await app.request(`/api/shifts/${created.id}`, authHeader(token), envWith({}));
-    expect(getRes.status).toBe(404);
-  });
-
-  it('存在しない ID は 404 を返す', async () => {
-    const token = await seedToken('MANAGER');
-    const res = await app.request(
-      '/api/shifts/nonexistent',
-      { method: 'DELETE', ...authHeader(token) },
-      envWith({}),
-    );
-    expect(res.status).toBe(404);
-  });
-
-  it('MEMBER は 403 で拒否される', async () => {
-    const deptId = await seedDepartment();
-    const stId = await seedShiftType();
-    const manager = await seedToken('MANAGER');
-    const createRes = await app.request(
-      '/api/shifts',
-      {
-        method: 'POST',
-        ...authJsonRequest(manager, {
-          date: '2026-01-15',
-          departmentId: deptId,
-          shiftTypeId: stId,
-        }),
-      },
-      envWith({}),
-    );
-    const created = shiftWithAssignmentsSchema.parse(await createRes.json());
-    const member = await seedToken('MEMBER');
-
-    const res = await app.request(
-      `/api/shifts/${created.id}`,
-      { method: 'DELETE', ...authHeader(member) },
-      envWith({}),
-    );
-    expect(res.status).toBe(403);
   });
 });
 
@@ -775,19 +493,7 @@ describe('GET /api/shifts/edit-data', () => {
     await linkCertification(inst, certId);
     const token = await seedToken('MANAGER');
 
-    await app.request(
-      '/api/shifts',
-      {
-        method: 'POST',
-        ...authJsonRequest(token, {
-          date: '2026-01-15',
-          departmentId: deptId,
-          shiftTypeId: stId,
-          instructorIds: [inst],
-        }),
-      },
-      envWith({}),
-    );
+    await upsertShift(token, '2026-01-15', deptId, stId, [inst]);
 
     const res = await app.request(
       `/api/shifts/edit-data?date=2026-01-15&departmentId=${deptId}&shiftTypeId=${stId}`,
@@ -829,19 +535,7 @@ describe('GET /api/shifts/edit-data', () => {
     const token = await seedToken('MANAGER');
 
     // 午前シフトに割り当てておく
-    await app.request(
-      '/api/shifts',
-      {
-        method: 'POST',
-        ...authJsonRequest(token, {
-          date: '2026-01-15',
-          departmentId: deptId,
-          shiftTypeId: stMorning,
-          instructorIds: [inst],
-        }),
-      },
-      envWith({}),
-    );
+    await upsertShift(token, '2026-01-15', deptId, stMorning, [inst]);
 
     // 午後シフトの編集データでは午前が競合として現れる
     const res = await app.request(

@@ -4,18 +4,19 @@ import { z } from 'zod';
 import { client } from '@/lib/rpc';
 
 import {
+  assignmentSetResultSchema,
   shiftEditDataSchema,
   shiftFormDataSchema,
   shiftListSchema,
   shiftViewResponseSchema,
   shiftWithAssignmentsSchema,
-  type CreateShiftInput,
+  type AssignmentSetResult,
   type ShiftEditData,
   type ShiftFormData,
   type ShiftListItem,
   type ShiftViewResponse,
   type ShiftWithAssignments,
-  type UpdateShiftInput,
+  type UpsertAssignmentSetInput,
 } from './schema';
 
 /** API エラーレスポンスのスキーマ（型アサーションを避けるためランタイム検証する） */
@@ -163,64 +164,19 @@ export function useShiftEditData(params: Partial<ShiftEditDataParams>) {
 }
 
 /**
- * シフトを作成するミューテーション（本体 + 割り当てを原子的に作成）。
- * 成功後はシフト関連キャッシュを無効化する。
+ * (date × 部門 × シフト種別) の割り当て集合を upsert するミューテーション。
+ * Instructor が 1 件以上なら Shift を暗黙生成/更新し、0 件なら Shift を削除する。
  */
-export function useCreateShift() {
+export function useUpsertAssignmentSet() {
   const queryClient = useQueryClient();
-  return useMutation<ShiftWithAssignments, Error, CreateShiftInput>({
+  return useMutation<AssignmentSetResult, Error, UpsertAssignmentSetInput>({
     mutationFn: async (input) => {
-      const res = await client.api.shifts.$post({ json: input });
+      const res = await client.api.shifts['assignment-set'].$put({ json: input });
       if (!res.ok) {
         const body = apiErrorSchema.parse(await res.json());
-        throw new Error(body.message ?? 'シフトの作成に失敗しました');
+        throw new Error(body.message ?? '割り当ての保存に失敗しました');
       }
-      return shiftWithAssignmentsSchema.parse(await res.json());
-    },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: SHIFTS_QUERY_KEY });
-    },
-  });
-}
-
-/**
- * シフトを更新するミューテーション（説明・割り当ての総入れ替え）。
- * 成功後はシフト関連キャッシュを無効化する。
- * @param id - 対象シフトの ID
- */
-export function useUpdateShift(id: string) {
-  const queryClient = useQueryClient();
-  return useMutation<ShiftWithAssignments, Error, UpdateShiftInput>({
-    mutationFn: async (input) => {
-      const res = await client.api.shifts[':id'].$patch({
-        param: { id },
-        json: input,
-      });
-      if (!res.ok) {
-        const body = apiErrorSchema.parse(await res.json());
-        throw new Error(body.message ?? 'シフトの更新に失敗しました');
-      }
-      return shiftWithAssignmentsSchema.parse(await res.json());
-    },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: SHIFTS_QUERY_KEY });
-    },
-  });
-}
-
-/**
- * シフトを削除するミューテーション。
- * 成功後はシフト関連キャッシュを無効化する。
- */
-export function useDeleteShift() {
-  const queryClient = useQueryClient();
-  return useMutation<void, Error, string>({
-    mutationFn: async (id) => {
-      const res = await client.api.shifts[':id'].$delete({ param: { id } });
-      if (!res.ok) {
-        const body = apiErrorSchema.parse(await res.json());
-        throw new Error(body.message ?? 'シフトの削除に失敗しました');
-      }
+      return assignmentSetResultSchema.parse(await res.json());
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: SHIFTS_QUERY_KEY });

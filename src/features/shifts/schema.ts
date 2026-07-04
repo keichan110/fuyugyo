@@ -62,35 +62,29 @@ export type ShiftListItem = z.infer<typeof shiftListItemSchema>;
 /** Shift 一覧レスポンス（各 Shift に割り当て済み Instructor ID・部門名・シフト種別名を含む） */
 export const shiftListSchema = z.array(shiftListItemSchema);
 
-/** Shift 作成リクエスト */
-export const createShiftSchema = z.object({
+/** Shift 割り当て集合 upsert リクエスト */
+export const upsertAssignmentSetSchema = z.object({
   /** 勤務日（YYYY-MM-DD） */
   date: dateStringSchema,
   /** 部門 ID */
   departmentId: z.string().min(1),
   /** シフト種別 ID */
   shiftTypeId: z.string().min(1),
-  /** 備考（任意） */
-  description: z.string().max(500).optional(),
-  /** 割り当てる Instructor の ID 群（重複は無視され、空配列も可） */
+  /** 備考（割り当てが残る枠にのみ保存される） */
+  description: z.string().max(500).nullable().optional(),
+  /** 対象枠に割り当てる Instructor ID 群。空配列なら Shift ごと削除する */
   instructorIds: z.array(z.string().min(1)).default([]),
 });
 
-export type CreateShiftInput = z.infer<typeof createShiftSchema>;
+export type UpsertAssignmentSetInput = z.infer<typeof upsertAssignmentSetSchema>;
 
-/** Shift 更新リクエスト（少なくとも1フィールド必須） */
-export const updateShiftSchema = z
-  .object({
-    /** 備考（null で消去） */
-    description: z.string().max(500).nullable().optional(),
-    /** 割り当てる Instructor の ID 群（指定時は割り当てを総入れ替えする） */
-    instructorIds: z.array(z.string().min(1)).optional(),
-  })
-  .refine((v) => v.description !== undefined || v.instructorIds !== undefined, {
-    message: '更新するフィールドを1つ以上指定してください',
-  });
+/** Shift 割り当て集合 upsert レスポンス */
+export const assignmentSetResultSchema = z.object({
+  status: z.enum(['upserted', 'deleted']),
+  shift: shiftWithAssignmentsSchema.nullable(),
+});
 
-export type UpdateShiftInput = z.infer<typeof updateShiftSchema>;
+export type AssignmentSetResult = z.infer<typeof assignmentSetResultSchema>;
 
 // ─── 集約（フォーム）データ ─────────────────────────────────────────────────
 

@@ -20,10 +20,9 @@ import type { Env } from '@/server/types';
 
 import { summarizeShifts } from './aggregators';
 import {
-  createShiftSchema,
   dateStringSchema,
   monthStringSchema,
-  updateShiftSchema,
+  upsertAssignmentSetSchema,
   type ShiftViewItem,
 } from './schema';
 
@@ -509,6 +508,109 @@ export const shiftsRoute = new Hono<{
       })),
     );
   })
+  /**
+   * (date × 部門 × シフト種別) の割り当て集合を upsert する（MANAGER 以上）。
+   * 最初の Instructor 割り当てで Shift を生成し、0 件への更新では Shift 自体を削除する。
+   */
+  .put(
+    '/assignment-set',
+    requireAuth,
+    requireRole('MANAGER'),
+    validator('json', (value, c) => {
+      const parsed = upsertAssignmentSetSchema.safeParse(value);
+      if (!parsed.success) {
+        return c.json({ message: parsed.error.message }, 400);
+      }
+      return parsed.data;
+    }),
+    async (c) => {
+      const input = c.req.valid('json');
+      const db = createDb(c.env.DB);
+
+      const uniqueInstructorIds = [...new Set(input.instructorIds)];
+      if (!(await allInstructorsExist(db, uniqueInstructorIds))) {
+        throw new HTTPException(400, {
+          message: 'One or more instructors do not exist',
+        });
+      }
+
+      const date = parseShiftDate(input.date);
+      const [existing] = await db
+        .select()
+        .from(shifts)
+        .where(
+          and(
+            eq(shifts.date, date),
+            eq(shifts.departmentId, input.departmentId),
+            eq(shifts.shiftTypeId, input.shiftTypeId),
+          ),
+        )
+        .limit(1);
+
+      if (uniqueInstructorIds.length === 0) {
+        if (existing) {
+          await db.delete(shifts).where(eq(shifts.id, existing.id));
+        }
+        return c.json({ status: 'deleted', shift: null });
+      }
+
+      const description = input.description?.trim() || null;
+
+      if (existing) {
+        const result = await db.batch([
+          db.update(shifts).set({ description }).where(eq(shifts.id, existing.id)).returning(),
+          db.delete(shiftAssignments).where(eq(shiftAssignments.shiftId, existing.id)),
+          ...uniqueInstructorIds.map((instructorId) =>
+            db.insert(shiftAssignments).values({ shiftId: existing.id, instructorId }),
+          ),
+        ]);
+
+        const updated = result[0][0];
+        if (!updated) {
+          throw new HTTPException(500, { message: 'Failed to upsert assignment set' });
+        }
+        return c.json({
+          status: 'upserted',
+          shift: { ...updated, assignedInstructorIds: uniqueInstructorIds },
+        });
+      }
+
+      const shiftId = crypto.randomUUID();
+      try {
+        const result = await db.batch([
+          db
+            .insert(shifts)
+            .values({
+              id: shiftId,
+              date,
+              departmentId: input.departmentId,
+              shiftTypeId: input.shiftTypeId,
+              description,
+            })
+            .returning(),
+          ...uniqueInstructorIds.map((instructorId) =>
+            db.insert(shiftAssignments).values({ shiftId, instructorId }),
+          ),
+        ]);
+
+        const created = result[0][0];
+        if (!created) {
+          throw new HTTPException(500, { message: 'Failed to upsert assignment set' });
+        }
+        return c.json({
+          status: 'upserted',
+          shift: { ...created, assignedInstructorIds: uniqueInstructorIds },
+        });
+      } catch (err) {
+        if (isUniqueViolation(err)) {
+          throw new HTTPException(409, {
+            message: 'Shift already exists for this date, department, and shift type',
+          });
+        }
+        throw err;
+      }
+    },
+  )
   /** シフトを1件取得する（割り当て済み Instructor ID 付き） */
   .get('/:id', requireAuth, async (c) => {
     const db = createDb(c.env.DB);
@@ -529,159 +631,4 @@ export const shiftsRoute = new Hono<{
       ...shift,
       assignedInstructorIds: assignRows.map((r) => r.instructorId),
     });
-  })
-  /**
-   * シフトを作成する（MANAGER 以上）。
-   * Shift 本体と複数 ShiftAssignment を `db.batch` で原子的に書き込む。
-   * (date × 部門 × 種別) の重複は DB ユニーク制約で弾き 409 を返す。
-   */
-  .post(
-    '/',
-    requireAuth,
-    requireRole('MANAGER'),
-    validator('json', (value, c) => {
-      const parsed = createShiftSchema.safeParse(value);
-      if (!parsed.success) {
-        return c.json({ message: parsed.error.message }, 400);
-      }
-      return parsed.data;
-    }),
-    async (c) => {
-      const input = c.req.valid('json');
-      const db = createDb(c.env.DB);
-
-      const uniqueInstructorIds = [...new Set(input.instructorIds)];
-      if (!(await allInstructorsExist(db, uniqueInstructorIds))) {
-        throw new HTTPException(400, {
-          message: 'One or more instructors do not exist',
-        });
-      }
-
-      const shiftId = crypto.randomUUID();
-      const date = parseShiftDate(input.date);
-
-      try {
-        // Shift 本体 + 全割り当てを単一バッチで原子的に書き込む（途中失敗は全ロールバック）
-        const result = await db.batch([
-          db
-            .insert(shifts)
-            .values({
-              id: shiftId,
-              date,
-              departmentId: input.departmentId,
-              shiftTypeId: input.shiftTypeId,
-              description: input.description ?? null,
-            })
-            .returning(),
-          ...uniqueInstructorIds.map((instructorId) =>
-            db.insert(shiftAssignments).values({ shiftId, instructorId }),
-          ),
-        ]);
-
-        const created = result[0][0];
-        if (!created) {
-          throw new HTTPException(500, { message: 'Failed to create shift' });
-        }
-        return c.json({ ...created, assignedInstructorIds: uniqueInstructorIds }, 201);
-      } catch (err) {
-        if (isUniqueViolation(err)) {
-          throw new HTTPException(409, {
-            message: 'Shift already exists for this date, department, and shift type',
-          });
-        }
-        throw err;
-      }
-    },
-  )
-  /**
-   * シフトを更新する（MANAGER 以上）。
-   * `instructorIds` 指定時は既存割り当てを削除して総入れ替えし、本体更新と合わせて
-   * `db.batch` で原子的に行う。
-   */
-  .patch(
-    '/:id',
-    requireAuth,
-    requireRole('MANAGER'),
-    validator('json', (value, c) => {
-      const parsed = updateShiftSchema.safeParse(value);
-      if (!parsed.success) {
-        return c.json({ message: parsed.error.message }, 400);
-      }
-      return parsed.data;
-    }),
-    async (c) => {
-      const input = c.req.valid('json');
-      const db = createDb(c.env.DB);
-      const id = c.req.param('id');
-
-      const [existing] = await db.select().from(shifts).where(eq(shifts.id, id)).limit(1);
-
-      if (!existing) {
-        throw new HTTPException(404, { message: 'Shift not found' });
-      }
-
-      const uniqueInstructorIds =
-        input.instructorIds !== undefined ? [...new Set(input.instructorIds)] : undefined;
-      if (uniqueInstructorIds && !(await allInstructorsExist(db, uniqueInstructorIds))) {
-        throw new HTTPException(400, {
-          message: 'One or more instructors do not exist',
-        });
-      }
-
-      const newDescription =
-        input.description !== undefined ? input.description : existing.description;
-
-      // instructorIds 指定時のみ割り当てを総入れ替えする（削除→挿入）
-      const assignmentStatements =
-        uniqueInstructorIds !== undefined
-          ? [
-              db.delete(shiftAssignments).where(eq(shiftAssignments.shiftId, id)),
-              ...uniqueInstructorIds.map((instructorId) =>
-                db.insert(shiftAssignments).values({ shiftId: id, instructorId }),
-              ),
-            ]
-          : [];
-
-      const result = await db.batch([
-        db.update(shifts).set({ description: newDescription }).where(eq(shifts.id, id)).returning(),
-        ...assignmentStatements,
-      ]);
-
-      const updated = result[0][0];
-      if (!updated) {
-        throw new HTTPException(500, { message: 'Failed to update shift' });
-      }
-
-      // 割り当て未指定なら現状を引き直してレスポンスに含める
-      let assignedInstructorIds: string[];
-      if (uniqueInstructorIds !== undefined) {
-        assignedInstructorIds = uniqueInstructorIds;
-      } else {
-        const rows = await db
-          .select({ instructorId: shiftAssignments.instructorId })
-          .from(shiftAssignments)
-          .where(eq(shiftAssignments.shiftId, id));
-        assignedInstructorIds = rows.map((r) => r.instructorId);
-      }
-
-      return c.json({ ...updated, assignedInstructorIds });
-    },
-  )
-  /** シフトを削除する（MANAGER 以上・割り当てはカスケード削除） */
-  .delete('/:id', requireAuth, requireRole('MANAGER'), async (c) => {
-    const db = createDb(c.env.DB);
-    const id = c.req.param('id');
-
-    const [existing] = await db
-      .select({ id: shifts.id })
-      .from(shifts)
-      .where(eq(shifts.id, id))
-      .limit(1);
-
-    if (!existing) {
-      throw new HTTPException(404, { message: 'Shift not found' });
-    }
-
-    await db.delete(shifts).where(eq(shifts.id, id));
-    return c.json({ message: 'Shift deleted' });
   });

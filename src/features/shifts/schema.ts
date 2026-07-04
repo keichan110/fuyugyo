@@ -117,7 +117,23 @@ export const shiftFormDataSchema = z.object({
 
 export type ShiftFormData = z.infer<typeof shiftFormDataSchema>;
 
-/** edit-data の割り当て候補 Instructor（割り当て状態・競合状態付き） */
+/** edit-data の割り当て候補 Instructor の負荷指標 */
+const instructorWorkloadSchema = z.object({
+  /** 対象月内の勤務日数 */
+  monthlyWorkDays: z.number(),
+  /** 対象シーズン内の累計勤務日数 */
+  seasonWorkDays: z.number(),
+  /** 連続勤務している週末数 */
+  consecutiveWeekends: z.number(),
+  /** 対象日から逆算した連続勤務日数 */
+  consecutiveWorkDays: z.number(),
+  /** ハードコード閾値を超えた負荷警告があるか */
+  hasWarning: z.boolean(),
+});
+
+export type InstructorWorkload = z.infer<typeof instructorWorkloadSchema>;
+
+/** edit-data の割り当て候補 Instructor（割り当て状態・競合状態・負荷付き） */
 const availableInstructorSchema = z.object({
   id: z.string(),
   displayName: z.string(),
@@ -129,6 +145,8 @@ const availableInstructorSchema = z.object({
   isAssigned: z.boolean(),
   /** 同日の別 Shift に割り当て済みで競合しているか */
   hasConflict: z.boolean(),
+  /** 対象日へ割り当てた後の想定負荷 */
+  workload: instructorWorkloadSchema,
 });
 
 export type AvailableInstructor = z.infer<typeof availableInstructorSchema>;

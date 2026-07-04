@@ -550,6 +550,35 @@ describe('GET /api/shifts/edit-data', () => {
     expect(body.conflicts[0]?.conflictingShift.shiftTypeName).toBe('午前');
   });
 
+  it('候補ペイロードに勤務負荷指標を返す', async () => {
+    const deptId = await seedDepartment();
+    const stId = await seedShiftType();
+    const certId = await seedCertification(deptId);
+    const inst = await seedInstructor('山田', '太郎');
+    await linkCertification(inst, certId);
+    const token = await seedToken('MANAGER');
+
+    await upsertShift(token, '2025-12-20', deptId, stId, [inst]);
+    await upsertShift(token, '2026-01-10', deptId, stId, [inst]);
+    await upsertShift(token, '2026-01-11', deptId, stId, [inst]);
+    await upsertShift(token, '2026-01-14', deptId, stId, [inst]);
+
+    const res = await app.request(
+      `/api/shifts/edit-data?date=2026-01-15&departmentId=${deptId}&shiftTypeId=${stId}`,
+      authHeader(token),
+      envWith({}),
+    );
+    const body = shiftEditDataSchema.parse(await res.json());
+
+    expect(body.availableInstructors[0]?.workload).toEqual({
+      monthlyWorkDays: 4,
+      seasonWorkDays: 5,
+      consecutiveWeekends: 1,
+      consecutiveWorkDays: 2,
+      hasWarning: false,
+    });
+  });
+
   it('パラメータ不足は 400 を返す', async () => {
     const token = await seedToken('MANAGER');
     const res = await app.request(

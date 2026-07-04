@@ -8,6 +8,7 @@ import {
   Checkbox,
   Group,
   ScrollArea,
+  SegmentedControl,
   Select,
   SimpleGrid,
   Stack,
@@ -16,6 +17,7 @@ import {
   Textarea,
   TextInput,
   Title,
+  Tooltip,
 } from '@mantine/core';
 
 import {
@@ -28,6 +30,8 @@ import type { AvailableInstructor, ShiftViewItem } from '../schema';
 import { addMonths, shortDateLabel, todayString, toMonth, weekdayIndex } from '../view-utils';
 
 const DEPARTMENT_STORAGE_KEY = 'fuyugyo.shiftManage.departmentId';
+
+type CandidateSortMode = 'kana' | 'workload';
 
 type SelectedCell = {
   date: string;
@@ -280,6 +284,7 @@ function AssignmentPanel({ date, departmentId, shiftTypeId, shiftTypeName }: Ass
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [description, setDescription] = useState('');
   const [search, setSearch] = useState('');
+  const [sortMode, setSortMode] = useState<CandidateSortMode>('kana');
   const initialized = useRef(false);
 
   useEffect(() => {
@@ -302,8 +307,8 @@ function AssignmentPanel({ date, departmentId, shiftTypeId, shiftTypeName }: Ass
           .toLocaleLowerCase('ja-JP')
           .includes(query);
       })
-      .sort(compareInstructorKana);
-  }, [editData.data?.availableInstructors, search]);
+      .sort(sortMode === 'workload' ? compareInstructorWorkload : compareInstructorKana);
+  }, [editData.data?.availableInstructors, search, sortMode]);
 
   const toggle = (id: string) => {
     setSelectedIds((prev) => {
@@ -363,6 +368,15 @@ function AssignmentPanel({ date, departmentId, shiftTypeId, shiftTypeName }: Ass
               label="名前検索"
               value={search}
               onChange={(e) => setSearch(e.currentTarget.value)}
+            />
+            <SegmentedControl
+              size="xs"
+              value={sortMode}
+              onChange={(value) => setSortMode(parseCandidateSortMode(value))}
+              data={[
+                { value: 'kana', label: 'かな順' },
+                { value: 'workload', label: '負荷順' },
+              ]}
             />
 
             <Stack gap="xs" mah={420} style={{ overflow: 'auto' }}>
@@ -430,11 +444,22 @@ function InstructorCheckbox({ instructor, checked, onToggle }: InstructorCheckbo
           </Stack>
         }
       />
-      {instructor.hasConflict && (
-        <Badge color="yellow" variant="light" size="sm">
-          競合
-        </Badge>
-      )}
+      <Group gap={4} wrap="nowrap">
+        <Tooltip label={workloadTooltip(instructor)} withArrow>
+          <Badge
+            color={instructor.workload.hasWarning ? 'orange' : 'gray'}
+            variant="light"
+            size="sm"
+          >
+            今月 {instructor.workload.monthlyWorkDays}日{instructor.workload.hasWarning ? ' ⚠' : ''}
+          </Badge>
+        </Tooltip>
+        {instructor.hasConflict && (
+          <Badge color="yellow" variant="light" size="sm">
+            競合
+          </Badge>
+        )}
+      </Group>
     </Group>
   );
 }
@@ -478,4 +503,28 @@ function compareInstructorKana(a: AvailableInstructor, b: AvailableInstructor): 
   const aKey = a.displayNameKana ?? a.displayName;
   const bKey = b.displayNameKana ?? b.displayName;
   return aKey.localeCompare(bKey, 'ja-JP');
+}
+
+function parseCandidateSortMode(value: string): CandidateSortMode {
+  return value === 'workload' ? 'workload' : 'kana';
+}
+
+function compareInstructorWorkload(a: AvailableInstructor, b: AvailableInstructor): number {
+  return (
+    a.workload.monthlyWorkDays - b.workload.monthlyWorkDays ||
+    a.workload.seasonWorkDays - b.workload.seasonWorkDays ||
+    a.workload.consecutiveWeekends - b.workload.consecutiveWeekends ||
+    a.workload.consecutiveWorkDays - b.workload.consecutiveWorkDays ||
+    compareInstructorKana(a, b)
+  );
+}
+
+function workloadTooltip(instructor: AvailableInstructor): string {
+  const { workload } = instructor;
+  return [
+    `月内 ${workload.monthlyWorkDays}日`,
+    `シーズン ${workload.seasonWorkDays}日`,
+    `連続週末 ${workload.consecutiveWeekends}週`,
+    `連続勤務 ${workload.consecutiveWorkDays}日`,
+  ].join(' / ');
 }

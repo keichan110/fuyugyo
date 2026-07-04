@@ -26,6 +26,7 @@ import {
   upsertAssignmentSetSchema,
   type ShiftViewItem,
 } from './schema';
+import { calculateInstructorWorkload, seasonRangeForDate } from './workload';
 
 /**
  * YYYY-MM-DD 文字列を UTC 0時の Date に変換する。
@@ -46,6 +47,15 @@ function addDays(dateStr: string, days: number): string {
   const date = parseShiftDate(dateStr);
   date.setUTCDate(date.getUTCDate() + days);
   return formatDate(date);
+}
+
+/** 環境値の月（1〜12）を読み取り、不正値ならデフォルトを使う */
+function parseSeasonMonth(value: string | undefined, fallback: number): number {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 12) {
+    return fallback;
+  }
+  return parsed;
 }
 
 /** インストラクター表示名（姓 名） */
@@ -430,7 +440,48 @@ export const shiftsRoute = new Hono<{
       hasConflict: cand.hasConflict,
     }));
 
-    const conflicts = availableInstructors
+    const seasonRange = seasonRangeForDate(
+      dateStr,
+      parseSeasonMonth(c.env.WORKLOAD_SEASON_START_MONTH, 12),
+      parseSeasonMonth(c.env.WORKLOAD_SEASON_END_MONTH, 4),
+    );
+    const candidateIds = availableInstructors.map((inst) => inst.id);
+    const workloadRows =
+      candidateIds.length > 0
+        ? await db
+            .select({
+              instructorId: shiftAssignments.instructorId,
+              date: shifts.date,
+            })
+            .from(shiftAssignments)
+            .innerJoin(shifts, eq(shifts.id, shiftAssignments.shiftId))
+            .where(
+              and(
+                inArray(shiftAssignments.instructorId, candidateIds),
+                gte(shifts.date, parseShiftDate(seasonRange.from)),
+                lte(shifts.date, parseShiftDate(seasonRange.to)),
+              ),
+            )
+        : [];
+
+    const datesByInstructor = new Map<string, Set<string>>();
+    for (const row of workloadRows) {
+      const dates = datesByInstructor.get(row.instructorId) ?? new Set<string>();
+      dates.add(formatDate(row.date));
+      datesByInstructor.set(row.instructorId, dates);
+    }
+
+    const availableInstructorsWithWorkload = availableInstructors.map((inst) => ({
+      ...inst,
+      workload: calculateInstructorWorkload({
+        instructorId: inst.id,
+        targetDate: dateStr,
+        assignedDates: Array.from(datesByInstructor.get(inst.id) ?? []),
+        seasonRange,
+      }),
+    }));
+
+    const conflicts = availableInstructorsWithWorkload
       .filter((inst) => inst.hasConflict)
       .map((inst) => {
         const conflictShift = conflictByInstructor.get(inst.id);
@@ -461,7 +512,7 @@ export const shiftsRoute = new Hono<{
             assignedInstructorIds,
           }
         : null,
-      availableInstructors,
+      availableInstructors: availableInstructorsWithWorkload,
       conflicts,
     });
   })

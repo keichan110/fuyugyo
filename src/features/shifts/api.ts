@@ -1,4 +1,4 @@
-import { and, asc, count, eq, gte, inArray, lte, ne } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gte, inArray, lt, lte, ne } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { validator } from 'hono/validator';
@@ -18,10 +18,11 @@ import {
 import { requireAuth, requireRole, type AuthVariables } from '@/server/middleware/auth';
 import type { Env } from '@/server/types';
 
-import { summarizeShifts } from './aggregators';
+import { groupShiftsByWorkingDay, summarizeShifts } from './aggregators';
 import {
   dateStringSchema,
   monthStringSchema,
+  shiftAgendaDirectionSchema,
   upsertAssignmentSetSchema,
   type ShiftViewItem,
 } from './schema';
@@ -38,6 +39,13 @@ function parseShiftDate(dateStr: string): Date {
 /** Date を YYYY-MM-DD 文字列へ整形する（UTC 基準・edit-data 出力用） */
 function formatDate(date: Date): string {
   return date.toISOString().slice(0, 10);
+}
+
+/** YYYY-MM-DD に指定日数を加算した YYYY-MM-DD を返す（UTC 基準） */
+function addDays(dateStr: string, days: number): string {
+  const date = parseShiftDate(dateStr);
+  date.setUTCDate(date.getUTCDate() + days);
+  return formatDate(date);
 }
 
 /** インストラクター表示名（姓 名） */
@@ -129,6 +137,93 @@ async function loadShiftView(db: Database, from: Date, to: Date): Promise<ShiftV
     shiftType: { id: s.shiftTypeId, name: s.shiftTypeName },
     assignedInstructors: assignedByShift.get(s.id) ?? [],
   }));
+}
+
+/**
+ * 指定された日付群のシフトを表示ビュー用に整形する（2クエリ・N+1 なし）。
+ * アジェンダでは先に稼働日だけをページングし、その日付群に属する Shift 詳細だけを取得する。
+ */
+async function loadShiftViewByDates(
+  db: Database,
+  dates: Date[],
+  departmentId: string | undefined,
+): Promise<ShiftViewItem[]> {
+  if (dates.length === 0) {
+    return [];
+  }
+
+  const conditions = [inArray(shifts.date, dates)];
+  if (departmentId) {
+    conditions.push(eq(shifts.departmentId, departmentId));
+  }
+
+  const shiftRows = await db
+    .select({
+      id: shifts.id,
+      date: shifts.date,
+      description: shifts.description,
+      departmentId: departments.id,
+      departmentName: departments.name,
+      departmentCode: departments.code,
+      shiftTypeId: shiftTypes.id,
+      shiftTypeName: shiftTypes.name,
+    })
+    .from(shifts)
+    .innerJoin(departments, eq(departments.id, shifts.departmentId))
+    .innerJoin(shiftTypes, eq(shiftTypes.id, shifts.shiftTypeId))
+    .where(and(...conditions))
+    .orderBy(asc(shifts.date), asc(departments.name), asc(shiftTypes.name));
+
+  const shiftIds = shiftRows.map((s) => s.id);
+  const assignRows =
+    shiftIds.length > 0
+      ? await db
+          .select({
+            shiftId: shiftAssignments.shiftId,
+            instructorId: instructors.id,
+            lastName: instructors.lastName,
+            firstName: instructors.firstName,
+          })
+          .from(shiftAssignments)
+          .innerJoin(instructors, eq(instructors.id, shiftAssignments.instructorId))
+          .where(inArray(shiftAssignments.shiftId, shiftIds))
+          .orderBy(asc(instructors.lastName), asc(instructors.firstName))
+      : [];
+
+  const assignedByShift = new Map<string, { id: string; displayName: string }[]>();
+  for (const row of assignRows) {
+    const list = assignedByShift.get(row.shiftId) ?? [];
+    list.push({
+      id: row.instructorId,
+      displayName: formatName(row.lastName, row.firstName),
+    });
+    assignedByShift.set(row.shiftId, list);
+  }
+
+  return shiftRows.map((s) => ({
+    id: s.id,
+    date: formatDate(s.date),
+    description: s.description,
+    department: {
+      id: s.departmentId,
+      name: s.departmentName,
+      code: s.departmentCode,
+    },
+    shiftType: { id: s.shiftTypeId, name: s.shiftTypeName },
+    assignedInstructors: assignedByShift.get(s.id) ?? [],
+  }));
+}
+
+/** アジェンダの `limit` クエリを過大取得にならない範囲へ丸める */
+function parseAgendaLimit(value: string | undefined): number {
+  if (!value) {
+    return 14;
+  }
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    return 14;
+  }
+  return Math.min(parsed, 60);
 }
 
 /**
@@ -368,6 +463,65 @@ export const shiftsRoute = new Hono<{
         : null,
       availableInstructors,
       conflicts,
+    });
+  })
+  /**
+   * アジェンダビュー: 起点日から未来/過去方向へ、Shift が 1 件以上ある稼働日だけを返す。
+   * 休校日は日付行自体を返さず、各稼働日の Shift は部門 × シフト種別でまとめて返す。
+   */
+  .get('/agenda', requireAuth, async (c) => {
+    const cursor = c.req.query('cursor');
+    const directionQuery = c.req.query('direction') ?? 'future';
+    const departmentId = c.req.query('departmentId');
+
+    if (!(cursor && dateStringSchema.safeParse(cursor).success)) {
+      throw new HTTPException(400, {
+        message: 'cursor は YYYY-MM-DD 形式で指定してください',
+      });
+    }
+    const directionResult = shiftAgendaDirectionSchema.safeParse(directionQuery);
+    if (!directionResult.success) {
+      throw new HTTPException(400, {
+        message: 'direction は future または past を指定してください',
+      });
+    }
+
+    const direction = directionResult.data;
+    const limit = parseAgendaLimit(c.req.query('limit'));
+    const db = createDb(c.env.DB);
+    const cursorDate = parseShiftDate(cursor);
+    const dateConditions = [
+      direction === 'future' ? gte(shifts.date, cursorDate) : lt(shifts.date, cursorDate),
+    ];
+    if (departmentId) {
+      dateConditions.push(eq(shifts.departmentId, departmentId));
+    }
+
+    const dateRows = await db
+      .select({ date: shifts.date })
+      .from(shifts)
+      .where(and(...dateConditions))
+      .groupBy(shifts.date)
+      .orderBy(direction === 'future' ? asc(shifts.date) : desc(shifts.date))
+      .limit(limit);
+
+    const pageDates =
+      direction === 'future'
+        ? dateRows.map((row) => row.date)
+        : dateRows.map((row) => row.date).reverse();
+    const shiftsView = await loadShiftViewByDates(db, pageDates, departmentId);
+    const days = groupShiftsByWorkingDay(shiftsView);
+    const firstDay = days[0];
+    const lastDay = days.at(-1);
+
+    return c.json({
+      days,
+      pageInfo: {
+        direction,
+        limit,
+        nextCursor: lastDay ? addDays(lastDay.date, 1) : null,
+        previousCursor: firstDay ? firstDay.date : null,
+      },
     });
   })
   /**

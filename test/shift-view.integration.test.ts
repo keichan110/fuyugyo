@@ -1,7 +1,7 @@
 import { env } from 'cloudflare:test';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { shiftViewResponseSchema } from '../src/features/shifts/schema';
+import { shiftAgendaResponseSchema, shiftViewResponseSchema } from '../src/features/shifts/schema';
 import app from '../src/index';
 import { signJwt } from '../src/server/auth/jwt';
 import { createDb } from '../src/server/db/client';
@@ -245,5 +245,94 @@ describe('GET /api/shifts/monthly-view', () => {
   it('未認証は 401 を返す', async () => {
     const res = await app.request('/api/shifts/monthly-view?month=2026-01', {}, envWith({}));
     expect(res.status).toBe(401);
+  });
+});
+
+// ─── GET /api/shifts/agenda ──────────────────────────────────────────────────
+
+describe('GET /api/shifts/agenda', () => {
+  it('未来方向は起点日以降の稼働日のみを昇順で返し、休校日をスキップする', async () => {
+    const ski = await seedDepartment('スキー', 'SKI');
+    const snb = await seedDepartment('スノーボード', 'SNB');
+    const fullDay = await seedShiftType('終日');
+    const morning = await seedShiftType('午前');
+    const inst1 = await seedInstructor('山田', '太郎');
+    const inst2 = await seedInstructor('鈴木', '花子');
+    await seedShift('2026-01-09', ski, fullDay, [inst1]); // 起点前
+    await seedShift('2026-01-10', ski, fullDay, [inst1]);
+    await seedShift('2026-01-12', ski, morning, [inst2]);
+    await seedShift('2026-01-12', snb, fullDay, [inst1, inst2]);
+    await seedShift('2026-01-15', ski, fullDay, []);
+    const token = await seedToken('MEMBER');
+
+    const res = await app.request(
+      '/api/shifts/agenda?cursor=2026-01-10&direction=future&limit=2',
+      authHeader(token),
+      envWith({}),
+    );
+    expect(res.status).toBe(200);
+    const body = shiftAgendaResponseSchema.parse(await res.json());
+
+    expect(body.days.map((day) => day.date)).toEqual(['2026-01-10', '2026-01-12']);
+    expect(body.days.flatMap((day) => day.date)).not.toContain('2026-01-11');
+    expect(body.days[1]?.shifts).toHaveLength(2);
+    expect(body.days[1]?.shifts.map((shift) => shift.department.name)).toEqual([
+      'スキー',
+      'スノーボード',
+    ]);
+    expect(body.days[1]?.shifts[1]?.assignedInstructors.map((i) => i.displayName)).toEqual([
+      '山田 太郎',
+      '鈴木 花子',
+    ]);
+    expect(body.pageInfo.nextCursor).toBe('2026-01-13');
+    expect(body.pageInfo.previousCursor).toBe('2026-01-10');
+  });
+
+  it('過去方向は起点日前の稼働日を遡り、レスポンスは昇順で返す', async () => {
+    const ski = await seedDepartment('スキー', 'SKI');
+    const fullDay = await seedShiftType('終日');
+    const inst = await seedInstructor('山田', '太郎');
+    await seedShift('2026-01-02', ski, fullDay, [inst]);
+    await seedShift('2026-01-05', ski, fullDay, [inst]);
+    await seedShift('2026-01-10', ski, fullDay, [inst]);
+    await seedShift('2026-01-20', ski, fullDay, [inst]);
+    const token = await seedToken('MEMBER');
+
+    const res = await app.request(
+      '/api/shifts/agenda?cursor=2026-01-20&direction=past&limit=2',
+      authHeader(token),
+      envWith({}),
+    );
+    expect(res.status).toBe(200);
+    const body = shiftAgendaResponseSchema.parse(await res.json());
+
+    expect(body.days.map((day) => day.date)).toEqual(['2026-01-05', '2026-01-10']);
+    expect(body.pageInfo.nextCursor).toBe('2026-01-11');
+    expect(body.pageInfo.previousCursor).toBe('2026-01-05');
+  });
+
+  it('departmentId を指定すると対象部門の稼働日のみを返す', async () => {
+    const ski = await seedDepartment('スキー', 'SKI');
+    const snb = await seedDepartment('スノーボード', 'SNB');
+    const fullDay = await seedShiftType('終日');
+    const inst = await seedInstructor('山田', '太郎');
+    await seedShift('2026-01-10', ski, fullDay, [inst]);
+    await seedShift('2026-01-11', snb, fullDay, [inst]);
+    await seedShift('2026-01-12', ski, fullDay, [inst]);
+    const token = await seedToken('MEMBER');
+
+    const res = await app.request(
+      `/api/shifts/agenda?cursor=2026-01-10&direction=future&limit=3&departmentId=${ski}`,
+      authHeader(token),
+      envWith({}),
+    );
+    expect(res.status).toBe(200);
+    const body = shiftAgendaResponseSchema.parse(await res.json());
+
+    expect(body.days.map((day) => day.date)).toEqual(['2026-01-10', '2026-01-12']);
+    expect(body.days.flatMap((day) => day.shifts.map((shift) => shift.department.id))).toEqual([
+      ski,
+      ski,
+    ]);
   });
 });

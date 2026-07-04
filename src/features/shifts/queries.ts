@@ -1,16 +1,19 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 
 import { client } from '@/lib/rpc';
 
 import {
   assignmentSetResultSchema,
+  shiftAgendaResponseSchema,
   shiftEditDataSchema,
   shiftFormDataSchema,
   shiftListSchema,
   shiftViewResponseSchema,
   shiftWithAssignmentsSchema,
   type AssignmentSetResult,
+  type ShiftAgendaDirection,
+  type ShiftAgendaResponse,
   type ShiftEditData,
   type ShiftFormData,
   type ShiftListItem,
@@ -24,6 +27,14 @@ const apiErrorSchema = z.object({ message: z.string().optional() });
 
 /** Shift 関連クエリキー */
 export const SHIFTS_QUERY_KEY = ['shifts'] as const;
+
+/** アジェンダ取得パラメータ */
+export type ShiftAgendaParams = {
+  cursor: string;
+  direction: ShiftAgendaDirection;
+  limit?: number;
+  departmentId?: string;
+};
 
 /** edit-data 取得パラメータ */
 export type ShiftEditDataParams = {
@@ -118,6 +129,50 @@ export function useMonthlyView(month: string | undefined) {
       return shiftViewResponseSchema.parse(await res.json());
     },
     enabled: !!month,
+  });
+}
+
+/**
+ * アジェンダを1ページ取得する。
+ * @param params - 起点日・方向・取得する稼働日数・任意の部門 ID
+ */
+export async function fetchShiftAgendaPage(
+  params: ShiftAgendaParams,
+): Promise<ShiftAgendaResponse> {
+  const query: Record<string, string> = {
+    cursor: params.cursor,
+    direction: params.direction,
+  };
+  if (params.limit) {
+    query['limit'] = String(params.limit);
+  }
+  if (params.departmentId) {
+    query['departmentId'] = params.departmentId;
+  }
+
+  const res = await client.api.shifts.agenda.$get({ query });
+  if (!res.ok) {
+    const body = apiErrorSchema.parse(await res.json());
+    throw new Error(body.message ?? 'アジェンダの取得に失敗しました');
+  }
+  return shiftAgendaResponseSchema.parse(await res.json());
+}
+
+/**
+ * 未来方向のアジェンダを続読する Infinite Query。
+ * @param cursor - 初回ページの起点日（YYYY-MM-DD）
+ */
+export function useShiftAgendaFuture(cursor: string) {
+  return useInfiniteQuery<ShiftAgendaResponse>({
+    queryKey: [...SHIFTS_QUERY_KEY, 'agenda', 'future', cursor],
+    queryFn: ({ pageParam }) =>
+      fetchShiftAgendaPage({
+        cursor: typeof pageParam === 'string' ? pageParam : cursor,
+        direction: 'future',
+        limit: 14,
+      }),
+    initialPageParam: cursor,
+    getNextPageParam: (lastPage) => lastPage.pageInfo.nextCursor ?? undefined,
   });
 }
 

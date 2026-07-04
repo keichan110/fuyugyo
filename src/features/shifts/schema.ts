@@ -222,3 +222,34 @@ export const shiftViewResponseSchema = z.object({
 });
 
 export type ShiftViewResponse = z.infer<typeof shiftViewResponseSchema>;
+
+// ─── アジェンダ表示 ────────────────────────────────────────────────────────
+
+/** アジェンダのページング方向 */
+export const shiftAgendaDirectionSchema = z.enum(['future', 'past']);
+
+export type ShiftAgendaDirection = z.infer<typeof shiftAgendaDirectionSchema>;
+
+/**
+ * アジェンダの稼働日1日分。
+ * 休校日は要素を生成せず、同じ日付の Shift だけを部門・シフト種別順で保持する。
+ */
+export const shiftAgendaDaySchema = z.object({
+  date: dateStringSchema,
+  shifts: z.array(shiftViewItemSchema),
+});
+
+export type ShiftAgendaDay = z.infer<typeof shiftAgendaDaySchema>;
+
+/** アジェンダ範囲レスポンス */
+export const shiftAgendaResponseSchema = z.object({
+  days: z.array(shiftAgendaDaySchema),
+  pageInfo: z.object({
+    direction: shiftAgendaDirectionSchema,
+    limit: z.number(),
+    nextCursor: dateStringSchema.nullable(),
+    previousCursor: dateStringSchema.nullable(),
+  }),
+});
+
+export type ShiftAgendaResponse = z.infer<typeof shiftAgendaResponseSchema>;

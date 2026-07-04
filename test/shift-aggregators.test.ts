@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   aggregateByDepartment,
   calculateTotalAssignments,
+  groupShiftsByWorkingDay,
   summarizeShifts,
 } from '../src/features/shifts/aggregators';
 import type { ShiftViewItem } from '../src/features/shifts/schema';
@@ -83,5 +84,25 @@ describe('summarizeShifts', () => {
       dateRange: { from: '2026-02-01', to: '2026-02-28' },
       byDepartment: {},
     });
+  });
+});
+
+describe('groupShiftsByWorkingDay', () => {
+  it('稼働日のみを日付昇順にまとめ、休校日は生成しない', () => {
+    const shifts = [
+      makeShift('スノーボード', 1, { date: '2026-01-12' }),
+      makeShift('スキー', 2, { date: '2026-01-10' }),
+      makeShift('スキー', 1, { date: '2026-01-12' }),
+    ];
+
+    const days = groupShiftsByWorkingDay(shifts);
+
+    expect(days.map((day) => day.date)).toEqual(['2026-01-10', '2026-01-12']);
+    expect(days.flatMap((day) => day.date)).not.toContain('2026-01-11');
+    expect(days[0]?.shifts.map((shift) => shift.department.name)).toEqual(['スキー']);
+    expect(days[1]?.shifts.map((shift) => shift.department.name)).toEqual([
+      'スキー',
+      'スノーボード',
+    ]);
   });
 });

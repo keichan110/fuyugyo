@@ -1,4 +1,4 @@
-import type { ShiftViewItem, ShiftViewSummary } from './schema';
+import type { ShiftAgendaDay, ShiftViewItem, ShiftViewSummary } from './schema';
 
 /**
  * シフト表示ビュー（週次/月次）の集計を担う純粋関数群。
@@ -45,4 +45,36 @@ export function summarizeShifts(
     dateRange,
     byDepartment: aggregateByDepartment(shifts),
   };
+}
+
+/**
+ * シフト配列をアジェンダ表示用の稼働日単位にまとめる。
+ * @param shifts - 整形済みシフト配列
+ * @returns Shift が 1 件以上ある日だけを日付昇順で並べたアジェンダ日配列
+ */
+export function groupShiftsByWorkingDay(shifts: ShiftViewItem[]): ShiftAgendaDay[] {
+  const sorted = [...shifts].sort(compareShiftViewItems);
+  const days = new Map<string, ShiftViewItem[]>();
+
+  for (const shift of sorted) {
+    const list = days.get(shift.date);
+    if (list) {
+      list.push(shift);
+    } else {
+      days.set(shift.date, [shift]);
+    }
+  }
+
+  return Array.from(days, ([date, dayShifts]) => ({
+    date,
+    shifts: dayShifts,
+  }));
+}
+
+function compareShiftViewItems(a: ShiftViewItem, b: ShiftViewItem): number {
+  return (
+    a.date.localeCompare(b.date) ||
+    a.department.name.localeCompare(b.department.name, 'ja') ||
+    a.shiftType.name.localeCompare(b.shiftType.name, 'ja')
+  );
 }

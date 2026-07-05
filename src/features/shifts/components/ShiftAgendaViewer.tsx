@@ -14,9 +14,10 @@ import {
 } from '@mantine/core';
 
 import { useMe } from '@/features/auth/queries';
+import { useDepartments } from '@/features/departments/queries';
 
 import { containsInstructorAssignment, filterAgendaDaysByInstructor } from '../aggregators';
-import { fetchShiftAgendaPage, useShiftAgendaFuture, useShiftFormData } from '../queries';
+import { fetchShiftAgendaPage, useShiftAgendaFuture } from '../queries';
 import type { ShiftAgendaDay, ShiftAgendaResponse, ShiftViewItem } from '../schema';
 import { shortDateLabel, toMonth } from '../view-utils';
 
@@ -35,11 +36,12 @@ export function ShiftAgendaViewer({ date, onVisibleDateChange }: ShiftAgendaView
   const [visibleDate, setVisibleDate] = useState(date);
   const [pastPages, setPastPages] = useState<ShiftAgendaResponse[]>([]);
   const [isLoadingPast, setIsLoadingPast] = useState(false);
+  const [hasReachedPastEnd, setHasReachedPastEnd] = useState(false);
   const [pastError, setPastError] = useState<string | null>(null);
   const [departmentId, setDepartmentId] = useState<string | null>(null);
   const [showMineOnly, setShowMineOnly] = useState(false);
   const me = useMe();
-  const formData = useShiftFormData();
+  const departmentQuery = useDepartments();
   const myInstructorId = me.data?.instructorId ?? null;
   const effectiveShowMineOnly = showMineOnly && myInstructorId !== null;
   const future = useShiftAgendaFuture(initialDateRef.current, departmentId ?? undefined);
@@ -54,12 +56,13 @@ export function ShiftAgendaViewer({ date, onVisibleDateChange }: ShiftAgendaView
     () => (effectiveShowMineOnly ? filterAgendaDaysByInstructor(days, myInstructorId) : days),
     [days, effectiveShowMineOnly, myInstructorId],
   );
-  const departments = formData.data?.departments ?? [];
+  const departments = departmentQuery.data ?? [];
   const firstDate = days[0]?.date ?? initialDateRef.current;
 
   useEffect(() => {
     setPastPages([]);
     setPastError(null);
+    setHasReachedPastEnd(false);
   }, [departmentId]);
 
   useEffect(() => {
@@ -115,6 +118,10 @@ export function ShiftAgendaViewer({ date, onVisibleDateChange }: ShiftAgendaView
         limit: 7,
         ...(departmentId ? { departmentId } : {}),
       });
+      if (page.days.length === 0 || page.pageInfo.previousCursor === null) {
+        setHasReachedPastEnd(true);
+        return;
+      }
       setPastPages((current) => [page, ...current]);
     } catch (err) {
       setPastError(err instanceof Error ? err.message : '過去のアジェンダ取得に失敗しました');
@@ -162,11 +169,13 @@ export function ShiftAgendaViewer({ date, onVisibleDateChange }: ShiftAgendaView
         size="sm"
         onClick={() => void loadPast()}
         loading={isLoadingPast}
+        disabled={hasReachedPastEnd}
       >
         以前を表示
       </Button>
 
       {pastError && <Alert color="red">{pastError}</Alert>}
+      {hasReachedPastEnd && <Alert color="blue">これ以上遡れるシフトはありません。</Alert>}
       {future.isLoading && (
         <Text c="dimmed" size="sm">
           読み込み中...

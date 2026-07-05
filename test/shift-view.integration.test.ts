@@ -251,6 +251,15 @@ describe('GET /api/shifts/monthly-view', () => {
 // ─── GET /api/shifts/agenda ──────────────────────────────────────────────────
 
 describe('GET /api/shifts/agenda', () => {
+  it('未認証は 401 を返す', async () => {
+    const res = await app.request(
+      '/api/shifts/agenda?cursor=2026-01-10&direction=future',
+      {},
+      envWith({}),
+    );
+    expect(res.status).toBe(401);
+  });
+
   it('未来方向は起点日以降の稼働日のみを昇順で返し、休校日をスキップする', async () => {
     const ski = await seedDepartment('スキー', 'SKI');
     const snb = await seedDepartment('スノーボード', 'SNB');

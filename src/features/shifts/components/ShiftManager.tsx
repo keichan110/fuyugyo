@@ -375,7 +375,7 @@ function AssignmentPanel({ date, departmentId, shiftTypeId, shiftTypeName }: Ass
               onChange={(value) => setSortMode(parseCandidateSortMode(value))}
               data={[
                 { value: 'kana', label: 'かな順' },
-                { value: 'workload', label: '負荷順' },
+                { value: 'workload', label: '負荷が低い順' },
               ]}
             />
 

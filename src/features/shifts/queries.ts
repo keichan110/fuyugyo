@@ -236,7 +236,9 @@ export function useUpsertAssignmentSet() {
       return assignmentSetResultSchema.parse(await res.json());
     },
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: SHIFTS_QUERY_KEY });
+      void queryClient.invalidateQueries({ queryKey: [...SHIFTS_QUERY_KEY, 'monthly-view'] });
+      void queryClient.invalidateQueries({ queryKey: [...SHIFTS_QUERY_KEY, 'edit-data'] });
+      void queryClient.invalidateQueries({ queryKey: [...SHIFTS_QUERY_KEY, 'list'] });
     },
   });
 }

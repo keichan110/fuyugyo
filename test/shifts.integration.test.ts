@@ -7,6 +7,7 @@ import {
   shiftFormDataSchema,
   shiftListSchema,
   shiftWithAssignmentsSchema,
+  upsertMonthlyAssignmentsResultSchema,
 } from '../src/features/shifts/schema';
 import app from '../src/index';
 import { signJwt } from '../src/server/auth/jwt';
@@ -301,6 +302,319 @@ describe('PUT /api/shifts/assignment-set', () => {
           departmentId: deptId,
           shiftTypeId: stId,
           instructorIds: [],
+        }),
+      },
+      envWith({}),
+    );
+
+    expect(res.status).toBe(403);
+  });
+});
+
+// ─── PUT /api/shifts/monthly-assignments ─────────────────────────────────────
+
+describe('PUT /api/shifts/monthly-assignments', () => {
+  it('複数セルをまとめて作成し、それぞれ割り当てと備考が保存される', async () => {
+    const deptId = await seedDepartment();
+    const stMorning = await seedShiftType('午前');
+    const stAfternoon = await seedShiftType('午後');
+    const inst1 = await seedInstructor('山田', '太郎');
+    const inst2 = await seedInstructor('鈴木', '花子');
+    const token = await seedToken('MANAGER');
+
+    const res = await app.request(
+      '/api/shifts/monthly-assignments',
+      {
+        method: 'PUT',
+        ...authJsonRequest(token, {
+          month: '2026-02',
+          departmentId: deptId,
+          cells: [
+            {
+              date: '2026-02-01',
+              shiftTypeId: stMorning,
+              description: '初日',
+              instructorIds: [inst1],
+            },
+            {
+              date: '2026-02-15',
+              shiftTypeId: stAfternoon,
+              instructorIds: [inst1, inst2],
+            },
+          ],
+        }),
+      },
+      envWith({}),
+    );
+
+    expect(res.status).toBe(200);
+    const body = upsertMonthlyAssignmentsResultSchema.parse(await res.json());
+    expect(body.upsertedCount).toBe(2);
+    expect(body.deletedCount).toBe(0);
+
+    const list = await app.request('/api/shifts', authHeader(token), envWith({}));
+    const shiftsBody = shiftListSchema.parse(await list.json());
+    expect(shiftsBody).toHaveLength(2);
+    const first = shiftsBody.find((s) => s.shiftTypeId === stMorning);
+    expect(first?.description).toBe('初日');
+    expect(first?.assignedInstructorIds).toEqual([inst1]);
+    const second = shiftsBody.find((s) => s.shiftTypeId === stAfternoon);
+    expect(second?.assignedInstructorIds.sort()).toEqual([inst1, inst2].sort());
+  });
+
+  it('既存 Shift のセルは割り当てと備考が入れ替わり、含まれないセルは変更されない', async () => {
+    const deptId = await seedDepartment();
+    const stId = await seedShiftType();
+    const inst1 = await seedInstructor('山田', '太郎');
+    const inst2 = await seedInstructor('鈴木', '花子');
+    const inst3 = await seedInstructor('佐藤', '三郎');
+    const token = await seedToken('MANAGER');
+
+    // 事前に2セル分の既存 Shift を用意する
+    await upsertShift(token, '2026-02-01', deptId, stId, [inst1]);
+    await upsertShift(token, '2026-02-10', deptId, stId, [inst2]);
+
+    const res = await app.request(
+      '/api/shifts/monthly-assignments',
+      {
+        method: 'PUT',
+        ...authJsonRequest(token, {
+          month: '2026-02',
+          departmentId: deptId,
+          cells: [
+            {
+              date: '2026-02-01',
+              shiftTypeId: stId,
+              description: '入替',
+              instructorIds: [inst2, inst3],
+            },
+          ],
+        }),
+      },
+      envWith({}),
+    );
+
+    expect(res.status).toBe(200);
+    const body = upsertMonthlyAssignmentsResultSchema.parse(await res.json());
+    expect(body.upsertedCount).toBe(1);
+    expect(body.deletedCount).toBe(0);
+
+    const list = await app.request('/api/shifts', authHeader(token), envWith({}));
+    const shiftsBody = shiftListSchema.parse(await list.json());
+    const targeted = shiftsBody.find((s) => s.date.toISOString().startsWith('2026-02-01'));
+    expect(targeted?.description).toBe('入替');
+    expect(targeted?.assignedInstructorIds.sort()).toEqual([inst2, inst3].sort());
+    const untouched = shiftsBody.find((s) => s.date.toISOString().startsWith('2026-02-10'));
+    expect(untouched?.assignedInstructorIds).toEqual([inst2]);
+  });
+
+  it('instructorIds が空のセルは既存 Shift を削除する', async () => {
+    const deptId = await seedDepartment();
+    const stId = await seedShiftType();
+    const inst = await seedInstructor();
+    const token = await seedToken('MANAGER');
+    await upsertShift(token, '2026-02-05', deptId, stId, [inst]);
+
+    const res = await app.request(
+      '/api/shifts/monthly-assignments',
+      {
+        method: 'PUT',
+        ...authJsonRequest(token, {
+          month: '2026-02',
+          departmentId: deptId,
+          cells: [
+            {
+              date: '2026-02-05',
+              shiftTypeId: stId,
+              instructorIds: [],
+            },
+          ],
+        }),
+      },
+      envWith({}),
+    );
+
+    expect(res.status).toBe(200);
+    const body = upsertMonthlyAssignmentsResultSchema.parse(await res.json());
+    expect(body.upsertedCount).toBe(0);
+    expect(body.deletedCount).toBe(1);
+    expect(await countAssignments()).toBe(0);
+
+    const list = await app.request('/api/shifts', authHeader(token), envWith({}));
+    const shiftsBody = shiftListSchema.parse(await list.json());
+    expect(shiftsBody).toHaveLength(0);
+  });
+
+  it('cells が空でも 200 で 0 件返す', async () => {
+    const deptId = await seedDepartment();
+    const token = await seedToken('MANAGER');
+
+    const res = await app.request(
+      '/api/shifts/monthly-assignments',
+      {
+        method: 'PUT',
+        ...authJsonRequest(token, {
+          month: '2026-02',
+          departmentId: deptId,
+          cells: [],
+        }),
+      },
+      envWith({}),
+    );
+
+    expect(res.status).toBe(200);
+    const body = upsertMonthlyAssignmentsResultSchema.parse(await res.json());
+    expect(body).toEqual({ upsertedCount: 0, deletedCount: 0 });
+  });
+
+  it('実在しない日付 (2026-02-31) は 400 で正規化による月外作成を防ぐ', async () => {
+    const deptId = await seedDepartment();
+    const stId = await seedShiftType();
+    const inst = await seedInstructor();
+    const token = await seedToken('MANAGER');
+
+    const res = await app.request(
+      '/api/shifts/monthly-assignments',
+      {
+        method: 'PUT',
+        ...authJsonRequest(token, {
+          month: '2026-02',
+          departmentId: deptId,
+          cells: [
+            {
+              // 2026-02-31 は不在。dateStringSchema の形式は通るが暦上存在しない
+              date: '2026-02-31',
+              shiftTypeId: stId,
+              instructorIds: [inst],
+            },
+          ],
+        }),
+      },
+      envWith({}),
+    );
+
+    expect(res.status).toBe(400);
+    const list = await app.request('/api/shifts', authHeader(token), envWith({}));
+    const shiftsBody = shiftListSchema.parse(await list.json());
+    expect(shiftsBody).toHaveLength(0);
+  });
+
+  it('対象月レンジ外の日付を含むと 400 で何も作らない', async () => {
+    const deptId = await seedDepartment();
+    const stId = await seedShiftType();
+    const inst = await seedInstructor();
+    const token = await seedToken('MANAGER');
+
+    const res = await app.request(
+      '/api/shifts/monthly-assignments',
+      {
+        method: 'PUT',
+        ...authJsonRequest(token, {
+          month: '2026-02',
+          departmentId: deptId,
+          cells: [
+            {
+              // 2026-03-01 は対象月 2026-02 の範囲外
+              date: '2026-03-01',
+              shiftTypeId: stId,
+              instructorIds: [inst],
+            },
+          ],
+        }),
+      },
+      envWith({}),
+    );
+
+    expect(res.status).toBe(400);
+    const list = await app.request('/api/shifts', authHeader(token), envWith({}));
+    const shiftsBody = shiftListSchema.parse(await list.json());
+    expect(shiftsBody).toHaveLength(0);
+  });
+
+  it('存在しない Instructor を含むと 400 で何も作らない', async () => {
+    const deptId = await seedDepartment();
+    const stId = await seedShiftType();
+    const inst = await seedInstructor();
+    const token = await seedToken('MANAGER');
+
+    const res = await app.request(
+      '/api/shifts/monthly-assignments',
+      {
+        method: 'PUT',
+        ...authJsonRequest(token, {
+          month: '2026-02',
+          departmentId: deptId,
+          cells: [
+            {
+              date: '2026-02-01',
+              shiftTypeId: stId,
+              instructorIds: [inst, 'missing-instructor-id'],
+            },
+          ],
+        }),
+      },
+      envWith({}),
+    );
+
+    expect(res.status).toBe(400);
+    const list = await app.request('/api/shifts', authHeader(token), envWith({}));
+    const shiftsBody = shiftListSchema.parse(await list.json());
+    expect(shiftsBody).toHaveLength(0);
+  });
+
+  it('別部門の既存 Shift には影響しない', async () => {
+    const deptA = await seedDepartment('スキー');
+    const deptB = await seedDepartment('スノボ');
+    const stId = await seedShiftType();
+    const inst = await seedInstructor();
+    const token = await seedToken('MANAGER');
+
+    // 別部門で同日に Shift を用意しておく
+    await upsertShift(token, '2026-02-01', deptB, stId, [inst]);
+
+    const res = await app.request(
+      '/api/shifts/monthly-assignments',
+      {
+        method: 'PUT',
+        ...authJsonRequest(token, {
+          month: '2026-02',
+          departmentId: deptA,
+          cells: [
+            {
+              date: '2026-02-01',
+              shiftTypeId: stId,
+              instructorIds: [],
+            },
+          ],
+        }),
+      },
+      envWith({}),
+    );
+
+    expect(res.status).toBe(200);
+    const body = upsertMonthlyAssignmentsResultSchema.parse(await res.json());
+    // 対象部門には存在しないため deletedCount は 0
+    expect(body.deletedCount).toBe(0);
+
+    const list = await app.request('/api/shifts', authHeader(token), envWith({}));
+    const shiftsBody = shiftListSchema.parse(await list.json());
+    // 別部門のシフトは残っている
+    expect(shiftsBody).toHaveLength(1);
+    expect(shiftsBody[0]?.departmentId).toBe(deptB);
+  });
+
+  it('MEMBER は 403 で拒否される', async () => {
+    const deptId = await seedDepartment();
+    const token = await seedToken('MEMBER');
+
+    const res = await app.request(
+      '/api/shifts/monthly-assignments',
+      {
+        method: 'PUT',
+        ...authJsonRequest(token, {
+          month: '2026-02',
+          departmentId: deptId,
+          cells: [],
         }),
       },
       envWith({}),

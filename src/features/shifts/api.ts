@@ -24,6 +24,7 @@ import {
   monthStringSchema,
   shiftAgendaDirectionSchema,
   upsertAssignmentSetSchema,
+  upsertMonthlyAssignmentsSchema,
   type ShiftViewItem,
 } from './schema';
 import { calculateInstructorWorkload, seasonRangeForDate } from './workload';
@@ -35,6 +36,22 @@ import { calculateInstructorWorkload, seasonRangeForDate } from './workload';
  */
 function parseShiftDate(dateStr: string): Date {
   return new Date(`${dateStr}T00:00:00.000Z`);
+}
+
+/**
+ * YYYY-MM-DD 文字列が実在する暦日か検証する。
+ * `dateStringSchema` は形式のみを見るため、`2026-02-31` のような値が
+ * `new Date()` の正規化で別月に丸められ、境界チェックをすり抜けるのを防ぐ。
+ */
+function isValidCalendarDate(dateStr: string): boolean {
+  const [yearStr, monthStr, dayStr] = dateStr.split('-');
+  const year = Number(yearStr);
+  const month = Number(monthStr);
+  const day = Number(dayStr);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return (
+    date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day
+  );
 }
 
 /** Date を YYYY-MM-DD 文字列へ整形する（UTC 基準・edit-data 出力用） */
@@ -814,6 +831,140 @@ export const shiftsRoute = new Hono<{
         }
         throw err;
       }
+    },
+  )
+  /**
+   * (month × 部門) の割り当てを月次まとめて upsert する（MANAGER 以上）。
+   * cells には変更差分のみを含める。1セルごとに `db.batch` で原子的に反映し、
+   * instructorIds が空なら該当 Shift を削除する。
+   */
+  .put(
+    '/monthly-assignments',
+    requireAuth,
+    requireRole('MANAGER'),
+    validator('json', (value, c) => {
+      const parsed = upsertMonthlyAssignmentsSchema.safeParse(value);
+      if (!parsed.success) {
+        return c.json({ message: parsed.error.message }, 400);
+      }
+      return parsed.data;
+    }),
+    async (c) => {
+      const input = c.req.valid('json');
+      const db = createDb(c.env.DB);
+
+      // 全セルの日付が実在する暦日で、かつ対象月内にあることを検証
+      for (const cell of input.cells) {
+        if (!isValidCalendarDate(cell.date)) {
+          throw new HTTPException(400, {
+            message: `セルの日付 ${cell.date} は実在しない日付です`,
+          });
+        }
+        if (!cell.date.startsWith(`${input.month}-`)) {
+          throw new HTTPException(400, {
+            message: `セルの日付 ${cell.date} は対象月 ${input.month} の範囲外です`,
+          });
+        }
+      }
+
+      if (input.cells.length === 0) {
+        return c.json({ upsertedCount: 0, deletedCount: 0 });
+      }
+
+      // 全セルで参照される Instructor が実在するかを1クエリで検証
+      const uniqueInstructorIds = [...new Set(input.cells.flatMap((cell) => cell.instructorIds))];
+      if (!(await allInstructorsExist(db, uniqueInstructorIds))) {
+        throw new HTTPException(400, {
+          message: 'One or more instructors do not exist',
+        });
+      }
+
+      // 対象月×部門の既存 Shift を1クエリで引き、(date × shiftTypeId) → id にマップする
+      const [yearStr, monthStr] = input.month.split('-');
+      const year = Number(yearStr);
+      const monthNumber = Number(monthStr);
+      const monthFrom = new Date(Date.UTC(year, monthNumber - 1, 1));
+      const monthTo = new Date(Date.UTC(year, monthNumber, 0));
+
+      const existingRows = await db
+        .select({
+          id: shifts.id,
+          date: shifts.date,
+          shiftTypeId: shifts.shiftTypeId,
+        })
+        .from(shifts)
+        .where(
+          and(
+            eq(shifts.departmentId, input.departmentId),
+            gte(shifts.date, monthFrom),
+            lte(shifts.date, monthTo),
+          ),
+        );
+
+      const existingByKey = new Map<string, string>();
+      for (const row of existingRows) {
+        existingByKey.set(`${formatDate(row.date)}:${row.shiftTypeId}`, row.id);
+      }
+
+      let upsertedCount = 0;
+      let deletedCount = 0;
+
+      // セル単位で db.batch を回して原子性を確保する（1セル内で shift 本体と割り当て
+      // 差し替えを不可分に扱う）。セル間での完全な原子性は諦めるが、事前バリデーションで
+      // データ不整合の発生確率は最小化している。
+      for (const cell of input.cells) {
+        const key = `${cell.date}:${cell.shiftTypeId}`;
+        const existingId = existingByKey.get(key);
+        const uniqueIds = [...new Set(cell.instructorIds)];
+        const description = cell.description?.trim() || null;
+
+        if (uniqueIds.length === 0) {
+          if (existingId) {
+            await db.delete(shifts).where(eq(shifts.id, existingId));
+            deletedCount++;
+          }
+          continue;
+        }
+
+        const date = parseShiftDate(cell.date);
+
+        if (existingId) {
+          await db.batch([
+            db.update(shifts).set({ description }).where(eq(shifts.id, existingId)),
+            db.delete(shiftAssignments).where(eq(shiftAssignments.shiftId, existingId)),
+            ...uniqueIds.map((instructorId) =>
+              db.insert(shiftAssignments).values({ shiftId: existingId, instructorId }),
+            ),
+          ]);
+          upsertedCount++;
+        } else {
+          const shiftId = crypto.randomUUID();
+          try {
+            await db.batch([
+              db.insert(shifts).values({
+                id: shiftId,
+                date,
+                departmentId: input.departmentId,
+                shiftTypeId: cell.shiftTypeId,
+                description,
+              }),
+              ...uniqueIds.map((instructorId) =>
+                db.insert(shiftAssignments).values({ shiftId, instructorId }),
+              ),
+            ]);
+            upsertedCount++;
+          } catch (err) {
+            if (isUniqueViolation(err)) {
+              throw new HTTPException(409, {
+                message: `Shift already exists for ${cell.date} / ${cell.shiftTypeId}`,
+              });
+            }
+            throw err;
+          }
+        }
+      }
+
+      return c.json({ upsertedCount, deletedCount });
     },
   )
   /** シフトを1件取得する（割り当て済み Instructor ID 付き） */

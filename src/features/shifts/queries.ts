@@ -11,6 +11,7 @@ import {
   shiftListSchema,
   shiftViewResponseSchema,
   shiftWithAssignmentsSchema,
+  upsertMonthlyAssignmentsResultSchema,
   type AssignmentSetResult,
   type ShiftAgendaDirection,
   type ShiftAgendaResponse,
@@ -20,6 +21,8 @@ import {
   type ShiftViewResponse,
   type ShiftWithAssignments,
   type UpsertAssignmentSetInput,
+  type UpsertMonthlyAssignmentsInput,
+  type UpsertMonthlyAssignmentsResult,
 } from './schema';
 
 /** API エラーレスポンスのスキーマ（型アサーションを避けるためランタイム検証する） */
@@ -217,6 +220,29 @@ export function useShiftEditData(params: Partial<ShiftEditDataParams>) {
       return shiftEditDataSchema.parse(await res.json());
     },
     enabled,
+  });
+}
+
+/**
+ * (month × 部門) の割り当てを月次まとめて upsert するミューテーション。
+ * cells には変更のあったセルのみを含める。
+ */
+export function useUpsertMonthlyAssignments() {
+  const queryClient = useQueryClient();
+  return useMutation<UpsertMonthlyAssignmentsResult, Error, UpsertMonthlyAssignmentsInput>({
+    mutationFn: async (input) => {
+      const res = await client.api.shifts['monthly-assignments'].$put({ json: input });
+      if (!res.ok) {
+        const body = apiErrorSchema.parse(await res.json());
+        throw new Error(body.message ?? '月次割り当ての保存に失敗しました');
+      }
+      return upsertMonthlyAssignmentsResultSchema.parse(await res.json());
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: [...SHIFTS_QUERY_KEY, 'monthly-view'] });
+      void queryClient.invalidateQueries({ queryKey: [...SHIFTS_QUERY_KEY, 'edit-data'] });
+      void queryClient.invalidateQueries({ queryKey: [...SHIFTS_QUERY_KEY, 'list'] });
+    },
   });
 }
 

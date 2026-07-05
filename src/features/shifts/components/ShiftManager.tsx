@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import {
   Alert,
@@ -8,6 +8,7 @@ import {
   Card,
   Checkbox,
   Group,
+  Modal,
   SegmentedControl,
   Select,
   SimpleGrid,
@@ -25,7 +26,7 @@ import {
   useMonthlyView,
   useShiftEditData,
   useShiftFormData,
-  useUpsertAssignmentSet,
+  useUpsertMonthlyAssignments,
 } from '../queries';
 import type { AvailableInstructor, ShiftViewItem } from '../schema';
 import { addMonths, shortDateLabel, todayString, toMonth, weekdayIndex } from '../view-utils';
@@ -47,15 +48,58 @@ type SelectedCell = {
   shiftTypeId: string;
 };
 
+/** 月次まとめ登録のステージ状態（cellKey → 変更内容） */
+type StagedCell = {
+  instructorIds: string[];
+  description: string;
+};
+
+/** 部門・対象月変更をユーザー承認で確定するための保留アクション */
+type PendingNavigation =
+  { type: 'department'; nextDepartmentId: string } | { type: 'month'; nextMonth: string };
+
 /** シフト枠（日付 × 部門 × シフト種別）を月マトリクスで編集する管理コンポーネント。 */
 export function ShiftManager() {
   const [month, setMonth] = useState(toMonth(todayString()));
   const [departmentId, setDepartmentId] = useState('');
   const [selectedCell, setSelectedCell] = useState<SelectedCell | null>(null);
+  const [stagedCells, setStagedCells] = useState<Map<string, StagedCell>>(new Map());
+  const [pendingNav, setPendingNav] = useState<PendingNavigation | null>(null);
+  // ステージ済みセルの Instructor 名を解決するためのローカルレジストリ。
+  // 月次ビューと編集パネルの候補で見た Instructor を蓄積する。
+  const [nameById, setNameById] = useState<Map<string, string>>(new Map());
 
   const formData = useShiftFormData();
   const monthly = useMonthlyView(month);
+  const upsertMonthly = useUpsertMonthlyAssignments();
   const days = useMemo(() => monthDays(month), [month]);
+  const isDirty = stagedCells.size > 0;
+
+  const registerInstructorNames = useCallback((entries: Array<{ id: string; name: string }>) => {
+    setNameById((prev) => {
+      let changed = false;
+      const next = new Map(prev);
+      for (const entry of entries) {
+        if (next.get(entry.id) !== entry.name) {
+          next.set(entry.id, entry.name);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!monthly.data) {
+      return;
+    }
+    const entries = monthly.data.shifts.flatMap((shift) =>
+      shift.assignedInstructors.map((inst) => ({ id: inst.id, name: inst.displayName })),
+    );
+    if (entries.length > 0) {
+      registerInstructorNames(entries);
+    }
+  }, [monthly.data, registerInstructorNames]);
 
   useEffect(() => {
     if (!formData.data || departmentId) {
@@ -88,24 +132,94 @@ export function ShiftManager() {
     }
   }, [days, formData.data, month, selectedCell]);
 
-  const goPrevMonth = () => setMonth((current) => addMonths(current, -1));
-  const goNextMonth = () => setMonth((current) => addMonths(current, 1));
+  /** 部門・対象月の遷移を要求する。dirty ならモーダルで確認、そうでなければ即時適用。 */
+  const requestNavigation = useCallback(
+    (nav: PendingNavigation) => {
+      if (!isDirty) {
+        applyNavigation(nav);
+        return;
+      }
+      setPendingNav(nav);
+    },
+    [isDirty],
+  );
+
+  const applyNavigation = (nav: PendingNavigation) => {
+    if (nav.type === 'department') {
+      setDepartmentId(nav.nextDepartmentId);
+    } else {
+      setMonth(nav.nextMonth);
+    }
+    setStagedCells(new Map());
+  };
+
+  const confirmNavigation = () => {
+    if (pendingNav) {
+      applyNavigation(pendingNav);
+    }
+    setPendingNav(null);
+  };
+
+  const cancelNavigation = () => setPendingNav(null);
+
+  const stageCell = useCallback((cellKey: string, next: StagedCell) => {
+    setStagedCells((prev) => {
+      const map = new Map(prev);
+      map.set(cellKey, next);
+      return map;
+    });
+  }, []);
+
+  const resetStage = () => setStagedCells(new Map());
+
+  const saveMonthly = () => {
+    if (!departmentId || stagedCells.size === 0) {
+      return;
+    }
+    const cells = Array.from(stagedCells.entries()).map(([key, value]) => {
+      const [date, shiftTypeId] = splitCellKey(key);
+      return {
+        date,
+        shiftTypeId,
+        description: value.description.trim() || null,
+        instructorIds: value.instructorIds,
+      };
+    });
+    upsertMonthly.mutate(
+      { month, departmentId, cells },
+      {
+        onSuccess: () => {
+          setStagedCells(new Map());
+        },
+      },
+    );
+  };
 
   return (
     <Stack gap="md">
       <Group justify="space-between" align="flex-end" wrap="wrap">
         <Title order={2}>シフト管理</Title>
         <Group gap="xs" align="flex-end">
-          <Button type="button" variant="outline" size="sm" onClick={goPrevMonth}>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => requestNavigation({ type: 'month', nextMonth: addMonths(month, -1) })}
+          >
             前月
           </Button>
           <TextInput
             type="month"
             label="対象月"
             value={month}
-            onChange={(e) => setMonth(e.currentTarget.value)}
+            onChange={(e) => requestNavigation({ type: 'month', nextMonth: e.currentTarget.value })}
           />
-          <Button type="button" variant="outline" size="sm" onClick={goNextMonth}>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => requestNavigation({ type: 'month', nextMonth: addMonths(month, 1) })}
+          >
             次月
           </Button>
         </Group>
@@ -123,14 +237,53 @@ export function ShiftManager() {
 
       {formData.data && (
         <>
-          <Select
-            label="部門"
-            data={formData.data.departments.map((dept) => ({ value: dept.id, label: dept.name }))}
-            value={departmentId || null}
-            onChange={(value) => setDepartmentId(value ?? '')}
-            allowDeselect={false}
-            w={{ base: '100%', sm: 280 }}
-          />
+          <Group justify="space-between" align="flex-end" wrap="wrap">
+            <Select
+              label="部門"
+              data={formData.data.departments.map((dept) => ({
+                value: dept.id,
+                label: dept.name,
+              }))}
+              value={departmentId || null}
+              onChange={(value) => {
+                if (!value || value === departmentId) {
+                  return;
+                }
+                requestNavigation({ type: 'department', nextDepartmentId: value });
+              }}
+              allowDeselect={false}
+              w={{ base: '100%', sm: 280 }}
+            />
+            <Group gap="xs">
+              {isDirty && (
+                <Text size="sm" c="orange">
+                  未保存の変更 {stagedCells.size} 件
+                </Text>
+              )}
+              <Button
+                type="button"
+                variant="default"
+                size="sm"
+                onClick={resetStage}
+                disabled={!isDirty || upsertMonthly.isPending}
+              >
+                リセット
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={saveMonthly}
+                loading={upsertMonthly.isPending}
+                disabled={!isDirty}
+              >
+                月次を保存
+              </Button>
+            </Group>
+          </Group>
+
+          {upsertMonthly.isError && (
+            <Alert color="red">{upsertMonthly.error?.message ?? '保存に失敗しました'}</Alert>
+          )}
 
           <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="md" style={{ alignItems: 'start' }}>
             <ShiftMatrix
@@ -138,6 +291,8 @@ export function ShiftManager() {
               departmentId={departmentId}
               shiftTypes={formData.data.shiftTypes}
               shifts={monthly.data?.shifts ?? []}
+              stagedCells={stagedCells}
+              nameById={nameById}
               selectedCell={selectedCell}
               onSelectCell={setSelectedCell}
             />
@@ -153,6 +308,11 @@ export function ShiftManager() {
                     formData.data.shiftTypes.find((st) => st.id === selectedCell.shiftTypeId)
                       ?.name ?? ''
                   }
+                  stagedCell={stagedCells.get(cellKey(selectedCell.date, selectedCell.shiftTypeId))}
+                  onStageChange={(next) =>
+                    stageCell(cellKey(selectedCell.date, selectedCell.shiftTypeId), next)
+                  }
+                  onRegisterInstructorNames={registerInstructorNames}
                 />
               ) : (
                 <Card withBorder padding="md" radius="md" style={{ height: '100%' }}>
@@ -165,6 +325,29 @@ export function ShiftManager() {
           </SimpleGrid>
         </>
       )}
+
+      <Modal
+        opened={pendingNav !== null}
+        onClose={cancelNavigation}
+        title="編集中の内容を破棄しますか？"
+        centered
+      >
+        <Stack gap="md">
+          <Text size="sm">
+            未保存の変更が {stagedCells.size} 件あります。 このまま
+            {pendingNav?.type === 'department' ? '部門を切り替える' : '対象月を変更する'}
+            と、これらの変更は破棄されます。
+          </Text>
+          <Group justify="flex-end" gap="xs">
+            <Button variant="default" onClick={cancelNavigation}>
+              キャンセル
+            </Button>
+            <Button color="red" onClick={confirmNavigation}>
+              破棄して切り替え
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
     </Stack>
   );
 }
@@ -179,6 +362,8 @@ type ShiftMatrixProps = {
   departmentId: string;
   shiftTypes: ShiftTypeOption[];
   shifts: ShiftViewItem[];
+  stagedCells: Map<string, StagedCell>;
+  nameById: Map<string, string>;
   selectedCell: SelectedCell | null;
   onSelectCell: (cell: SelectedCell) => void;
 };
@@ -189,9 +374,12 @@ function ShiftMatrix({
   departmentId,
   shiftTypes,
   shifts,
+  stagedCells,
+  nameById,
   selectedCell,
   onSelectCell,
 }: ShiftMatrixProps) {
+  // (date, shiftTypeId) → 対象部門のサーバー状態 Shift のマップ
   const shiftByCell = useMemo(() => {
     const map = new Map<string, ShiftViewItem>();
     for (const shift of shifts) {
@@ -253,13 +441,17 @@ function ShiftMatrix({
                   </Stack>
                 </Table.Th>
                 {shiftTypes.map((shiftType) => {
-                  const shift = shiftByCell.get(cellKey(day, shiftType.id));
+                  const key = cellKey(day, shiftType.id);
+                  const serverShift = shiftByCell.get(key);
+                  const staged = stagedCells.get(key);
                   const selected =
                     selectedCell?.date === day && selectedCell.shiftTypeId === shiftType.id;
                   return (
                     <Table.Td key={shiftType.id} p={0}>
                       <ShiftCell
-                        shift={shift}
+                        serverShift={serverShift}
+                        staged={staged}
+                        nameById={nameById}
                         selected={selected}
                         onClick={() => onSelectCell({ date: day, shiftTypeId: shiftType.id })}
                       />
@@ -276,19 +468,33 @@ function ShiftMatrix({
 }
 
 type ShiftCellProps = {
-  shift: ShiftViewItem | undefined;
+  serverShift: ShiftViewItem | undefined;
+  staged: StagedCell | undefined;
+  nameById: Map<string, string>;
   selected: boolean;
   onClick: () => void;
 };
 
-/** 単一セル: 割り当て済み Instructor をバッジで列挙。固定高でセル内スクロール。 */
-function ShiftCell({ shift, selected, onClick }: ShiftCellProps) {
-  const hasAssignments = !!shift && shift.assignedInstructors.length > 0;
+/** 単一セル: 割り当て済み Instructor をバッジで列挙。stage 中は表示を staged 側で上書き。 */
+function ShiftCell({ serverShift, staged, nameById, selected, onClick }: ShiftCellProps) {
+  // staged があれば staged の割り当てを、そうでなければサーバー状態を表示する。
+  // stage された Instructor 名はレジストリ（月次ビュー＋パネル候補で蓄積）から解決する
+  const assignedNames = staged
+    ? staged.instructorIds.map(
+        (id) =>
+          serverShift?.assignedInstructors.find((i) => i.id === id)?.displayName ??
+          nameById.get(id) ??
+          id,
+      )
+    : (serverShift?.assignedInstructors ?? []).map((i) => i.displayName);
+
+  const hasAssignments = assignedNames.length > 0;
 
   return (
     <UnstyledButton
       onClick={onClick}
       style={{
+        position: 'relative',
         display: 'flex',
         width: '100%',
         height: 76,
@@ -302,15 +508,28 @@ function ShiftCell({ shift, selected, onClick }: ShiftCellProps) {
         backgroundColor: selected ? 'var(--mantine-color-blue-1)' : undefined,
       }}
     >
+      {staged && (
+        <Box
+          style={{
+            position: 'absolute',
+            top: 2,
+            right: 2,
+            width: 8,
+            height: 8,
+            borderRadius: '50%',
+            backgroundColor: 'var(--mantine-color-orange-6)',
+          }}
+        />
+      )}
       {hasAssignments ? (
-        shift.assignedInstructors.map((instructor) => (
+        assignedNames.map((name, idx) => (
           <Badge
-            key={instructor.id}
+            key={`${name}-${idx}`}
             size="xs"
             variant={selected ? 'filled' : 'light'}
             color={selected ? 'blue' : 'gray'}
           >
-            {instructor.displayName}
+            {name}
           </Badge>
         ))
       ) : (
@@ -327,26 +546,51 @@ type AssignmentPanelProps = {
   departmentId: string;
   shiftTypeId: string;
   shiftTypeName: string;
+  stagedCell: StagedCell | undefined;
+  onStageChange: (next: StagedCell) => void;
+  onRegisterInstructorNames: (entries: Array<{ id: string; name: string }>) => void;
 };
 
-/** 選択セルに連動する割り当て編集パネル。 */
-function AssignmentPanel({ date, departmentId, shiftTypeId, shiftTypeName }: AssignmentPanelProps) {
+/**
+ * 選択セルに連動する割り当て編集パネル。編集内容は親のステージに反映し、即時保存しない。
+ * 表示・編集対象は props の stagedCell / editData から派生させ、
+ * ローカル state は UI コントロール（検索・並び順）のみ持つ。これにより
+ * セル切替やサーバー再取得のたびに props に確実に追随する。
+ */
+function AssignmentPanel({
+  date,
+  departmentId,
+  shiftTypeId,
+  shiftTypeName,
+  stagedCell,
+  onStageChange,
+  onRegisterInstructorNames,
+}: AssignmentPanelProps) {
   const editData = useShiftEditData({ date, departmentId, shiftTypeId });
-  const upsert = useUpsertAssignmentSet();
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [description, setDescription] = useState('');
-  const [search, setSearch] = useState('');
-  const [sortMode, setSortMode] = useState<CandidateSortMode>('kana');
-  const initialized = useRef(false);
 
   useEffect(() => {
-    if (!editData.data || initialized.current) {
+    if (!editData.data) {
       return;
     }
-    initialized.current = true;
-    setSelectedIds(new Set(editData.data.shift?.assignedInstructorIds ?? []));
-    setDescription(editData.data.shift?.description ?? '');
-  }, [editData.data]);
+    onRegisterInstructorNames(
+      editData.data.availableInstructors.map((inst) => ({
+        id: inst.id,
+        name: inst.displayName,
+      })),
+    );
+  }, [editData.data, onRegisterInstructorNames]);
+
+  const [search, setSearch] = useState('');
+  const [sortMode, setSortMode] = useState<CandidateSortMode>('kana');
+
+  // 表示・編集対象の割り当て内容: stagedCell 優先、無ければサーバー state。
+  const stagedInstructorIds = stagedCell?.instructorIds;
+  const serverInstructorIds = editData.data?.shift?.assignedInstructorIds;
+  const displayedDescription = stagedCell?.description ?? editData.data?.shift?.description ?? '';
+  const selectedSet = useMemo(
+    () => new Set(stagedInstructorIds ?? serverInstructorIds ?? []),
+    [stagedInstructorIds, serverInstructorIds],
+  );
 
   const candidates = useMemo(() => {
     const query = search.trim().toLocaleLowerCase('ja-JP');
@@ -363,24 +607,22 @@ function AssignmentPanel({ date, departmentId, shiftTypeId, shiftTypeName }: Ass
   }, [editData.data?.availableInstructors, search, sortMode]);
 
   const toggle = (id: string) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
+    const next = new Set(selectedSet);
+    if (next.has(id)) {
+      next.delete(id);
+    } else {
+      next.add(id);
+    }
+    onStageChange({
+      instructorIds: [...next],
+      description: displayedDescription,
     });
   };
 
-  const save = () => {
-    upsert.mutate({
-      date,
-      departmentId,
-      shiftTypeId,
-      description: description.trim() || null,
-      instructorIds: [...selectedIds],
+  const changeDescription = (value: string) => {
+    onStageChange({
+      instructorIds: [...selectedSet],
+      description: value,
     });
   };
 
@@ -393,12 +635,19 @@ function AssignmentPanel({ date, departmentId, shiftTypeId, shiftTypeName }: Ass
     >
       {/* 候補リストが flex-grow で残余領域を占め、リスト内スクロールで画面全体は動かさない */}
       <Stack gap="sm" style={{ flex: 1, minHeight: 0 }}>
-        <div>
-          <Text fw={500}>{shortDateLabel(date)}</Text>
-          <Text size="sm" c="dimmed">
-            {shiftTypeName}
-          </Text>
-        </div>
+        <Group justify="space-between" align="flex-start">
+          <div>
+            <Text fw={500}>{shortDateLabel(date)}</Text>
+            <Text size="sm" c="dimmed">
+              {shiftTypeName}
+            </Text>
+          </div>
+          {stagedCell && (
+            <Badge color="orange" variant="light">
+              未保存
+            </Badge>
+          )}
+        </Group>
 
         {editData.isLoading && (
           <Text c="dimmed" size="sm">
@@ -447,7 +696,7 @@ function AssignmentPanel({ date, departmentId, shiftTypeId, shiftTypeName }: Ass
                   <InstructorCheckbox
                     key={instructor.id}
                     instructor={instructor}
-                    checked={selectedIds.has(instructor.id)}
+                    checked={selectedSet.has(instructor.id)}
                     onToggle={() => toggle(instructor.id)}
                   />
                 ))
@@ -456,22 +705,17 @@ function AssignmentPanel({ date, departmentId, shiftTypeId, shiftTypeName }: Ass
 
             <Textarea
               label="備考"
-              value={description}
-              onChange={(e) => setDescription(e.currentTarget.value)}
+              value={displayedDescription}
+              onChange={(e) => changeDescription(e.currentTarget.value)}
               maxLength={500}
               rows={3}
             />
 
             <Group justify="space-between">
               <Text size="sm" c="dimmed">
-                {selectedIds.size}名を割り当て
+                {selectedSet.size}名を割り当て（ステージ）
               </Text>
-              <Button type="button" size="sm" loading={upsert.isPending} onClick={save}>
-                保存
-              </Button>
             </Group>
-
-            {upsert.isError && <Alert color="red">{upsert.error.message}</Alert>}
           </>
         )}
       </Stack>
@@ -535,6 +779,11 @@ function monthDays(month: string): string[] {
 
 function cellKey(date: string, shiftTypeId: string): string {
   return `${date}:${shiftTypeId}`;
+}
+
+function splitCellKey(key: string): [string, string] {
+  const idx = key.indexOf(':');
+  return [key.slice(0, idx), key.slice(idx + 1)];
 }
 
 function weekdayLabel(date: string): string {

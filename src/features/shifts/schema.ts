@@ -86,6 +86,36 @@ export const assignmentSetResultSchema = z.object({
 
 export type AssignmentSetResult = z.infer<typeof assignmentSetResultSchema>;
 
+/** 月次まとめ upsert の1セル分（日付 × シフト種別の割り当て集合） */
+export const monthlyAssignmentCellSchema = z.object({
+  date: dateStringSchema,
+  shiftTypeId: z.string().min(1),
+  description: z.string().max(500).nullable().optional(),
+  instructorIds: z.array(z.string().min(1)).default([]),
+});
+
+export type MonthlyAssignmentCell = z.infer<typeof monthlyAssignmentCellSchema>;
+
+/**
+ * 月単位で (date × 部門 × シフト種別) の割り当て集合をまとめて upsert する。
+ * cells には保存したい変更差分のみを含める（含まれないセルは変更しない）。
+ */
+export const upsertMonthlyAssignmentsSchema = z.object({
+  month: monthStringSchema,
+  departmentId: z.string().min(1),
+  cells: z.array(monthlyAssignmentCellSchema),
+});
+
+export type UpsertMonthlyAssignmentsInput = z.infer<typeof upsertMonthlyAssignmentsSchema>;
+
+/** 月次まとめ upsert レスポンス */
+export const upsertMonthlyAssignmentsResultSchema = z.object({
+  upsertedCount: z.number(),
+  deletedCount: z.number(),
+});
+
+export type UpsertMonthlyAssignmentsResult = z.infer<typeof upsertMonthlyAssignmentsResultSchema>;
+
 // ─── 集約（フォーム）データ ─────────────────────────────────────────────────
 
 /** form-data の Department 最小情報 */

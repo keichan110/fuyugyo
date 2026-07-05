@@ -3,11 +3,11 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Badge,
+  Box,
   Button,
   Card,
   Checkbox,
   Group,
-  ScrollArea,
   SegmentedControl,
   Select,
   SimpleGrid,
@@ -18,6 +18,7 @@ import {
   TextInput,
   Title,
   Tooltip,
+  UnstyledButton,
 } from '@mantine/core';
 
 import {
@@ -30,6 +31,14 @@ import type { AvailableInstructor, ShiftViewItem } from '../schema';
 import { addMonths, shortDateLabel, todayString, toMonth, weekdayIndex } from '../view-utils';
 
 const DEPARTMENT_STORAGE_KEY = 'fuyugyo.shiftManage.departmentId';
+
+/**
+ * 月マトリクス／割り当てパネルの共通高さ。
+ * AppShell ヘッダー（60）＋ Main と Container の padding（32）＋
+ * タイトル行と部門セレクタ（〜150）＋ 下部余白（〜18）を差し引き、
+ * ページ全体をビューポート内に収める。
+ */
+const PANEL_HEIGHT = 'calc(100vh - 260px)';
 
 type CandidateSortMode = 'kana' | 'workload';
 
@@ -132,24 +141,27 @@ export function ShiftManager() {
               selectedCell={selectedCell}
               onSelectCell={setSelectedCell}
             />
-            {selectedCell && departmentId ? (
-              <AssignmentPanel
-                key={`${selectedCell.date}-${departmentId}-${selectedCell.shiftTypeId}`}
-                date={selectedCell.date}
-                departmentId={departmentId}
-                shiftTypeId={selectedCell.shiftTypeId}
-                shiftTypeName={
-                  formData.data.shiftTypes.find((st) => st.id === selectedCell.shiftTypeId)?.name ??
-                  ''
-                }
-              />
-            ) : (
-              <Card withBorder padding="md" radius="md">
-                <Text c="dimmed" size="sm">
-                  セルを選択してください
-                </Text>
-              </Card>
-            )}
+            {/* 左右の高さを PANEL_HEIGHT で揃え、内部スクロールで画面内に収める */}
+            <Box style={{ height: PANEL_HEIGHT }}>
+              {selectedCell && departmentId ? (
+                <AssignmentPanel
+                  key={`${selectedCell.date}-${departmentId}-${selectedCell.shiftTypeId}`}
+                  date={selectedCell.date}
+                  departmentId={departmentId}
+                  shiftTypeId={selectedCell.shiftTypeId}
+                  shiftTypeName={
+                    formData.data.shiftTypes.find((st) => st.id === selectedCell.shiftTypeId)
+                      ?.name ?? ''
+                  }
+                />
+              ) : (
+                <Card withBorder padding="md" radius="md" style={{ height: '100%' }}>
+                  <Text c="dimmed" size="sm">
+                    セルを選択してください
+                  </Text>
+                </Card>
+              )}
+            </Box>
           </SimpleGrid>
         </>
       )}
@@ -171,7 +183,7 @@ type ShiftMatrixProps = {
   onSelectCell: (cell: SelectedCell) => void;
 };
 
-/** シフト種別 × 当月全日の割り当てマトリクス。 */
+/** 日付 × シフト種別の割り当てマトリクス（日付を縦軸に配置）。 */
 function ShiftMatrix({
   days,
   departmentId,
@@ -180,7 +192,6 @@ function ShiftMatrix({
   selectedCell,
   onSelectCell,
 }: ShiftMatrixProps) {
-  const allOpenDates = useMemo(() => new Set(shifts.map((shift) => shift.date)), [shifts]);
   const shiftByCell = useMemo(() => {
     const map = new Map<string, ShiftViewItem>();
     for (const shift of shifts) {
@@ -192,81 +203,122 @@ function ShiftMatrix({
   }, [departmentId, shifts]);
 
   return (
-    <Card withBorder padding="md" radius="md">
-      <Stack gap="sm">
-        <Group justify="space-between">
-          <Text fw={500}>月マトリクス</Text>
-          <Group gap={6}>
-            <Badge color="gray" variant="light">
-              休校日
-            </Badge>
-            <Badge color="blue" variant="light">
-              稼働日
-            </Badge>
-          </Group>
-        </Group>
-        <ScrollArea type="auto" offsetScrollbars>
-          <Table
-            withColumnBorders
-            withTableBorder
-            verticalSpacing={4}
-            horizontalSpacing={4}
-            miw={Math.max(760, days.length * 42)}
-            style={{ tableLayout: 'fixed' }}
-          >
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th w={120}>種別</Table.Th>
-                {days.map((day) => {
-                  const isClosed = !allOpenDates.has(day);
+    <Card
+      withBorder
+      padding="md"
+      radius="md"
+      style={{ height: PANEL_HEIGHT, display: 'flex', flexDirection: 'column' }}
+    >
+      <Text fw={500} mb="sm">
+        月マトリクス
+      </Text>
+      {/* テーブルを内部スクロールにし、Thead は stickyHeader でスクロール中も列見出しを維持する */}
+      <Box style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+        <Table
+          stickyHeader
+          stickyHeaderOffset={0}
+          withColumnBorders
+          withTableBorder
+          verticalSpacing={2}
+          horizontalSpacing={2}
+          style={{ tableLayout: 'fixed' }}
+        >
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th w={64} bg="gray.0">
+                <Text size="xs" ta="center" fw={500}>
+                  日付
+                </Text>
+              </Table.Th>
+              {shiftTypes.map((shiftType) => (
+                <Table.Th key={shiftType.id} bg="gray.0">
+                  <Text size="xs" ta="center" fw={500}>
+                    {shiftType.name}
+                  </Text>
+                </Table.Th>
+              ))}
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
+            {days.map((day) => (
+              <Table.Tr key={day}>
+                <Table.Th>
+                  <Stack gap={0} align="center">
+                    <Text size="xs" fw={500}>
+                      {day.slice(5).replace('-', '/')}
+                    </Text>
+                    <Text size="xs" c={weekdayColor(day)}>
+                      {weekdayLabel(day)}
+                    </Text>
+                  </Stack>
+                </Table.Th>
+                {shiftTypes.map((shiftType) => {
+                  const shift = shiftByCell.get(cellKey(day, shiftType.id));
+                  const selected =
+                    selectedCell?.date === day && selectedCell.shiftTypeId === shiftType.id;
                   return (
-                    <Table.Th key={day} w={isClosed ? 38 : 68} bg={isClosed ? 'gray.0' : 'blue.0'}>
-                      <Stack gap={0} align="center">
-                        <Text size="xs" fw={weekdayIndex(day) === 0 ? 700 : 500}>
-                          {day.slice(8)}
-                        </Text>
-                        <Text size="xs" c="dimmed">
-                          {weekdayLabel(day)}
-                        </Text>
-                      </Stack>
-                    </Table.Th>
+                    <Table.Td key={shiftType.id} p={0}>
+                      <ShiftCell
+                        shift={shift}
+                        selected={selected}
+                        onClick={() => onSelectCell({ date: day, shiftTypeId: shiftType.id })}
+                      />
+                    </Table.Td>
                   );
                 })}
               </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {shiftTypes.map((shiftType) => (
-                <Table.Tr key={shiftType.id}>
-                  <Table.Th>{shiftType.name}</Table.Th>
-                  {days.map((day) => {
-                    const shift = shiftByCell.get(cellKey(day, shiftType.id));
-                    const isClosed = !allOpenDates.has(day);
-                    const selected =
-                      selectedCell?.date === day && selectedCell.shiftTypeId === shiftType.id;
-                    const cellBg = selected ? 'blue.1' : isClosed ? 'gray.0' : null;
-                    return (
-                      <Table.Td {...(cellBg ? { bg: cellBg } : {})} key={day}>
-                        <Button
-                          type="button"
-                          variant={selected ? 'filled' : shift ? 'light' : 'subtle'}
-                          color={selected ? 'blue' : isClosed ? 'gray' : 'blue'}
-                          size="compact-xs"
-                          fullWidth
-                          onClick={() => onSelectCell({ date: day, shiftTypeId: shiftType.id })}
-                          styles={{ label: { whiteSpace: 'normal', lineHeight: 1.2 } }}
-                        >
-                          {assignmentSummary(shift)}
-                        </Button>
-                      </Table.Td>
-                    );
-                  })}
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-        </ScrollArea>
-      </Stack>
+            ))}
+          </Table.Tbody>
+        </Table>
+      </Box>
     </Card>
+  );
+}
+
+type ShiftCellProps = {
+  shift: ShiftViewItem | undefined;
+  selected: boolean;
+  onClick: () => void;
+};
+
+/** 単一セル: 割り当て済み Instructor をバッジで列挙。固定高でセル内スクロール。 */
+function ShiftCell({ shift, selected, onClick }: ShiftCellProps) {
+  const hasAssignments = !!shift && shift.assignedInstructors.length > 0;
+
+  return (
+    <UnstyledButton
+      onClick={onClick}
+      style={{
+        display: 'flex',
+        width: '100%',
+        height: 76,
+        padding: 6,
+        overflowY: 'auto',
+        alignItems: hasAssignments ? 'flex-start' : 'center',
+        justifyContent: hasAssignments ? 'flex-start' : 'center',
+        alignContent: 'flex-start',
+        flexWrap: 'wrap',
+        gap: 4,
+        backgroundColor: selected ? 'var(--mantine-color-blue-1)' : undefined,
+      }}
+    >
+      {hasAssignments ? (
+        shift.assignedInstructors.map((instructor) => (
+          <Badge
+            key={instructor.id}
+            size="xs"
+            variant={selected ? 'filled' : 'light'}
+            color={selected ? 'blue' : 'gray'}
+          >
+            {instructor.displayName}
+          </Badge>
+        ))
+      ) : (
+        <Text size="xs" c="dimmed">
+          -
+        </Text>
+      )}
+    </UnstyledButton>
   );
 }
 
@@ -333,8 +385,14 @@ function AssignmentPanel({ date, departmentId, shiftTypeId, shiftTypeName }: Ass
   };
 
   return (
-    <Card withBorder padding="md" radius="md">
-      <Stack gap="sm">
+    <Card
+      withBorder
+      padding="md"
+      radius="md"
+      style={{ height: '100%', display: 'flex', flexDirection: 'column' }}
+    >
+      {/* 候補リストが flex-grow で残余領域を占め、リスト内スクロールで画面全体は動かさない */}
+      <Stack gap="sm" style={{ flex: 1, minHeight: 0 }}>
         <div>
           <Text fw={500}>{shortDateLabel(date)}</Text>
           <Text size="sm" c="dimmed">
@@ -379,7 +437,7 @@ function AssignmentPanel({ date, departmentId, shiftTypeId, shiftTypeName }: Ass
               ]}
             />
 
-            <Stack gap="xs" mah={420} style={{ overflow: 'auto' }}>
+            <Stack gap="xs" style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
               {candidates.length === 0 ? (
                 <Text c="dimmed" size="sm">
                   候補がありません
@@ -483,20 +541,16 @@ function weekdayLabel(date: string): string {
   return ['日', '月', '火', '水', '木', '金', '土'][weekdayIndex(date)] ?? '';
 }
 
-function assignmentSummary(shift: ShiftViewItem | undefined): string {
-  if (!shift || shift.assignedInstructors.length === 0) {
-    return '-';
+/** 曜日インデックスから、日曜=赤・土曜=青・平日=dimmed の色トークンを返す。 */
+function weekdayColor(date: string): 'red' | 'blue' | 'dimmed' {
+  const index = weekdayIndex(date);
+  if (index === 0) {
+    return 'red';
   }
-  const first = shift.assignedInstructors[0];
-  if (!first) {
-    return '-';
+  if (index === 6) {
+    return 'blue';
   }
-  const rest = shift.assignedInstructors.length - 1;
-  return rest > 0 ? `${compactName(first.displayName)}+${rest}` : compactName(first.displayName);
-}
-
-function compactName(name: string): string {
-  return name.split(' ')[0] ?? name;
+  return 'dimmed';
 }
 
 function compareInstructorKana(a: AvailableInstructor, b: AvailableInstructor): number {

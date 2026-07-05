@@ -38,7 +38,7 @@ function ShiftsPage() {
       <ShiftAgendaViewer
         date={search.date}
         onVisibleDateChange={(date) => {
-          void navigate({ search: { date }, replace: true });
+          void navigate({ search: { date }, replace: true, resetScroll: false });
         }}
       />
     </Container>

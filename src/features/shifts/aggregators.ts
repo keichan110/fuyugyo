@@ -71,6 +71,44 @@ export function groupShiftsByWorkingDay(shifts: ShiftViewItem[]): ShiftAgendaDay
   }));
 }
 
+/**
+ * 指定 Instructor が Shift の割り当てに含まれるか判定する。
+ * @param shift - 判定対象の Shift
+ * @param instructorId - ログイン User にリンクされた Instructor ID。未リンクなら null
+ * @returns 指定 Instructor が割り当てに含まれる場合 true
+ */
+export function containsInstructorAssignment(
+  shift: ShiftViewItem,
+  instructorId: string | null,
+): boolean {
+  if (!instructorId) {
+    return false;
+  }
+  return shift.assignedInstructors.some((instructor) => instructor.id === instructorId);
+}
+
+/**
+ * アジェンダを指定 Instructor の勤務だけに絞り込む。
+ * @param days - アジェンダ日配列
+ * @param instructorId - ログイン User にリンクされた Instructor ID。未リンクなら null
+ * @returns 指定 Instructor を含む Shift だけを残したアジェンダ日配列
+ */
+export function filterAgendaDaysByInstructor(
+  days: ShiftAgendaDay[],
+  instructorId: string | null,
+): ShiftAgendaDay[] {
+  if (!instructorId) {
+    return [];
+  }
+
+  return days
+    .map((day) => ({
+      ...day,
+      shifts: day.shifts.filter((shift) => containsInstructorAssignment(shift, instructorId)),
+    }))
+    .filter((day) => day.shifts.length > 0);
+}
+
 function compareShiftViewItems(a: ShiftViewItem, b: ShiftViewItem): number {
   return (
     a.date.localeCompare(b.date) ||

@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import {
   aggregateByDepartment,
   calculateTotalAssignments,
+  containsInstructorAssignment,
+  filterAgendaDaysByInstructor,
   groupShiftsByWorkingDay,
   summarizeShifts,
 } from '../src/features/shifts/aggregators';
@@ -104,5 +106,70 @@ describe('groupShiftsByWorkingDay', () => {
       'スキー',
       'スノーボード',
     ]);
+  });
+});
+
+describe('containsInstructorAssignment', () => {
+  it('指定 Instructor が割り当てに含まれる場合 true を返す', () => {
+    const shift = makeShift('スキー', 0, {
+      assignedInstructors: [
+        { id: 'inst-self', displayName: '自分' },
+        { id: 'inst-other', displayName: '他の講師' },
+      ],
+    });
+
+    expect(containsInstructorAssignment(shift, 'inst-self')).toBe(true);
+  });
+
+  it('未リンク User は常に false を返す', () => {
+    const shift = makeShift('スキー', 0, {
+      assignedInstructors: [{ id: 'inst-self', displayName: '自分' }],
+    });
+
+    expect(containsInstructorAssignment(shift, null)).toBe(false);
+  });
+
+  it('指定 Instructor が割り当てに含まれない場合 false を返す', () => {
+    const shift = makeShift('スノーボード', 1);
+
+    expect(containsInstructorAssignment(shift, 'inst-self')).toBe(false);
+  });
+});
+
+describe('filterAgendaDaysByInstructor', () => {
+  it('指定 Instructor を含む Shift だけに絞り込み、空になった日を除外する', () => {
+    const matchingShift = makeShift('スキー', 0, {
+      id: 'shift-matching',
+      date: '2026-01-10',
+      assignedInstructors: [{ id: 'inst-self', displayName: '自分' }],
+    });
+    const otherShift = makeShift('スノーボード', 0, {
+      id: 'shift-other',
+      date: '2026-01-10',
+      assignedInstructors: [{ id: 'inst-other', displayName: '他の講師' }],
+    });
+    const emptyDayShift = makeShift('スキー', 0, {
+      id: 'shift-empty-day',
+      date: '2026-01-11',
+      assignedInstructors: [{ id: 'inst-other', displayName: '他の講師' }],
+    });
+
+    const days = filterAgendaDaysByInstructor(
+      [
+        { date: '2026-01-10', shifts: [matchingShift, otherShift] },
+        { date: '2026-01-11', shifts: [emptyDayShift] },
+      ],
+      'inst-self',
+    );
+
+    expect(days).toEqual([{ date: '2026-01-10', shifts: [matchingShift] }]);
+  });
+
+  it('未リンク User では空配列を返す', () => {
+    const shift = makeShift('スキー', 1);
+
+    expect(filterAgendaDaysByInstructor([{ date: '2026-01-10', shifts: [shift] }], null)).toEqual(
+      [],
+    );
   });
 });

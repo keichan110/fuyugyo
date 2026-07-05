@@ -161,15 +161,17 @@ export async function fetchShiftAgendaPage(
 /**
  * 未来方向のアジェンダを続読する Infinite Query。
  * @param cursor - 初回ページの起点日（YYYY-MM-DD）
+ * @param departmentId - 任意の部門 ID。指定時はその部門の稼働日だけを取得する
  */
-export function useShiftAgendaFuture(cursor: string) {
+export function useShiftAgendaFuture(cursor: string, departmentId?: string) {
   return useInfiniteQuery<ShiftAgendaResponse>({
-    queryKey: [...SHIFTS_QUERY_KEY, 'agenda', 'future', cursor],
+    queryKey: [...SHIFTS_QUERY_KEY, 'agenda', 'future', cursor, departmentId ?? 'all'],
     queryFn: ({ pageParam }) =>
       fetchShiftAgendaPage({
         cursor: typeof pageParam === 'string' ? pageParam : cursor,
         direction: 'future',
         limit: 14,
+        ...(departmentId ? { departmentId } : {}),
       }),
     initialPageParam: cursor,
     getNextPageParam: (lastPage) => lastPage.pageInfo.nextCursor ?? undefined,

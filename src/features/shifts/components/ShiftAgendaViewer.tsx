@@ -1,8 +1,22 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 
-import { Alert, Badge, Button, Card, Group, Stack, Text, Title } from '@mantine/core';
+import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  Group,
+  Select,
+  Stack,
+  Switch,
+  Text,
+  Title,
+} from '@mantine/core';
 
-import { fetchShiftAgendaPage, useShiftAgendaFuture } from '../queries';
+import { useMe } from '@/features/auth/queries';
+
+import { containsInstructorAssignment, filterAgendaDaysByInstructor } from '../aggregators';
+import { fetchShiftAgendaPage, useShiftAgendaFuture, useShiftFormData } from '../queries';
 import type { ShiftAgendaDay, ShiftAgendaResponse, ShiftViewItem } from '../schema';
 import { shortDateLabel, toMonth } from '../view-utils';
 
@@ -22,7 +36,13 @@ export function ShiftAgendaViewer({ date, onVisibleDateChange }: ShiftAgendaView
   const [pastPages, setPastPages] = useState<ShiftAgendaResponse[]>([]);
   const [isLoadingPast, setIsLoadingPast] = useState(false);
   const [pastError, setPastError] = useState<string | null>(null);
-  const future = useShiftAgendaFuture(initialDateRef.current);
+  const [departmentId, setDepartmentId] = useState<string | null>(null);
+  const [showMineOnly, setShowMineOnly] = useState(false);
+  const me = useMe();
+  const formData = useShiftFormData();
+  const myInstructorId = me.data?.instructorId ?? null;
+  const effectiveShowMineOnly = showMineOnly && myInstructorId !== null;
+  const future = useShiftAgendaFuture(initialDateRef.current, departmentId ?? undefined);
 
   const futureDays = useMemo(
     () => future.data?.pages.flatMap((page) => page.days) ?? [],
@@ -30,7 +50,17 @@ export function ShiftAgendaViewer({ date, onVisibleDateChange }: ShiftAgendaView
   );
   const pastDays = useMemo(() => pastPages.flatMap((page) => page.days), [pastPages]);
   const days = useMemo(() => mergeAgendaDays([...pastDays, ...futureDays]), [futureDays, pastDays]);
+  const filteredDays = useMemo(
+    () => (effectiveShowMineOnly ? filterAgendaDaysByInstructor(days, myInstructorId) : days),
+    [days, effectiveShowMineOnly, myInstructorId],
+  );
+  const departments = formData.data?.departments ?? [];
   const firstDate = days[0]?.date ?? initialDateRef.current;
+
+  useEffect(() => {
+    setPastPages([]);
+    setPastError(null);
+  }, [departmentId]);
 
   useEffect(() => {
     const sentinel = sentinelRef.current;
@@ -73,7 +103,7 @@ export function ShiftAgendaViewer({ date, onVisibleDateChange }: ShiftAgendaView
       observer.observe(element);
     }
     return () => observer.disconnect();
-  }, [days, onVisibleDateChange]);
+  }, [filteredDays, onVisibleDateChange]);
 
   const loadPast = async () => {
     setIsLoadingPast(true);
@@ -83,6 +113,7 @@ export function ShiftAgendaViewer({ date, onVisibleDateChange }: ShiftAgendaView
         cursor: firstDate,
         direction: 'past',
         limit: 7,
+        ...(departmentId ? { departmentId } : {}),
       });
       setPastPages((current) => [page, ...current]);
     } catch (err) {
@@ -99,6 +130,30 @@ export function ShiftAgendaViewer({ date, onVisibleDateChange }: ShiftAgendaView
         <Badge variant="light" color="blue">
           {toMonth(visibleDate).replace('-', '年')}月
         </Badge>
+      </Group>
+
+      <Group align="flex-end" gap="sm">
+        <Select
+          label="部門"
+          data={[
+            { value: 'all', label: 'すべて' },
+            ...departments.map((department) => ({
+              value: department.id,
+              label: department.name,
+            })),
+          ]}
+          value={departmentId ?? 'all'}
+          onChange={(value) => setDepartmentId(value && value !== 'all' ? value : null)}
+          allowDeselect={false}
+          size="sm"
+          w={{ base: '100%', sm: 220 }}
+        />
+        <Switch
+          label="自分だけ"
+          checked={effectiveShowMineOnly}
+          disabled={!myInstructorId}
+          onChange={(event) => setShowMineOnly(event.currentTarget.checked)}
+        />
       </Group>
 
       <Button
@@ -121,13 +176,13 @@ export function ShiftAgendaViewer({ date, onVisibleDateChange }: ShiftAgendaView
         <Alert color="red">{future.error?.message ?? 'アジェンダの取得に失敗しました'}</Alert>
       )}
 
-      {days.length === 0 && !future.isLoading && (
+      {filteredDays.length === 0 && !future.isLoading && (
         <Text c="dimmed" size="sm">
-          表示できるシフトはありません。
+          {effectiveShowMineOnly ? '自分の勤務はありません。' : '表示できるシフトはありません。'}
         </Text>
       )}
 
-      <AgendaDayList days={days} />
+      <AgendaDayList days={filteredDays} myInstructorId={myInstructorId} />
 
       <div ref={sentinelRef} style={{ minHeight: 1 }} />
       {future.isFetchingNextPage && (
@@ -139,7 +194,13 @@ export function ShiftAgendaViewer({ date, onVisibleDateChange }: ShiftAgendaView
   );
 }
 
-function AgendaDayList({ days }: { days: ShiftAgendaDay[] }) {
+function AgendaDayList({
+  days,
+  myInstructorId,
+}: {
+  days: ShiftAgendaDay[];
+  myInstructorId: string | null;
+}) {
   let currentMonth = '';
 
   return (
@@ -160,9 +221,10 @@ function AgendaDayList({ days }: { days: ShiftAgendaDay[] }) {
                 </Text>
               </Group>
               <Stack gap="xs">
-                {day.shifts.map((shift) => (
-                  <ShiftAgendaCard key={shift.id} shift={shift} />
-                ))}
+                {day.shifts.map((shift) => {
+                  const includesMe = containsInstructorAssignment(shift, myInstructorId);
+                  return <ShiftAgendaCard key={shift.id} shift={shift} includesMe={includesMe} />;
+                })}
               </Stack>
             </Stack>
           </Fragment>
@@ -190,13 +252,32 @@ function MonthHeader({ month }: { month: string }) {
   );
 }
 
-function ShiftAgendaCard({ shift }: { shift: ShiftViewItem }) {
+function ShiftAgendaCard({ shift, includesMe }: { shift: ShiftViewItem; includesMe: boolean }) {
   return (
-    <Card withBorder padding="sm" radius="sm">
+    <Card
+      withBorder
+      padding="sm"
+      radius="sm"
+      {...(includesMe
+        ? {
+            style: {
+              backgroundColor: 'var(--mantine-color-yellow-0)',
+              borderColor: 'var(--mantine-color-yellow-5)',
+            },
+          }
+        : {})}
+    >
       <Stack gap="xs">
         <Group justify="space-between" align="flex-start">
           <Stack gap={2}>
-            <Text fw={600}>{shift.shiftType.name}</Text>
+            <Group gap={6}>
+              <Text fw={600}>{shift.shiftType.name}</Text>
+              {includesMe && (
+                <Badge size="xs" color="yellow" variant="filled">
+                  自分
+                </Badge>
+              )}
+            </Group>
             <Text size="sm" c="dimmed">
               {shift.department.name}
             </Text>

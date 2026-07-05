@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
+  Affix,
   Alert,
   Badge,
   Button,
@@ -11,7 +12,9 @@ import {
   Switch,
   Text,
   Title,
+  Transition,
 } from '@mantine/core';
+import { useWindowScroll } from '@mantine/hooks';
 
 import { useMe } from '@/features/auth/queries';
 import { useDepartments } from '@/features/departments/queries';
@@ -42,6 +45,7 @@ export function ShiftAgendaViewer({ date, onVisibleDateChange }: ShiftAgendaView
   const [showMineOnly, setShowMineOnly] = useState(false);
   const me = useMe();
   const departmentQuery = useDepartments();
+  const [scroll, scrollTo] = useWindowScroll();
   const myInstructorId = me.data?.instructorId ?? null;
   const effectiveShowMineOnly = showMineOnly && myInstructorId !== null;
   const future = useShiftAgendaFuture(initialDateRef.current, departmentId ?? undefined);
@@ -131,75 +135,95 @@ export function ShiftAgendaViewer({ date, onVisibleDateChange }: ShiftAgendaView
   };
 
   return (
-    <Stack gap="md">
-      <Group justify="space-between" align="flex-end">
-        <Title order={2}>シフト確認</Title>
-        <Badge variant="light" color="blue">
-          {toMonth(visibleDate).replace('-', '年')}月
-        </Badge>
-      </Group>
+    <>
+      <Stack gap="md">
+        <Group justify="space-between" align="flex-end">
+          <Title order={2}>シフト確認</Title>
+          <Badge variant="light" color="blue">
+            {toMonth(visibleDate).replace('-', '年')}月
+          </Badge>
+        </Group>
 
-      <Group align="flex-end" gap="sm">
-        <Select
-          label="部門"
-          data={[
-            { value: 'all', label: 'すべて' },
-            ...departments.map((department) => ({
-              value: department.id,
-              label: department.name,
-            })),
-          ]}
-          value={departmentId ?? 'all'}
-          onChange={(value) => setDepartmentId(value && value !== 'all' ? value : null)}
-          allowDeselect={false}
+        <Group align="flex-end" gap="sm">
+          <Select
+            label="部門"
+            data={[
+              { value: 'all', label: 'すべて' },
+              ...departments.map((department) => ({
+                value: department.id,
+                label: department.name,
+              })),
+            ]}
+            value={departmentId ?? 'all'}
+            onChange={(value) => setDepartmentId(value && value !== 'all' ? value : null)}
+            allowDeselect={false}
+            size="sm"
+            w={{ base: '100%', sm: 220 }}
+          />
+          <Switch
+            label="自分だけ"
+            checked={effectiveShowMineOnly}
+            disabled={!myInstructorId}
+            onChange={(event) => setShowMineOnly(event.currentTarget.checked)}
+          />
+        </Group>
+
+        <Button
+          type="button"
+          variant="outline"
           size="sm"
-          w={{ base: '100%', sm: 220 }}
-        />
-        <Switch
-          label="自分だけ"
-          checked={effectiveShowMineOnly}
-          disabled={!myInstructorId}
-          onChange={(event) => setShowMineOnly(event.currentTarget.checked)}
-        />
-      </Group>
+          onClick={() => void loadPast()}
+          loading={isLoadingPast}
+          disabled={hasReachedPastEnd}
+        >
+          以前を表示
+        </Button>
 
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        onClick={() => void loadPast()}
-        loading={isLoadingPast}
-        disabled={hasReachedPastEnd}
-      >
-        以前を表示
-      </Button>
+        {pastError && <Alert color="red">{pastError}</Alert>}
+        {hasReachedPastEnd && <Alert color="blue">これ以上遡れるシフトはありません。</Alert>}
+        {future.isLoading && (
+          <Text c="dimmed" size="sm">
+            読み込み中...
+          </Text>
+        )}
+        {future.isError && (
+          <Alert color="red">{future.error?.message ?? 'アジェンダの取得に失敗しました'}</Alert>
+        )}
 
-      {pastError && <Alert color="red">{pastError}</Alert>}
-      {hasReachedPastEnd && <Alert color="blue">これ以上遡れるシフトはありません。</Alert>}
-      {future.isLoading && (
-        <Text c="dimmed" size="sm">
-          読み込み中...
-        </Text>
-      )}
-      {future.isError && (
-        <Alert color="red">{future.error?.message ?? 'アジェンダの取得に失敗しました'}</Alert>
-      )}
+        {filteredDays.length === 0 && !future.isLoading && (
+          <Text c="dimmed" size="sm">
+            {effectiveShowMineOnly ? '自分の勤務はありません。' : '表示できるシフトはありません。'}
+          </Text>
+        )}
 
-      {filteredDays.length === 0 && !future.isLoading && (
-        <Text c="dimmed" size="sm">
-          {effectiveShowMineOnly ? '自分の勤務はありません。' : '表示できるシフトはありません。'}
-        </Text>
-      )}
+        <AgendaDayList days={filteredDays} myInstructorId={myInstructorId} />
 
-      <AgendaDayList days={filteredDays} myInstructorId={myInstructorId} />
+        <div ref={sentinelRef} style={{ minHeight: 1 }} />
+        {future.isFetchingNextPage && (
+          <Text c="dimmed" size="sm" ta="center">
+            続きを読み込み中...
+          </Text>
+        )}
+      </Stack>
 
-      <div ref={sentinelRef} style={{ minHeight: 1 }} />
-      {future.isFetchingNextPage && (
-        <Text c="dimmed" size="sm" ta="center">
-          続きを読み込み中...
-        </Text>
-      )}
-    </Stack>
+      <Affix position={{ bottom: 20, right: 20 }}>
+        <Transition transition="slide-up" mounted={scroll.y > 240}>
+          {(transitionStyles) => (
+            <Button
+              type="button"
+              variant="default"
+              color="gray"
+              size="xs"
+              radius="xl"
+              style={transitionStyles}
+              onClick={() => scrollTo({ y: 0 })}
+            >
+              ↑ 上へ戻る
+            </Button>
+          )}
+        </Transition>
+      </Affix>
+    </>
   );
 }
 

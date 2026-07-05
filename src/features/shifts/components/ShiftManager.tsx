@@ -245,7 +245,7 @@ function ShiftMatrix({
                       selectedCell?.date === day && selectedCell.shiftTypeId === shiftType.id;
                     const cellBg = selected ? 'blue.1' : isClosed ? 'gray.0' : null;
                     return (
-                      <Table.Td key={day} {...(cellBg ? { bg: cellBg } : {})}>
+                      <Table.Td {...(cellBg ? { bg: cellBg } : {})} key={day}>
                         <Button
                           type="button"
                           variant={selected ? 'filled' : shift ? 'light' : 'subtle'}

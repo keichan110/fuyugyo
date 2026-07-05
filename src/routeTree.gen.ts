@@ -10,24 +10,20 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as UsersRouteImport } from './routes/users'
-import { Route as ShiftsRouteImport } from './routes/shifts'
 import { Route as ShiftTypesRouteImport } from './routes/shift-types'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as InvitationsRouteImport } from './routes/invitations'
 import { Route as InstructorsRouteImport } from './routes/instructors'
 import { Route as DepartmentsRouteImport } from './routes/departments'
 import { Route as CertificationsRouteImport } from './routes/certifications'
+import { Route as ShiftsRouteRouteImport } from './routes/shifts/route'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as ShiftsManageRouteImport } from './routes/shifts.manage'
+import { Route as ShiftsIndexRouteImport } from './routes/shifts/index'
+import { Route as ShiftsManageRouteImport } from './routes/shifts/manage'
 
 const UsersRoute = UsersRouteImport.update({
   id: '/users',
   path: '/users',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ShiftsRoute = ShiftsRouteImport.update({
-  id: '/shifts',
-  path: '/shifts',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ShiftTypesRoute = ShiftTypesRouteImport.update({
@@ -60,28 +56,39 @@ const CertificationsRoute = CertificationsRouteImport.update({
   path: '/certifications',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ShiftsRouteRoute = ShiftsRouteRouteImport.update({
+  id: '/shifts',
+  path: '/shifts',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ShiftsIndexRoute = ShiftsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => ShiftsRouteRoute,
+} as any)
 const ShiftsManageRoute = ShiftsManageRouteImport.update({
   id: '/manage',
   path: '/manage',
-  getParentRoute: () => ShiftsRoute,
+  getParentRoute: () => ShiftsRouteRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/shifts': typeof ShiftsRouteRouteWithChildren
   '/certifications': typeof CertificationsRoute
   '/departments': typeof DepartmentsRoute
   '/instructors': typeof InstructorsRoute
   '/invitations': typeof InvitationsRoute
   '/login': typeof LoginRoute
   '/shift-types': typeof ShiftTypesRoute
-  '/shifts': typeof ShiftsRouteWithChildren
   '/users': typeof UsersRoute
   '/shifts/manage': typeof ShiftsManageRoute
+  '/shifts/': typeof ShiftsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -91,36 +98,38 @@ export interface FileRoutesByTo {
   '/invitations': typeof InvitationsRoute
   '/login': typeof LoginRoute
   '/shift-types': typeof ShiftTypesRoute
-  '/shifts': typeof ShiftsRouteWithChildren
   '/users': typeof UsersRoute
   '/shifts/manage': typeof ShiftsManageRoute
+  '/shifts': typeof ShiftsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/shifts': typeof ShiftsRouteRouteWithChildren
   '/certifications': typeof CertificationsRoute
   '/departments': typeof DepartmentsRoute
   '/instructors': typeof InstructorsRoute
   '/invitations': typeof InvitationsRoute
   '/login': typeof LoginRoute
   '/shift-types': typeof ShiftTypesRoute
-  '/shifts': typeof ShiftsRouteWithChildren
   '/users': typeof UsersRoute
   '/shifts/manage': typeof ShiftsManageRoute
+  '/shifts/': typeof ShiftsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/shifts'
     | '/certifications'
     | '/departments'
     | '/instructors'
     | '/invitations'
     | '/login'
     | '/shift-types'
-    | '/shifts'
     | '/users'
     | '/shifts/manage'
+    | '/shifts/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -130,32 +139,33 @@ export interface FileRouteTypes {
     | '/invitations'
     | '/login'
     | '/shift-types'
-    | '/shifts'
     | '/users'
     | '/shifts/manage'
+    | '/shifts'
   id:
     | '__root__'
     | '/'
+    | '/shifts'
     | '/certifications'
     | '/departments'
     | '/instructors'
     | '/invitations'
     | '/login'
     | '/shift-types'
-    | '/shifts'
     | '/users'
     | '/shifts/manage'
+    | '/shifts/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ShiftsRouteRoute: typeof ShiftsRouteRouteWithChildren
   CertificationsRoute: typeof CertificationsRoute
   DepartmentsRoute: typeof DepartmentsRoute
   InstructorsRoute: typeof InstructorsRoute
   InvitationsRoute: typeof InvitationsRoute
   LoginRoute: typeof LoginRoute
   ShiftTypesRoute: typeof ShiftTypesRoute
-  ShiftsRoute: typeof ShiftsRouteWithChildren
   UsersRoute: typeof UsersRoute
 }
 
@@ -166,13 +176,6 @@ declare module '@tanstack/react-router' {
       path: '/users'
       fullPath: '/users'
       preLoaderRoute: typeof UsersRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/shifts': {
-      id: '/shifts'
-      path: '/shifts'
-      fullPath: '/shifts'
-      preLoaderRoute: typeof ShiftsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/shift-types': {
@@ -217,6 +220,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CertificationsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/shifts': {
+      id: '/shifts'
+      path: '/shifts'
+      fullPath: '/shifts'
+      preLoaderRoute: typeof ShiftsRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -224,36 +234,46 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/shifts/': {
+      id: '/shifts/'
+      path: '/'
+      fullPath: '/shifts/'
+      preLoaderRoute: typeof ShiftsIndexRouteImport
+      parentRoute: typeof ShiftsRouteRoute
+    }
     '/shifts/manage': {
       id: '/shifts/manage'
       path: '/manage'
       fullPath: '/shifts/manage'
       preLoaderRoute: typeof ShiftsManageRouteImport
-      parentRoute: typeof ShiftsRoute
+      parentRoute: typeof ShiftsRouteRoute
     }
   }
 }
 
-interface ShiftsRouteChildren {
+interface ShiftsRouteRouteChildren {
   ShiftsManageRoute: typeof ShiftsManageRoute
+  ShiftsIndexRoute: typeof ShiftsIndexRoute
 }
 
-const ShiftsRouteChildren: ShiftsRouteChildren = {
+const ShiftsRouteRouteChildren: ShiftsRouteRouteChildren = {
   ShiftsManageRoute: ShiftsManageRoute,
+  ShiftsIndexRoute: ShiftsIndexRoute,
 }
 
-const ShiftsRouteWithChildren =
-  ShiftsRoute._addFileChildren(ShiftsRouteChildren)
+const ShiftsRouteRouteWithChildren = ShiftsRouteRoute._addFileChildren(
+  ShiftsRouteRouteChildren,
+)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ShiftsRouteRoute: ShiftsRouteRouteWithChildren,
   CertificationsRoute: CertificationsRoute,
   DepartmentsRoute: DepartmentsRoute,
   InstructorsRoute: InstructorsRoute,
   InvitationsRoute: InvitationsRoute,
   LoginRoute: LoginRoute,
   ShiftTypesRoute: ShiftTypesRoute,
-  ShiftsRoute: ShiftsRouteWithChildren,
   UsersRoute: UsersRoute,
 }
 export const routeTree = rootRouteImport

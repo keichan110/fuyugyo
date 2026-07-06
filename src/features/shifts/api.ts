@@ -1,4 +1,5 @@
 import { and, asc, count, desc, eq, gte, inArray, lt, lte, ne } from 'drizzle-orm';
+import type { BatchItem } from 'drizzle-orm/batch';
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { validator } from 'hono/validator';
@@ -835,8 +836,9 @@ export const shiftsRoute = new Hono<{
   )
   /**
    * (month × 部門) の割り当てを月次まとめて upsert する（MANAGER 以上）。
-   * cells には変更差分のみを含める。1セルごとに `db.batch` で原子的に反映し、
-   * instructorIds が空なら該当 Shift を削除する。
+   * cells には変更差分のみを含める。全セル分の書き込みを単一の `db.batch` に集約し、
+   * 途中で失敗しても部分コミットが残らない原子性を保証する。
+   * instructorIds が空なら該当 Shift を削除する（ShiftAssignment は cascade で消える）。
    */
   .put(
     '/monthly-assignments',
@@ -909,9 +911,10 @@ export const shiftsRoute = new Hono<{
       let upsertedCount = 0;
       let deletedCount = 0;
 
-      // セル単位で db.batch を回して原子性を確保する（1セル内で shift 本体と割り当て
-      // 差し替えを不可分に扱う）。セル間での完全な原子性は諦めるが、事前バリデーションで
-      // データ不整合の発生確率は最小化している。
+      // 全セル分の操作を1つの db.batch にまとめ、途中失敗時に部分コミットが残らないようにする。
+      // D1 の batch API は全ステートメントが単一トランザクションで実行される。
+      const batchOps: BatchItem<'sqlite'>[] = [];
+
       for (const cell of input.cells) {
         const key = `${cell.date}:${cell.shiftTypeId}`;
         const existingId = existingByKey.get(key);
@@ -920,48 +923,62 @@ export const shiftsRoute = new Hono<{
 
         if (uniqueIds.length === 0) {
           if (existingId) {
-            await db.delete(shifts).where(eq(shifts.id, existingId));
+            batchOps.push(db.delete(shifts).where(eq(shifts.id, existingId)));
             deletedCount++;
           }
           continue;
         }
 
-        const date = parseShiftDate(cell.date);
-
         if (existingId) {
-          await db.batch([
+          // 既存 Shift: 備考更新 → 旧割り当て全削除 → 新割り当て挿入。
+          batchOps.push(
             db.update(shifts).set({ description }).where(eq(shifts.id, existingId)),
             db.delete(shiftAssignments).where(eq(shiftAssignments.shiftId, existingId)),
             ...uniqueIds.map((instructorId) =>
               db.insert(shiftAssignments).values({ shiftId: existingId, instructorId }),
             ),
-          ]);
+          );
           upsertedCount++;
         } else {
+          // 新規 Shift: 本体挿入 → 割り当て挿入。
+          const date = parseShiftDate(cell.date);
           const shiftId = crypto.randomUUID();
-          try {
-            await db.batch([
-              db.insert(shifts).values({
-                id: shiftId,
-                date,
-                departmentId: input.departmentId,
-                shiftTypeId: cell.shiftTypeId,
-                description,
-              }),
-              ...uniqueIds.map((instructorId) =>
-                db.insert(shiftAssignments).values({ shiftId, instructorId }),
-              ),
-            ]);
-            upsertedCount++;
-          } catch (err) {
-            if (isUniqueViolation(err)) {
-              throw new HTTPException(409, {
-                message: `Shift already exists for ${cell.date} / ${cell.shiftTypeId}`,
-              });
-            }
-            throw err;
-          }
+          batchOps.push(
+            db.insert(shifts).values({
+              id: shiftId,
+              date,
+              departmentId: input.departmentId,
+              shiftTypeId: cell.shiftTypeId,
+              description,
+            }),
+            ...uniqueIds.map((instructorId) =>
+              db.insert(shiftAssignments).values({ shiftId, instructorId }),
+            ),
+          );
+          upsertedCount++;
         }
+      }
+
+      if (batchOps.length === 0) {
+        return c.json({ upsertedCount, deletedCount });
+      }
+
+      // 空でない配列を要求する db.batch のシグネチャに合わせるための narrowing。
+      // 直前に length > 0 を確認済み。
+      const [head, ...rest] = batchOps;
+      if (!head) {
+        return c.json({ upsertedCount, deletedCount });
+      }
+
+      try {
+        await db.batch([head, ...rest]);
+      } catch (err) {
+        if (isUniqueViolation(err)) {
+          throw new HTTPException(409, {
+            message: 'Shift uniqueness violated during monthly upsert',
+          });
+        }
+        throw err;
       }
 
       return c.json({ upsertedCount, deletedCount });

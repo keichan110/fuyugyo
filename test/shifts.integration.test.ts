@@ -603,6 +603,40 @@ describe('PUT /api/shifts/monthly-assignments', () => {
     expect(shiftsBody[0]?.departmentId).toBe(deptB);
   });
 
+  it('複数セルの途中で UNIQUE 違反が起きた場合、全体をロールバックする', async () => {
+    const deptId = await seedDepartment();
+    const stId = await seedShiftType();
+    const inst = await seedInstructor();
+    const token = await seedToken('MANAGER');
+
+    // 同一キー (date × 部門 × シフト種別) を2セル分含めて UNIQUE 違反を誘発する。
+    // 先頭の 2026-02-05 が成功しても、後段の失敗で batch 全体がロールバックすることを検証する。
+    const res = await app.request(
+      '/api/shifts/monthly-assignments',
+      {
+        method: 'PUT',
+        ...authJsonRequest(token, {
+          month: '2026-02',
+          departmentId: deptId,
+          cells: [
+            { date: '2026-02-05', shiftTypeId: stId, instructorIds: [inst] },
+            { date: '2026-02-10', shiftTypeId: stId, instructorIds: [inst] },
+            { date: '2026-02-10', shiftTypeId: stId, instructorIds: [inst] },
+          ],
+        }),
+      },
+      envWith({}),
+    );
+
+    expect(res.status).toBe(409);
+
+    // 部分コミットが残っていないことを確認する
+    const list = await app.request('/api/shifts', authHeader(token), envWith({}));
+    const shiftsBody = shiftListSchema.parse(await list.json());
+    expect(shiftsBody).toHaveLength(0);
+    expect(await countAssignments()).toBe(0);
+  });
+
   it('MEMBER は 403 で拒否される', async () => {
     const deptId = await seedDepartment();
     const token = await seedToken('MEMBER');

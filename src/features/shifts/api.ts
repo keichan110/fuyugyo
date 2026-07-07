@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, gte, inArray, lt, lte, ne } from 'drizzle-orm';
+import { and, asc, count, desc, eq, exists, gte, inArray, lt, lte, ne } from 'drizzle-orm';
 import type { BatchItem } from 'drizzle-orm/batch';
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
@@ -90,18 +90,38 @@ function formatNameKana(lastNameKana: string | null, firstNameKana: string | nul
 }
 
 /**
- * 指定された Instructor ID が全て実在するかを1クエリで検証する（N+1 なし）。
- * 空配列は常に true。割り当て対象の妥当性チェックに使う。
+ * D1 のクエリあたりバインドパラメータ上限（100個）を超えないよう、
+ * 配列を最大 `size` 件ずつのチャンクに分割する。
+ * リクエスト由来の動的 ID リストを `inArray` に渡す前に使う。
+ */
+const MAX_IN_ARRAY_CHUNK_SIZE = 90;
+
+function chunkArray<T>(items: T[], size: number = MAX_IN_ARRAY_CHUNK_SIZE): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += size) {
+    chunks.push(items.slice(i, i + size));
+  }
+  return chunks;
+}
+
+/**
+ * 指定された Instructor ID が全て実在するかを検証する（N+1 なし）。
+ * 空配列は常に true。ID が多い場合はバインドパラメータ上限を超えないようチャンク分割して問い合わせる。
+ * 割り当て対象の妥当性チェックに使う。
  */
 async function allInstructorsExist(db: Database, ids: string[]): Promise<boolean> {
   if (ids.length === 0) {
     return true;
   }
-  const rows = await db
-    .select({ id: instructors.id })
-    .from(instructors)
-    .where(inArray(instructors.id, ids));
-  return rows.length === ids.length;
+  let foundCount = 0;
+  for (const chunk of chunkArray(ids)) {
+    const rows = await db
+      .select({ id: instructors.id })
+      .from(instructors)
+      .where(inArray(instructors.id, chunk));
+    foundCount += rows.length;
+  }
+  return foundCount === ids.length;
 }
 
 /**
@@ -127,9 +147,10 @@ async function loadShiftView(db: Database, from: Date, to: Date): Promise<ShiftV
     .where(and(gte(shifts.date, from), lte(shifts.date, to)))
     .orderBy(asc(shifts.date), asc(shifts.departmentId), asc(shifts.shiftTypeId));
 
-  const shiftIds = shiftRows.map((s) => s.id);
+  // 割り当ては shiftId の inArray ではなく、シフト本体と同じ日付範囲条件で shifts へ
+  // innerJoin して絞り込む（バインドパラメータ数を件数に依存させないため）。
   const assignRows =
-    shiftIds.length > 0
+    shiftRows.length > 0
       ? await db
           .select({
             shiftId: shiftAssignments.shiftId,
@@ -139,7 +160,8 @@ async function loadShiftView(db: Database, from: Date, to: Date): Promise<ShiftV
           })
           .from(shiftAssignments)
           .innerJoin(instructors, eq(instructors.id, shiftAssignments.instructorId))
-          .where(inArray(shiftAssignments.shiftId, shiftIds))
+          .innerJoin(shifts, eq(shifts.id, shiftAssignments.shiftId))
+          .where(and(gte(shifts.date, from), lte(shifts.date, to)))
       : [];
 
   // shiftId → 割り当て済み Instructor（表示名付き）のマップを1パスで構築する
@@ -202,9 +224,10 @@ async function loadShiftViewByDates(
     .where(and(...conditions))
     .orderBy(asc(shifts.date), asc(departments.name), asc(shiftTypes.name));
 
-  const shiftIds = shiftRows.map((s) => s.id);
+  // 割り当ては shiftId の inArray ではなく、シフト本体と同じ絞り込み条件（日付群 + 任意の部門）で
+  // shifts へ innerJoin する（バインドパラメータ数を件数に依存させないため）。
   const assignRows =
-    shiftIds.length > 0
+    shiftRows.length > 0
       ? await db
           .select({
             shiftId: shiftAssignments.shiftId,
@@ -214,7 +237,8 @@ async function loadShiftViewByDates(
           })
           .from(shiftAssignments)
           .innerJoin(instructors, eq(instructors.id, shiftAssignments.instructorId))
-          .where(inArray(shiftAssignments.shiftId, shiftIds))
+          .innerJoin(shifts, eq(shifts.id, shiftAssignments.shiftId))
+          .where(and(...conditions))
           .orderBy(asc(instructors.lastName), asc(instructors.firstName))
       : [];
 
@@ -392,16 +416,22 @@ export const shiftsRoute = new Hono<{
           : eq(shifts.date, date),
       );
 
-    const otherShiftIds = otherShiftRows.map((s) => s.id);
+    // otherShiftIds の inArray ではなく、shifts へ同日条件で innerJoin して絞り込む
+    // （同日の別 Shift 数自体は少ないが、JOIN の方が inArray の件数上限を気にせず済み自然）
     const otherAssignRows =
-      otherShiftIds.length > 0
+      otherShiftRows.length > 0
         ? await db
             .select({
               shiftId: shiftAssignments.shiftId,
               instructorId: shiftAssignments.instructorId,
             })
             .from(shiftAssignments)
-            .where(inArray(shiftAssignments.shiftId, otherShiftIds))
+            .innerJoin(shifts, eq(shifts.id, shiftAssignments.shiftId))
+            .where(
+              existingShift
+                ? and(eq(shifts.date, date), ne(shifts.id, existingShift.id))
+                : eq(shifts.date, date),
+            )
         : [];
 
     // instructorId → 競合先 Shift 情報（最初の1件）のマップを構築する
@@ -463,24 +493,26 @@ export const shiftsRoute = new Hono<{
       parseSeasonMonth(c.env.WORKLOAD_SEASON_START_MONTH, 12),
       parseSeasonMonth(c.env.WORKLOAD_SEASON_END_MONTH, 4),
     );
+    // candidateIds が多い場合に備え、日付範囲の2パラメータ分の余裕を見てチャンク分割して問い合わせる
     const candidateIds = availableInstructors.map((inst) => inst.id);
-    const workloadRows =
-      candidateIds.length > 0
-        ? await db
-            .select({
-              instructorId: shiftAssignments.instructorId,
-              date: shifts.date,
-            })
-            .from(shiftAssignments)
-            .innerJoin(shifts, eq(shifts.id, shiftAssignments.shiftId))
-            .where(
-              and(
-                inArray(shiftAssignments.instructorId, candidateIds),
-                gte(shifts.date, parseShiftDate(seasonRange.from)),
-                lte(shifts.date, parseShiftDate(seasonRange.to)),
-              ),
-            )
-        : [];
+    const workloadRows: { instructorId: string; date: Date }[] = [];
+    for (const chunk of chunkArray(candidateIds)) {
+      const rows = await db
+        .select({
+          instructorId: shiftAssignments.instructorId,
+          date: shifts.date,
+        })
+        .from(shiftAssignments)
+        .innerJoin(shifts, eq(shifts.id, shiftAssignments.shiftId))
+        .where(
+          and(
+            inArray(shiftAssignments.instructorId, chunk),
+            gte(shifts.date, parseShiftDate(seasonRange.from)),
+            lte(shifts.date, parseShiftDate(seasonRange.to)),
+          ),
+        );
+      workloadRows.push(...rows);
+    }
 
     const datesByInstructor = new Map<string, Set<string>>();
     for (const row of workloadRows) {
@@ -670,15 +702,21 @@ export const shiftsRoute = new Hono<{
       conditions.push(lte(shifts.date, parseShiftDate(dateTo)));
     }
     if (instructorId) {
-      const assignedShiftRows = await db
-        .select({ shiftId: shiftAssignments.shiftId })
-        .from(shiftAssignments)
-        .where(eq(shiftAssignments.instructorId, instructorId));
-      const assignedShiftIds = assignedShiftRows.map((r) => r.shiftId);
-      if (assignedShiftIds.length === 0) {
-        return c.json([]);
-      }
-      conditions.push(inArray(shifts.id, assignedShiftIds));
+      // 割り当て済み Shift ID を全件取得して inArray するのではなく、
+      // EXISTS サブクエリで「この Shift に対する当該 Instructor の割り当てがあるか」を判定する
+      conditions.push(
+        exists(
+          db
+            .select({ shiftId: shiftAssignments.shiftId })
+            .from(shiftAssignments)
+            .where(
+              and(
+                eq(shiftAssignments.shiftId, shifts.id),
+                eq(shiftAssignments.instructorId, instructorId),
+              ),
+            ),
+        ),
+      );
     }
 
     const baseQuery = db
@@ -702,16 +740,21 @@ export const shiftsRoute = new Hono<{
         ? await baseQuery.where(and(...conditions)).orderBy(asc(shifts.date))
         : await baseQuery.orderBy(asc(shifts.date));
 
-    const shiftIds = shiftRows.map((s) => s.id);
+    // shiftId の inArray ではなく、シフト本体と同じ絞り込み条件（条件なしの全件取得も含む）で
+    // shifts へ innerJoin して割り当てを取得する
+    const assignBaseQuery = db
+      .select({
+        shiftId: shiftAssignments.shiftId,
+        instructorId: shiftAssignments.instructorId,
+      })
+      .from(shiftAssignments)
+      .innerJoin(shifts, eq(shifts.id, shiftAssignments.shiftId));
+
     const assignRows =
-      shiftIds.length > 0
-        ? await db
-            .select({
-              shiftId: shiftAssignments.shiftId,
-              instructorId: shiftAssignments.instructorId,
-            })
-            .from(shiftAssignments)
-            .where(inArray(shiftAssignments.shiftId, shiftIds))
+      shiftRows.length > 0
+        ? conditions.length > 0
+          ? await assignBaseQuery.where(and(...conditions))
+          : await assignBaseQuery
         : [];
 
     const assignedByShift = new Map<string, string[]>();

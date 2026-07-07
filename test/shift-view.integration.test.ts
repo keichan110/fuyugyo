@@ -29,6 +29,13 @@ function authHeader(token: string): RequestInit {
   return { headers: { cookie: `auth-token=${token}` } };
 }
 
+function authJsonRequest(token: string, body: unknown): RequestInit {
+  return {
+    headers: { cookie: `auth-token=${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  };
+}
+
 async function seedToken(role: 'MANAGER' | 'MEMBER' = 'MEMBER'): Promise<string> {
   const db = createDb(env.DB);
   const [user] = await db
@@ -224,6 +231,60 @@ describe('GET /api/shifts/monthly-view', () => {
       to: '2026-01-31',
     });
     expect(body.summary.byDepartment).toEqual({ スキー: 2, スノーボード: 1 });
+  });
+
+  it('シフト・割り当てが D1 のバインドパラメータ上限（100個）を超えても取得できる', async () => {
+    // 1部門 × 4シフト種別 × 31日 = 124件のシフトを1回の月次一括 upsert で作成する。
+    // shiftId の inArray に頼ると 100 個を超えるバインドパラメータでクエリが失敗するため、
+    // JOIN ベースの絞り込みへ書き換えたことの回帰テストとして、意図的に上限超えの件数を用意する。
+    const ski = await seedDepartment('スキー', 'SKI');
+    const shiftTypeIds = await Promise.all([
+      seedShiftType('午前'),
+      seedShiftType('午後'),
+      seedShiftType('終日'),
+      seedShiftType('夜間'),
+    ]);
+    const inst = await seedInstructor('山田', '太郎');
+    const managerToken = await seedToken('MANAGER');
+
+    const cells = [];
+    for (let day = 1; day <= 31; day++) {
+      const date = `2026-01-${String(day).padStart(2, '0')}`;
+      for (const shiftTypeId of shiftTypeIds) {
+        cells.push({ date, shiftTypeId, instructorIds: [inst] });
+      }
+    }
+    expect(cells.length).toBeGreaterThan(100);
+
+    const upsertRes = await app.request(
+      '/api/shifts/monthly-assignments',
+      {
+        method: 'PUT',
+        ...authJsonRequest(managerToken, { month: '2026-01', departmentId: ski, cells }),
+      },
+      envWith({}),
+    );
+    expect(upsertRes.status).toBe(200);
+
+    const memberToken = await seedToken('MEMBER');
+    const res = await app.request(
+      '/api/shifts/monthly-view?month=2026-01',
+      authHeader(memberToken),
+      envWith({}),
+    );
+    expect(res.status).toBe(200);
+    const body = shiftViewResponseSchema.parse(await res.json());
+
+    expect(body.shifts).toHaveLength(cells.length);
+    expect(body.summary.totalShifts).toBe(cells.length);
+    expect(body.summary.totalAssignments).toBe(cells.length);
+    // 全シフトに割り当てが正しく紐づいている（JOIN 条件の絞り込み漏れがない）ことを確認する
+    expect(
+      body.shifts.every(
+        (shift) =>
+          shift.assignedInstructors.length === 1 && shift.assignedInstructors[0]?.id === inst,
+      ),
+    ).toBe(true);
   });
 
   it('month が不正形式・範囲外は 400 を返す', async () => {

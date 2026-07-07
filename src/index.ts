@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { csrf } from 'hono/csrf';
 import { HTTPException } from 'hono/http-exception';
 import { secureHeaders } from 'hono/secure-headers';
 
@@ -17,6 +18,10 @@ const app = new Hono<{ Bindings: Env }>();
 
 // API レスポンスにセキュリティヘッダを付与する（CSP はデフォルトで無効のためここでは付与しない）
 app.use('*', secureHeaders());
+
+// CSRF 多層防御: Origin/Sec-Fetch-Site を検証し、クロスサイトの状態変更リクエストを拒否する
+// （Cookie の SameSite=Lax に加えた保険。同一オリジンの正規リクエストは通過する）
+app.use('*', csrf());
 
 /**
  * 中央エラーハンドラ（ADR 0005）。

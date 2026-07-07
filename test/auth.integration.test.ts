@@ -32,9 +32,9 @@ function envWith(overrides: Partial<Env>): Env {
   return { ...(env as unknown as Env), ...overrides };
 }
 
-/** Cookie に JWT を載せたリクエスト init を作る */
+/** Cookie に JWT を載せたリクエスト init を作る（同一オリジンからの正規リクエストを模す） */
 function cookieHeader(token: string): RequestInit {
-  return { headers: { cookie: `auth-token=${token}` } };
+  return { headers: { cookie: `auth-token=${token}`, 'sec-fetch-site': 'same-origin' } };
 }
 
 /** Cookie に JWT を載せた JSON リクエスト init を作る */
@@ -219,7 +219,7 @@ describe('DELETE /api/auth/me/link-instructor', () => {
   it('未認証は 401 を返す', async () => {
     const res = await app.request(
       '/api/auth/me/link-instructor',
-      { method: 'DELETE' },
+      { method: 'DELETE', headers: { 'sec-fetch-site': 'same-origin' } },
       envWith({}),
     );
     expect(res.status).toBe(401);
@@ -327,7 +327,11 @@ describe('Rate Limit（認証系のみ）', () => {
 
 describe('POST /api/auth/logout', () => {
   it('JWT Cookie を破棄してセッションを終了する', async () => {
-    const res = await app.request('/api/auth/logout', { method: 'POST' }, envWith({}));
+    const res = await app.request(
+      '/api/auth/logout',
+      { method: 'POST', headers: { 'sec-fetch-site': 'same-origin' } },
+      envWith({}),
+    );
 
     expect(res.status).toBe(200);
     const setCookie = res.headers.get('set-cookie') ?? '';

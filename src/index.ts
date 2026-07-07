@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
+import { secureHeaders } from 'hono/secure-headers';
 
 import { authRoute } from '@/features/auth/api';
 import { certificationsRoute } from '@/features/certifications/api';
@@ -13,6 +14,9 @@ import { usersRoute } from '@/features/users/api';
 import type { Env } from '@/server/types';
 
 const app = new Hono<{ Bindings: Env }>();
+
+// API レスポンスにセキュリティヘッダを付与する（CSP はデフォルトで無効のためここでは付与しない）
+app.use('*', secureHeaders());
 
 /**
  * 中央エラーハンドラ（ADR 0005）。

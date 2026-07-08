@@ -625,11 +625,11 @@ function ShiftCell({ serverShift, staged, nameById, selected, onClick }: ShiftCe
   return (
     <UnstyledButton
       onClick={onClick}
+      h={60}
       style={{
         position: 'relative',
         display: 'flex',
         width: '100%',
-        height: 76,
         padding: 6,
         overflowY: 'auto',
         alignItems: hasAssignments ? 'flex-start' : 'center',

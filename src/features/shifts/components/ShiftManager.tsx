@@ -9,6 +9,7 @@ import {
   Checkbox,
   Group,
   Modal,
+  OverflowList,
   SegmentedControl,
   Select,
   SimpleGrid,
@@ -35,7 +36,7 @@ import { calculateFairShare, countCurrentMonthWorkDays, type CellAssignment } fr
 const DEPARTMENT_STORAGE_KEY = 'fuyugyo.shiftManage.departmentId';
 
 /**
- * 月マトリクス／割り当てパネルの共通高さ。
+ * 月間シフト表／割り当てパネルの共通高さ。
  * AppShell ヘッダー（60）＋ Main と Container の padding（32）＋
  * タイトル行と部門セレクタ（〜150）＋ 下部余白（〜18）を差し引き、
  * ページ全体をビューポート内に収める。
@@ -59,7 +60,7 @@ type StagedCell = {
 type PendingNavigation =
   { type: 'department'; nextDepartmentId: string } | { type: 'month'; nextMonth: string };
 
-/** シフト枠（日付 × 部門 × シフト種別）を月マトリクスで編集する管理コンポーネント。 */
+/** シフト枠（日付 × 部門 × シフト種別）を月間シフト表で編集する管理コンポーネント。 */
 export function ShiftManager() {
   const [month, setMonth] = useState(toMonth(todayString()));
   const [departmentId, setDepartmentId] = useState('');
@@ -336,7 +337,7 @@ export function ShiftManager() {
                 onClick={resetStage}
                 disabled={!isDirty || upsertMonthly.isPending}
               >
-                リセット
+                クリア
               </Button>
               <Button
                 type="button"
@@ -345,7 +346,7 @@ export function ShiftManager() {
                 loading={upsertMonthly.isPending}
                 disabled={!isDirty}
               >
-                月次を保存
+                保存
               </Button>
             </Group>
           </Group>
@@ -469,7 +470,7 @@ function ShiftMatrix({
       style={{ height: PANEL_HEIGHT, display: 'flex', flexDirection: 'column' }}
     >
       <Text fw={500} mb="sm">
-        月マトリクス
+        月間シフト表
       </Text>
       {/* テーブルを内部スクロールにし、Thead は stickyHeader でスクロール中も列見出しを維持する */}
       <Box style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
@@ -738,12 +739,13 @@ function AssignmentPanel({
       {/* 候補リストが flex-grow で残余領域を占め、リスト内スクロールで画面全体は動かさない */}
       <Stack gap="sm" style={{ flex: 1, minHeight: 0 }}>
         <Group justify="space-between" align="flex-start">
-          <div>
+          <Group gap="xs" align="baseline">
             <Text fw={500}>{shortDateLabel(date)}</Text>
-            <Text size="sm" c="dimmed">
-              {shiftTypeName}
-            </Text>
-          </div>
+            <Text fw={500}>{shiftTypeName}</Text>
+            <Badge color="blue" variant="light">
+              {selectedSet.size}名
+            </Badge>
+          </Group>
           {stagedCell && (
             <Badge color="orange" variant="light">
               未保存
@@ -805,12 +807,6 @@ function AssignmentPanel({
               maxLength={500}
               rows={3}
             />
-
-            <Group justify="space-between">
-              <Text size="sm" c="dimmed">
-                {selectedSet.size}名を割り当て（ステージ）
-              </Text>
-            </Group>
           </>
         )}
       </Stack>
@@ -858,11 +854,30 @@ function InstructorCheckbox({
           disabled={isDisabled}
           label={
             <Stack gap={0}>
-              <Text size="sm">{instructor.displayName}</Text>
-              <Text size="xs" c="dimmed">
-                {instructor.displayNameKana ?? 'かな未登録'}
-                {instructor.certificationSummary ? ` / ${instructor.certificationSummary}` : ''}
-              </Text>
+              <Group gap={4} wrap="nowrap">
+                <Text size="sm">{instructor.displayName}</Text>
+                {instructor.displayNameKana && (
+                  <Text size="xs" c="dimmed">
+                    {instructor.displayNameKana}
+                  </Text>
+                )}
+              </Group>
+              {instructor.certifications.length > 0 && (
+                <OverflowList
+                  data={instructor.certifications}
+                  gap={4}
+                  renderItem={(cert, index) => (
+                    <Badge key={index} size="xs" variant="light" color="gray">
+                      {cert}
+                    </Badge>
+                  )}
+                  renderOverflow={(items) => (
+                    <Badge size="xs" variant="light" color="gray">
+                      +{items.length}
+                    </Badge>
+                  )}
+                />
+              )}
             </Stack>
           }
         />

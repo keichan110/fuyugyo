@@ -495,7 +495,7 @@ export const shiftsRoute = new Hono<{
       displayName: cand.displayName,
       displayNameKana: cand.displayNameKana,
       status: cand.status,
-      certificationSummary: cand.certShortNames.join('・'),
+      certifications: cand.certShortNames,
       isAssigned: cand.isAssigned,
       hasConflict: cand.hasConflict,
     }));

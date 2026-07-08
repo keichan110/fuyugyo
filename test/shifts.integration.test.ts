@@ -751,7 +751,7 @@ describe('GET /api/shifts/assignment-editor', () => {
     expect(body.availableInstructors).toHaveLength(1);
     expect(body.availableInstructors[0]?.id).toBe(inst);
     expect(body.availableInstructors[0]?.isAssigned).toBe(false);
-    expect(body.availableInstructors[0]?.certificationSummary).toBe('指導員');
+    expect(body.availableInstructors[0]?.certifications).toEqual(['指導員']);
   });
 
   it('既存シフトがあれば edit モードで割り当て状態を返す', async () => {

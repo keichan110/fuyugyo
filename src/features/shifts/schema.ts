@@ -129,8 +129,8 @@ const availableInstructorSchema = z.object({
   displayName: z.string(),
   displayNameKana: z.string().nullable(),
   status: z.string(),
-  /** 保有資格の略称をまとめた表示用文字列 */
-  certificationSummary: z.string(),
+  /** 保有資格の略称一覧 */
+  certifications: z.array(z.string()),
   /** この Shift に既に割り当て済みか */
   isAssigned: z.boolean(),
   /** 同日の別 Shift に割り当て済みで競合しているか */

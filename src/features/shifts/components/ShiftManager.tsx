@@ -15,6 +15,7 @@ import {
   SimpleGrid,
   Stack,
   Table,
+  Tabs,
   Text,
   Textarea,
   TextInput,
@@ -76,6 +77,14 @@ export function ShiftManager() {
   const upsertMonthly = useUpsertAssignments();
   const days = useMemo(() => monthDays(month), [month]);
   const isDirty = stagedCells.size > 0;
+  // シフト種別タブに「未保存の編集あり」のドットを出すため、ステージ済みセルの種別IDを集計する
+  const stagedShiftTypeIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const key of stagedCells.keys()) {
+      ids.add(splitCellKey(key)[1]);
+    }
+    return ids;
+  }, [stagedCells]);
 
   const registerInstructorNames = useCallback((entries: Array<{ id: string; name: string }>) => {
     setNameById((prev) => {
@@ -173,6 +182,14 @@ export function ShiftManager() {
   }, []);
 
   const resetStage = () => setStagedCells(new Map());
+
+  // タブ切替: 選択中の日付は維持したままシフト種別だけを切り替える
+  const changeActiveShiftType = useCallback(
+    (shiftTypeId: string) => {
+      setSelectedCell((prev) => ({ date: prev?.date ?? days[0] ?? todayString(), shiftTypeId }));
+    },
+    [days],
+  );
 
   // instructorId → 競合先の表示ラベル（「部門名 / シフト種別名」）。
   // DB 保存値ではなく「フォームの現在値」（ステージ済み優先）で判定することで、
@@ -360,6 +377,9 @@ export function ShiftManager() {
               days={days}
               departmentId={departmentId}
               shiftTypes={formData.data.shiftTypes}
+              activeShiftTypeId={selectedCell?.shiftTypeId ?? formData.data.shiftTypes[0]?.id ?? ''}
+              onChangeShiftType={changeActiveShiftType}
+              stagedShiftTypeIds={stagedShiftTypeIds}
               shifts={monthly.data?.shifts ?? []}
               stagedCells={stagedCells}
               nameById={nameById}
@@ -433,6 +453,11 @@ type ShiftMatrixProps = {
   days: string[];
   departmentId: string;
   shiftTypes: ShiftTypeOption[];
+  /** タブで選択中のシフト種別ID。表はこの種別の列のみを表示する */
+  activeShiftTypeId: string;
+  onChangeShiftType: (shiftTypeId: string) => void;
+  /** 未保存セルが存在するシフト種別ID（タブのドット表示に使用） */
+  stagedShiftTypeIds: Set<string>;
   shifts: ShiftViewItem[];
   stagedCells: Map<string, StagedCell>;
   nameById: Map<string, string>;
@@ -440,11 +465,14 @@ type ShiftMatrixProps = {
   onSelectCell: (cell: SelectedCell) => void;
 };
 
-/** 日付 × シフト種別の割り当てマトリクス（日付を縦軸に配置）。 */
+/** 日付 × シフト種別の割り当てマトリクス（日付を縦軸、シフト種別はタブで切替）。 */
 function ShiftMatrix({
   days,
   departmentId,
   shiftTypes,
+  activeShiftTypeId,
+  onChangeShiftType,
+  stagedShiftTypeIds,
   shifts,
   stagedCells,
   nameById,
@@ -462,6 +490,9 @@ function ShiftMatrix({
     return map;
   }, [departmentId, shifts]);
 
+  const activeShiftTypeName =
+    shiftTypes.find((shiftType) => shiftType.id === activeShiftTypeId)?.name ?? '';
+
   return (
     <Card
       withBorder
@@ -472,6 +503,34 @@ function ShiftMatrix({
       <Text fw={500} mb="sm">
         月間シフト表
       </Text>
+      <Tabs
+        value={activeShiftTypeId}
+        onChange={(value) => value && onChangeShiftType(value)}
+        mb="sm"
+      >
+        <Tabs.List>
+          {shiftTypes.map((shiftType) => (
+            <Tabs.Tab
+              key={shiftType.id}
+              value={shiftType.id}
+              rightSection={
+                stagedShiftTypeIds.has(shiftType.id) ? (
+                  <Box
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: '50%',
+                      backgroundColor: 'var(--mantine-color-orange-6)',
+                    }}
+                  />
+                ) : undefined
+              }
+            >
+              {shiftType.name}
+            </Tabs.Tab>
+          ))}
+        </Tabs.List>
+      </Tabs>
       {/* テーブルを内部スクロールにし、Thead は stickyHeader でスクロール中も列見出しを維持する */}
       <Box style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
         <Table
@@ -483,6 +542,11 @@ function ShiftMatrix({
           horizontalSpacing={2}
           style={{ tableLayout: 'fixed' }}
         >
+          {/* table-layout: fixed 下で日付列の幅を確実に固定するため colgroup で明示指定する */}
+          <colgroup>
+            <col style={{ width: 64 }} />
+            <col />
+          </colgroup>
           <Table.Thead>
             <Table.Tr>
               <Table.Th w={64} bg="gray.0">
@@ -490,48 +554,44 @@ function ShiftMatrix({
                   日付
                 </Text>
               </Table.Th>
-              {shiftTypes.map((shiftType) => (
-                <Table.Th key={shiftType.id} bg="gray.0">
-                  <Text size="xs" ta="center" fw={500}>
-                    {shiftType.name}
-                  </Text>
-                </Table.Th>
-              ))}
+              <Table.Th bg="gray.0">
+                <Text size="xs" ta="center" fw={500}>
+                  {activeShiftTypeName}
+                </Text>
+              </Table.Th>
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
-            {days.map((day) => (
-              <Table.Tr key={day}>
-                <Table.Th>
-                  <Stack gap={0} align="center">
-                    <Text size="xs" fw={500}>
-                      {day.slice(5).replace('-', '/')}
-                    </Text>
-                    <Text size="xs" c={weekdayColor(day)}>
-                      {weekdayLabel(day)}
-                    </Text>
-                  </Stack>
-                </Table.Th>
-                {shiftTypes.map((shiftType) => {
-                  const key = cellKey(day, shiftType.id);
-                  const serverShift = shiftByCell.get(key);
-                  const staged = stagedCells.get(key);
-                  const selected =
-                    selectedCell?.date === day && selectedCell.shiftTypeId === shiftType.id;
-                  return (
-                    <Table.Td key={shiftType.id} p={0}>
-                      <ShiftCell
-                        serverShift={serverShift}
-                        staged={staged}
-                        nameById={nameById}
-                        selected={selected}
-                        onClick={() => onSelectCell({ date: day, shiftTypeId: shiftType.id })}
-                      />
-                    </Table.Td>
-                  );
-                })}
-              </Table.Tr>
-            ))}
+            {days.map((day) => {
+              const key = cellKey(day, activeShiftTypeId);
+              const serverShift = shiftByCell.get(key);
+              const staged = stagedCells.get(key);
+              const selected =
+                selectedCell?.date === day && selectedCell.shiftTypeId === activeShiftTypeId;
+              return (
+                <Table.Tr key={day}>
+                  <Table.Th>
+                    <Stack gap={0} align="center">
+                      <Text size="xs" fw={500}>
+                        {day.slice(5).replace('-', '/')}
+                      </Text>
+                      <Text size="xs" c={weekdayColor(day)}>
+                        {weekdayLabel(day)}
+                      </Text>
+                    </Stack>
+                  </Table.Th>
+                  <Table.Td p={0}>
+                    <ShiftCell
+                      serverShift={serverShift}
+                      staged={staged}
+                      nameById={nameById}
+                      selected={selected}
+                      onClick={() => onSelectCell({ date: day, shiftTypeId: activeShiftTypeId })}
+                    />
+                  </Table.Td>
+                </Table.Tr>
+              );
+            })}
           </Table.Tbody>
         </Table>
       </Box>

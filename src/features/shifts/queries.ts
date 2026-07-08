@@ -49,9 +49,15 @@ export type ShiftEditDataParams = {
 /**
  * シフト一覧を取得する。
  * @param params - `dateFrom`/`dateTo`（YYYY-MM-DD）で期間を、`instructorId` で
- * その Instructor が割り当てられたシフトのみに絞り込める
+ * その Instructor が割り当てられたシフトのみに絞り込める。`limit` は返却件数の
+ * 上限（サーバー既定100・上限200）で、無指定の全件取得を避けたいときに指定する
  */
-export function useShifts(params?: { dateFrom?: string; dateTo?: string; instructorId?: string }) {
+export function useShifts(params?: {
+  dateFrom?: string;
+  dateTo?: string;
+  instructorId?: string;
+  limit?: number;
+}) {
   return useQuery<ShiftListItem[]>({
     queryKey: [...SHIFTS_QUERY_KEY, 'list', params ?? {}],
     queryFn: async () => {
@@ -64,6 +70,9 @@ export function useShifts(params?: { dateFrom?: string; dateTo?: string; instruc
       }
       if (params?.instructorId) {
         query['instructorId'] = params.instructorId;
+      }
+      if (params?.limit) {
+        query['limit'] = String(params.limit);
       }
 
       const res = await client.api.shifts.$get({ query });

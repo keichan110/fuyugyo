@@ -694,6 +694,71 @@ describe('GET /api/shifts', () => {
     expect(body).toHaveLength(1);
   });
 
+  it('limit で返却件数を絞り込める（date 昇順の先頭のみ・割り当ても対応するシフトの分だけ返る）', async () => {
+    const deptId = await seedDepartment();
+    const stId = await seedShiftType();
+    const token = await seedToken('MANAGER');
+    const inst1 = await seedInstructor('山田', '太郎');
+    const inst2 = await seedInstructor('鈴木', '花子');
+    const inst3 = await seedInstructor('佐藤', '三郎');
+    await upsertShift(token, '2026-01-10', deptId, stId, [inst1]);
+    await upsertShift(token, '2026-01-20', deptId, stId, [inst2]);
+    await upsertShift(token, '2026-01-30', deptId, stId, [inst3]);
+
+    const res = await app.request('/api/shifts?limit=2', authHeader(token), envWith({}));
+    expect(res.status).toBe(200);
+    const body = shiftListSchema.parse(await res.json());
+    // date 昇順で先頭2件（01-10, 01-20）のみ返り、01-30 は含まれない
+    expect(body).toHaveLength(2);
+    expect(body[0]?.assignedInstructorIds).toEqual([inst1]);
+    expect(body[1]?.assignedInstructorIds).toEqual([inst2]);
+  });
+
+  it('limit 未指定でも既定100件を超えない（D1 バインド上限のチャンク境界を跨ぐ割り当て取得も正しい）', async () => {
+    // 1部門 × 4シフト種別 × 31日 = 124件のシフトを月次一括 upsert で作成し、
+    // 既定 limit（100件）で切り捨てられること、割り当ても100件分だけ正しく紐づくことを確認する。
+    // 100件という chunkArray（90件刻み）の境界を跨ぐ件数にすることで、
+    // 割り当て取得のチャンク分割 (90 + 10) が正しく動作することも合わせて検証する。
+    const deptId = await seedDepartment();
+    const shiftTypeIds = await Promise.all([
+      seedShiftType('午前'),
+      seedShiftType('午後'),
+      seedShiftType('終日'),
+      seedShiftType('夜間'),
+    ]);
+    const inst = await seedInstructor('山田', '太郎');
+    const token = await seedToken('MANAGER');
+
+    const cells = [];
+    for (let day = 1; day <= 31; day++) {
+      const date = `2026-01-${String(day).padStart(2, '0')}`;
+      for (const shiftTypeId of shiftTypeIds) {
+        cells.push({ date, shiftTypeId, instructorIds: [inst] });
+      }
+    }
+    expect(cells.length).toBeGreaterThan(100);
+
+    const upsertRes = await app.request(
+      '/api/shifts/monthly-assignments',
+      {
+        method: 'PUT',
+        ...authJsonRequest(token, { month: '2026-01', departmentId: deptId, cells }),
+      },
+      envWith({}),
+    );
+    expect(upsertRes.status).toBe(200);
+
+    const res = await app.request('/api/shifts', authHeader(token), envWith({}));
+    expect(res.status).toBe(200);
+    const body = shiftListSchema.parse(await res.json());
+    expect(body).toHaveLength(100);
+    expect(
+      body.every(
+        (s) => s.assignedInstructorIds.length === 1 && s.assignedInstructorIds[0] === inst,
+      ),
+    ).toBe(true);
+  });
+
   it('部門名・シフト種別名を JOIN で同梱する', async () => {
     const deptId = await seedDepartment('スキー');
     const stId = await seedShiftType('終日');

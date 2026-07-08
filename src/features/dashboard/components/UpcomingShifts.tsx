@@ -15,7 +15,13 @@ const UPCOMING_SHIFTS_LIMIT = 5;
 export function UpcomingShifts() {
   const { data: user } = useMe();
   const { data: shifts, isLoading } = useShifts(
-    user?.instructorId ? { dateFrom: todayString(), instructorId: user.instructorId } : undefined,
+    user?.instructorId
+      ? {
+          dateFrom: todayString(),
+          instructorId: user.instructorId,
+          limit: UPCOMING_SHIFTS_LIMIT,
+        }
+      : undefined,
   );
 
   const upcoming = (shifts ?? [])

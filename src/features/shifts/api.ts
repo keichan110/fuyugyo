@@ -278,6 +278,20 @@ function parseAgendaLimit(value: string | undefined): number {
   return Math.min(parsed, 60);
 }
 
+/** 一覧の `limit` クエリを過大取得にならない範囲へ丸める（既定100・上限200） */
+function parseListLimit(value: string | undefined): number {
+  const DEFAULT_LIMIT = 100;
+  const MAX_LIMIT = 200;
+  if (!value) {
+    return DEFAULT_LIMIT;
+  }
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    return DEFAULT_LIMIT;
+  }
+  return Math.min(parsed, MAX_LIMIT);
+}
+
 /**
  * Shift + ShiftAssignment の Hono ルート（ADR 0005）。
  * Shift 本体と複数割り当ての作成/更新は `db.batch` で原子的に行う（ADR 0006）。
@@ -686,6 +700,8 @@ export const shiftsRoute = new Hono<{
   /**
    * シフト一覧を返す。`dateFrom`/`dateTo`（YYYY-MM-DD）で期間を、`instructorId` で
    * その Instructor が割り当てられたシフトのみに絞り込める。
+   * `limit` で返却件数の上限を指定できる（既定100・上限200）。期間・件数のどちらも
+   * 無指定のまま全件返却してしまわないよう、`limit` には常に既定値が入る。
    * 部門・シフト種別名を JOIN で同梱し、割り当て済み Instructor ID を付与する（N+1 なし）。
    */
   .get('/', requireAuth, async (c) => {
@@ -693,6 +709,7 @@ export const shiftsRoute = new Hono<{
     const dateFrom = c.req.query('dateFrom');
     const dateTo = c.req.query('dateTo');
     const instructorId = c.req.query('instructorId');
+    const limit = parseListLimit(c.req.query('limit'));
 
     const conditions = [];
     if (dateFrom && dateStringSchema.safeParse(dateFrom).success) {
@@ -735,27 +752,32 @@ export const shiftsRoute = new Hono<{
       .innerJoin(departments, eq(departments.id, shifts.departmentId))
       .innerJoin(shiftTypes, eq(shiftTypes.id, shifts.shiftTypeId));
 
+    // date だけだと同日中の順序が不定になるため、id を第2ソートキーにして
+    // ページ境界（limit による切り捨て位置）を決定的にする
     const shiftRows =
       conditions.length > 0
-        ? await baseQuery.where(and(...conditions)).orderBy(asc(shifts.date))
-        : await baseQuery.orderBy(asc(shifts.date));
+        ? await baseQuery
+            .where(and(...conditions))
+            .orderBy(asc(shifts.date), asc(shifts.id))
+            .limit(limit)
+        : await baseQuery.orderBy(asc(shifts.date), asc(shifts.id)).limit(limit);
 
-    // shiftId の inArray ではなく、シフト本体と同じ絞り込み条件（条件なしの全件取得も含む）で
-    // shifts へ innerJoin して割り当てを取得する
-    const assignBaseQuery = db
-      .select({
-        shiftId: shiftAssignments.shiftId,
-        instructorId: shiftAssignments.instructorId,
-      })
-      .from(shiftAssignments)
-      .innerJoin(shifts, eq(shifts.id, shiftAssignments.shiftId));
-
-    const assignRows =
-      shiftRows.length > 0
-        ? conditions.length > 0
-          ? await assignBaseQuery.where(and(...conditions))
-          : await assignBaseQuery
-        : [];
+    // 割り当ては期間条件で再絞り込みするのではなく、返却ページに含まれる shiftId だけを
+    // 対象にする（limit で絞ったのに割り当て取得だけ期間内全件になってしまうのを防ぐ）。
+    // shiftRows は limit で有界なので inArray で安全だが、D1 のバインドパラメータ上限
+    // （100個）を超えないよう chunkArray でチャンク分割して問い合わせる。
+    const shiftIds = shiftRows.map((s) => s.id);
+    const assignRows: { shiftId: string; instructorId: string }[] = [];
+    for (const chunk of chunkArray(shiftIds)) {
+      const rows = await db
+        .select({
+          shiftId: shiftAssignments.shiftId,
+          instructorId: shiftAssignments.instructorId,
+        })
+        .from(shiftAssignments)
+        .where(inArray(shiftAssignments.shiftId, chunk));
+      assignRows.push(...rows);
+    }
 
     const assignedByShift = new Map<string, string[]>();
     for (const row of assignRows) {

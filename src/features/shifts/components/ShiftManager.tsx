@@ -172,6 +172,55 @@ export function ShiftManager() {
 
   const resetStage = () => setStagedCells(new Map());
 
+  // instructorId → 競合先の表示ラベル（「部門名 / シフト種別名」）。
+  // DB 保存値ではなく「フォームの現在値」（ステージ済み優先）で判定することで、
+  // 未保存の編集や空シフト状態でも同日の二重割り当てを防げるようにする。
+  const conflictLabelById = useMemo(() => {
+    const map = new Map<string, string>();
+    if (!selectedCell || !departmentId || !formData.data) {
+      return map;
+    }
+    const { date, shiftTypeId } = selectedCell;
+    const deptName = formData.data.departments.find((d) => d.id === departmentId)?.name ?? '';
+
+    const add = (ids: string[], label: string) => {
+      for (const id of ids) {
+        if (!map.has(id)) {
+          map.set(id, label);
+        }
+      }
+    };
+
+    // (a) 現部門・同日の他シフト種別: ステージ値優先、無ければ保存値。編集中セルは除外。
+    for (const st of formData.data.shiftTypes) {
+      if (st.id === shiftTypeId) {
+        continue;
+      }
+      const staged = stagedCells.get(cellKey(date, st.id));
+      const ids = staged
+        ? staged.instructorIds
+        : (monthly.data?.shifts
+            .find(
+              (s) =>
+                s.date === date && s.department.id === departmentId && s.shiftType.id === st.id,
+            )
+            ?.assignedInstructors.map((i) => i.id) ?? []);
+      add(ids, `${deptName} / ${st.name}`);
+    }
+
+    // (b) 他部門・同日の保存済みシフト（他部門はこの画面で編集できないため保存値のみ）。
+    for (const s of monthly.data?.shifts ?? []) {
+      if (s.date !== date || s.department.id === departmentId) {
+        continue;
+      }
+      add(
+        s.assignedInstructors.map((i) => i.id),
+        `${s.department.name} / ${s.shiftType.name}`,
+      );
+    }
+    return map;
+  }, [selectedCell, departmentId, formData.data, stagedCells, monthly.data]);
+
   const saveMonthly = () => {
     if (!departmentId || stagedCells.size === 0) {
       return;
@@ -313,6 +362,7 @@ export function ShiftManager() {
                     stageCell(cellKey(selectedCell.date, selectedCell.shiftTypeId), next)
                   }
                   onRegisterInstructorNames={registerInstructorNames}
+                  conflictLabelById={conflictLabelById}
                 />
               ) : (
                 <Card withBorder padding="md" radius="md" style={{ height: '100%' }}>
@@ -549,6 +599,8 @@ type AssignmentPanelProps = {
   stagedCell: StagedCell | undefined;
   onStageChange: (next: StagedCell) => void;
   onRegisterInstructorNames: (entries: Array<{ id: string; name: string }>) => void;
+  /** instructorId → 競合先の表示ラベル（フォームの現在値ベースで親が算出） */
+  conflictLabelById: Map<string, string>;
 };
 
 /**
@@ -565,6 +617,7 @@ function AssignmentPanel({
   stagedCell,
   onStageChange,
   onRegisterInstructorNames,
+  conflictLabelById,
 }: AssignmentPanelProps) {
   const editData = useShiftAssignmentEditor({ date, departmentId, shiftTypeId });
 
@@ -660,17 +713,6 @@ function AssignmentPanel({
 
         {editData.data && (
           <>
-            {editData.data.conflicts.length > 0 && (
-              <Alert color="yellow">
-                {editData.data.conflicts.map((conflict) => (
-                  <Text key={`${conflict.instructorId}-${conflict.conflictingShift.id}`} size="sm">
-                    {conflict.instructorName}: {conflict.conflictingShift.departmentName} /{' '}
-                    {conflict.conflictingShift.shiftTypeName}
-                  </Text>
-                ))}
-              </Alert>
-            )}
-
             <TextInput
               label="名前検索"
               value={search}
@@ -698,6 +740,7 @@ function AssignmentPanel({
                     instructor={instructor}
                     checked={selectedSet.has(instructor.id)}
                     onToggle={() => toggle(instructor.id)}
+                    conflictLabel={conflictLabelById.get(instructor.id)}
                   />
                 ))
               )}
@@ -727,42 +770,55 @@ type InstructorCheckboxProps = {
   instructor: AvailableInstructor;
   checked: boolean;
   onToggle: () => void;
+  /** 競合先（同日の別 Shift）の表示ラベル。未競合なら undefined */
+  conflictLabel?: string | undefined;
 };
 
-/** 割り当て候補インストラクターの1行。 */
-function InstructorCheckbox({ instructor, checked, onToggle }: InstructorCheckboxProps) {
+/**
+ * 割り当て候補インストラクターの1行。
+ * 同日の別 Shift に割り当て済み（競合）かつ未チェックの場合は disabled にし、
+ * 新規の二重割り当てを防ぐ（既存の割り当て解除はできるよう checked 時は除外）。
+ */
+function InstructorCheckbox({
+  instructor,
+  checked,
+  onToggle,
+  conflictLabel,
+}: InstructorCheckboxProps) {
+  const isConflict = conflictLabel !== undefined;
+  const isDisabled = isConflict && !checked;
+
   return (
-    <Group justify="space-between" gap="xs" wrap="nowrap">
-      <Checkbox
-        checked={checked}
-        onChange={onToggle}
-        label={
-          <Stack gap={0}>
-            <Text size="sm">{instructor.displayName}</Text>
-            <Text size="xs" c="dimmed">
-              {instructor.displayNameKana ?? 'かな未登録'}
-              {instructor.certificationSummary ? ` / ${instructor.certificationSummary}` : ''}
-            </Text>
-          </Stack>
-        }
-      />
-      <Group gap={4} wrap="nowrap">
-        <Tooltip label={workloadTooltip(instructor)} withArrow>
-          <Badge
-            color={instructor.workload.hasWarning ? 'orange' : 'gray'}
-            variant="light"
-            size="sm"
-          >
-            今月 {instructor.workload.monthlyWorkDays}日{instructor.workload.hasWarning ? ' ⚠' : ''}
-          </Badge>
-        </Tooltip>
-        {instructor.hasConflict && (
-          <Badge color="yellow" variant="light" size="sm">
-            競合
-          </Badge>
-        )}
+    <Tooltip label={`${conflictLabel}に割当済`} disabled={!isConflict} withArrow>
+      <Group justify="space-between" gap="xs" wrap="nowrap">
+        <Checkbox
+          checked={checked}
+          onChange={onToggle}
+          disabled={isDisabled}
+          label={
+            <Stack gap={0}>
+              <Text size="sm">{instructor.displayName}</Text>
+              <Text size="xs" c="dimmed">
+                {instructor.displayNameKana ?? 'かな未登録'}
+                {instructor.certificationSummary ? ` / ${instructor.certificationSummary}` : ''}
+              </Text>
+            </Stack>
+          }
+        />
+        <Group gap={4} wrap="nowrap">
+          <Tooltip label={workloadTooltip(instructor)} withArrow>
+            <Badge
+              color={instructor.workload.hasWarning ? 'orange' : 'gray'}
+              variant="light"
+              size="sm"
+            >
+              今月 {instructor.workload.monthlyWorkDays}日
+              {instructor.workload.hasWarning ? ' ⚠' : ''}
+            </Badge>
+          </Tooltip>
+        </Group>
       </Group>
-    </Group>
+    </Tooltip>
   );
 }
 

@@ -4,23 +4,18 @@ import { z } from 'zod';
 import { client } from '@/lib/rpc';
 
 import {
-  assignmentSetResultSchema,
   shiftAgendaResponseSchema,
   shiftEditDataSchema,
   shiftFormDataSchema,
   shiftListSchema,
   shiftViewResponseSchema,
-  shiftWithAssignmentsSchema,
   upsertMonthlyAssignmentsResultSchema,
-  type AssignmentSetResult,
   type ShiftAgendaDirection,
   type ShiftAgendaResponse,
   type ShiftEditData,
   type ShiftFormData,
   type ShiftListItem,
   type ShiftViewResponse,
-  type ShiftWithAssignments,
-  type UpsertAssignmentSetInput,
   type UpsertMonthlyAssignmentsInput,
   type UpsertMonthlyAssignmentsResult,
 } from './schema';
@@ -81,45 +76,6 @@ export function useShifts(params?: {
       }
       return shiftListSchema.parse(await res.json());
     },
-  });
-}
-
-/**
- * シフトを1件取得する（割り当て済み Instructor ID 付き）。
- * @param id - 対象シフトの ID
- */
-export function useShift(id: string) {
-  return useQuery<ShiftWithAssignments>({
-    queryKey: [...SHIFTS_QUERY_KEY, id],
-    queryFn: async () => {
-      const res = await client.api.shifts[':id'].$get({ param: { id } });
-      if (!res.ok) {
-        throw new Error('シフトの取得に失敗しました');
-      }
-      return shiftWithAssignmentsSchema.parse(await res.json());
-    },
-    enabled: !!id,
-  });
-}
-
-/**
- * 週次ビューを取得する（開始日から7日間のシフト + 集計）。
- * @param dateFrom - 週の開始日（YYYY-MM-DD）。未指定なら取得を行わない
- */
-export function useWeeklyView(dateFrom: string | undefined) {
-  return useQuery<ShiftViewResponse>({
-    queryKey: [...SHIFTS_QUERY_KEY, 'weekly-view', dateFrom],
-    queryFn: async () => {
-      const res = await client.api.shifts['weekly-view'].$get({
-        query: { dateFrom: dateFrom ?? '' },
-      });
-      if (!res.ok) {
-        const body = apiErrorSchema.parse(await res.json());
-        throw new Error(body.message ?? '週次ビューの取得に失敗しました');
-      }
-      return shiftViewResponseSchema.parse(await res.json());
-    },
-    enabled: !!dateFrom,
   });
 }
 
@@ -246,29 +202,6 @@ export function useUpsertMonthlyAssignments() {
         throw new Error(body.message ?? '月次割り当ての保存に失敗しました');
       }
       return upsertMonthlyAssignmentsResultSchema.parse(await res.json());
-    },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: [...SHIFTS_QUERY_KEY, 'monthly-view'] });
-      void queryClient.invalidateQueries({ queryKey: [...SHIFTS_QUERY_KEY, 'edit-data'] });
-      void queryClient.invalidateQueries({ queryKey: [...SHIFTS_QUERY_KEY, 'list'] });
-    },
-  });
-}
-
-/**
- * (date × 部門 × シフト種別) の割り当て集合を upsert するミューテーション。
- * Instructor が 1 件以上なら Shift を暗黙生成/更新し、0 件なら Shift を削除する。
- */
-export function useUpsertAssignmentSet() {
-  const queryClient = useQueryClient();
-  return useMutation<AssignmentSetResult, Error, UpsertAssignmentSetInput>({
-    mutationFn: async (input) => {
-      const res = await client.api.shifts['assignment-set'].$put({ json: input });
-      if (!res.ok) {
-        const body = apiErrorSchema.parse(await res.json());
-        throw new Error(body.message ?? '割り当ての保存に失敗しました');
-      }
-      return assignmentSetResultSchema.parse(await res.json());
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: [...SHIFTS_QUERY_KEY, 'monthly-view'] });

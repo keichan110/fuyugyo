@@ -62,30 +62,6 @@ export type ShiftListItem = z.infer<typeof shiftListItemSchema>;
 /** Shift 一覧レスポンス（各 Shift に割り当て済み Instructor ID・部門名・シフト種別名を含む） */
 export const shiftListSchema = z.array(shiftListItemSchema);
 
-/** Shift 割り当て集合 upsert リクエスト */
-export const upsertAssignmentSetSchema = z.object({
-  /** 勤務日（YYYY-MM-DD） */
-  date: dateStringSchema,
-  /** 部門 ID */
-  departmentId: z.string().min(1),
-  /** シフト種別 ID */
-  shiftTypeId: z.string().min(1),
-  /** 備考（割り当てが残る枠にのみ保存される） */
-  description: z.string().max(500).nullable().optional(),
-  /** 対象枠に割り当てる Instructor ID 群。空配列なら Shift ごと削除する */
-  instructorIds: z.array(z.string().min(1)).default([]),
-});
-
-export type UpsertAssignmentSetInput = z.infer<typeof upsertAssignmentSetSchema>;
-
-/** Shift 割り当て集合 upsert レスポンス */
-export const assignmentSetResultSchema = z.object({
-  status: z.enum(['upserted', 'deleted']),
-  shift: shiftWithAssignmentsSchema.nullable(),
-});
-
-export type AssignmentSetResult = z.infer<typeof assignmentSetResultSchema>;
-
 /** 月次まとめ upsert の1セル分（日付 × シフト種別の割り当て集合） */
 export const monthlyAssignmentCellSchema = z.object({
   date: dateStringSchema,

@@ -24,7 +24,6 @@ import {
   dateStringSchema,
   monthStringSchema,
   shiftAgendaDirectionSchema,
-  upsertAssignmentSetSchema,
   upsertMonthlyAssignmentsSchema,
   type ShiftViewItem,
 } from './schema';
@@ -304,7 +303,6 @@ export const shiftsRoute = new Hono<{
 }>()
   /**
    * シフト作成フォームの集約データを返す（1リクエスト・N+1 なし）。
-   * 静的セグメントが `:id` より先に評価されるよう先頭に登録する。
    */
   .get('/form-data', requireAuth, async (c) => {
     const db = createDb(c.env.DB);
@@ -640,33 +638,6 @@ export const shiftsRoute = new Hono<{
     });
   })
   /**
-   * 週次ビュー: `dateFrom` から7日間（両端含む）のシフトとサマリを1リクエストで返す。
-   * データ（部門・種別・割り当て込み）と集計（件数・部門別）を同梱する。MEMBER 以上。
-   */
-  .get('/weekly-view', requireAuth, async (c) => {
-    const dateFrom = c.req.query('dateFrom');
-    if (!(dateFrom && dateStringSchema.safeParse(dateFrom).success)) {
-      throw new HTTPException(400, {
-        message: 'dateFrom は YYYY-MM-DD 形式で指定してください',
-      });
-    }
-
-    const db = createDb(c.env.DB);
-    const from = parseShiftDate(dateFrom);
-    // 開始日から6日後までの7日間（UTC 基準で日を加算する）
-    const to = new Date(from);
-    to.setUTCDate(to.getUTCDate() + 6);
-
-    const shiftsView = await loadShiftView(db, from, to);
-    return c.json({
-      shifts: shiftsView,
-      summary: summarizeShifts(shiftsView, {
-        from: formatDate(from),
-        to: formatDate(to),
-      }),
-    });
-  })
-  /**
    * 月次ビュー: `month`（YYYY-MM）の当月シフトとサマリを1リクエストで返す。
    * データと集計を同梱する。MEMBER 以上。
    */
@@ -796,109 +767,6 @@ export const shiftsRoute = new Hono<{
       })),
     );
   })
-  /**
-   * (date × 部門 × シフト種別) の割り当て集合を upsert する（MANAGER 以上）。
-   * 最初の Instructor 割り当てで Shift を生成し、0 件への更新では Shift 自体を削除する。
-   */
-  .put(
-    '/assignment-set',
-    requireAuth,
-    requireRole('MANAGER'),
-    validator('json', (value, c) => {
-      const parsed = upsertAssignmentSetSchema.safeParse(value);
-      if (!parsed.success) {
-        return c.json({ message: parsed.error.message }, 400);
-      }
-      return parsed.data;
-    }),
-    async (c) => {
-      const input = c.req.valid('json');
-      const db = createDb(c.env.DB);
-
-      const uniqueInstructorIds = [...new Set(input.instructorIds)];
-      if (!(await allInstructorsExist(db, uniqueInstructorIds))) {
-        throw new HTTPException(400, {
-          message: 'One or more instructors do not exist',
-        });
-      }
-
-      const date = parseShiftDate(input.date);
-      const [existing] = await db
-        .select()
-        .from(shifts)
-        .where(
-          and(
-            eq(shifts.date, date),
-            eq(shifts.departmentId, input.departmentId),
-            eq(shifts.shiftTypeId, input.shiftTypeId),
-          ),
-        )
-        .limit(1);
-
-      if (uniqueInstructorIds.length === 0) {
-        if (existing) {
-          await db.delete(shifts).where(eq(shifts.id, existing.id));
-        }
-        return c.json({ status: 'deleted', shift: null });
-      }
-
-      const description = input.description?.trim() || null;
-
-      if (existing) {
-        const result = await db.batch([
-          db.update(shifts).set({ description }).where(eq(shifts.id, existing.id)).returning(),
-          db.delete(shiftAssignments).where(eq(shiftAssignments.shiftId, existing.id)),
-          ...uniqueInstructorIds.map((instructorId) =>
-            db.insert(shiftAssignments).values({ shiftId: existing.id, instructorId }),
-          ),
-        ]);
-
-        const updated = result[0][0];
-        if (!updated) {
-          throw new HTTPException(500, { message: 'Failed to upsert assignment set' });
-        }
-        return c.json({
-          status: 'upserted',
-          shift: { ...updated, assignedInstructorIds: uniqueInstructorIds },
-        });
-      }
-
-      const shiftId = crypto.randomUUID();
-      try {
-        const result = await db.batch([
-          db
-            .insert(shifts)
-            .values({
-              id: shiftId,
-              date,
-              departmentId: input.departmentId,
-              shiftTypeId: input.shiftTypeId,
-              description,
-            })
-            .returning(),
-          ...uniqueInstructorIds.map((instructorId) =>
-            db.insert(shiftAssignments).values({ shiftId, instructorId }),
-          ),
-        ]);
-
-        const created = result[0][0];
-        if (!created) {
-          throw new HTTPException(500, { message: 'Failed to upsert assignment set' });
-        }
-        return c.json({
-          status: 'upserted',
-          shift: { ...created, assignedInstructorIds: uniqueInstructorIds },
-        });
-      } catch (err) {
-        if (isUniqueViolation(err)) {
-          throw new HTTPException(409, {
-            message: 'Shift already exists for this date, department, and shift type',
-          });
-        }
-        throw err;
-      }
-    },
-  )
   /**
    * (month × 部門) の割り当てを月次まとめて upsert する（MANAGER 以上）。
    * cells には変更差分のみを含める。全セル分の書き込みを単一の `db.batch` に集約し、
@@ -1048,25 +916,4 @@ export const shiftsRoute = new Hono<{
 
       return c.json({ upsertedCount, deletedCount });
     },
-  )
-  /** シフトを1件取得する（割り当て済み Instructor ID 付き） */
-  .get('/:id', requireAuth, async (c) => {
-    const db = createDb(c.env.DB);
-    const id = c.req.param('id');
-
-    const [shift] = await db.select().from(shifts).where(eq(shifts.id, id)).limit(1);
-
-    if (!shift) {
-      throw new HTTPException(404, { message: 'Shift not found' });
-    }
-
-    const assignRows = await db
-      .select({ instructorId: shiftAssignments.instructorId })
-      .from(shiftAssignments)
-      .where(eq(shiftAssignments.shiftId, id));
-
-    return c.json({
-      ...shift,
-      assignedInstructorIds: assignRows.map((r) => r.instructorId),
-    });
-  });
+  );

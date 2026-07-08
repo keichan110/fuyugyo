@@ -1,70 +1,17 @@
 /**
  * 割り当て候補の負荷（Workload）を計算する純粋関数群。
- * DB からは Instructor ごとの勤務日だけを渡し、日付窓・連続判定はここに閉じ込める。
+ *
+ * 負荷（総勤務日数）は「API が返す月外・保存済みの土台」＋「フロントが当月をライブ計算する分」
+ * の合算で成り立つ。月単位でまとめて編集する UI 特性上、ステージ中（未保存）の変更を
+ * 即座に反映する必要があるため、当月分の集計はこのモジュールの `countCurrentMonthWorkDays`
+ * がフロント側で担い、月外の集計は `src/features/shifts/api.ts` が `seasonRangeForDate` と
+ * 組み合わせて担う（サーバー・クライアントどちらからも参照するため isomorphic に保つ）。
  */
-
-export type WorkloadInput = {
-  instructorId: string;
-  targetDate: string;
-  assignedDates: string[];
-  seasonRange: SeasonRange;
-  thresholds?: WorkloadWarningThresholds;
-};
 
 export type SeasonRange = {
   from: string;
   to: string;
 };
-
-export type WorkloadWarningThresholds = {
-  monthlyWorkDays: number;
-  seasonWorkDays: number;
-  consecutiveWeekends: number;
-  consecutiveWorkDays: number;
-};
-
-export type InstructorWorkload = {
-  monthlyWorkDays: number;
-  seasonWorkDays: number;
-  consecutiveWeekends: number;
-  consecutiveWorkDays: number;
-  hasWarning: boolean;
-};
-
-export const DEFAULT_WORKLOAD_WARNING_THRESHOLDS: WorkloadWarningThresholds = {
-  monthlyWorkDays: 12,
-  seasonWorkDays: 40,
-  consecutiveWeekends: 3,
-  consecutiveWorkDays: 5,
-};
-
-/**
- * 対象日へ割り当てた後の想定負荷を計算する。
- * @param input - Instructor ID、対象日、既存勤務日、シーズン範囲、任意の警告閾値
- * @returns 月内・シーズン累計・連続週末・連続勤務日の 4 指標と警告有無
- */
-export function calculateInstructorWorkload(input: WorkloadInput): InstructorWorkload {
-  const thresholds = input.thresholds ?? DEFAULT_WORKLOAD_WARNING_THRESHOLDS;
-  const dates = new Set(input.assignedDates);
-  dates.add(input.targetDate);
-
-  const monthlyWorkDays = countDatesInRange(dates, monthRange(input.targetDate));
-  const seasonWorkDays = countDatesInRange(dates, input.seasonRange);
-  const consecutiveWeekends = countConsecutiveWeekends(dates, input.targetDate);
-  const consecutiveWorkDays = countConsecutiveWorkDays(dates, input.targetDate);
-
-  return {
-    monthlyWorkDays,
-    seasonWorkDays,
-    consecutiveWeekends,
-    consecutiveWorkDays,
-    hasWarning:
-      monthlyWorkDays >= thresholds.monthlyWorkDays ||
-      seasonWorkDays >= thresholds.seasonWorkDays ||
-      consecutiveWeekends >= thresholds.consecutiveWeekends ||
-      consecutiveWorkDays >= thresholds.consecutiveWorkDays,
-  };
-}
 
 /**
  * 対象日を含む冬季シーズン範囲を返す。
@@ -87,63 +34,80 @@ export function seasonRangeForDate(targetDate: string, startMonth = 12, endMonth
   };
 }
 
-function countDatesInRange(dates: Set<string>, range: SeasonRange): number {
-  let count = 0;
-  for (const date of dates) {
-    if (date >= range.from && date <= range.to) {
-      count += 1;
+/**
+ * プールの総勤務日数から1人あたりの公平な持ち分（フェアシェア）を返す。
+ * 現状は単純平均（全員が同条件で出勤可能という前提）。
+ * 将来 availability を導入したら、ここを出勤可能日数に応じた期待値へ差し替える。
+ * @param workDays - 候補プール各人の総勤務日数
+ * @returns フェアシェア（1人あたりの公平な勤務日数）。プールが空なら 0
+ */
+export function calculateFairShare(workDays: number[]): number {
+  if (workDays.length === 0) {
+    return 0;
+  }
+  return workDays.reduce((sum, days) => sum + days, 0) / workDays.length;
+}
+
+/** 月マトリクスの1セル分の割り当て（Instructor 別の当月勤務日数集計に使う最小情報） */
+export type CellAssignment = {
+  date: string;
+  departmentId: string;
+  shiftTypeId: string;
+  instructorIds: string[];
+};
+
+/**
+ * 当月の勤務日数を Instructor 別に数える。
+ * 現部門でステージ済みのセル（`stagedAssignments`）は、対応する保存済みセルを上書きする
+ * （未保存の割り当て変更を即座に負荷計算へ反映するため）。同日に複数シフトへ入っていても
+ * その日は1日として数える。
+ * @param savedAssignments - 当月の保存済み割り当て（全部門）
+ * @param stagedAssignments - 現部門のステージ済みセル（未保存の編集内容）
+ * @returns Instructor ID → 当月の勤務日数
+ */
+export function countCurrentMonthWorkDays(
+  savedAssignments: CellAssignment[],
+  stagedAssignments: CellAssignment[],
+): Map<string, number> {
+  const stagedKeys = new Set(
+    stagedAssignments.map((a) => cellAssignmentKey(a.departmentId, a.date, a.shiftTypeId)),
+  );
+
+  const datesByInstructor = new Map<string, Set<string>>();
+  const addDate = (instructorId: string, date: string) => {
+    const dates = datesByInstructor.get(instructorId) ?? new Set<string>();
+    dates.add(date);
+    datesByInstructor.set(instructorId, dates);
+  };
+
+  for (const assignment of savedAssignments) {
+    // ステージ済みセルは保存値ではなくステージ値を正とするため、ここでは数えない
+    if (
+      stagedKeys.has(
+        cellAssignmentKey(assignment.departmentId, assignment.date, assignment.shiftTypeId),
+      )
+    ) {
+      continue;
+    }
+    for (const instructorId of assignment.instructorIds) {
+      addDate(instructorId, assignment.date);
     }
   }
-  return count;
-}
-
-function countConsecutiveWorkDays(dates: Set<string>, targetDate: string): number {
-  let count = 0;
-  let cursor = targetDate;
-  while (dates.has(cursor)) {
-    count += 1;
-    cursor = addDays(cursor, -1);
-  }
-  return count;
-}
-
-function countConsecutiveWeekends(dates: Set<string>, targetDate: string): number {
-  let count = 0;
-  let saturday = weekendAnchor(targetDate);
-
-  while (weekendHasWork(dates, saturday)) {
-    count += 1;
-    saturday = addDays(saturday, -7);
+  for (const assignment of stagedAssignments) {
+    for (const instructorId of assignment.instructorIds) {
+      addDate(instructorId, assignment.date);
+    }
   }
 
-  return count;
+  const counts = new Map<string, number>();
+  for (const [instructorId, dates] of datesByInstructor) {
+    counts.set(instructorId, dates.size);
+  }
+  return counts;
 }
 
-function weekendHasWork(dates: Set<string>, saturday: string): boolean {
-  return dates.has(saturday) || dates.has(addDays(saturday, 1));
-}
-
-function weekendAnchor(dateStr: string): string {
-  const date = parseDate(dateStr);
-  const weekday = date.getUTCDay();
-  const daysFromSaturday = weekday === 6 ? 0 : weekday === 0 ? 1 : weekday + 1;
-  return addDays(dateStr, -daysFromSaturday);
-}
-
-function monthRange(dateStr: string): SeasonRange {
-  const date = parseDate(dateStr);
-  const year = date.getUTCFullYear();
-  const month = date.getUTCMonth();
-  return {
-    from: formatDate(new Date(Date.UTC(year, month, 1))),
-    to: formatDate(new Date(Date.UTC(year, month + 1, 0))),
-  };
-}
-
-function addDays(dateStr: string, days: number): string {
-  const date = parseDate(dateStr);
-  date.setUTCDate(date.getUTCDate() + days);
-  return formatDate(date);
+function cellAssignmentKey(departmentId: string, date: string, shiftTypeId: string): string {
+  return `${departmentId}:${date}:${shiftTypeId}`;
 }
 
 function parseDate(dateStr: string): Date {

@@ -30,6 +30,7 @@ import {
 } from '../queries';
 import type { AvailableInstructor, ShiftViewItem } from '../schema';
 import { addMonths, shortDateLabel, todayString, toMonth, weekdayIndex } from '../view-utils';
+import { calculateFairShare, countCurrentMonthWorkDays, type CellAssignment } from '../workload';
 
 const DEPARTMENT_STORAGE_KEY = 'fuyugyo.shiftManage.departmentId';
 
@@ -221,6 +222,25 @@ export function ShiftManager() {
     return map;
   }, [selectedCell, departmentId, formData.data, stagedCells, monthly.data]);
 
+  // Instructor 別の当月勤務日数（全部門横断・現部門はステージ済み編集を反映）。
+  // 月単位でまとめて編集する UI 特性上、保存前の変更も負荷バーへ即座に反映するため、
+  // ステージ状態が変わるたびにここで再計算する（API へは問い合わせない）。
+  const currentMonthWorkDays = useMemo(() => {
+    const savedAssignments: CellAssignment[] = (monthly.data?.shifts ?? []).map((shift) => ({
+      date: shift.date,
+      departmentId: shift.department.id,
+      shiftTypeId: shift.shiftType.id,
+      instructorIds: shift.assignedInstructors.map((i) => i.id),
+    }));
+    const stagedAssignments: CellAssignment[] = Array.from(stagedCells.entries()).map(
+      ([key, cell]) => {
+        const [date, shiftTypeId] = splitCellKey(key);
+        return { date, departmentId, shiftTypeId, instructorIds: cell.instructorIds };
+      },
+    );
+    return countCurrentMonthWorkDays(savedAssignments, stagedAssignments);
+  }, [monthly.data, stagedCells, departmentId]);
+
   const saveMonthly = () => {
     if (!departmentId || stagedCells.size === 0) {
       return;
@@ -363,6 +383,7 @@ export function ShiftManager() {
                   }
                   onRegisterInstructorNames={registerInstructorNames}
                   conflictLabelById={conflictLabelById}
+                  currentMonthWorkDays={currentMonthWorkDays}
                 />
               ) : (
                 <Card withBorder padding="md" radius="md" style={{ height: '100%' }}>
@@ -601,6 +622,8 @@ type AssignmentPanelProps = {
   onRegisterInstructorNames: (entries: Array<{ id: string; name: string }>) => void;
   /** instructorId → 競合先の表示ラベル（フォームの現在値ベースで親が算出） */
   conflictLabelById: Map<string, string>;
+  /** instructorId → 当月の勤務日数（全部門横断・親がステージ済み編集を反映してライブ計算） */
+  currentMonthWorkDays: Map<string, number>;
 };
 
 /**
@@ -618,6 +641,7 @@ function AssignmentPanel({
   onStageChange,
   onRegisterInstructorNames,
   conflictLabelById,
+  currentMonthWorkDays,
 }: AssignmentPanelProps) {
   const editData = useShiftAssignmentEditor({ date, departmentId, shiftTypeId });
 
@@ -645,6 +669,25 @@ function AssignmentPanel({
     [stagedInstructorIds, serverInstructorIds],
   );
 
+  // 総勤務日数（負荷） = API が返す「月外・保存済み」の土台 + 親が算出した「当月・ライブ」分。
+  // ステージ中の未保存編集も currentMonthWorkDays 経由で即座に反映される。
+  const loadByInstructor = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const inst of editData.data?.availableInstructors ?? []) {
+      map.set(inst.id, inst.seasonWorkDaysOutsideMonth + (currentMonthWorkDays.get(inst.id) ?? 0));
+    }
+    return map;
+  }, [editData.data?.availableInstructors, currentMonthWorkDays]);
+
+  // 偏差バーの基準（平均・最大偏差）はフルの候補プールから算出する。
+  // 検索で絞り込んでもバーのスケールが変動しないようにするため。
+  const { fairShareAverage, maxAbsDeviation } = useMemo(() => {
+    const loads = Array.from(loadByInstructor.values());
+    const average = calculateFairShare(loads);
+    const maxDeviation = loads.reduce((max, load) => Math.max(max, Math.abs(load - average)), 0);
+    return { fairShareAverage: average, maxAbsDeviation: maxDeviation };
+  }, [loadByInstructor]);
+
   const candidates = useMemo(() => {
     const query = search.trim().toLocaleLowerCase('ja-JP');
     return [...(editData.data?.availableInstructors ?? [])]
@@ -656,8 +699,14 @@ function AssignmentPanel({
           .toLocaleLowerCase('ja-JP')
           .includes(query);
       })
-      .sort(sortMode === 'workload' ? compareInstructorWorkload : compareInstructorKana);
-  }, [editData.data?.availableInstructors, search, sortMode]);
+      .sort(
+        sortMode === 'workload'
+          ? (a, b) =>
+              (loadByInstructor.get(a.id) ?? 0) - (loadByInstructor.get(b.id) ?? 0) ||
+              compareInstructorKana(a, b)
+          : compareInstructorKana,
+      );
+  }, [editData.data?.availableInstructors, search, sortMode, loadByInstructor]);
 
   const toggle = (id: string) => {
     const next = new Set(selectedSet);
@@ -741,6 +790,9 @@ function AssignmentPanel({
                     checked={selectedSet.has(instructor.id)}
                     onToggle={() => toggle(instructor.id)}
                     conflictLabel={conflictLabelById.get(instructor.id)}
+                    load={loadByInstructor.get(instructor.id) ?? 0}
+                    fairShareAverage={fairShareAverage}
+                    maxAbsDeviation={maxAbsDeviation}
                   />
                 ))
               )}
@@ -772,6 +824,12 @@ type InstructorCheckboxProps = {
   onToggle: () => void;
   /** 競合先（同日の別 Shift）の表示ラベル。未競合なら undefined */
   conflictLabel?: string | undefined;
+  /** 総勤務日数（月外・保存済みの土台 + 当月・ライブ分の合算） */
+  load: number;
+  /** 候補プール全体のフェアシェア（総勤務日数の平均） */
+  fairShareAverage: number;
+  /** 候補プール内の |総勤務日数 − 平均| の最大値（偏差バーのスケール基準） */
+  maxAbsDeviation: number;
 };
 
 /**
@@ -784,6 +842,9 @@ function InstructorCheckbox({
   checked,
   onToggle,
   conflictLabel,
+  load,
+  fairShareAverage,
+  maxAbsDeviation,
 }: InstructorCheckboxProps) {
   const isConflict = conflictLabel !== undefined;
   const isDisabled = isConflict && !checked;
@@ -805,19 +866,49 @@ function InstructorCheckbox({
             </Stack>
           }
         />
-        <Group gap={4} wrap="nowrap">
-          <Tooltip label={workloadTooltip(instructor)} withArrow>
-            <Badge
-              color={instructor.workload.hasWarning ? 'orange' : 'gray'}
-              variant="light"
-              size="sm"
-            >
-              今月 {instructor.workload.monthlyWorkDays}日
-              {instructor.workload.hasWarning ? ' ⚠' : ''}
-            </Badge>
-          </Tooltip>
-        </Group>
+        <WorkloadDeviationBar
+          load={load}
+          average={fairShareAverage}
+          maxAbsDeviation={maxAbsDeviation}
+        />
       </Group>
+    </Tooltip>
+  );
+}
+
+type WorkloadDeviationBarProps = {
+  /** 総勤務日数（月外・保存済みの土台 + 当月・ライブ分の合算） */
+  load: number;
+  average: number;
+  maxAbsDeviation: number;
+};
+
+/**
+ * 総勤務日数の対プール平均偏差を表す横バー。中央 = 平均（偏差 0）。
+ * 平均未満は中央から左へ teal、平均超過は中央から右へ orange を伸ばし、
+ * 「誰がプール平均よりどれだけ下振れ/上振れしているか」を一目で示す。
+ * ステージ中の未保存編集も load に即座に反映されるため、割り当てを変えるたびに動く。
+ */
+function WorkloadDeviationBar({ load, average, maxAbsDeviation }: WorkloadDeviationBarProps) {
+  const deviation = load - average;
+  const pct = maxAbsDeviation === 0 ? 0 : (Math.abs(deviation) / maxAbsDeviation) * 50;
+  const isUnder = deviation <= 0;
+  const tooltip = `総 ${load}日（平均 ${average.toFixed(1)}日 / 平均比 ${deviation >= 0 ? '+' : ''}${deviation.toFixed(1)}日）`;
+
+  return (
+    <Tooltip label={tooltip} withArrow>
+      <Box pos="relative" w={100} h={8} bg="gray.2" style={{ borderRadius: 4, flexShrink: 0 }}>
+        <Box pos="absolute" top={0} bottom={0} left="50%" w={1} bg="gray.5" />
+        <Box
+          pos="absolute"
+          top={0}
+          bottom={0}
+          w={`${pct}%`}
+          bg={isUnder ? 'teal.5' : 'orange.5'}
+          {...(isUnder ? { right: '50%' } : { left: '50%' })}
+          style={{ borderRadius: 4 }}
+        />
+      </Box>
     </Tooltip>
   );
 }
@@ -866,24 +957,4 @@ function compareInstructorKana(a: AvailableInstructor, b: AvailableInstructor): 
 
 function parseCandidateSortMode(value: string): CandidateSortMode {
   return value === 'workload' ? 'workload' : 'kana';
-}
-
-function compareInstructorWorkload(a: AvailableInstructor, b: AvailableInstructor): number {
-  return (
-    a.workload.monthlyWorkDays - b.workload.monthlyWorkDays ||
-    a.workload.seasonWorkDays - b.workload.seasonWorkDays ||
-    a.workload.consecutiveWeekends - b.workload.consecutiveWeekends ||
-    a.workload.consecutiveWorkDays - b.workload.consecutiveWorkDays ||
-    compareInstructorKana(a, b)
-  );
-}
-
-function workloadTooltip(instructor: AvailableInstructor): string {
-  const { workload } = instructor;
-  return [
-    `月内 ${workload.monthlyWorkDays}日`,
-    `シーズン ${workload.seasonWorkDays}日`,
-    `連続週末 ${workload.consecutiveWeekends}週`,
-    `連続勤務 ${workload.consecutiveWorkDays}日`,
-  ].join(' / ');
 }

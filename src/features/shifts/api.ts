@@ -27,7 +27,7 @@ import {
   upsertMonthlyAssignmentsSchema,
   type ShiftViewItem,
 } from './schema';
-import { calculateInstructorWorkload, seasonRangeForDate } from './workload';
+import { seasonRangeForDate } from './workload';
 
 /**
  * YYYY-MM-DD 文字列を UTC 0時の Date に変換する。
@@ -526,24 +526,26 @@ export const shiftsRoute = new Hono<{
       workloadRows.push(...rows);
     }
 
-    const datesByInstructor = new Map<string, Set<string>>();
+    // 対象月（dateStr の年月）を除いた保存済みシーズン勤務日数を Instructor 別に数える。
+    // 対象月分はステージ中の未保存編集を含めてクライアント側でライブ計算し、この値と合算する。
+    const targetMonth = dateStr.slice(0, 7);
+    const outsideMonthDatesByInstructor = new Map<string, Set<string>>();
     for (const row of workloadRows) {
-      const dates = datesByInstructor.get(row.instructorId) ?? new Set<string>();
-      dates.add(formatDate(row.date));
-      datesByInstructor.set(row.instructorId, dates);
+      const date = formatDate(row.date);
+      if (date.slice(0, 7) === targetMonth) {
+        continue;
+      }
+      const dates = outsideMonthDatesByInstructor.get(row.instructorId) ?? new Set<string>();
+      dates.add(date);
+      outsideMonthDatesByInstructor.set(row.instructorId, dates);
     }
 
-    const availableInstructorsWithWorkload = availableInstructors.map((inst) => ({
+    const availableInstructorsWithLoad = availableInstructors.map((inst) => ({
       ...inst,
-      workload: calculateInstructorWorkload({
-        instructorId: inst.id,
-        targetDate: dateStr,
-        assignedDates: Array.from(datesByInstructor.get(inst.id) ?? []),
-        seasonRange,
-      }),
+      seasonWorkDaysOutsideMonth: outsideMonthDatesByInstructor.get(inst.id)?.size ?? 0,
     }));
 
-    const conflicts = availableInstructorsWithWorkload
+    const conflicts = availableInstructorsWithLoad
       .filter((inst) => inst.hasConflict)
       .map((inst) => {
         const conflictShift = conflictByInstructor.get(inst.id);
@@ -574,7 +576,7 @@ export const shiftsRoute = new Hono<{
             assignedInstructorIds,
           }
         : null,
-      availableInstructors: availableInstructorsWithWorkload,
+      availableInstructors: availableInstructorsWithLoad,
       conflicts,
     });
   })

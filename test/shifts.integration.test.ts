@@ -819,7 +819,7 @@ describe('GET /api/shifts/assignment-editor', () => {
     expect(body.conflicts[0]?.conflictingShift.shiftTypeName).toBe('午前');
   });
 
-  it('候補ペイロードに勤務負荷指標を返す', async () => {
+  it('候補ペイロードに月外・保存済みの勤務日数を返す', async () => {
     const deptId = await seedDepartment();
     const stId = await seedShiftType();
     const certId = await seedCertification(deptId);
@@ -827,6 +827,8 @@ describe('GET /api/shifts/assignment-editor', () => {
     await linkCertification(inst, certId);
     const token = await seedToken('MANAGER');
 
+    // 対象月（2026-01）内の3件は当月ライブ計算（フロント側）の担当のため API 集計からは除外され、
+    // 月外の 2025-12-20 のみがシーズン累計の土台として返る。
     await upsertShift(token, '2025-12-20', deptId, stId, [inst]);
     await upsertShift(token, '2026-01-10', deptId, stId, [inst]);
     await upsertShift(token, '2026-01-11', deptId, stId, [inst]);
@@ -839,13 +841,7 @@ describe('GET /api/shifts/assignment-editor', () => {
     );
     const body = shiftEditDataSchema.parse(await res.json());
 
-    expect(body.availableInstructors[0]?.workload).toEqual({
-      monthlyWorkDays: 4,
-      seasonWorkDays: 5,
-      consecutiveWeekends: 1,
-      consecutiveWorkDays: 2,
-      hasWarning: false,
-    });
+    expect(body.availableInstructors[0]?.seasonWorkDaysOutsideMonth).toBe(1);
   });
 
   it('パラメータ不足は 400 を返す', async () => {

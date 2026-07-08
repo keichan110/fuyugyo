@@ -54,7 +54,7 @@ function isValidCalendarDate(dateStr: string): boolean {
   );
 }
 
-/** Date を YYYY-MM-DD 文字列へ整形する（UTC 基準・edit-data 出力用） */
+/** Date を YYYY-MM-DD 文字列へ整形する（UTC 基準・assignment-editor 出力用） */
 function formatDate(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
@@ -126,7 +126,7 @@ async function allInstructorsExist(db: Database, ids: string[]): Promise<boolean
 /**
  * 指定期間 [from, to]（両端含む）のシフトを表示ビュー用に整形する（2クエリ・N+1 なし）。
  * shifts × departments × shiftTypes を JOIN し、割り当てを別クエリでまとめて付与する。
- * 週次/月次ビューが共有する読み取りロジック。
+ * カレンダービュー（月次）が使う読み取りロジック。
  */
 async function loadShiftView(db: Database, from: Date, to: Date): Promise<ShiftViewItem[]> {
   const shiftRows = await db
@@ -304,7 +304,7 @@ export const shiftsRoute = new Hono<{
   /**
    * シフト作成フォームの集約データを返す（1リクエスト・N+1 なし）。
    */
-  .get('/form-data', requireAuth, async (c) => {
+  .get('/creation-context', requireAuth, async (c) => {
     const db = createDb(c.env.DB);
 
     const [deptRows, shiftTypeRows, activeCountRows] = await Promise.all([
@@ -342,7 +342,7 @@ export const shiftsRoute = new Hono<{
    * (date, departmentId, shiftTypeId) から既存 Shift を引いて create/edit を判定し、
    * 対象部門の割り当て候補 Instructor（資格フィルタ済み・割り当て/競合状態付き）を返す。
    */
-  .get('/edit-data', requireAuth, requireRole('MANAGER'), async (c) => {
+  .get('/assignment-editor', requireAuth, requireRole('MANAGER'), async (c) => {
     const dateStr = c.req.query('date');
     const departmentId = c.req.query('departmentId');
     const shiftTypeId = c.req.query('shiftTypeId');
@@ -638,10 +638,10 @@ export const shiftsRoute = new Hono<{
     });
   })
   /**
-   * 月次ビュー: `month`（YYYY-MM）の当月シフトとサマリを1リクエストで返す。
+   * 月次カレンダー: `month`（YYYY-MM）の当月シフトとサマリを1リクエストで返す。
    * データと集計を同梱する。MEMBER 以上。
    */
-  .get('/monthly-view', requireAuth, async (c) => {
+  .get('/calendar', requireAuth, async (c) => {
     const month = c.req.query('month');
     if (!(month && monthStringSchema.safeParse(month).success)) {
       throw new HTTPException(400, {
@@ -774,7 +774,7 @@ export const shiftsRoute = new Hono<{
    * instructorIds が空なら該当 Shift を削除する（ShiftAssignment は cascade で消える）。
    */
   .put(
-    '/monthly-assignments',
+    '/assignments',
     requireAuth,
     requireRole('MANAGER'),
     validator('json', (value, c) => {

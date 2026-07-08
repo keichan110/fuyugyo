@@ -25,7 +25,7 @@ import type { Env } from '../src/server/types';
 /**
  * Shift + ShiftAssignment の統合テスト（実 D1）。
  * Hono の HTTP 境界 × 実 D1 を継ぎ目とし、ユニーク制約・原子性（db.batch）・
- * 割り当て・集約取得（form-data / edit-data）・認可を検証する。
+ * 割り当て・集約取得（creation-context / assignment-editor）・認可を検証する。
  */
 
 function envWith(overrides: Partial<Env>): Env {
@@ -124,7 +124,7 @@ async function seedInstructor(
   return inst.id;
 }
 
-/** Instructor に Certification を割り当てる（edit-data の候補に載せるため） */
+/** Instructor に Certification を割り当てる（assignment-editor の候補に載せるため） */
 async function linkCertification(instructorId: string, certificationId: string): Promise<void> {
   const db = createDb(env.DB);
   await db.insert(instructorCertifications).values({ instructorId, certificationId });
@@ -138,7 +138,7 @@ async function countAssignments(): Promise<number> {
 }
 
 /**
- * monthly-assignments API で単一セル分の Shift を用意し、生成された Shift ID を返す。
+ * assignments API で単一セル分の Shift を用意し、生成された Shift ID を返す。
  * 単一セル専用の upsert エンドポイントは廃止済みのため、月次一括 API を1セルで呼び出す。
  */
 async function upsertShift(
@@ -150,7 +150,7 @@ async function upsertShift(
 ): Promise<string> {
   const month = date.slice(0, 7);
   const res = await app.request(
-    '/api/shifts/monthly-assignments',
+    '/api/shifts/assignments',
     {
       method: 'PUT',
       ...authJsonRequest(token, {
@@ -162,7 +162,7 @@ async function upsertShift(
     envWith({}),
   );
   if (res.status !== 200) {
-    throw new Error(`upsertShift: monthly-assignments failed with status ${res.status}`);
+    throw new Error(`upsertShift: assignments failed with status ${res.status}`);
   }
 
   const list = await app.request('/api/shifts', authHeader(token), envWith({}));
@@ -192,9 +192,9 @@ beforeEach(async () => {
   await db.delete(users);
 });
 
-// ─── PUT /api/shifts/monthly-assignments ─────────────────────────────────────
+// ─── PUT /api/shifts/assignments ─────────────────────────────────────
 
-describe('PUT /api/shifts/monthly-assignments', () => {
+describe('PUT /api/shifts/assignments', () => {
   it('複数セルをまとめて作成し、それぞれ割り当てと備考が保存される', async () => {
     const deptId = await seedDepartment();
     const stMorning = await seedShiftType('午前');
@@ -204,7 +204,7 @@ describe('PUT /api/shifts/monthly-assignments', () => {
     const token = await seedToken('MANAGER');
 
     const res = await app.request(
-      '/api/shifts/monthly-assignments',
+      '/api/shifts/assignments',
       {
         method: 'PUT',
         ...authJsonRequest(token, {
@@ -256,7 +256,7 @@ describe('PUT /api/shifts/monthly-assignments', () => {
     await upsertShift(token, '2026-02-10', deptId, stId, [inst2]);
 
     const res = await app.request(
-      '/api/shifts/monthly-assignments',
+      '/api/shifts/assignments',
       {
         method: 'PUT',
         ...authJsonRequest(token, {
@@ -297,7 +297,7 @@ describe('PUT /api/shifts/monthly-assignments', () => {
     await upsertShift(token, '2026-02-05', deptId, stId, [inst]);
 
     const res = await app.request(
-      '/api/shifts/monthly-assignments',
+      '/api/shifts/assignments',
       {
         method: 'PUT',
         ...authJsonRequest(token, {
@@ -331,7 +331,7 @@ describe('PUT /api/shifts/monthly-assignments', () => {
     const token = await seedToken('MANAGER');
 
     const res = await app.request(
-      '/api/shifts/monthly-assignments',
+      '/api/shifts/assignments',
       {
         method: 'PUT',
         ...authJsonRequest(token, {
@@ -355,7 +355,7 @@ describe('PUT /api/shifts/monthly-assignments', () => {
     const token = await seedToken('MANAGER');
 
     const res = await app.request(
-      '/api/shifts/monthly-assignments',
+      '/api/shifts/assignments',
       {
         method: 'PUT',
         ...authJsonRequest(token, {
@@ -387,7 +387,7 @@ describe('PUT /api/shifts/monthly-assignments', () => {
     const token = await seedToken('MANAGER');
 
     const res = await app.request(
-      '/api/shifts/monthly-assignments',
+      '/api/shifts/assignments',
       {
         method: 'PUT',
         ...authJsonRequest(token, {
@@ -419,7 +419,7 @@ describe('PUT /api/shifts/monthly-assignments', () => {
     const token = await seedToken('MANAGER');
 
     const res = await app.request(
-      '/api/shifts/monthly-assignments',
+      '/api/shifts/assignments',
       {
         method: 'PUT',
         ...authJsonRequest(token, {
@@ -454,7 +454,7 @@ describe('PUT /api/shifts/monthly-assignments', () => {
     await upsertShift(token, '2026-02-01', deptB, stId, [inst]);
 
     const res = await app.request(
-      '/api/shifts/monthly-assignments',
+      '/api/shifts/assignments',
       {
         method: 'PUT',
         ...authJsonRequest(token, {
@@ -493,7 +493,7 @@ describe('PUT /api/shifts/monthly-assignments', () => {
     // 同一キー (date × 部門 × シフト種別) を2セル分含めて UNIQUE 違反を誘発する。
     // 先頭の 2026-02-05 が成功しても、後段の失敗で batch 全体がロールバックすることを検証する。
     const res = await app.request(
-      '/api/shifts/monthly-assignments',
+      '/api/shifts/assignments',
       {
         method: 'PUT',
         ...authJsonRequest(token, {
@@ -523,7 +523,7 @@ describe('PUT /api/shifts/monthly-assignments', () => {
     const token = await seedToken('MEMBER');
 
     const res = await app.request(
-      '/api/shifts/monthly-assignments',
+      '/api/shifts/assignments',
       {
         method: 'PUT',
         ...authJsonRequest(token, {
@@ -620,7 +620,7 @@ describe('GET /api/shifts', () => {
     expect(cells.length).toBeGreaterThan(100);
 
     const upsertRes = await app.request(
-      '/api/shifts/monthly-assignments',
+      '/api/shifts/assignments',
       {
         method: 'PUT',
         ...authJsonRequest(token, { month: '2026-01', departmentId: deptId, cells }),
@@ -698,9 +698,9 @@ describe('GET /api/shifts', () => {
   });
 });
 
-// ─── GET /api/shifts/form-data ────────────────────────────────────────────────
+// ─── GET /api/shifts/creation-context ────────────────────────────────────────────────
 
-describe('GET /api/shifts/form-data', () => {
+describe('GET /api/shifts/creation-context', () => {
   it('アクティブな部門・シフト種別と統計を返す', async () => {
     await seedDepartment('スキー', true);
     await seedDepartment('廃止部門', false);
@@ -710,7 +710,7 @@ describe('GET /api/shifts/form-data', () => {
     await seedInstructor('鈴木', '花子', 'INACTIVE');
     const token = await seedToken('MEMBER');
 
-    const res = await app.request('/api/shifts/form-data', authHeader(token), envWith({}));
+    const res = await app.request('/api/shifts/creation-context', authHeader(token), envWith({}));
     expect(res.status).toBe(200);
     const body = shiftFormDataSchema.parse(await res.json());
     expect(body.departments).toHaveLength(1);
@@ -723,14 +723,14 @@ describe('GET /api/shifts/form-data', () => {
   });
 
   it('未認証は 401 を返す', async () => {
-    const res = await app.request('/api/shifts/form-data', {}, envWith({}));
+    const res = await app.request('/api/shifts/creation-context', {}, envWith({}));
     expect(res.status).toBe(401);
   });
 });
 
-// ─── GET /api/shifts/edit-data ────────────────────────────────────────────────
+// ─── GET /api/shifts/assignment-editor ────────────────────────────────────────────────
 
-describe('GET /api/shifts/edit-data', () => {
+describe('GET /api/shifts/assignment-editor', () => {
   it('既存シフトがなければ create モードで候補を返す', async () => {
     const deptId = await seedDepartment();
     const stId = await seedShiftType();
@@ -740,7 +740,7 @@ describe('GET /api/shifts/edit-data', () => {
     const token = await seedToken('MANAGER');
 
     const res = await app.request(
-      `/api/shifts/edit-data?date=2026-01-15&departmentId=${deptId}&shiftTypeId=${stId}`,
+      `/api/shifts/assignment-editor?date=2026-01-15&departmentId=${deptId}&shiftTypeId=${stId}`,
       authHeader(token),
       envWith({}),
     );
@@ -765,7 +765,7 @@ describe('GET /api/shifts/edit-data', () => {
     await upsertShift(token, '2026-01-15', deptId, stId, [inst]);
 
     const res = await app.request(
-      `/api/shifts/edit-data?date=2026-01-15&departmentId=${deptId}&shiftTypeId=${stId}`,
+      `/api/shifts/assignment-editor?date=2026-01-15&departmentId=${deptId}&shiftTypeId=${stId}`,
       authHeader(token),
       envWith({}),
     );
@@ -786,7 +786,7 @@ describe('GET /api/shifts/edit-data', () => {
     const token = await seedToken('MANAGER');
 
     const res = await app.request(
-      `/api/shifts/edit-data?date=2026-01-15&departmentId=${deptSki}&shiftTypeId=${stId}`,
+      `/api/shifts/assignment-editor?date=2026-01-15&departmentId=${deptSki}&shiftTypeId=${stId}`,
       authHeader(token),
       envWith({}),
     );
@@ -808,7 +808,7 @@ describe('GET /api/shifts/edit-data', () => {
 
     // 午後シフトの編集データでは午前が競合として現れる
     const res = await app.request(
-      `/api/shifts/edit-data?date=2026-01-15&departmentId=${deptId}&shiftTypeId=${stAfternoon}`,
+      `/api/shifts/assignment-editor?date=2026-01-15&departmentId=${deptId}&shiftTypeId=${stAfternoon}`,
       authHeader(token),
       envWith({}),
     );
@@ -833,7 +833,7 @@ describe('GET /api/shifts/edit-data', () => {
     await upsertShift(token, '2026-01-14', deptId, stId, [inst]);
 
     const res = await app.request(
-      `/api/shifts/edit-data?date=2026-01-15&departmentId=${deptId}&shiftTypeId=${stId}`,
+      `/api/shifts/assignment-editor?date=2026-01-15&departmentId=${deptId}&shiftTypeId=${stId}`,
       authHeader(token),
       envWith({}),
     );
@@ -851,7 +851,7 @@ describe('GET /api/shifts/edit-data', () => {
   it('パラメータ不足は 400 を返す', async () => {
     const token = await seedToken('MANAGER');
     const res = await app.request(
-      '/api/shifts/edit-data?date=2026-01-15',
+      '/api/shifts/assignment-editor?date=2026-01-15',
       authHeader(token),
       envWith({}),
     );
@@ -863,7 +863,7 @@ describe('GET /api/shifts/edit-data', () => {
     const stId = await seedShiftType();
     const token = await seedToken('MEMBER');
     const res = await app.request(
-      `/api/shifts/edit-data?date=2026-01-15&departmentId=${deptId}&shiftTypeId=${stId}`,
+      `/api/shifts/assignment-editor?date=2026-01-15&departmentId=${deptId}&shiftTypeId=${stId}`,
       authHeader(token),
       envWith({}),
     );

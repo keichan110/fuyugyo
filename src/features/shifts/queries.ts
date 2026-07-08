@@ -34,7 +34,7 @@ export type ShiftAgendaParams = {
   departmentId?: string;
 };
 
-/** edit-data 取得パラメータ */
+/** assignment-editor 取得パラメータ */
 export type ShiftEditDataParams = {
   date: string;
   departmentId: string;
@@ -80,19 +80,19 @@ export function useShifts(params?: {
 }
 
 /**
- * 月次ビューを取得する（指定月の全シフト + 集計）。
+ * 月次カレンダーを取得する（指定月の全シフト + 集計）。
  * @param month - 対象月（YYYY-MM）。未指定なら取得を行わない
  */
-export function useMonthlyView(month: string | undefined) {
+export function useShiftCalendar(month: string | undefined) {
   return useQuery<ShiftViewResponse>({
-    queryKey: [...SHIFTS_QUERY_KEY, 'monthly-view', month],
+    queryKey: [...SHIFTS_QUERY_KEY, 'calendar', month],
     queryFn: async () => {
-      const res = await client.api.shifts['monthly-view'].$get({
+      const res = await client.api.shifts.calendar.$get({
         query: { month: month ?? '' },
       });
       if (!res.ok) {
         const body = apiErrorSchema.parse(await res.json());
-        throw new Error(body.message ?? '月次ビューの取得に失敗しました');
+        throw new Error(body.message ?? '月次カレンダーの取得に失敗しました');
       }
       return shiftViewResponseSchema.parse(await res.json());
     },
@@ -149,13 +149,13 @@ export function useShiftAgendaFuture(cursor: string, departmentId?: string) {
 /**
  * シフト作成フォームの集約データを取得する（部門・シフト種別・統計）。
  */
-export function useShiftFormData() {
+export function useShiftCreationContext() {
   return useQuery<ShiftFormData>({
-    queryKey: [...SHIFTS_QUERY_KEY, 'form-data'],
+    queryKey: [...SHIFTS_QUERY_KEY, 'creation-context'],
     queryFn: async () => {
-      const res = await client.api.shifts['form-data'].$get();
+      const res = await client.api.shifts['creation-context'].$get();
       if (!res.ok) {
-        throw new Error('シフトフォームデータの取得に失敗しました');
+        throw new Error('シフト作成データの取得に失敗しました');
       }
       return shiftFormDataSchema.parse(await res.json());
     },
@@ -166,12 +166,12 @@ export function useShiftFormData() {
  * シフト編集フォームの集約データを取得する（既存シフト・割り当て候補・競合）。
  * @param params - date / departmentId / shiftTypeId（全て揃ったときのみ取得）
  */
-export function useShiftEditData(params: Partial<ShiftEditDataParams>) {
+export function useShiftAssignmentEditor(params: Partial<ShiftEditDataParams>) {
   const enabled = !!(params.date && params.departmentId && params.shiftTypeId);
   return useQuery<ShiftEditData>({
-    queryKey: [...SHIFTS_QUERY_KEY, 'edit-data', params],
+    queryKey: [...SHIFTS_QUERY_KEY, 'assignment-editor', params],
     queryFn: async () => {
-      const res = await client.api.shifts['edit-data'].$get({
+      const res = await client.api.shifts['assignment-editor'].$get({
         query: {
           date: params.date ?? '',
           departmentId: params.departmentId ?? '',
@@ -192,11 +192,11 @@ export function useShiftEditData(params: Partial<ShiftEditDataParams>) {
  * (month × 部門) の割り当てを月次まとめて upsert するミューテーション。
  * cells には変更のあったセルのみを含める。
  */
-export function useUpsertMonthlyAssignments() {
+export function useUpsertAssignments() {
   const queryClient = useQueryClient();
   return useMutation<UpsertMonthlyAssignmentsResult, Error, UpsertMonthlyAssignmentsInput>({
     mutationFn: async (input) => {
-      const res = await client.api.shifts['monthly-assignments'].$put({ json: input });
+      const res = await client.api.shifts.assignments.$put({ json: input });
       if (!res.ok) {
         const body = apiErrorSchema.parse(await res.json());
         throw new Error(body.message ?? '月次割り当ての保存に失敗しました');
@@ -204,8 +204,8 @@ export function useUpsertMonthlyAssignments() {
       return upsertMonthlyAssignmentsResultSchema.parse(await res.json());
     },
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: [...SHIFTS_QUERY_KEY, 'monthly-view'] });
-      void queryClient.invalidateQueries({ queryKey: [...SHIFTS_QUERY_KEY, 'edit-data'] });
+      void queryClient.invalidateQueries({ queryKey: [...SHIFTS_QUERY_KEY, 'calendar'] });
+      void queryClient.invalidateQueries({ queryKey: [...SHIFTS_QUERY_KEY, 'assignment-editor'] });
       void queryClient.invalidateQueries({ queryKey: [...SHIFTS_QUERY_KEY, 'list'] });
     },
   });

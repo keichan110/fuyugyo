@@ -125,9 +125,9 @@ beforeEach(async () => {
   await db.delete(users);
 });
 
-// ─── GET /api/shifts/monthly-view ─────────────────────────────────────────────
+// ─── GET /api/shifts/calendar ─────────────────────────────────────────────
 
-describe('GET /api/shifts/monthly-view', () => {
+describe('GET /api/shifts/calendar', () => {
   it('指定月の全シフトとサマリを返し、前後月は含まない', async () => {
     const ski = await seedDepartment('スキー', 'SKI');
     const snb = await seedDepartment('スノーボード', 'SNB');
@@ -142,7 +142,7 @@ describe('GET /api/shifts/monthly-view', () => {
     const token = await seedToken('MEMBER');
 
     const res = await app.request(
-      '/api/shifts/monthly-view?month=2026-01',
+      '/api/shifts/calendar?month=2026-01',
       authHeader(token),
       envWith({}),
     );
@@ -183,7 +183,7 @@ describe('GET /api/shifts/monthly-view', () => {
     expect(cells.length).toBeGreaterThan(100);
 
     const upsertRes = await app.request(
-      '/api/shifts/monthly-assignments',
+      '/api/shifts/assignments',
       {
         method: 'PUT',
         ...authJsonRequest(managerToken, { month: '2026-01', departmentId: ski, cells }),
@@ -194,7 +194,7 @@ describe('GET /api/shifts/monthly-view', () => {
 
     const memberToken = await seedToken('MEMBER');
     const res = await app.request(
-      '/api/shifts/monthly-view?month=2026-01',
+      '/api/shifts/calendar?month=2026-01',
       authHeader(memberToken),
       envWith({}),
     );
@@ -216,13 +216,13 @@ describe('GET /api/shifts/monthly-view', () => {
   it('month が不正形式・範囲外は 400 を返す', async () => {
     const token = await seedToken('MEMBER');
     const bad = await app.request(
-      '/api/shifts/monthly-view?month=2026-1',
+      '/api/shifts/calendar?month=2026-1',
       authHeader(token),
       envWith({}),
     );
     expect(bad.status).toBe(400);
     const outOfRange = await app.request(
-      '/api/shifts/monthly-view?month=2026-13',
+      '/api/shifts/calendar?month=2026-13',
       authHeader(token),
       envWith({}),
     );
@@ -230,7 +230,7 @@ describe('GET /api/shifts/monthly-view', () => {
   });
 
   it('未認証は 401 を返す', async () => {
-    const res = await app.request('/api/shifts/monthly-view?month=2026-01', {}, envWith({}));
+    const res = await app.request('/api/shifts/calendar?month=2026-01', {}, envWith({}));
     expect(res.status).toBe(401);
   });
 });

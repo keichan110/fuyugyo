@@ -23,10 +23,10 @@ import {
 } from '@mantine/core';
 
 import {
-  useMonthlyView,
-  useShiftEditData,
-  useShiftFormData,
-  useUpsertMonthlyAssignments,
+  useShiftAssignmentEditor,
+  useShiftCalendar,
+  useShiftCreationContext,
+  useUpsertAssignments,
 } from '../queries';
 import type { AvailableInstructor, ShiftViewItem } from '../schema';
 import { addMonths, shortDateLabel, todayString, toMonth, weekdayIndex } from '../view-utils';
@@ -69,9 +69,9 @@ export function ShiftManager() {
   // 月次ビューと編集パネルの候補で見た Instructor を蓄積する。
   const [nameById, setNameById] = useState<Map<string, string>>(new Map());
 
-  const formData = useShiftFormData();
-  const monthly = useMonthlyView(month);
-  const upsertMonthly = useUpsertMonthlyAssignments();
+  const formData = useShiftCreationContext();
+  const monthly = useShiftCalendar(month);
+  const upsertMonthly = useUpsertAssignments();
   const days = useMemo(() => monthDays(month), [month]);
   const isDirty = stagedCells.size > 0;
 
@@ -566,7 +566,7 @@ function AssignmentPanel({
   onStageChange,
   onRegisterInstructorNames,
 }: AssignmentPanelProps) {
-  const editData = useShiftEditData({ date, departmentId, shiftTypeId });
+  const editData = useShiftAssignmentEditor({ date, departmentId, shiftTypeId });
 
   useEffect(() => {
     if (!editData.data) {

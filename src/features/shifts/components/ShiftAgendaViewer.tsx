@@ -13,8 +13,11 @@ import {
   Text,
   Title,
   Transition,
+  UnstyledButton,
 } from '@mantine/core';
 import { useWindowScroll } from '@mantine/hooks';
+import { AgendaView } from '@mantine/schedule';
+import type { ScheduleEventData } from '@mantine/schedule';
 
 import { useMe } from '@/features/auth/queries';
 import { useDepartments } from '@/features/departments/queries';
@@ -22,7 +25,7 @@ import { useDepartments } from '@/features/departments/queries';
 import { containsInstructorAssignment, filterAgendaDaysByInstructor } from '../aggregators';
 import { fetchShiftAgendaPage, useShiftAgendaFuture } from '../queries';
 import type { ShiftAgendaDay, ShiftAgendaResponse, ShiftViewItem } from '../schema';
-import { shortDateLabel, toMonth } from '../view-utils';
+import { addDays, addMonths, shortDateLabel, toMonth } from '../view-utils';
 
 type ShiftAgendaViewerProps = {
   /** 初回表示の起点日（YYYY-MM-DD） */
@@ -227,6 +230,59 @@ export function ShiftAgendaViewer({ date, onVisibleDateChange }: ShiftAgendaView
   );
 }
 
+/** シフトイベントに付随するペイロード（AgendaView は payload を汎用型で扱うため renderEvent 内で参照する） */
+type ShiftEventPayload = {
+  shift: ShiftViewItem;
+  includesMe: boolean;
+};
+
+/** 稼働日を月ごとにグルーピングする（月が変わったことを識別しやすくするため、月ごとに 1つの AgendaView を描画する） */
+function groupDaysByMonth(days: ShiftAgendaDay[]): Map<string, ShiftAgendaDay[]> {
+  const byMonth = new Map<string, ShiftAgendaDay[]>();
+  for (const day of days) {
+    const month = toMonth(day.date);
+    const list = byMonth.get(month);
+    if (list) {
+      list.push(day);
+    } else {
+      byMonth.set(month, [day]);
+    }
+  }
+  return byMonth;
+}
+
+/** 月文字列（YYYY-MM）の月末日（YYYY-MM-DD）を返す */
+function lastDateOfMonth(month: string): string {
+  return addDays(`${addMonths(month, 1)}-01`, -1);
+}
+
+/**
+ * 稼働日配列を AgendaView 用の終日イベント配列へ変換する。
+ * シフトは時刻を持たないため、当日 0時〜翌日 0時の終日イベントとして表現する。
+ */
+function buildMonthEvents(
+  days: ShiftAgendaDay[],
+  myInstructorId: string | null,
+): ScheduleEventData<ShiftEventPayload>[] {
+  const events: ScheduleEventData<ShiftEventPayload>[] = [];
+  for (const day of days) {
+    for (const shift of day.shifts) {
+      events.push({
+        id: shift.id,
+        title: shift.shiftType.name,
+        start: `${shift.date} 00:00:00`,
+        end: `${addDays(shift.date, 1)} 00:00:00`,
+        color: shift.assignedInstructors.length > 0 ? 'green' : 'gray',
+        payload: {
+          shift,
+          includesMe: containsInstructorAssignment(shift, myInstructorId),
+        },
+      });
+    }
+  }
+  return events;
+}
+
 function AgendaDayList({
   days,
   myInstructorId,
@@ -234,35 +290,37 @@ function AgendaDayList({
   days: ShiftAgendaDay[];
   myInstructorId: string | null;
 }) {
-  let currentMonth = '';
+  const monthGroups = groupDaysByMonth(days);
 
   return (
     <Stack gap="sm">
-      {days.map((day) => {
-        const month = toMonth(day.date);
-        const showMonth = month !== currentMonth;
-        currentMonth = month;
-
-        return (
-          <Fragment key={day.date}>
-            {showMonth && <MonthHeader month={month} />}
-            <Stack gap="xs" data-agenda-date={day.date}>
-              <Group justify="space-between" align="baseline">
-                <Text fw={700}>{shortDateLabel(day.date)}</Text>
-                <Text size="xs" c="dimmed">
-                  {day.shifts.length}枠
-                </Text>
-              </Group>
-              <Stack gap="xs">
-                {day.shifts.map((shift) => {
-                  const includesMe = containsInstructorAssignment(shift, myInstructorId);
-                  return <ShiftAgendaCard key={shift.id} shift={shift} includesMe={includesMe} />;
-                })}
-              </Stack>
-            </Stack>
-          </Fragment>
-        );
-      })}
+      {Array.from(monthGroups, ([month, monthDays]) => (
+        <Fragment key={month}>
+          <MonthHeader month={month} />
+          <AgendaView
+            rangeStart={`${month}-01`}
+            rangeEnd={lastDateOfMonth(month)}
+            events={buildMonthEvents(monthDays, myInstructorId)}
+            mode="static"
+            dateHeaderFormat={(date) => shortDateLabel(date.slice(0, 10))}
+            styles={{ agendaViewHeader: { display: 'none' } }}
+            renderEvent={(event, props) => {
+              // AgendaView の payload は汎用型のため、ここで自前の型へ絞り込む
+              // （events はこのコンポーネント自身が組み立てているため安全）
+              const payload = event.payload as ShiftEventPayload;
+              return (
+                <UnstyledButton
+                  {...props}
+                  data-agenda-date={payload.shift.date}
+                  style={{ display: 'block', width: '100%' }}
+                >
+                  <ShiftAgendaCard shift={payload.shift} includesMe={payload.includesMe} />
+                </UnstyledButton>
+              );
+            }}
+          />
+        </Fragment>
+      ))}
     </Stack>
   );
 }

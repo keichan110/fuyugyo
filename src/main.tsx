@@ -10,6 +10,8 @@ import { queryClient } from '@/lib/query-client';
 import { routeTree } from './routeTree.gen';
 
 import '@mantine/core/styles.css';
+import '@mantine/dates/styles.css';
+import '@mantine/schedule/styles.css';
 import './styles.css';
 
 /** ブランドカラーはブルー系（ADR 0008） */

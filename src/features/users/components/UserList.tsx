@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-import { Alert, Badge, Button, Card, Group, Select, Stack, Text, Title } from '@mantine/core';
+import { Alert, Badge, Button, Group, Select, Stack, Table, Text, Title } from '@mantine/core';
 
 import { useInstructors } from '@/features/instructors/queries';
 
@@ -21,6 +21,9 @@ const ROLE_LABELS: Record<UserRole, string> = {
   MANAGER: 'マネージャー',
   MEMBER: 'メンバー',
 };
+
+/** テーブルの列数（操作モードの colSpan に使用） */
+const COL_COUNT = 3;
 
 /**
  * ユーザー一覧・ロール変更・無効化・Instructor リンク操作を提供するコンポーネント（ADMIN 専用）。
@@ -46,22 +49,33 @@ export function UserList() {
       )}
 
       {userList && userList.length > 0 && (
-        <Stack gap="sm">
-          {userList.map((user) => (
-            <UserItem key={user.id} user={user} />
-          ))}
-        </Stack>
+        <Table.ScrollContainer minWidth={500}>
+          <Table highlightOnHover withTableBorder withRowBorders>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>ユーザー名</Table.Th>
+                <Table.Th w={120}>ロール</Table.Th>
+                <Table.Th w={300}>操作</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {userList.map((user) => (
+                <UserRow key={user.id} user={user} />
+              ))}
+            </Table.Tbody>
+          </Table>
+        </Table.ScrollContainer>
       )}
     </Stack>
   );
 }
 
-type UserItemProps = {
+type UserRowProps = {
   user: User;
 };
 
 /** ユーザーの1行表示。操作モードを切り替える。 */
-function UserItem({ user }: UserItemProps) {
+function UserRow({ user }: UserRowProps) {
   const [mode, setMode] = useState<'display' | 'change-role' | 'link-instructor'>('display');
 
   if (mode === 'change-role') {
@@ -71,7 +85,7 @@ function UserItem({ user }: UserItemProps) {
     return <UserInstructorLinker user={user} onBack={() => setMode('display')} />;
   }
   return (
-    <UserItemDisplay
+    <UserRowDisplay
       user={user}
       onChangeRole={() => setMode('change-role')}
       onLinkInstructor={() => setMode('link-instructor')}
@@ -79,69 +93,79 @@ function UserItem({ user }: UserItemProps) {
   );
 }
 
-type UserItemDisplayProps = {
+type UserRowDisplayProps = {
   user: User;
   onChangeRole: () => void;
   onLinkInstructor: () => void;
 };
 
 /** ユーザーの表示モード。無効化・アクティブ化ボタンを持つ。 */
-function UserItemDisplay({ user, onChangeRole, onLinkInstructor }: UserItemDisplayProps) {
+function UserRowDisplay({ user, onChangeRole, onLinkInstructor }: UserRowDisplayProps) {
   const deactivate = useDeactivateUser(user.id);
   const activate = useActivateUser(user.id);
 
   return (
-    <Card withBorder padding="md" radius="md">
-      <Stack gap="sm">
-        <Group justify="space-between" align="flex-start" wrap="wrap">
-          <Group gap="xs">
-            <Text fw={500}>{user.displayName}</Text>
-            <Badge color="gray" variant="light" size="sm">
-              {ROLE_LABELS[user.role]}
+    <Table.Tr>
+      <Table.Td>
+        <Group gap="xs">
+          <Text fw={500}>{user.displayName}</Text>
+          {!user.isActive && (
+            <Badge color="red" variant="light" size="sm">
+              無効
             </Badge>
-            {!user.isActive && (
-              <Badge color="red" variant="light" size="sm">
-                無効
-              </Badge>
-            )}
-            {user.instructorId && (
-              <Badge color="blue" variant="light" size="sm">
-                Instructor リンク済み
-              </Badge>
-            )}
-          </Group>
-          <Group gap="xs" wrap="wrap">
-            <Button variant="outline" size="sm" onClick={onChangeRole}>
-              ロール変更
-            </Button>
-            <Button variant="outline" size="sm" onClick={onLinkInstructor}>
-              Instructor リンク
-            </Button>
-            {user.isActive ? (
-              <Button
-                variant="outline"
-                size="sm"
-                loading={deactivate.isPending}
-                onClick={() => deactivate.mutate()}
-              >
-                無効化
-              </Button>
-            ) : (
-              <Button
-                variant="outline"
-                size="sm"
-                loading={activate.isPending}
-                onClick={() => activate.mutate()}
-              >
-                アクティブ化
-              </Button>
-            )}
-          </Group>
+          )}
+          {user.instructorId && (
+            <Badge color="blue" variant="light" size="sm">
+              Instructor リンク済み
+            </Badge>
+          )}
         </Group>
-        {deactivate.isError && <Alert color="red">{deactivate.error.message}</Alert>}
-        {activate.isError && <Alert color="red">{activate.error.message}</Alert>}
-      </Stack>
-    </Card>
+        {deactivate.isError && (
+          <Alert color="red" mt="xs">
+            {deactivate.error.message}
+          </Alert>
+        )}
+        {activate.isError && (
+          <Alert color="red" mt="xs">
+            {activate.error.message}
+          </Alert>
+        )}
+      </Table.Td>
+      <Table.Td>
+        <Badge color="gray" variant="light" size="sm">
+          {ROLE_LABELS[user.role]}
+        </Badge>
+      </Table.Td>
+      <Table.Td>
+        <Group gap="xs">
+          <Button variant="outline" size="xs" onClick={onChangeRole}>
+            ロール変更
+          </Button>
+          <Button variant="outline" size="xs" onClick={onLinkInstructor}>
+            Instructor リンク
+          </Button>
+          {user.isActive ? (
+            <Button
+              variant="outline"
+              size="xs"
+              loading={deactivate.isPending}
+              onClick={() => deactivate.mutate()}
+            >
+              無効化
+            </Button>
+          ) : (
+            <Button
+              variant="outline"
+              size="xs"
+              loading={activate.isPending}
+              onClick={() => activate.mutate()}
+            >
+              アクティブ化
+            </Button>
+          )}
+        </Group>
+      </Table.Td>
+    </Table.Tr>
   );
 }
 
@@ -161,36 +185,38 @@ function UserRoleChanger({ user, onBack }: UserRoleChangerProps) {
   };
 
   return (
-    <Card withBorder padding="md" radius="md">
-      <Stack gap="sm">
-        <Group justify="space-between">
-          <Text fw={500}>{user.displayName} — ロール変更</Text>
-          <Button type="button" variant="outline" size="sm" onClick={onBack}>
-            戻る
-          </Button>
-        </Group>
-        <Group component="form" onSubmit={handleSubmit} align="flex-end">
-          <Select
-            data={userRoleSchema.options.map((r) => ({ value: r, label: ROLE_LABELS[r] }))}
-            value={role}
-            onChange={(value) => setRole(userRoleSchema.parse(value))}
-            style={{ flex: 1 }}
-          />
-          <Button
-            type="submit"
-            size="sm"
-            loading={changeRole.isPending}
-            disabled={role === user.role}
-          >
-            保存
-          </Button>
-          <Button type="button" variant="outline" size="sm" onClick={onBack}>
-            キャンセル
-          </Button>
-        </Group>
-        {changeRole.isError && <Alert color="red">{changeRole.error.message}</Alert>}
-      </Stack>
-    </Card>
+    <Table.Tr>
+      <Table.Td colSpan={COL_COUNT}>
+        <Stack gap="sm">
+          <Group justify="space-between">
+            <Text fw={500}>{user.displayName} — ロール変更</Text>
+            <Button type="button" variant="outline" size="xs" onClick={onBack}>
+              戻る
+            </Button>
+          </Group>
+          <Group component="form" onSubmit={handleSubmit} align="flex-end">
+            <Select
+              data={userRoleSchema.options.map((r) => ({ value: r, label: ROLE_LABELS[r] }))}
+              value={role}
+              onChange={(value) => setRole(userRoleSchema.parse(value))}
+              style={{ flex: 1 }}
+            />
+            <Button
+              type="submit"
+              size="xs"
+              loading={changeRole.isPending}
+              disabled={role === user.role}
+            >
+              保存
+            </Button>
+            <Button type="button" variant="outline" size="xs" onClick={onBack}>
+              キャンセル
+            </Button>
+          </Group>
+          {changeRole.isError && <Alert color="red">{changeRole.error.message}</Alert>}
+        </Stack>
+      </Table.Td>
+    </Table.Tr>
   );
 }
 
@@ -222,71 +248,73 @@ function UserInstructorLinker({ user, onBack }: UserInstructorLinkerProps) {
   const linkedInstructor = activeInstructors?.find((i) => i.id === user.instructorId);
 
   return (
-    <Card withBorder padding="md" radius="md">
-      <Stack gap="sm">
-        <Group justify="space-between">
-          <Text fw={500}>{user.displayName} — Instructor リンク</Text>
-          <Button type="button" variant="outline" size="sm" onClick={onBack}>
-            戻る
-          </Button>
-        </Group>
+    <Table.Tr>
+      <Table.Td colSpan={COL_COUNT}>
+        <Stack gap="sm">
+          <Group justify="space-between">
+            <Text fw={500}>{user.displayName} — Instructor リンク</Text>
+            <Button type="button" variant="outline" size="xs" onClick={onBack}>
+              戻る
+            </Button>
+          </Group>
 
-        {/* 現在のリンク状態 */}
-        {user.instructorId ? (
-          <Group justify="space-between" bg="gray.0" px="sm" py="xs" style={{ borderRadius: 6 }}>
-            <Text size="sm">
-              リンク中:{' '}
-              {linkedInstructor
-                ? `${linkedInstructor.lastName} ${linkedInstructor.firstName}`
-                : 'インストラクター情報を取得できません'}
+          {/* 現在のリンク状態 */}
+          {user.instructorId ? (
+            <Group justify="space-between" bg="gray.0" px="sm" py="xs" style={{ borderRadius: 6 }}>
+              <Text size="sm">
+                リンク中:{' '}
+                {linkedInstructor
+                  ? `${linkedInstructor.lastName} ${linkedInstructor.firstName}`
+                  : 'インストラクター情報を取得できません'}
+              </Text>
+              <Button
+                type="button"
+                variant="outline"
+                size="xs"
+                loading={unlinkInstructor.isPending}
+                onClick={handleUnlink}
+              >
+                リンク解除
+              </Button>
+            </Group>
+          ) : (
+            <Text c="dimmed" size="sm">
+              Instructor にリンクされていません
             </Text>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              loading={unlinkInstructor.isPending}
-              onClick={handleUnlink}
-            >
-              リンク解除
-            </Button>
-          </Group>
-        ) : (
-          <Text c="dimmed" size="sm">
-            Instructor にリンクされていません
-          </Text>
-        )}
+          )}
 
-        {/* リンクフォーム */}
-        {!user.instructorId && activeInstructors && activeInstructors.length > 0 && (
-          <Group component="form" onSubmit={handleLink} wrap="nowrap">
-            <Select
-              placeholder="インストラクターを選択してください"
-              required
-              data={activeInstructors.map((inst) => ({
-                value: inst.id,
-                label:
-                  inst.lastNameKana && inst.firstNameKana
-                    ? `${inst.lastName} ${inst.firstName}（${inst.lastNameKana} ${inst.firstNameKana}）`
-                    : `${inst.lastName} ${inst.firstName}`,
-              }))}
-              value={selectedInstructorId || null}
-              onChange={(value) => setSelectedInstructorId(value ?? '')}
-              style={{ flex: 1 }}
-            />
-            <Button
-              type="submit"
-              size="sm"
-              loading={linkInstructor.isPending}
-              disabled={!selectedInstructorId}
-            >
-              リンク
-            </Button>
-          </Group>
-        )}
+          {/* リンクフォーム */}
+          {!user.instructorId && activeInstructors && activeInstructors.length > 0 && (
+            <Group component="form" onSubmit={handleLink} wrap="nowrap">
+              <Select
+                placeholder="インストラクターを選択してください"
+                required
+                data={activeInstructors.map((inst) => ({
+                  value: inst.id,
+                  label:
+                    inst.lastNameKana && inst.firstNameKana
+                      ? `${inst.lastName} ${inst.firstName}（${inst.lastNameKana} ${inst.firstNameKana}）`
+                      : `${inst.lastName} ${inst.firstName}`,
+                }))}
+                value={selectedInstructorId || null}
+                onChange={(value) => setSelectedInstructorId(value ?? '')}
+                style={{ flex: 1 }}
+              />
+              <Button
+                type="submit"
+                size="xs"
+                loading={linkInstructor.isPending}
+                disabled={!selectedInstructorId}
+              >
+                リンク
+              </Button>
+            </Group>
+          )}
 
-        {linkInstructor.isError && <Alert color="red">{linkInstructor.error.message}</Alert>}
-        {unlinkInstructor.isError && <Alert color="red">{unlinkInstructor.error.message}</Alert>}
-      </Stack>
-    </Card>
+          {linkInstructor.isError && <Alert color="red">{linkInstructor.error.message}</Alert>}
+          {unlinkInstructor.isError && <Alert color="red">{unlinkInstructor.error.message}</Alert>}
+        </Stack>
+      </Table.Td>
+    </Table.Tr>
   );
 }

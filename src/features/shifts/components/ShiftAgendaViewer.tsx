@@ -167,6 +167,7 @@ export function ShiftAgendaViewer({ date, onVisibleDateChange }: ShiftAgendaView
         <Button
           type="button"
           variant="outline"
+          color="gray"
           size="sm"
           onClick={() => void loadPast()}
           loading={isLoadingPast}

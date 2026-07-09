@@ -39,7 +39,6 @@ export function ShiftAgendaViewer({ date, onVisibleDateChange }: ShiftAgendaView
   const initialDateRef = useRef(date);
   const lastVisibleDateRef = useRef(date);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
-  const [visibleDate, setVisibleDate] = useState(date);
   const [pastPages, setPastPages] = useState<ShiftAgendaResponse[]>([]);
   const [isLoadingPast, setIsLoadingPast] = useState(false);
   const [hasReachedPastEnd, setHasReachedPastEnd] = useState(false);
@@ -102,7 +101,6 @@ export function ShiftAgendaViewer({ date, onVisibleDateChange }: ShiftAgendaView
         const nextDate = visible?.target.getAttribute('data-agenda-date');
         if (nextDate && nextDate !== lastVisibleDateRef.current) {
           lastVisibleDateRef.current = nextDate;
-          setVisibleDate(nextDate);
           onVisibleDateChange(nextDate);
         }
       },
@@ -140,12 +138,7 @@ export function ShiftAgendaViewer({ date, onVisibleDateChange }: ShiftAgendaView
   return (
     <>
       <Stack gap="md">
-        <Group justify="space-between" align="flex-end">
-          <Title order={2}>シフト確認</Title>
-          <Badge variant="light" color="blue">
-            {toMonth(visibleDate).replace('-', '年')}月
-          </Badge>
-        </Group>
+        <Title order={2}>シフト確認</Title>
 
         <Group align="flex-end" gap="sm">
           <Select

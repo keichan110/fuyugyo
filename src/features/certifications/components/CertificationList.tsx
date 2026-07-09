@@ -4,9 +4,9 @@ import {
   Alert,
   Badge,
   Button,
-  Card,
   Group,
   Stack,
+  Table,
   Text,
   Textarea,
   TextInput,
@@ -17,6 +17,9 @@ import { useDepartments } from '@/features/departments/queries';
 
 import { useCertifications, useDeactivateCertification, useUpdateCertification } from '../queries';
 import { CertificationForm } from './CertificationForm';
+
+/** テーブルの列数（編集モードの colSpan に使用） */
+const COL_COUNT = 5;
 
 /**
  * 資格一覧と作成・編集・無効化操作を提供するコンポーネント。
@@ -55,26 +58,39 @@ export function CertificationList() {
       )}
 
       {data && data.length > 0 && (
-        <Stack gap="sm">
-          {data.map((cert) => (
-            <CertificationItem
-              key={cert.id}
-              id={cert.id}
-              name={cert.name}
-              shortName={cert.shortName}
-              organization={cert.organization}
-              description={cert.description}
-              isActive={cert.isActive}
-              departmentName={deptNameMap.get(cert.departmentId) ?? cert.departmentId}
-            />
-          ))}
-        </Stack>
+        <Table.ScrollContainer minWidth={600}>
+          <Table highlightOnHover withTableBorder withRowBorders>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>資格名</Table.Th>
+                <Table.Th w={100}>省略名</Table.Th>
+                <Table.Th w={120}>部門</Table.Th>
+                <Table.Th w={140}>発行団体</Table.Th>
+                <Table.Th w={160}>操作</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {data.map((cert) => (
+                <CertificationRow
+                  key={cert.id}
+                  id={cert.id}
+                  name={cert.name}
+                  shortName={cert.shortName}
+                  organization={cert.organization}
+                  description={cert.description}
+                  isActive={cert.isActive}
+                  departmentName={deptNameMap.get(cert.departmentId) ?? cert.departmentId}
+                />
+              ))}
+            </Table.Tbody>
+          </Table>
+        </Table.ScrollContainer>
       )}
     </Stack>
   );
 }
 
-type CertificationItemProps = {
+type CertificationRowProps = {
   id: string;
   name: string;
   shortName: string;
@@ -87,21 +103,21 @@ type CertificationItemProps = {
 /**
  * 資格の1行表示。編集モードと表示モードを切り替える。
  */
-function CertificationItem(props: CertificationItemProps) {
+function CertificationRow(props: CertificationRowProps) {
   const [editing, setEditing] = useState(false);
   return editing ? (
-    <CertificationItemEdit {...props} onCancel={() => setEditing(false)} />
+    <CertificationRowEdit {...props} onCancel={() => setEditing(false)} />
   ) : (
-    <CertificationItemDisplay {...props} onEdit={() => setEditing(true)} />
+    <CertificationRowDisplay {...props} onEdit={() => setEditing(true)} />
   );
 }
 
-type CertificationItemDisplayProps = CertificationItemProps & {
+type CertificationRowDisplayProps = CertificationRowProps & {
   onEdit: () => void;
 };
 
 /** 資格の表示モード。無効化ボタンを持つ。 */
-function CertificationItemDisplay({
+function CertificationRowDisplay({
   id,
   name,
   shortName,
@@ -110,69 +126,78 @@ function CertificationItemDisplay({
   isActive,
   departmentName,
   onEdit,
-}: CertificationItemDisplayProps) {
+}: CertificationRowDisplayProps) {
   const deactivate = useDeactivateCertification();
 
   return (
-    <Card withBorder padding="md" radius="md">
-      <Stack gap="sm">
-        <Group justify="space-between" align="flex-start" wrap="nowrap">
-          <Stack gap={4}>
-            <Group gap="xs">
-              <Text fw={500}>{name}</Text>
-              <Text c="dimmed" size="sm" ff="monospace">
-                ({shortName})
-              </Text>
-              {!isActive && (
-                <Badge color="gray" variant="light" size="sm">
-                  無効
-                </Badge>
-              )}
-            </Group>
-            <Text c="dimmed" size="sm">
-              {departmentName} ／ {organization}
-            </Text>
-            {description && (
-              <Text c="dimmed" size="sm">
-                {description}
-              </Text>
+    <Table.Tr>
+      <Table.Td>
+        <Stack gap={2}>
+          <Group gap="xs">
+            <Text fw={500}>{name}</Text>
+            {!isActive && (
+              <Badge color="gray" variant="light" size="sm">
+                無効
+              </Badge>
             )}
-          </Stack>
-          {isActive && (
-            <Group gap="xs" wrap="nowrap">
-              <Button variant="outline" size="sm" onClick={onEdit}>
-                編集
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                loading={deactivate.isPending}
-                onClick={() => deactivate.mutate(id)}
-              >
-                無効化
-              </Button>
-            </Group>
+          </Group>
+          {description && (
+            <Text c="dimmed" size="xs">
+              {description}
+            </Text>
           )}
-        </Group>
-        {deactivate.isError && <Alert color="red">{deactivate.error.message}</Alert>}
-      </Stack>
-    </Card>
+        </Stack>
+        {deactivate.isError && (
+          <Alert color="red" mt="xs">
+            {deactivate.error.message}
+          </Alert>
+        )}
+      </Table.Td>
+      <Table.Td>
+        <Text size="sm" ff="monospace">
+          {shortName}
+        </Text>
+      </Table.Td>
+      <Table.Td>
+        <Text size="sm">{departmentName}</Text>
+      </Table.Td>
+      <Table.Td>
+        <Text size="sm">{organization}</Text>
+      </Table.Td>
+      <Table.Td>
+        {isActive && (
+          <Group gap="xs">
+            <Button variant="outline" size="xs" onClick={onEdit}>
+              編集
+            </Button>
+            <Button
+              variant="outline"
+              size="xs"
+              loading={deactivate.isPending}
+              onClick={() => deactivate.mutate(id)}
+            >
+              無効化
+            </Button>
+          </Group>
+        )}
+      </Table.Td>
+    </Table.Tr>
   );
 }
 
-type CertificationItemEditProps = CertificationItemProps & {
+type CertificationRowEditProps = CertificationRowProps & {
   onCancel: () => void;
 };
 
 /** 資格の編集モード。フォームを送信して PATCH する。 */
-function CertificationItemEdit({
+function CertificationRowEdit({
   id,
   name,
   shortName,
   organization,
   description,
   onCancel,
-}: CertificationItemEditProps) {
+}: CertificationRowEditProps) {
   const [editName, setEditName] = useState(name);
   const [editShortName, setEditShortName] = useState(shortName);
   const [editOrganization, setEditOrganization] = useState(organization);
@@ -193,49 +218,51 @@ function CertificationItemEdit({
   };
 
   return (
-    <Card component="form" onSubmit={handleUpdate} withBorder padding="md" radius="md">
-      <Stack gap="sm">
-        <Group grow>
+    <Table.Tr>
+      <Table.Td colSpan={COL_COUNT}>
+        <Stack component="form" onSubmit={handleUpdate} gap="sm">
+          <Group grow>
+            <TextInput
+              value={editName}
+              onChange={(e) => setEditName(e.currentTarget.value)}
+              required
+              maxLength={100}
+              placeholder="資格名"
+              autoFocus
+            />
+            <TextInput
+              value={editShortName}
+              onChange={(e) => setEditShortName(e.currentTarget.value)}
+              required
+              maxLength={20}
+              placeholder="省略名"
+            />
+          </Group>
           <TextInput
-            value={editName}
-            onChange={(e) => setEditName(e.currentTarget.value)}
+            value={editOrganization}
+            onChange={(e) => setEditOrganization(e.currentTarget.value)}
             required
             maxLength={100}
-            placeholder="資格名"
-            autoFocus
+            placeholder="発行団体"
           />
-          <TextInput
-            value={editShortName}
-            onChange={(e) => setEditShortName(e.currentTarget.value)}
-            required
-            maxLength={20}
-            placeholder="省略名"
+          <Textarea
+            value={editDescription}
+            onChange={(e) => setEditDescription(e.currentTarget.value)}
+            maxLength={500}
+            rows={2}
+            placeholder="説明（任意）"
           />
-        </Group>
-        <TextInput
-          value={editOrganization}
-          onChange={(e) => setEditOrganization(e.currentTarget.value)}
-          required
-          maxLength={100}
-          placeholder="発行団体"
-        />
-        <Textarea
-          value={editDescription}
-          onChange={(e) => setEditDescription(e.currentTarget.value)}
-          maxLength={500}
-          rows={2}
-          placeholder="説明（任意）"
-        />
-        <Group gap="xs">
-          <Button type="submit" size="sm" loading={update.isPending}>
-            保存
-          </Button>
-          <Button type="button" variant="outline" size="sm" onClick={onCancel}>
-            キャンセル
-          </Button>
-        </Group>
-        {update.isError && <Alert color="red">{update.error.message}</Alert>}
-      </Stack>
-    </Card>
+          <Group gap="xs">
+            <Button type="submit" size="xs" loading={update.isPending}>
+              保存
+            </Button>
+            <Button type="button" variant="outline" size="xs" onClick={onCancel}>
+              キャンセル
+            </Button>
+          </Group>
+          {update.isError && <Alert color="red">{update.error.message}</Alert>}
+        </Stack>
+      </Table.Td>
+    </Table.Tr>
   );
 }

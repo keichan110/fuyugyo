@@ -2,6 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 
 import { createTheme, MantineProvider } from '@mantine/core';
+import { Notifications } from '@mantine/notifications';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { createRouter, RouterProvider } from '@tanstack/react-router';
 
@@ -11,6 +12,7 @@ import { routeTree } from './routeTree.gen';
 
 import '@mantine/core/styles.css';
 import '@mantine/dates/styles.css';
+import '@mantine/notifications/styles.css';
 import '@mantine/schedule/styles.css';
 import './styles.css';
 
@@ -35,6 +37,7 @@ if (!rootElement) {
 createRoot(rootElement).render(
   <StrictMode>
     <MantineProvider theme={theme} defaultColorScheme="light">
+      <Notifications />
       <QueryClientProvider client={queryClient}>
         <RouterProvider router={router} />
       </QueryClientProvider>

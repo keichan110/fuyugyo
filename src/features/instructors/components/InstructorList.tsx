@@ -1,374 +1,281 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
 import {
+  ActionIcon,
   Alert,
+  Avatar,
   Badge,
   Button,
+  EmptyState,
   Group,
-  Select,
+  Menu,
+  SegmentedControl,
+  Skeleton,
   Stack,
   Table,
   Text,
-  Textarea,
   TextInput,
   Title,
+  Tooltip,
 } from '@mantine/core';
+import { notifications } from '@mantine/notifications';
+import { IconDotsVertical, IconPlus, IconSearch, IconUsers } from '@tabler/icons-react';
 
-import { useCertifications } from '@/features/certifications/queries';
+import { useChangeInstructorStatus, useInstructors } from '../queries';
+import type { InstructorListItem } from '../schema';
+import { InstructorDrawer, type InstructorDrawerState } from './InstructorDrawer';
 
-import {
-  useAssignCertification,
-  useChangeInstructorStatus,
-  useInstructor,
-  useInstructors,
-  useUnassignCertification,
-  useUpdateInstructor,
-} from '../queries';
-import type { Instructor } from '../schema';
-import { InstructorForm } from './InstructorForm';
+/** 一覧に表示する資格バッジの最大数（超過分は "+n" にまとめる） */
+const MAX_VISIBLE_CERTS = 3;
 
-/** テーブルの列数（編集・資格管理モードの colSpan に使用） */
-const COL_COUNT = 3;
+/** ステータス絞り込みの選択肢 */
+const STATUS_FILTERS = [
+  { label: 'すべて', value: 'ALL' },
+  { label: 'アクティブ', value: 'ACTIVE' },
+  { label: '非アクティブ', value: 'INACTIVE' },
+] as const;
+
+type StatusFilter = (typeof STATUS_FILTERS)[number]['value'];
+
+/** インストラクターの表示名（姓 名）を組み立てる */
+function fullNameOf(instructor: InstructorListItem): string {
+  return `${instructor.lastName} ${instructor.firstName}`;
+}
+
+/** インストラクターのカナ表示名を組み立てる（カナ未登録の場合は null） */
+function fullNameKanaOf(instructor: InstructorListItem): string | null {
+  return instructor.lastNameKana && instructor.firstNameKana
+    ? `${instructor.lastNameKana} ${instructor.firstNameKana}`
+    : null;
+}
 
 /**
- * インストラクター一覧と作成・編集・ステータス変更・資格管理を提供するコンポーネント。
+ * インストラクター一覧と検索・絞り込み、作成・編集への導線を提供するコンポーネント。
+ * 作成・編集・資格管理・ステータス変更は InstructorDrawer に集約する。
  */
 export function InstructorList() {
-  const [showForm, setShowForm] = useState(false);
-  // 管理画面では全ステータスを表示する
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
+  const [drawerState, setDrawerState] = useState<InstructorDrawerState | null>(null);
+
+  // 管理画面では全ステータスを表示するため ACTIVE / INACTIVE を両方取得する
   const activeData = useInstructors('ACTIVE');
   const inactiveData = useInstructors('INACTIVE');
 
-  const allInstructors = [...(activeData.data ?? []), ...(inactiveData.data ?? [])];
+  const allInstructors = useMemo(
+    () => [...(activeData.data ?? []), ...(inactiveData.data ?? [])],
+    [activeData.data, inactiveData.data],
+  );
   const isLoading = activeData.isLoading || inactiveData.isLoading;
   const isError = activeData.isError || inactiveData.isError;
+  const activeCount = allInstructors.filter((i) => i.status === 'ACTIVE').length;
+
+  const visibleInstructors = useMemo(() => {
+    const query = search.trim();
+    return allInstructors.filter((instructor) => {
+      if (statusFilter !== 'ALL' && instructor.status !== statusFilter) return false;
+      if (query.length === 0) return true;
+      const haystack = `${fullNameOf(instructor)}${fullNameKanaOf(instructor) ?? ''}`;
+      return haystack.includes(query);
+    });
+  }, [allInstructors, statusFilter, search]);
 
   return (
     <Stack gap="md">
-      <Group justify="space-between">
-        <Title order={2}>インストラクター管理</Title>
-        <Button onClick={() => setShowForm((prev) => !prev)}>
-          {showForm ? 'キャンセル' : 'インストラクターを追加'}
+      <Group justify="space-between" align="flex-start">
+        <div>
+          <Title order={2}>インストラクター管理</Title>
+          {!isLoading && (
+            <Text c="dimmed" size="sm">
+              全{allInstructors.length}名（アクティブ{activeCount}名）
+            </Text>
+          )}
+        </div>
+        <Button
+          leftSection={<IconPlus size={16} />}
+          onClick={() => setDrawerState({ mode: 'create' })}
+        >
+          インストラクターを追加
         </Button>
       </Group>
 
-      {showForm && <InstructorForm onSuccess={() => setShowForm(false)} />}
+      <Group justify="space-between" wrap="wrap">
+        <TextInput
+          placeholder="氏名・カナで検索"
+          leftSection={<IconSearch size={16} />}
+          value={search}
+          onChange={(e) => setSearch(e.currentTarget.value)}
+          style={{ flex: 1, minWidth: 240 }}
+        />
+        <SegmentedControl
+          value={statusFilter}
+          onChange={(value) => setStatusFilter(value as StatusFilter)}
+          data={STATUS_FILTERS.map((f) => ({ label: f.label, value: f.value }))}
+        />
+      </Group>
 
-      {isLoading && (
-        <Text c="dimmed" size="sm">
-          読み込み中…
-        </Text>
-      )}
       {isError && <Alert color="red">インストラクター一覧の取得に失敗しました</Alert>}
 
-      {!isLoading && allInstructors.length === 0 && (
-        <Text c="dimmed" size="sm">
-          インストラクターがいません
-        </Text>
+      {isLoading && (
+        <Stack gap="xs">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Skeleton key={i} height={52} radius="sm" />
+          ))}
+        </Stack>
       )}
 
-      {allInstructors.length > 0 && (
-        <Table.ScrollContainer minWidth={500}>
-          <Table highlightOnHover withTableBorder withRowBorders>
+      {!isLoading && allInstructors.length === 0 && (
+        <EmptyState
+          icon={<IconUsers size={32} stroke={1.5} />}
+          title="インストラクターがいません"
+          description="最初のインストラクターを追加して名簿を作成しましょう。"
+        >
+          <EmptyState.Actions>
+            <Button
+              leftSection={<IconPlus size={16} />}
+              onClick={() => setDrawerState({ mode: 'create' })}
+            >
+              インストラクターを追加
+            </Button>
+          </EmptyState.Actions>
+        </EmptyState>
+      )}
+
+      {!isLoading && allInstructors.length > 0 && visibleInstructors.length === 0 && (
+        <EmptyState
+          icon={<IconSearch size={32} stroke={1.5} />}
+          title="条件に一致するインストラクターがいません"
+          description="検索キーワードや絞り込み条件を変更してみてください。"
+        />
+      )}
+
+      {visibleInstructors.length > 0 && (
+        <Table.ScrollContainer minWidth={640}>
+          <Table highlightOnHover withTableBorder withRowBorders verticalSpacing="sm">
             <Table.Thead>
               <Table.Tr>
                 <Table.Th>氏名</Table.Th>
+                <Table.Th>資格</Table.Th>
+                <Table.Th w={120}>状態</Table.Th>
                 <Table.Th>備考</Table.Th>
-                <Table.Th w={260}>操作</Table.Th>
+                <Table.Th w={56} />
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
-              {allInstructors.map((instructor) => (
-                <InstructorRow key={instructor.id} instructor={instructor} />
+              {visibleInstructors.map((instructor) => (
+                <InstructorRow
+                  key={instructor.id}
+                  instructor={instructor}
+                  onEdit={() => setDrawerState({ mode: 'edit', instructorId: instructor.id })}
+                />
               ))}
             </Table.Tbody>
           </Table>
         </Table.ScrollContainer>
       )}
+
+      <InstructorDrawer state={drawerState} onClose={() => setDrawerState(null)} />
     </Stack>
   );
 }
 
 type InstructorRowProps = {
-  instructor: Instructor;
-};
-
-/**
- * インストラクターの1行表示。編集モードと表示モードを切り替える。
- */
-function InstructorRow({ instructor }: InstructorRowProps) {
-  const [mode, setMode] = useState<'display' | 'edit' | 'cert'>('display');
-
-  if (mode === 'edit') {
-    return <InstructorRowEdit instructor={instructor} onCancel={() => setMode('display')} />;
-  }
-  if (mode === 'cert') {
-    return <InstructorCertManager instructor={instructor} onBack={() => setMode('display')} />;
-  }
-  return (
-    <InstructorRowDisplay
-      instructor={instructor}
-      onEdit={() => setMode('edit')}
-      onManageCert={() => setMode('cert')}
-    />
-  );
-}
-
-type InstructorRowDisplayProps = {
-  instructor: Instructor;
+  instructor: InstructorListItem;
   onEdit: () => void;
-  onManageCert: () => void;
 };
 
-/** インストラクターの表示モード。ステータス変更ボタンを持つ。 */
-function InstructorRowDisplay({ instructor, onEdit, onManageCert }: InstructorRowDisplayProps) {
+/** インストラクター一覧の1行。クリックで編集 Drawer を開く。 */
+function InstructorRow({ instructor, onEdit }: InstructorRowProps) {
   const changeStatus = useChangeInstructorStatus(instructor.id);
   const isActive = instructor.status === 'ACTIVE';
+  const fullName = fullNameOf(instructor);
+  const fullNameKana = fullNameKanaOf(instructor);
 
-  const fullName = `${instructor.lastName} ${instructor.firstName}`;
-  const fullNameKana =
-    instructor.lastNameKana && instructor.firstNameKana
-      ? `${instructor.lastNameKana} ${instructor.firstNameKana}`
-      : null;
+  const visibleCerts = instructor.certifications.slice(0, MAX_VISIBLE_CERTS);
+  const hiddenCerts = instructor.certifications.slice(MAX_VISIBLE_CERTS);
 
-  return (
-    <Table.Tr>
-      <Table.Td>
-        <Group gap="xs">
-          <Text fw={500}>{fullName}</Text>
-          {fullNameKana && (
-            <Text c="dimmed" size="sm">
-              （{fullNameKana}）
-            </Text>
-          )}
-          {!isActive && (
-            <Badge color="gray" variant="light" size="sm">
-              非アクティブ
-            </Badge>
-          )}
-        </Group>
-        {changeStatus.isError && (
-          <Alert color="red" mt="xs">
-            {changeStatus.error.message}
-          </Alert>
-        )}
-      </Table.Td>
-      <Table.Td>
-        {instructor.notes && (
-          <Text c="dimmed" size="sm">
-            {instructor.notes}
-          </Text>
-        )}
-      </Table.Td>
-      <Table.Td>
-        <Group gap="xs">
-          <Button variant="outline" size="xs" onClick={onEdit}>
-            編集
-          </Button>
-          <Button variant="outline" size="xs" onClick={onManageCert}>
-            資格管理
-          </Button>
-          <Button
-            variant="outline"
-            size="xs"
-            loading={changeStatus.isPending}
-            onClick={() => changeStatus.mutate({ status: isActive ? 'INACTIVE' : 'ACTIVE' })}
-          >
-            {isActive ? '非アクティブ化' : 'アクティブ化'}
-          </Button>
-        </Group>
-      </Table.Td>
-    </Table.Tr>
-  );
-}
-
-type InstructorRowEditProps = {
-  instructor: Instructor;
-  onCancel: () => void;
-};
-
-/** インストラクターの編集モード。フォームを送信して PATCH する。 */
-function InstructorRowEdit({ instructor, onCancel }: InstructorRowEditProps) {
-  const [lastName, setLastName] = useState(instructor.lastName);
-  const [firstName, setFirstName] = useState(instructor.firstName);
-  const [lastNameKana, setLastNameKana] = useState(instructor.lastNameKana ?? '');
-  const [firstNameKana, setFirstNameKana] = useState(instructor.firstNameKana ?? '');
-  const [notes, setNotes] = useState(instructor.notes ?? '');
-  const update = useUpdateInstructor(instructor.id);
-
-  const handleUpdate = (e: React.FormEvent) => {
-    e.preventDefault();
-    update.mutate(
+  const handleToggleStatus = () => {
+    const nextStatus = isActive ? 'INACTIVE' : 'ACTIVE';
+    changeStatus.mutate(
+      { status: nextStatus },
       {
-        lastName,
-        firstName,
-        lastNameKana: lastNameKana || null,
-        firstNameKana: firstNameKana || null,
-        notes: notes || null,
+        onSuccess: () => {
+          notifications.show({
+            color: 'green',
+            message: `${fullName}を${nextStatus === 'ACTIVE' ? 'アクティブ' : '非アクティブ'}にしました`,
+          });
+        },
       },
-      { onSuccess: onCancel },
     );
   };
 
   return (
-    <Table.Tr>
-      <Table.Td colSpan={COL_COUNT}>
-        <Stack component="form" onSubmit={handleUpdate} gap="sm">
-          <Group grow>
-            <TextInput
-              value={lastName}
-              onChange={(e) => setLastName(e.currentTarget.value)}
-              required
-              maxLength={50}
-              placeholder="姓"
-              autoFocus
-            />
-            <TextInput
-              value={firstName}
-              onChange={(e) => setFirstName(e.currentTarget.value)}
-              required
-              maxLength={50}
-              placeholder="名"
-            />
-          </Group>
-          <Group grow>
-            <TextInput
-              value={lastNameKana}
-              onChange={(e) => setLastNameKana(e.currentTarget.value)}
-              maxLength={50}
-              placeholder="姓（カナ）"
-            />
-            <TextInput
-              value={firstNameKana}
-              onChange={(e) => setFirstNameKana(e.currentTarget.value)}
-              maxLength={50}
-              placeholder="名（カナ）"
-            />
-          </Group>
-          <Textarea
-            value={notes}
-            onChange={(e) => setNotes(e.currentTarget.value)}
-            maxLength={500}
-            rows={2}
-            placeholder="備考（任意）"
-          />
-          <Group gap="xs">
-            <Button type="submit" size="xs" loading={update.isPending}>
-              保存
-            </Button>
-            <Button type="button" variant="outline" size="xs" onClick={onCancel}>
-              キャンセル
-            </Button>
-          </Group>
-          {update.isError && <Alert color="red">{update.error.message}</Alert>}
-        </Stack>
-      </Table.Td>
-    </Table.Tr>
-  );
-}
-
-type InstructorCertManagerProps = {
-  instructor: Instructor;
-  onBack: () => void;
-};
-
-/**
- * インストラクターの資格管理パネル。
- * useInstructor で詳細データを取得し、資格の割り当て・解除を操作する。
- */
-function InstructorCertManager({ instructor, onBack }: InstructorCertManagerProps) {
-  const [selectedCertId, setSelectedCertId] = useState('');
-  // 詳細（割り当て済み certifications 含む）を API から取得する
-  const { data: detail, isLoading: detailLoading } = useInstructor(instructor.id);
-  // 無効化された資格の名前も表示できるよう全件取得する
-  const { data: allCerts } = useCertifications(false);
-  const assign = useAssignCertification(instructor.id);
-  const unassign = useUnassignCertification(instructor.id);
-
-  // certificationId → Certification のマップ（名前表示に使用）
-  const certMap = new Map(allCerts?.map((c) => [c.id, c]) ?? []);
-  const assignedCertIds = new Set(detail?.certifications.map((ic) => ic.certificationId) ?? []);
-  // 割り当てフォームにはアクティブかつ未割り当ての資格のみ表示する
-  const availableCerts = allCerts?.filter((c) => c.isActive && !assignedCertIds.has(c.id)) ?? [];
-
-  const handleAssign = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedCertId) return;
-    assign.mutate({ certificationId: selectedCertId }, { onSuccess: () => setSelectedCertId('') });
-  };
-
-  return (
-    <Table.Tr>
-      <Table.Td colSpan={COL_COUNT}>
-        <Stack gap="sm">
-          <Group justify="space-between">
-            <Text fw={500}>
-              {instructor.lastName} {instructor.firstName} — 資格管理
+    <Table.Tr onClick={onEdit} style={{ cursor: 'pointer' }}>
+      <Table.Td>
+        <Group gap="sm" wrap="nowrap">
+          <Avatar color="initials" name={fullName} radius="xl" size="sm" />
+          <div>
+            <Text fw={500} size="sm">
+              {fullName}
             </Text>
-            <Button type="button" variant="outline" size="xs" onClick={onBack}>
-              戻る
-            </Button>
-          </Group>
-
-          {detailLoading && (
-            <Text c="dimmed" size="sm">
-              読み込み中…
-            </Text>
-          )}
-
-          {/* 割り当て済み一覧 */}
-          {!detailLoading &&
-            (detail && detail.certifications.length > 0 ? (
-              <Stack gap={4}>
-                {detail.certifications.map((ic) => {
-                  const cert = certMap.get(ic.certificationId);
-                  return (
-                    <Group key={ic.id} justify="space-between" gap="xs">
-                      <Text size="sm">
-                        {cert ? `${cert.name}（${cert.shortName}）` : ic.certificationId}
-                      </Text>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="xs"
-                        loading={unassign.isPending}
-                        onClick={() => unassign.mutate(ic.certificationId)}
-                      >
-                        解除
-                      </Button>
-                    </Group>
-                  );
-                })}
-              </Stack>
-            ) : (
-              <Text c="dimmed" size="sm">
-                割り当て済みの資格がありません
+            {fullNameKana && (
+              <Text c="dimmed" size="xs">
+                {fullNameKana}
               </Text>
+            )}
+          </div>
+        </Group>
+      </Table.Td>
+      <Table.Td>
+        {instructor.certifications.length > 0 ? (
+          <Group gap={4} wrap="wrap">
+            {visibleCerts.map((cert) => (
+              <Tooltip key={cert.id} label={cert.name}>
+                <Badge variant="light" color={cert.isActive ? 'blue' : 'gray'} size="sm">
+                  {cert.shortName}
+                </Badge>
+              </Tooltip>
             ))}
-
-          {/* 資格割り当てフォーム */}
-          {availableCerts.length > 0 && (
-            <Group component="form" onSubmit={handleAssign} wrap="nowrap">
-              <Select
-                placeholder="資格を選択してください"
-                required
-                data={availableCerts.map((cert) => ({
-                  value: cert.id,
-                  label: `${cert.name}（${cert.shortName}）`,
-                }))}
-                value={selectedCertId || null}
-                onChange={(value) => setSelectedCertId(value ?? '')}
-                style={{ flex: 1 }}
-              />
-              <Button type="submit" size="xs" loading={assign.isPending} disabled={!selectedCertId}>
-                割り当て
-              </Button>
-            </Group>
-          )}
-
-          {assign.isError && <Alert color="red">{assign.error.message}</Alert>}
-          {unassign.isError && <Alert color="red">{unassign.error.message}</Alert>}
-        </Stack>
+            {hiddenCerts.length > 0 && (
+              <Tooltip label={hiddenCerts.map((c) => c.name).join('、')}>
+                <Badge variant="outline" color="gray" size="sm">
+                  +{hiddenCerts.length}
+                </Badge>
+              </Tooltip>
+            )}
+          </Group>
+        ) : (
+          <Text c="dimmed" size="sm">
+            —
+          </Text>
+        )}
+      </Table.Td>
+      <Table.Td>
+        <Badge color={isActive ? 'green' : 'gray'} variant="light">
+          {isActive ? 'アクティブ' : '非アクティブ'}
+        </Badge>
+      </Table.Td>
+      <Table.Td>
+        {instructor.notes && (
+          <Text c="dimmed" size="sm" lineClamp={1}>
+            {instructor.notes}
+          </Text>
+        )}
+      </Table.Td>
+      <Table.Td onClick={(e) => e.stopPropagation()}>
+        <Menu shadow="md" position="bottom-end">
+          <Menu.Target>
+            <ActionIcon variant="subtle" color="gray">
+              <IconDotsVertical size={16} />
+            </ActionIcon>
+          </Menu.Target>
+          <Menu.Dropdown>
+            <Menu.Item onClick={onEdit}>編集</Menu.Item>
+            <Menu.Item onClick={handleToggleStatus} disabled={changeStatus.isPending}>
+              {isActive ? '非アクティブ化' : 'アクティブ化'}
+            </Menu.Item>
+          </Menu.Dropdown>
+        </Menu>
       </Table.Td>
     </Table.Tr>
   );

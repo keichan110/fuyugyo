@@ -1,93 +1,105 @@
-import { useState } from 'react';
+import { Button, Group, Stack, Textarea, TextInput } from '@mantine/core';
+import { useForm } from '@mantine/form';
 
-import { Alert, Button, Card, Group, Stack, Textarea, TextInput } from '@mantine/core';
+/** InstructorForm が扱う入力値 */
+export type InstructorFormValues = {
+  lastName: string;
+  firstName: string;
+  lastNameKana: string;
+  firstNameKana: string;
+  notes: string;
+};
 
-import { useCreateInstructor } from '../queries';
+const EMPTY_VALUES: InstructorFormValues = {
+  lastName: '',
+  firstName: '',
+  lastNameKana: '',
+  firstNameKana: '',
+  notes: '',
+};
 
 type Props = {
-  onSuccess?: () => void;
+  /** 編集時の初期値（未指定時は空フォーム＝作成モード） */
+  initialValues?: InstructorFormValues;
+  /** 送信ボタンのラベル（例: 「作成」「保存」） */
+  submitLabel: string;
+  loading?: boolean;
+  onSubmit: (values: InstructorFormValues) => void;
 };
 
 /**
- * インストラクター作成フォーム。姓・名・カナ・備考を入力して POST する。
+ * インストラクターの姓名・カナ・備考を入力するフォーム。
+ * 作成・編集の両モードで共用し、送信処理は呼び出し側に委ねる。
  */
-export function InstructorForm({ onSuccess }: Props) {
-  const [lastName, setLastName] = useState('');
-  const [firstName, setFirstName] = useState('');
-  const [lastNameKana, setLastNameKana] = useState('');
-  const [firstNameKana, setFirstNameKana] = useState('');
-  const [notes, setNotes] = useState('');
-
-  const create = useCreateInstructor();
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    create.mutate(
-      {
-        lastName,
-        firstName,
-        lastNameKana: lastNameKana || undefined,
-        firstNameKana: firstNameKana || undefined,
-        notes: notes || undefined,
+export function InstructorForm({ initialValues, submitLabel, loading = false, onSubmit }: Props) {
+  const form = useForm<InstructorFormValues>({
+    initialValues: initialValues ?? EMPTY_VALUES,
+    validate: {
+      lastName: (value) => {
+        if (value.trim().length === 0) return '姓を入力してください';
+        if (value.length > 50) return '姓は50文字以内で入力してください';
+        return null;
       },
-      onSuccess ? { onSuccess } : undefined,
-    );
-  };
+      firstName: (value) => {
+        if (value.trim().length === 0) return '名を入力してください';
+        if (value.length > 50) return '名は50文字以内で入力してください';
+        return null;
+      },
+      lastNameKana: (value) => (value.length > 50 ? 'カナは50文字以内で入力してください' : null),
+      firstNameKana: (value) => (value.length > 50 ? 'カナは50文字以内で入力してください' : null),
+      notes: (value) => (value.length > 500 ? '備考は500文字以内で入力してください' : null),
+    },
+  });
 
   return (
-    <Card component="form" onSubmit={handleSubmit} withBorder padding="md" radius="md">
+    <form onSubmit={form.onSubmit(onSubmit)}>
       <Stack gap="sm">
-        <Group grow>
+        <Group grow align="flex-start">
           <TextInput
             label="姓"
             required
-            value={lastName}
-            onChange={(e) => setLastName(e.currentTarget.value)}
             maxLength={50}
             placeholder="例: 山田"
+            {...form.getInputProps('lastName')}
           />
           <TextInput
             label="名"
             required
-            value={firstName}
-            onChange={(e) => setFirstName(e.currentTarget.value)}
             maxLength={50}
             placeholder="例: 太郎"
+            {...form.getInputProps('firstName')}
           />
         </Group>
 
-        <Group grow>
+        <Group grow align="flex-start">
           <TextInput
             label="姓（カナ）"
-            value={lastNameKana}
-            onChange={(e) => setLastNameKana(e.currentTarget.value)}
             maxLength={50}
             placeholder="例: ヤマダ"
+            {...form.getInputProps('lastNameKana')}
           />
           <TextInput
             label="名（カナ）"
-            value={firstNameKana}
-            onChange={(e) => setFirstNameKana(e.currentTarget.value)}
             maxLength={50}
             placeholder="例: タロウ"
+            {...form.getInputProps('firstNameKana')}
           />
         </Group>
 
         <Textarea
           label="備考"
-          value={notes}
-          onChange={(e) => setNotes(e.currentTarget.value)}
           maxLength={500}
           rows={2}
           placeholder="備考（任意）"
+          {...form.getInputProps('notes')}
         />
 
-        {create.isError && <Alert color="red">{create.error.message}</Alert>}
-
-        <Button type="submit" loading={create.isPending}>
-          作成
-        </Button>
+        <Group justify="flex-end">
+          <Button type="submit" loading={loading}>
+            {submitLabel}
+          </Button>
+        </Group>
       </Stack>
-    </Card>
+    </form>
   );
 }

@@ -16,7 +16,7 @@ export const Route = createFileRoute('/instructors')({
 
 function InstructorsPage() {
   return (
-    <Container size="sm" py="md">
+    <Container size="lg" py="md">
       <InstructorList />
     </Container>
   );

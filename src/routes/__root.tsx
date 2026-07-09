@@ -1,4 +1,5 @@
 import { AppShell, Avatar, Group, Menu, Text, UnstyledButton } from '@mantine/core';
+import { IconCalendarCog, IconCalendarWeek, IconSettings, type Icon } from '@tabler/icons-react';
 import type { QueryClient } from '@tanstack/react-query';
 import { createRootRouteWithContext, Link, Outlet, useNavigate } from '@tanstack/react-router';
 
@@ -26,7 +27,7 @@ function RootLayout() {
   return (
     <AppShell header={{ height: 60 }} padding="md">
       <AppShell.Header>
-        <Group h="100%" px="md" justify="space-between">
+        <Group h="100%" px="md" justify="space-between" wrap="nowrap">
           <Text
             component={Link}
             to="/"
@@ -37,10 +38,20 @@ function RootLayout() {
           >
             Fuyugyō
           </Text>
-          <Group gap="sm">
-            {hasMinimumRole(user.role, 'MANAGER') && <AdminMenu isAdmin={user.role === 'ADMIN'} />}
-            <UserMenu user={user} />
+          <Group gap="xs" justify="center" style={{ flex: 1 }} wrap="nowrap">
+            <HeaderLink to="/shifts" icon={IconCalendarWeek}>
+              シフト表
+            </HeaderLink>
+            {hasMinimumRole(user.role, 'MANAGER') && (
+              <HeaderLink to="/shifts/manage" icon={IconCalendarCog}>
+                シフト管理
+              </HeaderLink>
+            )}
+            {hasMinimumRole(user.role, 'MANAGER') && (
+              <SettingsMenu isAdmin={user.role === 'ADMIN'} />
+            )}
           </Group>
+          <UserMenu user={user} />
         </Group>
       </AppShell.Header>
       <AppShell.Main>
@@ -50,28 +61,51 @@ function RootLayout() {
   );
 }
 
+/** ヘッダー中央のよく使う導線用リンク（設定メニューボタンと統一感のあるスタイル） */
+function HeaderLink({ to, icon: Icon, children }: { to: string; icon: Icon; children: string }) {
+  return (
+    <Text
+      component={Link}
+      to={to}
+      size="sm"
+      fw={500}
+      c="var(--mantine-color-text)"
+      px="sm"
+      py={4}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 6,
+        textDecoration: 'none',
+        borderRadius: 4,
+      }}
+    >
+      <Icon size={16} stroke={1.75} />
+      {children}
+    </Text>
+  );
+}
+
 /**
- * 管理者向けナビゲーションメニュー（ADR 0009: シフト運用/マスタ管理/ユーザー管理の3グループ）。
- * シフト運用・マスタ管理は MANAGER 以上、ユーザー管理は ADMIN のみに表示する
- * （API 側の `requireRole` と揃える）。
+ * 設定ドロップダウンメニュー（ADR 0009: マスタ管理/ユーザー管理のグループ）。
+ * シフト管理はヘッダー中央の独立導線へ移設済みのため、ここにはマスタ管理と
+ * ユーザー管理のみを収める。マスタ管理は MANAGER 以上、ユーザー管理は ADMIN
+ * のみに表示する（API 側の `requireRole` と揃える）。
  */
-function AdminMenu({ isAdmin }: { isAdmin: boolean }) {
+function SettingsMenu({ isAdmin }: { isAdmin: boolean }) {
   return (
     <Menu shadow="md" width={200}>
       <Menu.Target>
         <UnstyledButton px="sm" py={4} style={{ borderRadius: 4 }}>
-          <Text size="sm" fw={500}>
-            管理
-          </Text>
+          <Group gap={6} wrap="nowrap">
+            <IconSettings size={16} stroke={1.75} />
+            <Text size="sm" fw={500}>
+              設定
+            </Text>
+          </Group>
         </UnstyledButton>
       </Menu.Target>
       <Menu.Dropdown>
-        <Menu.Label>シフト運用</Menu.Label>
-        <Menu.Item component={Link} to="/shifts/manage">
-          シフト管理
-        </Menu.Item>
-
-        <Menu.Divider />
         <Menu.Label>マスタ管理</Menu.Label>
         <Menu.Item component={Link} to="/departments">
           部門

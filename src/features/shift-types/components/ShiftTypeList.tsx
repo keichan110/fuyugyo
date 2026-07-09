@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-import { Alert, Badge, Button, Card, Group, Stack, Text, TextInput, Title } from '@mantine/core';
+import { Alert, Badge, Button, Group, Stack, Table, Text, TextInput, Title } from '@mantine/core';
 
 import { useDeactivateShiftType, useShiftTypes, useUpdateShiftType } from '../queries';
 import { ShiftTypeForm } from './ShiftTypeForm';
@@ -38,22 +38,30 @@ export function ShiftTypeList() {
       )}
 
       {data && data.length > 0 && (
-        <Stack gap="sm">
-          {data.map((shiftType) => (
-            <ShiftTypeItem
-              key={shiftType.id}
-              id={shiftType.id}
-              name={shiftType.name}
-              isActive={shiftType.isActive}
-            />
-          ))}
-        </Stack>
+        <Table highlightOnHover withTableBorder withRowBorders>
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>種別名</Table.Th>
+              <Table.Th w={160}>操作</Table.Th>
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
+            {data.map((shiftType) => (
+              <ShiftTypeRow
+                key={shiftType.id}
+                id={shiftType.id}
+                name={shiftType.name}
+                isActive={shiftType.isActive}
+              />
+            ))}
+          </Table.Tbody>
+        </Table>
       )}
     </Stack>
   );
 }
 
-type ShiftTypeItemProps = {
+type ShiftTypeRowProps = {
   id: string;
   name: string;
   isActive: boolean;
@@ -63,7 +71,7 @@ type ShiftTypeItemProps = {
  * シフト種別の1行表示。編集・無効化ボタンを持つ。
  * deactivate フックをアイテム内に持つことで、各行が独立した操作状態を管理する。
  */
-function ShiftTypeItem({ id, name, isActive }: ShiftTypeItemProps) {
+function ShiftTypeRow({ id, name, isActive }: ShiftTypeRowProps) {
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState(name);
   const update = useUpdateShiftType(id);
@@ -74,65 +82,76 @@ function ShiftTypeItem({ id, name, isActive }: ShiftTypeItemProps) {
     update.mutate({ name: editName }, { onSuccess: () => setEditing(false) });
   };
 
+  if (editing) {
+    return (
+      <Table.Tr>
+        <Table.Td colSpan={2}>
+          <Stack gap="xs">
+            <Group component="form" onSubmit={handleUpdate} wrap="nowrap">
+              <TextInput
+                value={editName}
+                onChange={(e) => setEditName(e.currentTarget.value)}
+                required
+                maxLength={100}
+                autoFocus
+                style={{ flex: 1 }}
+              />
+              <Button type="submit" size="xs" loading={update.isPending}>
+                保存
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="xs"
+                onClick={() => {
+                  setEditName(name);
+                  setEditing(false);
+                }}
+              >
+                キャンセル
+              </Button>
+            </Group>
+            {update.isError && <Alert color="red">{update.error.message}</Alert>}
+          </Stack>
+        </Table.Td>
+      </Table.Tr>
+    );
+  }
+
   return (
-    <Card withBorder padding="md" radius="md">
-      <Stack gap="sm">
-        {editing ? (
-          <Group component="form" onSubmit={handleUpdate} wrap="nowrap">
-            <TextInput
-              value={editName}
-              onChange={(e) => setEditName(e.currentTarget.value)}
-              required
-              maxLength={100}
-              autoFocus
-              style={{ flex: 1 }}
-            />
-            <Button type="submit" size="sm" loading={update.isPending}>
-              保存
+    <Table.Tr>
+      <Table.Td>
+        <Group gap="xs">
+          <Text fw={500}>{name}</Text>
+          {!isActive && (
+            <Badge color="gray" variant="light" size="sm">
+              無効
+            </Badge>
+          )}
+        </Group>
+        {deactivate.isError && (
+          <Alert color="red" mt="xs">
+            {deactivate.error.message}
+          </Alert>
+        )}
+      </Table.Td>
+      <Table.Td>
+        {isActive && (
+          <Group gap="xs">
+            <Button variant="outline" size="xs" onClick={() => setEditing(true)}>
+              編集
             </Button>
             <Button
-              type="button"
               variant="outline"
-              size="sm"
-              onClick={() => {
-                setEditName(name);
-                setEditing(false);
-              }}
+              size="xs"
+              loading={deactivate.isPending}
+              onClick={() => deactivate.mutate(id)}
             >
-              キャンセル
+              無効化
             </Button>
           </Group>
-        ) : (
-          <Group justify="space-between">
-            <Group gap="xs">
-              <Text fw={500}>{name}</Text>
-              {!isActive && (
-                <Badge color="gray" variant="light" size="sm">
-                  無効
-                </Badge>
-              )}
-            </Group>
-            {isActive && (
-              <Group gap="xs">
-                <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
-                  編集
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  loading={deactivate.isPending}
-                  onClick={() => deactivate.mutate(id)}
-                >
-                  無効化
-                </Button>
-              </Group>
-            )}
-          </Group>
         )}
-
-        {update.isError && <Alert color="red">{update.error.message}</Alert>}
-        {deactivate.isError && <Alert color="red">{deactivate.error.message}</Alert>}
-      </Stack>
-    </Card>
+      </Table.Td>
+    </Table.Tr>
   );
 }

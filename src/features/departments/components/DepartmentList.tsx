@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-import { Alert, Badge, Button, Card, Group, Stack, Text, Title } from '@mantine/core';
+import { Alert, Badge, Button, Group, Stack, Table, Text, Title } from '@mantine/core';
 
 import { useDeactivateDepartment, useDepartments } from '../queries';
 import { DepartmentForm } from './DepartmentForm';
@@ -39,15 +39,25 @@ export function DepartmentList() {
       )}
 
       {data && data.length > 0 && (
-        <Stack gap="sm">
-          {data.map((dept) => (
-            <Card key={dept.id} withBorder padding="md" radius="md">
-              <Group justify="space-between">
-                <Stack gap={4}>
+        <Table highlightOnHover withTableBorder withRowBorders>
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th w={100}>コード</Table.Th>
+              <Table.Th>部門名</Table.Th>
+              <Table.Th>説明</Table.Th>
+              <Table.Th w={100}>操作</Table.Th>
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
+            {data.map((dept) => (
+              <Table.Tr key={dept.id}>
+                <Table.Td>
+                  <Text c="dimmed" size="sm" ff="monospace">
+                    {dept.code}
+                  </Text>
+                </Table.Td>
+                <Table.Td>
                   <Group gap="xs">
-                    <Text c="dimmed" size="sm" ff="monospace">
-                      {dept.code}
-                    </Text>
                     <Text fw={500}>{dept.name}</Text>
                     {!dept.isActive && (
                       <Badge color="gray" variant="light" size="sm">
@@ -55,26 +65,30 @@ export function DepartmentList() {
                       </Badge>
                     )}
                   </Group>
+                </Table.Td>
+                <Table.Td>
                   {dept.description && (
                     <Text c="dimmed" size="sm">
                       {dept.description}
                     </Text>
                   )}
-                </Stack>
-                {dept.isActive && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    loading={deactivate.isPending}
-                    onClick={() => deactivate.mutate(dept.id)}
-                  >
-                    無効化
-                  </Button>
-                )}
-              </Group>
-            </Card>
-          ))}
-        </Stack>
+                </Table.Td>
+                <Table.Td>
+                  {dept.isActive && (
+                    <Button
+                      variant="outline"
+                      size="xs"
+                      loading={deactivate.isPending}
+                      onClick={() => deactivate.mutate(dept.id)}
+                    >
+                      無効化
+                    </Button>
+                  )}
+                </Table.Td>
+              </Table.Tr>
+            ))}
+          </Table.Tbody>
+        </Table>
       )}
     </Stack>
   );

@@ -10,7 +10,6 @@ import {
   instructorSchema,
   instructorWithCertificationsSchema,
   type ActiveInstructorInDepartment,
-  type AssignCertificationInput,
   type ChangeInstructorStatusInput,
   type CreateInstructorInput,
   type Instructor,
@@ -155,15 +154,20 @@ export function useChangeInstructorStatus(id: string) {
 
 /**
  * Certification を割り当てるミューテーション。
- * 成功後は該当インストラクターのキャッシュを無効化する。
+ * instructorId は変数で受け取るため、作成直後の新規インストラクターにも使用できる。
+ * 成功後は一覧・詳細キャッシュを無効化する。
  */
-export function useAssignCertification(instructorId: string) {
+export function useAssignCertification() {
   const queryClient = useQueryClient();
-  return useMutation<InstructorCertification, Error, AssignCertificationInput>({
-    mutationFn: async (input) => {
+  return useMutation<
+    InstructorCertification,
+    Error,
+    { instructorId: string; certificationId: string }
+  >({
+    mutationFn: async ({ instructorId, certificationId }) => {
       const res = await client.api.instructors[':id'].certifications.$post({
         param: { id: instructorId },
-        json: input,
+        json: { certificationId },
       });
       if (!res.ok) {
         const body = apiErrorSchema.parse(await res.json());
@@ -179,12 +183,12 @@ export function useAssignCertification(instructorId: string) {
 
 /**
  * Certification を解除するミューテーション。
- * 成功後は該当インストラクターのキャッシュを無効化する。
+ * instructorId は変数で受け取る。成功後は一覧・詳細キャッシュを無効化する。
  */
-export function useUnassignCertification(instructorId: string) {
+export function useUnassignCertification() {
   const queryClient = useQueryClient();
-  return useMutation<void, Error, string>({
-    mutationFn: async (certificationId) => {
+  return useMutation<void, Error, { instructorId: string; certificationId: string }>({
+    mutationFn: async ({ instructorId, certificationId }) => {
       const res = await client.api.instructors[':id'].certifications[':certId'].$delete({
         param: { id: instructorId, certId: certificationId },
       });

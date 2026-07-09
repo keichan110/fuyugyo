@@ -2,7 +2,9 @@ import { Container, Stack, Title } from '@mantine/core';
 import { createFileRoute, redirect } from '@tanstack/react-router';
 
 import { ensureAuthenticated } from '@/features/auth/auth-guard';
-import { InstructorLinkPanel } from '@/features/dashboard/components/InstructorLinkPanel';
+import { useMe } from '@/features/auth/queries';
+import { InstructorLinkPrompt } from '@/features/dashboard/components/InstructorLinkPrompt';
+import { InstructorLinkStatus } from '@/features/dashboard/components/InstructorLinkStatus';
 import { UpcomingShifts } from '@/features/dashboard/components/UpcomingShifts';
 
 /**
@@ -19,12 +21,16 @@ export const Route = createFileRoute('/')({
 });
 
 function DashboardPage() {
+  const { data: user } = useMe();
+  const linked = Boolean(user?.instructorId);
+
   return (
     <Container size="sm" py="md">
       <Stack gap="md">
         <Title order={2}>ダッシュボード</Title>
-        <InstructorLinkPanel />
+        {!linked && <InstructorLinkPrompt />}
         <UpcomingShifts />
+        {linked && <InstructorLinkStatus />}
       </Stack>
     </Container>
   );

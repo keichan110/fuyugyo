@@ -14,6 +14,7 @@ const UPCOMING_SHIFTS_LIMIT = 5;
  */
 export function UpcomingShifts() {
   const { data: user } = useMe();
+  const linked = Boolean(user?.instructorId);
   const { data: shifts, isLoading } = useShifts(
     user?.instructorId
       ? {
@@ -24,10 +25,13 @@ export function UpcomingShifts() {
       : undefined,
   );
 
-  const upcoming = (shifts ?? [])
-    .map((shift) => ({ ...shift, dateStr: formatDate(shift.date) }))
-    .sort((a, b) => a.dateStr.localeCompare(b.dateStr))
-    .slice(0, UPCOMING_SHIFTS_LIMIT);
+  // 未連携時は自身のシフトを特定できないため、ダミー表示を避けて行を描画しない
+  const upcoming = linked
+    ? (shifts ?? [])
+        .map((shift) => ({ ...shift, dateStr: formatDate(shift.date) }))
+        .sort((a, b) => a.dateStr.localeCompare(b.dateStr))
+        .slice(0, UPCOMING_SHIFTS_LIMIT)
+    : [];
 
   return (
     <Card withBorder padding="lg" radius="md">
@@ -40,19 +44,19 @@ export function UpcomingShifts() {
         </Button>
       </Group>
 
-      {!user?.instructorId && (
+      {!linked && (
         <Text c="dimmed" size="sm">
           インストラクターと連携すると、ここに直近の勤務予定が表示されます。
         </Text>
       )}
 
-      {user?.instructorId && isLoading && (
+      {linked && isLoading && (
         <Text c="dimmed" size="sm">
           読み込み中…
         </Text>
       )}
 
-      {user?.instructorId && !isLoading && upcoming.length === 0 && (
+      {linked && !isLoading && upcoming.length === 0 && (
         <Text c="dimmed" size="sm">
           直近の勤務予定はありません。
         </Text>

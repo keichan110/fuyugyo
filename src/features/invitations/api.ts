@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { validator } from 'hono/validator';
@@ -23,6 +23,7 @@ export const invitationsRoute = new Hono<{
 }>()
   /**
    * 招待トークンを作成する（ADMIN/MANAGER のみ）。
+   * 既存のアクティブな招待を全て失効させ、新しい招待に置き換える（有効な招待は常に1件）。
    * expiresInHours 省略時は env.INVITE_DEFAULT_EXPIRES を使う。
    */
   .post(
@@ -46,16 +47,25 @@ export const invitationsRoute = new Hono<{
         : durationToSeconds(c.env.INVITE_DEFAULT_EXPIRES);
       const expiresAt = new Date(Date.now() + expiresInSeconds * 1000);
 
-      const [created] = await db
-        .insert(invitationTokens)
-        .values({
-          token: crypto.randomUUID(),
-          expiresAt,
-          createdBy: userId,
-          maxUses: input.maxUses ?? null,
-          description: input.description ?? null,
-        })
-        .returning();
+      // 既存の isActive=true を全て失効させてから新規挿入する（有効な招待は常に1件）。
+      // 期限切れだが isActive=true のまま残っている行も一括で対象になる。
+      const [, insertedRows] = await db.batch([
+        db
+          .update(invitationTokens)
+          .set({ isActive: false })
+          .where(eq(invitationTokens.isActive, true)),
+        db
+          .insert(invitationTokens)
+          .values({
+            token: crypto.randomUUID(),
+            expiresAt,
+            createdBy: userId,
+            maxUses: input.maxUses ?? null, // API互換のためフィールドは維持（UIからは送らない）
+            description: input.description ?? null,
+          })
+          .returning(),
+      ]);
+      const created = insertedRows[0];
 
       if (!created) {
         throw new HTTPException(500, { message: 'Failed to create invitation' });
@@ -66,7 +76,7 @@ export const invitationsRoute = new Hono<{
   /** 招待トークン一覧を返す（ADMIN/MANAGER のみ）。アクティブ・失効済みを含む全件 */
   .get('/', requireAuth, requireRole('MANAGER'), async (c) => {
     const db = createDb(c.env.DB);
-    const rows = await db.select().from(invitationTokens);
+    const rows = await db.select().from(invitationTokens).orderBy(desc(invitationTokens.createdAt));
     return c.json(rows);
   })
   /**

@@ -1,5 +1,5 @@
 import { env } from 'cloudflare:test';
-import { and, eq, gt, isNull, or, sql } from 'drizzle-orm';
+import { and, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
@@ -203,6 +203,75 @@ describe('POST /api/invitations', () => {
     );
     expect(res.status).toBe(400);
   });
+
+  it('既存のアクティブな招待は新規作成時に自動失効する', async () => {
+    const { token, userId } = await seedUserToken('MANAGER');
+    const previous = await seedInvitation(userId, { description: '旧招待' });
+
+    const res = await app.request(
+      '/api/invitations',
+      { method: 'POST', ...authJsonRequest(token, { description: '新招待' }) },
+      envWith({}),
+    );
+    expect(res.status).toBe(201);
+
+    const db = createDb(env.DB);
+    const [updatedPrevious] = await db
+      .select({ isActive: invitationTokens.isActive })
+      .from(invitationTokens)
+      .where(eq(invitationTokens.token, previous.token))
+      .limit(1);
+    expect(updatedPrevious?.isActive).toBe(false);
+
+    const listRes = await app.request('/api/invitations', authHeader(token), envWith({}));
+    const list = invitationListSchema.parse(await listRes.json());
+    const activeRows = list.filter((inv) => inv.isActive);
+    expect(activeRows.length).toBe(1);
+    expect(activeRows[0]?.description).toBe('新招待');
+  });
+
+  it('期限切れだが isActive=true の招待も新規作成時に失効する', async () => {
+    const { token, userId } = await seedUserToken('MANAGER');
+    const expired = await seedInvitation(userId, {
+      description: '期限切れ招待',
+      expiresAt: new Date(Date.now() - 1000),
+    });
+
+    const res = await app.request(
+      '/api/invitations',
+      { method: 'POST', ...authJsonRequest(token, {}) },
+      envWith({}),
+    );
+    expect(res.status).toBe(201);
+
+    const db = createDb(env.DB);
+    const [updatedExpired] = await db
+      .select({ isActive: invitationTokens.isActive })
+      .from(invitationTokens)
+      .where(eq(invitationTokens.token, expired.token))
+      .limit(1);
+    expect(updatedExpired?.isActive).toBe(false);
+  });
+
+  it('複数のアクティブな招待が残っていても全て失効する（移行ケース）', async () => {
+    const { token, userId } = await seedUserToken('MANAGER');
+    const first = await seedInvitation(userId, { description: '招待1' });
+    const second = await seedInvitation(userId, { description: '招待2' });
+
+    const res = await app.request(
+      '/api/invitations',
+      { method: 'POST', ...authJsonRequest(token, {}) },
+      envWith({}),
+    );
+    expect(res.status).toBe(201);
+
+    const db = createDb(env.DB);
+    const rows = await db
+      .select({ token: invitationTokens.token, isActive: invitationTokens.isActive })
+      .from(invitationTokens)
+      .where(inArray(invitationTokens.token, [first.token, second.token]));
+    expect(rows.every((row) => row.isActive === false)).toBe(true);
+  });
 });
 
 // ─── GET /api/invitations ─────────────────────────────────────────────────────
@@ -240,6 +309,24 @@ describe('GET /api/invitations', () => {
 
     const body = invitationListSchema.parse(await res.json());
     expect(body.length).toBe(1);
+  });
+
+  it('createdAt 降順で返す', async () => {
+    const { token, userId } = await seedUserToken('MANAGER');
+    const older = await seedInvitation(userId, {
+      description: '古い招待',
+      createdAt: new Date(Date.now() - 60 * 60 * 1000),
+    });
+    const newer = await seedInvitation(userId, {
+      description: '新しい招待',
+      createdAt: new Date(),
+    });
+
+    const res = await app.request('/api/invitations', authHeader(token), envWith({}));
+    expect(res.status).toBe(200);
+
+    const body = invitationListSchema.parse(await res.json());
+    expect(body.map((inv) => inv.token)).toEqual([newer.token, older.token]);
   });
 });
 

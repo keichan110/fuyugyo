@@ -34,7 +34,7 @@ type ShiftAgendaViewerProps = {
   onVisibleDateChange: (date: string) => void;
 };
 
-/** 稼働日だけを縦に積むシフト確認アジェンダ */
+/** 稼働日だけを縦に積むシフト表アジェンダ */
 export function ShiftAgendaViewer({ date, onVisibleDateChange }: ShiftAgendaViewerProps) {
   const initialDateRef = useRef(date);
   const lastVisibleDateRef = useRef(date);
@@ -138,7 +138,7 @@ export function ShiftAgendaViewer({ date, onVisibleDateChange }: ShiftAgendaView
   return (
     <>
       <Stack gap="md">
-        <Title order={2}>シフト確認</Title>
+        <Title order={2}>シフト表</Title>
 
         <Group align="flex-end" gap="sm">
           <Select

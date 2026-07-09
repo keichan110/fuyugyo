@@ -22,15 +22,19 @@ export const Route = createFileRoute('/')({
 
 function DashboardPage() {
   const { data: user } = useMe();
-  const linked = Boolean(user?.instructorId);
+  const instructorId = user?.instructorId;
 
   return (
     <Container size="sm" py="md">
       <Stack gap="md">
         <Title order={2}>ダッシュボード</Title>
-        {!linked && <InstructorLinkPrompt />}
-        <UpcomingShifts />
-        {linked && <InstructorLinkStatus />}
+        {!instructorId && <InstructorLinkPrompt />}
+        {instructorId && (
+          <>
+            <UpcomingShifts instructorId={instructorId} />
+            <InstructorLinkStatus />
+          </>
+        )}
       </Stack>
     </Container>
   );

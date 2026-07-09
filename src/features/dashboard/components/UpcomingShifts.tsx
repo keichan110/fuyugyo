@@ -1,7 +1,5 @@
-import { Button, Card, Group, Stack, Text, Title } from '@mantine/core';
-import { Link } from '@tanstack/react-router';
+import { Card, Group, Stack, Text, Title } from '@mantine/core';
 
-import { useMe } from '@/features/auth/queries';
 import { useShifts } from '@/features/shifts/queries';
 import { formatDate, shortDateLabel, todayString } from '@/features/shifts/view-utils';
 
@@ -9,54 +7,34 @@ import { formatDate, shortDateLabel, todayString } from '@/features/shifts/view-
 const UPCOMING_SHIFTS_LIMIT = 5;
 
 /**
- * 直近の勤務予定パネル。連携済み Instructor の本日以降のシフトを最大5件表示し、
- * シフト全体（`/shifts`）への導線を提供する。
+ * 直近の勤務予定パネル。連携済み Instructor の本日以降のシフトを最大5件表示する。
+ * 未連携ユーザーには呼び出し元（ダッシュボード）がそもそも描画しない前提
  */
-export function UpcomingShifts() {
-  const { data: user } = useMe();
-  const linked = Boolean(user?.instructorId);
-  const { data: shifts, isLoading } = useShifts(
-    user?.instructorId
-      ? {
-          dateFrom: todayString(),
-          instructorId: user.instructorId,
-          limit: UPCOMING_SHIFTS_LIMIT,
-        }
-      : undefined,
-  );
+export function UpcomingShifts({ instructorId }: { instructorId: string }) {
+  const { data: shifts, isLoading } = useShifts({
+    dateFrom: todayString(),
+    instructorId,
+    limit: UPCOMING_SHIFTS_LIMIT,
+  });
 
-  // 未連携時は自身のシフトを特定できないため、ダミー表示を避けて行を描画しない
-  const upcoming = linked
-    ? (shifts ?? [])
-        .map((shift) => ({ ...shift, dateStr: formatDate(shift.date) }))
-        .sort((a, b) => a.dateStr.localeCompare(b.dateStr))
-        .slice(0, UPCOMING_SHIFTS_LIMIT)
-    : [];
+  const upcoming = (shifts ?? [])
+    .map((shift) => ({ ...shift, dateStr: formatDate(shift.date) }))
+    .sort((a, b) => a.dateStr.localeCompare(b.dateStr))
+    .slice(0, UPCOMING_SHIFTS_LIMIT);
 
   return (
     <Card withBorder padding="lg" radius="md">
-      <Group justify="space-between" align="center" mb="sm">
-        <Title order={3} size="h4">
-          直近の勤務予定
-        </Title>
-        <Button component={Link} to="/shifts" variant="outline" size="sm">
-          シフト全体を見る
-        </Button>
-      </Group>
+      <Title order={3} size="h4" mb="sm">
+        直近の勤務予定
+      </Title>
 
-      {!linked && (
-        <Text c="dimmed" size="sm">
-          インストラクターと連携すると、ここに直近の勤務予定が表示されます。
-        </Text>
-      )}
-
-      {linked && isLoading && (
+      {isLoading && (
         <Text c="dimmed" size="sm">
           読み込み中…
         </Text>
       )}
 
-      {linked && !isLoading && upcoming.length === 0 && (
+      {!isLoading && upcoming.length === 0 && (
         <Text c="dimmed" size="sm">
           直近の勤務予定はありません。
         </Text>

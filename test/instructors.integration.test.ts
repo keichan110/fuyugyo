@@ -1,4 +1,5 @@
 import { env } from 'cloudflare:test';
+import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
@@ -184,6 +185,58 @@ describe('GET /api/instructors', () => {
     const body = instructorListSchema.parse(await res.json());
     expect(body).toHaveLength(1);
     expect(body[0]?.lastName).toBe('鈴木');
+  });
+
+  it('割り当て済みの Certification がバッジ情報として含まれる', async () => {
+    const deptId = await seedDepartment();
+    const certId = await seedCertification(deptId);
+    const instructorId = await seedInstructor();
+
+    const db = createDb(env.DB);
+    await db.insert(instructorCertifications).values({ instructorId, certificationId: certId });
+
+    const token = await seedManagerToken();
+    const res = await app.request('/api/instructors', authHeader(token), envWith({}));
+
+    expect(res.status).toBe(200);
+    const body = instructorListSchema.parse(await res.json());
+    expect(body).toHaveLength(1);
+    expect(body[0]?.certifications).toHaveLength(1);
+    expect(body[0]?.certifications[0]).toMatchObject({
+      id: certId,
+      name: 'スキー指導員',
+      shortName: '指導員',
+      isActive: true,
+    });
+  });
+
+  it('Certification 未割り当てのインストラクターは空配列を返す', async () => {
+    await seedInstructor();
+
+    const token = await seedManagerToken();
+    const res = await app.request('/api/instructors', authHeader(token), envWith({}));
+
+    expect(res.status).toBe(200);
+    const body = instructorListSchema.parse(await res.json());
+    expect(body).toHaveLength(1);
+    expect(body[0]?.certifications).toEqual([]);
+  });
+
+  it('無効化された Certification も isActive: false で含まれる', async () => {
+    const deptId = await seedDepartment();
+    const certId = await seedCertification(deptId);
+    const instructorId = await seedInstructor();
+
+    const db = createDb(env.DB);
+    await db.insert(instructorCertifications).values({ instructorId, certificationId: certId });
+    await db.update(certifications).set({ isActive: false }).where(eq(certifications.id, certId));
+
+    const token = await seedManagerToken();
+    const res = await app.request('/api/instructors', authHeader(token), envWith({}));
+
+    expect(res.status).toBe(200);
+    const body = instructorListSchema.parse(await res.json());
+    expect(body[0]?.certifications[0]?.isActive).toBe(false);
   });
 });
 

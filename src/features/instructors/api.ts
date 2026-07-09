@@ -106,16 +106,85 @@ export const instructorsRoute = new Hono<{
 
     return c.json(Array.from(map.values()));
   })
-  /** インストラクター一覧を返す（status=INACTIVE 指定がない限りアクティブのみ） */
+  /**
+   * インストラクター一覧を返す（status=INACTIVE 指定がない限りアクティブのみ）。
+   * 各インストラクターには保有 Certification（バッジ表示用の最低限情報）を含める。
+   * 資格を持たないインストラクターも返す必要があるため leftJoin を使用する。
+   */
   .get('/', requireAuth, async (c) => {
     const db = createDb(c.env.DB);
     const statusFilter = c.req.query('status');
+    const targetStatus = statusFilter ?? 'ACTIVE';
 
-    const rows = statusFilter
-      ? await db.select().from(instructors).where(eq(instructors.status, statusFilter))
-      : await db.select().from(instructors).where(eq(instructors.status, 'ACTIVE'));
+    const rows = await db
+      .select({
+        id: instructors.id,
+        lastName: instructors.lastName,
+        firstName: instructors.firstName,
+        lastNameKana: instructors.lastNameKana,
+        firstNameKana: instructors.firstNameKana,
+        status: instructors.status,
+        notes: instructors.notes,
+        createdAt: instructors.createdAt,
+        updatedAt: instructors.updatedAt,
+        certId: certifications.id,
+        certName: certifications.name,
+        certShortName: certifications.shortName,
+        certIsActive: certifications.isActive,
+      })
+      .from(instructors)
+      .leftJoin(instructorCertifications, eq(instructorCertifications.instructorId, instructors.id))
+      .leftJoin(certifications, eq(certifications.id, instructorCertifications.certificationId))
+      .where(eq(instructors.status, targetStatus));
 
-    return c.json(rows);
+    // JS 側で instructor ごとに certifications をグルーピングする（N+1 回避）
+    type InstructorListItem = {
+      id: string;
+      lastName: string;
+      firstName: string;
+      lastNameKana: string | null;
+      firstNameKana: string | null;
+      status: string;
+      notes: string | null;
+      createdAt: Date;
+      updatedAt: Date;
+      certifications: Array<{ id: string; name: string; shortName: string; isActive: boolean }>;
+    };
+
+    const map = new Map<string, InstructorListItem>();
+    for (const row of rows) {
+      let existing = map.get(row.id);
+      if (!existing) {
+        existing = {
+          id: row.id,
+          lastName: row.lastName,
+          firstName: row.firstName,
+          lastNameKana: row.lastNameKana,
+          firstNameKana: row.firstNameKana,
+          status: row.status,
+          notes: row.notes,
+          createdAt: row.createdAt,
+          updatedAt: row.updatedAt,
+          certifications: [],
+        };
+        map.set(row.id, existing);
+      }
+      if (
+        row.certId !== null &&
+        row.certName !== null &&
+        row.certShortName !== null &&
+        row.certIsActive !== null
+      ) {
+        existing.certifications.push({
+          id: row.certId,
+          name: row.certName,
+          shortName: row.certShortName,
+          isActive: row.certIsActive,
+        });
+      }
+    }
+
+    return c.json(Array.from(map.values()));
   })
   /** インストラクターを1件取得する（Certification 一覧付き） */
   .get('/:id', requireAuth, async (c) => {

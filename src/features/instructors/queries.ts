@@ -15,6 +15,7 @@ import {
   type CreateInstructorInput,
   type Instructor,
   type InstructorCertification,
+  type InstructorListItem,
   type InstructorWithCertifications,
   type UpdateInstructorInput,
 } from './schema';
@@ -26,11 +27,11 @@ const apiErrorSchema = z.object({ message: z.string().optional() });
 export const INSTRUCTORS_QUERY_KEY = ['instructors'] as const;
 
 /**
- * インストラクター一覧を取得する。
+ * インストラクター一覧を取得する（保有 Certification バッジ付き）。
  * @param status - 指定するとそのステータスのみ返す（省略時は ACTIVE のみ）
  */
 export function useInstructors(status?: string) {
-  return useQuery<Instructor[]>({
+  return useQuery<InstructorListItem[]>({
     queryKey: [...INSTRUCTORS_QUERY_KEY, { status }],
     queryFn: async () => {
       const query: Record<string, string> = {};

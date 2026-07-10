@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react';
 
 import {
   Button,
-  EmptyState,
   Group,
   Menu,
   Stack,
@@ -11,12 +10,13 @@ import {
   Title,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconBuilding, IconPlus, IconSearch } from '@tabler/icons-react';
+import { IconBuilding, IconPlus } from '@tabler/icons-react';
 
 import { ErrorAlert } from '@/components/AppAlert';
 import { AppBadge } from '@/components/AppBadge';
 import { AppTable } from '@/components/AppTable';
 import { ClickableTr } from '@/components/ClickableTr';
+import { ListEmptyState, ListNoResultsState } from '@/components/ListEmptyState';
 import { RowActionsButton } from '@/components/RowActionsButton';
 import { SearchInput } from '@/components/SearchInput';
 import { StatusFilterControl } from '@/components/StatusFilterControl';
@@ -85,28 +85,23 @@ export function DepartmentList() {
       {isLoading && <TableRowsSkeleton />}
 
       {!isLoading && allDepartments.length === 0 && (
-        <EmptyState
+        <ListEmptyState
           icon={<IconBuilding size={32} stroke={1.5} />}
           title="部門がありません"
           description="最初の部門を追加しましょう。"
-        >
-          <EmptyState.Actions>
+          action={
             <Button
               leftSection={<IconPlus size={16} />}
               onClick={() => setDrawerState({ mode: 'create' })}
             >
               部門を追加
             </Button>
-          </EmptyState.Actions>
-        </EmptyState>
+          }
+        />
       )}
 
       {!isLoading && allDepartments.length > 0 && visibleDepartments.length === 0 && (
-        <EmptyState
-          icon={<IconSearch size={32} stroke={1.5} />}
-          title="条件に一致する部門がありません"
-          description="検索キーワードや絞り込み条件を変更してみてください。"
-        />
+        <ListNoResultsState title="条件に一致する部門がありません" />
       )}
 
       {visibleDepartments.length > 0 && (

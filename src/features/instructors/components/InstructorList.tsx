@@ -3,7 +3,6 @@ import { useMemo, useState } from 'react';
 import {
   Avatar,
   Button,
-  EmptyState,
   Group,
   Menu,
   Stack,
@@ -13,12 +12,13 @@ import {
   Tooltip,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconPlus, IconSearch, IconUsers } from '@tabler/icons-react';
+import { IconPlus, IconUsers } from '@tabler/icons-react';
 
 import { ErrorAlert } from '@/components/AppAlert';
 import { AppBadge } from '@/components/AppBadge';
 import { AppTable } from '@/components/AppTable';
 import { ClickableTr } from '@/components/ClickableTr';
+import { ListEmptyState, ListNoResultsState } from '@/components/ListEmptyState';
 import { RowActionsButton } from '@/components/RowActionsButton';
 import { SearchInput } from '@/components/SearchInput';
 import { StatusFilterControl } from '@/components/StatusFilterControl';
@@ -108,28 +108,23 @@ export function InstructorList() {
       {isLoading && <TableRowsSkeleton />}
 
       {!isLoading && allInstructors.length === 0 && (
-        <EmptyState
+        <ListEmptyState
           icon={<IconUsers size={32} stroke={1.5} />}
           title="インストラクターがいません"
           description="最初のインストラクターを追加して名簿を作成しましょう。"
-        >
-          <EmptyState.Actions>
+          action={
             <Button
               leftSection={<IconPlus size={16} />}
               onClick={() => setDrawerState({ mode: 'create' })}
             >
               インストラクターを追加
             </Button>
-          </EmptyState.Actions>
-        </EmptyState>
+          }
+        />
       )}
 
       {!isLoading && allInstructors.length > 0 && visibleInstructors.length === 0 && (
-        <EmptyState
-          icon={<IconSearch size={32} stroke={1.5} />}
-          title="条件に一致するインストラクターがいません"
-          description="検索キーワードや絞り込み条件を変更してみてください。"
-        />
+        <ListNoResultsState title="条件に一致するインストラクターがいません" />
       )}
 
       {visibleInstructors.length > 0 && (

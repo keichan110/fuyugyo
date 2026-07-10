@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react';
 
 import {
   Button,
-  EmptyState,
   Group,
   Menu,
   Stack,
@@ -11,12 +10,13 @@ import {
   Title,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconClock, IconPlus, IconSearch } from '@tabler/icons-react';
+import { IconClock, IconPlus } from '@tabler/icons-react';
 
 import { ErrorAlert } from '@/components/AppAlert';
 import { AppBadge } from '@/components/AppBadge';
 import { AppTable } from '@/components/AppTable';
 import { ClickableTr } from '@/components/ClickableTr';
+import { ListEmptyState, ListNoResultsState } from '@/components/ListEmptyState';
 import { RowActionsButton } from '@/components/RowActionsButton';
 import { SearchInput } from '@/components/SearchInput';
 import { StatusFilterControl } from '@/components/StatusFilterControl';
@@ -85,28 +85,23 @@ export function ShiftTypeList() {
       {isLoading && <TableRowsSkeleton />}
 
       {!isLoading && allShiftTypes.length === 0 && (
-        <EmptyState
+        <ListEmptyState
           icon={<IconClock size={32} stroke={1.5} />}
           title="シフト種別がありません"
           description="最初のシフト種別を追加しましょう。"
-        >
-          <EmptyState.Actions>
+          action={
             <Button
               leftSection={<IconPlus size={16} />}
               onClick={() => setDrawerState({ mode: 'create' })}
             >
               シフト種別を追加
             </Button>
-          </EmptyState.Actions>
-        </EmptyState>
+          }
+        />
       )}
 
       {!isLoading && allShiftTypes.length > 0 && visibleShiftTypes.length === 0 && (
-        <EmptyState
-          icon={<IconSearch size={32} stroke={1.5} />}
-          title="条件に一致するシフト種別がありません"
-          description="検索キーワードや絞り込み条件を変更してみてください。"
-        />
+        <ListNoResultsState title="条件に一致するシフト種別がありません" />
       )}
 
       {visibleShiftTypes.length > 0 && (

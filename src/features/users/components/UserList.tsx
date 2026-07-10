@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react';
 
 import {
   Avatar,
-  EmptyState,
   Group,
   Menu,
   Stack,
@@ -11,12 +10,13 @@ import {
   Title,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconSearch, IconUsers } from '@tabler/icons-react';
+import { IconUsers } from '@tabler/icons-react';
 
 import { ErrorAlert } from '@/components/AppAlert';
 import { AppBadge } from '@/components/AppBadge';
 import { AppTable } from '@/components/AppTable';
 import { ClickableTr } from '@/components/ClickableTr';
+import { ListEmptyState, ListNoResultsState } from '@/components/ListEmptyState';
 import { RowActionsButton } from '@/components/RowActionsButton';
 import { SearchInput } from '@/components/SearchInput';
 import { StatusFilterControl } from '@/components/StatusFilterControl';
@@ -78,15 +78,11 @@ export function UserList() {
       {isLoading && <TableRowsSkeleton />}
 
       {!isLoading && allUsers.length === 0 && (
-        <EmptyState icon={<IconUsers size={32} stroke={1.5} />} title="ユーザーがいません" />
+        <ListEmptyState icon={<IconUsers size={32} stroke={1.5} />} title="ユーザーがいません" />
       )}
 
       {!isLoading && allUsers.length > 0 && visibleUsers.length === 0 && (
-        <EmptyState
-          icon={<IconSearch size={32} stroke={1.5} />}
-          title="条件に一致するユーザーがいません"
-          description="検索キーワードや絞り込み条件を変更してみてください。"
-        />
+        <ListNoResultsState title="条件に一致するユーザーがいません" />
       )}
 
       {visibleUsers.length > 0 && (

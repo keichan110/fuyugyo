@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react';
 
 import {
   Button,
-  EmptyState,
   Group,
   Menu,
   Stack,
@@ -11,12 +10,13 @@ import {
   Title,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconCertificate, IconPlus, IconSearch } from '@tabler/icons-react';
+import { IconCertificate, IconPlus } from '@tabler/icons-react';
 
 import { ErrorAlert } from '@/components/AppAlert';
 import { AppBadge } from '@/components/AppBadge';
 import { AppTable } from '@/components/AppTable';
 import { ClickableTr } from '@/components/ClickableTr';
+import { ListEmptyState, ListNoResultsState } from '@/components/ListEmptyState';
 import { RowActionsButton } from '@/components/RowActionsButton';
 import { SearchInput } from '@/components/SearchInput';
 import { StatusFilterControl } from '@/components/StatusFilterControl';
@@ -94,28 +94,23 @@ export function CertificationList() {
       {isLoading && <TableRowsSkeleton />}
 
       {!isLoading && certifications.length === 0 && (
-        <EmptyState
+        <ListEmptyState
           icon={<IconCertificate size={32} stroke={1.5} />}
           title="資格がありません"
           description="最初の資格を追加して管理を始めましょう。"
-        >
-          <EmptyState.Actions>
+          action={
             <Button
               leftSection={<IconPlus size={16} />}
               onClick={() => setDrawerState({ mode: 'create' })}
             >
               資格を追加
             </Button>
-          </EmptyState.Actions>
-        </EmptyState>
+          }
+        />
       )}
 
       {!isLoading && certifications.length > 0 && visibleCertifications.length === 0 && (
-        <EmptyState
-          icon={<IconSearch size={32} stroke={1.5} />}
-          title="条件に一致する資格がいません"
-          description="検索キーワードや絞り込み条件を変更してみてください。"
-        />
+        <ListNoResultsState title="条件に一致する資格がいません" />
       )}
 
       {visibleCertifications.length > 0 && (

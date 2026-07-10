@@ -27,6 +27,12 @@
           {
             "type": "command",
             "command": "osascript -e 'display notification \"完了しました\" with title \"Claude Code\" subtitle \"Stop\" sound name \"Blow\"'"
+          },
+          {
+            "type": "command",
+            "command": "tc_out=$(pnpm run typecheck 2>&1); tc_ec=$?; lint_out=$(pnpm run lint 2>&1); lint_ec=$?; if [ $tc_ec -ne 0 ] || [ $lint_ec -ne 0 ]; then { [ $tc_ec -ne 0 ] && printf '%s\\n' \"$tc_out\"; [ $lint_ec -ne 0 ] && printf '%s\\n' \"$lint_out\"; } >&2; exit 2; fi",
+            "timeout": 120,
+            "statusMessage": "typecheck / lint を実行中..."
           }
         ]
       }

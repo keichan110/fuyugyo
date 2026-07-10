@@ -15,13 +15,6 @@ Fuyugyō - スキー・スノーボードスクールの運営管理システム
 
 # コマンド
 
-## 必須実行（作業前後）
-
-```bash
-pnpm run typecheck    # TypeScript型チェック（必須）
-pnpm run lint         # ESLint静的解析（必須）
-```
-
 ## 日常開発
 
 ```bash
@@ -29,6 +22,8 @@ pnpm run dev          # 開発サーバー起動（Vite + Cloudflare Workers）
 pnpm run build        # プロダクションビルド（typecheck含む）
 pnpm run preview      # ビルド結果のプレビュー
 pnpm run deploy       # ビルド + Cloudflare Workers デプロイ
+pnpm run typecheck    # TypeScript型チェック（Stop hookで自動実行されるため手動不要）
+pnpm run lint         # ESLint静的解析（Stop hookで自動実行されるため手動不要）
 pnpm run format       # Prettier コード整形（hooks で自動実行されるため手動不要）
 pnpm run format:check # Prettier 整形チェック
 ```
@@ -131,6 +126,6 @@ docs/                      # ADR・設計ドキュメント
 
 ## 作業完了時チェックリスト
 
-- [ ] `pnpm run typecheck && pnpm run lint` 成功
+- [ ] typecheck / lint は Stop hook で自動チェックされる（失敗時は自動でフィードバックが返り修正ループに入る）
 - [ ] 関連テスト通過確認
 - [ ] Gitmoji コミットメッセージ作成

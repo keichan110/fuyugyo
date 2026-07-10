@@ -1,7 +1,9 @@
 import { useState } from 'react';
 
-import { Alert, Button, EmptyState, Group, Skeleton, Stack, Text, Title } from '@mantine/core';
+import { Button, EmptyState, Group, Skeleton, Stack, Text, Title } from '@mantine/core';
 import { IconLink } from '@tabler/icons-react';
+
+import { ErrorAlert } from '@/components/AppAlert';
 
 import { findActiveInvitation } from '../lib';
 import { useInvitations } from '../queries';
@@ -47,7 +49,7 @@ export function InvitationManager() {
         </Stack>
       )}
 
-      {isError && <Alert color="red">招待情報の取得に失敗しました</Alert>}
+      {isError && <ErrorAlert>招待情報の取得に失敗しました</ErrorAlert>}
 
       {!isLoading && !isError && active && <ActiveInvitationCard invitation={active} />}
 

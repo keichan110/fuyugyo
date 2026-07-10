@@ -1,4 +1,6 @@
-import { Alert, Button, Card, Stack, Table, Text, Title } from '@mantine/core';
+import { Button, Card, Stack, Table, Text, Title } from '@mantine/core';
+
+import { ErrorAlert } from '@/components/AppAlert';
 
 import { useHealth } from '../queries';
 
@@ -22,7 +24,7 @@ export function HealthStatus() {
             確認中…
           </Text>
         )}
-        {isError && <Alert color="red">API への接続に失敗しました</Alert>}
+        {isError && <ErrorAlert>API への接続に失敗しました</ErrorAlert>}
         {data && !isError && (
           <Table withRowBorders={false}>
             <Table.Tbody>

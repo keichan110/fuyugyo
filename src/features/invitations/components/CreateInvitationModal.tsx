@@ -13,6 +13,8 @@ import {
 import { notifications } from '@mantine/notifications';
 import { IconAlertTriangle } from '@tabler/icons-react';
 
+import { ErrorAlert } from '@/components/AppAlert';
+
 import { DEFAULT_EXPIRY_HOURS, EXPIRY_PRESETS } from '../lib';
 import { useCreateInvitation } from '../queries';
 
@@ -101,7 +103,7 @@ function CreateInvitationForm({ onClose, hasActiveInvitation }: CreateInvitation
           placeholder="例: スタッフ採用用"
         />
 
-        {create.isError && <Alert color="red">{create.error.message}</Alert>}
+        {create.isError && <ErrorAlert>{create.error.message}</ErrorAlert>}
 
         <Group justify="flex-end">
           <Button variant="default" onClick={onClose}>

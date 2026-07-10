@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 
 import {
-  Alert,
   Avatar,
   Button,
   EmptyState,
@@ -17,6 +16,7 @@ import {
 import { notifications } from '@mantine/notifications';
 import { IconPlus, IconSearch, IconUsers } from '@tabler/icons-react';
 
+import { ErrorAlert } from '@/components/AppAlert';
 import { AppBadge } from '@/components/AppBadge';
 import { AppTable } from '@/components/AppTable';
 import { ClickableTr } from '@/components/ClickableTr';
@@ -115,7 +115,7 @@ export function InstructorList() {
         />
       </Group>
 
-      {isError && <Alert color="red">インストラクター一覧の取得に失敗しました</Alert>}
+      {isError && <ErrorAlert>インストラクター一覧の取得に失敗しました</ErrorAlert>}
 
       {isLoading && <TableRowsSkeleton />}
 

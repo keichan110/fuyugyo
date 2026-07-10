@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import {
-  Alert,
   Box,
   Button,
   Card,
@@ -23,6 +22,7 @@ import {
   UnstyledButton,
 } from '@mantine/core';
 
+import { ErrorAlert } from '@/components/AppAlert';
 import { AppBadge } from '@/components/AppBadge';
 
 import {
@@ -319,9 +319,9 @@ export function ShiftManager() {
           読み込み中…
         </Text>
       )}
-      {formData.isError && <Alert color="red">フォームデータの取得に失敗しました</Alert>}
+      {formData.isError && <ErrorAlert>フォームデータの取得に失敗しました</ErrorAlert>}
       {monthly.isError && (
-        <Alert color="red">{monthly.error?.message ?? '月次シフトの取得に失敗しました'}</Alert>
+        <ErrorAlert>{monthly.error?.message ?? '月次シフトの取得に失敗しました'}</ErrorAlert>
       )}
 
       {formData.data && (
@@ -371,7 +371,7 @@ export function ShiftManager() {
           </Group>
 
           {upsertMonthly.isError && (
-            <Alert color="red">{upsertMonthly.error?.message ?? '保存に失敗しました'}</Alert>
+            <ErrorAlert>{upsertMonthly.error?.message ?? '保存に失敗しました'}</ErrorAlert>
           )}
 
           <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="md" className={classes.matrixGrid}>
@@ -789,7 +789,7 @@ function AssignmentPanel({
           </Text>
         )}
         {editData.isError && (
-          <Alert color="red">{editData.error?.message ?? '候補の取得に失敗しました'}</Alert>
+          <ErrorAlert>{editData.error?.message ?? '候補の取得に失敗しました'}</ErrorAlert>
         )}
 
         {editData.data && (

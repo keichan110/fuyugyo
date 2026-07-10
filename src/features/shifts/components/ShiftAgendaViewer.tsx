@@ -19,8 +19,9 @@ import { useWindowScroll } from '@mantine/hooks';
 import { AgendaView } from '@mantine/schedule';
 import type { ScheduleEventData } from '@mantine/schedule';
 
-import { useMe } from '@/features/auth/queries';
+import { ErrorAlert } from '@/components/AppAlert';
 import { AppBadge } from '@/components/AppBadge';
+import { useMe } from '@/features/auth/queries';
 import { useDepartments } from '@/features/departments/queries';
 
 import { containsInstructorAssignment, filterAgendaDaysByInstructor } from '../aggregators';
@@ -178,7 +179,7 @@ export function ShiftAgendaViewer({ date, onVisibleDateChange }: ShiftAgendaView
           以前を表示
         </Button>
 
-        {pastError && <Alert color="red">{pastError}</Alert>}
+        {pastError && <ErrorAlert>{pastError}</ErrorAlert>}
         {hasReachedPastEnd && <Alert color="blue">これ以上遡れるシフトはありません。</Alert>}
         {future.isLoading && (
           <Text c="dimmed" size="sm">
@@ -186,7 +187,7 @@ export function ShiftAgendaViewer({ date, onVisibleDateChange }: ShiftAgendaView
           </Text>
         )}
         {future.isError && (
-          <Alert color="red">{future.error?.message ?? 'アジェンダの取得に失敗しました'}</Alert>
+          <ErrorAlert>{future.error?.message ?? 'アジェンダの取得に失敗しました'}</ErrorAlert>
         )}
 
         {filteredDays.length === 0 && !future.isLoading && (

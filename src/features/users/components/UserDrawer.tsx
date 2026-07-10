@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 
 import {
-  Alert,
   Avatar,
   Button,
   CloseButton,
@@ -16,6 +15,7 @@ import {
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 
+import { ErrorAlert } from '@/components/AppAlert';
 import { AppBadge, type AppBadgeKind } from '@/components/AppBadge';
 import { useInstructor, useInstructors } from '@/features/instructors/queries';
 import type {
@@ -275,7 +275,7 @@ function EditForm({ user, onClose }: EditFormProps) {
           <Switch checked={isActive} onChange={(e) => setIsActive(e.currentTarget.checked)} />
         </Group>
 
-        {error && <Alert color="red">{error}</Alert>}
+        {error && <ErrorAlert>{error}</ErrorAlert>}
 
         <FooterButtons saving={saving} onCancel={onClose} />
       </Stack>

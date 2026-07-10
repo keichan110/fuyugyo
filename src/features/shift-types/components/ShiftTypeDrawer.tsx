@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 
 import {
-  Alert,
   Button,
   Divider,
   Drawer,
@@ -12,6 +11,8 @@ import {
   Text,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
+
+import { ErrorAlert } from '@/components/AppAlert';
 
 import {
   useCreateShiftType,
@@ -110,7 +111,7 @@ function CreatePanel({ onClose }: { onClose: () => void }) {
     <form onSubmit={form.onSubmit(handleSave)}>
       <Stack gap="lg">
         <ShiftTypeFormFields form={form} />
-        {error && <Alert color="red">{error}</Alert>}
+        {error && <ErrorAlert>{error}</ErrorAlert>}
         <FooterButtons saving={saving} onCancel={onClose} />
       </Stack>
     </form>
@@ -211,7 +212,7 @@ function EditForm({ detail, onClose }: EditFormProps) {
           </Stack>
         )}
 
-        {error && <Alert color="red">{error}</Alert>}
+        {error && <ErrorAlert>{error}</ErrorAlert>}
 
         <FooterButtons saving={saving} onCancel={onClose} />
       </Stack>

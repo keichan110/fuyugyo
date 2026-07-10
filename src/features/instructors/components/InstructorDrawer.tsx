@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 
 import {
-  Alert,
   Button,
   CloseButton,
   Divider,
@@ -15,6 +14,7 @@ import {
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 
+import { ErrorAlert } from '@/components/AppAlert';
 import { AppBadge } from '@/components/AppBadge';
 import { useCertifications } from '@/features/certifications/queries';
 import type { Certification } from '@/features/certifications/schema';
@@ -208,7 +208,7 @@ function CreatePanel({ onClose }: { onClose: () => void }) {
           onAdd={add}
           onRemove={remove}
         />
-        {error && <Alert color="red">{error}</Alert>}
+        {error && <ErrorAlert>{error}</ErrorAlert>}
         <FooterButtons saving={saving} onCancel={onClose} />
       </Stack>
     </form>
@@ -351,7 +351,7 @@ function EditForm({ detail, allCerts, onClose }: EditFormProps) {
           />
         </Group>
 
-        {error && <Alert color="red">{error}</Alert>}
+        {error && <ErrorAlert>{error}</ErrorAlert>}
 
         <FooterButtons saving={saving} onCancel={onClose} />
       </Stack>

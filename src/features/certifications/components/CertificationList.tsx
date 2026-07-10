@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 
 import {
-  Alert,
   Button,
   EmptyState,
   Group,
@@ -15,6 +14,7 @@ import {
 import { notifications } from '@mantine/notifications';
 import { IconCertificate, IconPlus, IconSearch } from '@tabler/icons-react';
 
+import { ErrorAlert } from '@/components/AppAlert';
 import { AppBadge } from '@/components/AppBadge';
 import { AppTable } from '@/components/AppTable';
 import { ClickableTr } from '@/components/ClickableTr';
@@ -101,7 +101,7 @@ export function CertificationList() {
         />
       </Group>
 
-      {isError && <Alert color="red">資格一覧の取得に失敗しました</Alert>}
+      {isError && <ErrorAlert>資格一覧の取得に失敗しました</ErrorAlert>}
 
       {isLoading && <TableRowsSkeleton />}
 

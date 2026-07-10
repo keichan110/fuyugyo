@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 
 import {
-  Alert,
   Avatar,
   EmptyState,
   Group,
@@ -15,6 +14,7 @@ import {
 import { notifications } from '@mantine/notifications';
 import { IconSearch, IconUsers } from '@tabler/icons-react';
 
+import { ErrorAlert } from '@/components/AppAlert';
 import { AppBadge, type AppBadgeKind } from '@/components/AppBadge';
 import { AppTable } from '@/components/AppTable';
 import { ClickableTr } from '@/components/ClickableTr';
@@ -91,7 +91,7 @@ export function UserList() {
         />
       </Group>
 
-      {isError && <Alert color="red">ユーザー一覧の取得に失敗しました</Alert>}
+      {isError && <ErrorAlert>ユーザー一覧の取得に失敗しました</ErrorAlert>}
 
       {isLoading && <TableRowsSkeleton />}
 

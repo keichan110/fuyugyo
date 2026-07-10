@@ -1,5 +1,6 @@
-import { Alert, Box, Center, Stack, Text, Title } from '@mantine/core';
+import { Box, Center, Stack, Text, Title } from '@mantine/core';
 
+import { ErrorAlert } from '@/components/AppAlert';
 import { AppBadge } from '@/components/AppBadge';
 
 import { LineLoginButton } from './LineLoginButton';
@@ -44,9 +45,9 @@ export function LoginPage({ redirectUrl = '/', inviteToken, error }: LoginPagePr
           </Text>
 
           {error && (
-            <Alert color="red" role="alert">
+            <ErrorAlert>
               ログインに失敗しました。もう一度お試しください。
-            </Alert>
+            </ErrorAlert>
           )}
 
           <LineLoginButton onClick={handleLineLogin} />

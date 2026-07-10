@@ -1,4 +1,13 @@
-import { AppShell, Avatar, Button, Group, Menu, Text, UnstyledButton } from '@mantine/core';
+import {
+  AppShell,
+  Avatar,
+  Button,
+  Container,
+  Group,
+  Menu,
+  Text,
+  UnstyledButton,
+} from '@mantine/core';
 import { IconCalendarCog, IconCalendarWeek, IconSettings, type Icon } from '@tabler/icons-react';
 import type { QueryClient } from '@tanstack/react-query';
 import {
@@ -11,6 +20,7 @@ import {
 
 import { useLogout, useMe } from '@/features/auth/queries';
 import { hasMinimumRole, type MeResponse } from '@/features/auth/schema';
+import { InstructorLinkPrompt } from '@/features/dashboard/components/InstructorLinkPrompt';
 
 /** ルーターコンテキスト。ガードのデータ取得に QueryClient を共有する（ADR 0002） */
 export type RouterContext = {
@@ -54,11 +64,29 @@ function RootLayout() {
         </Group>
       </AppShell.Header>
       <AppShell.Main>
+        <MemberInstructorLinkPrompt user={user} />
         <Outlet />
       </AppShell.Main>
     </AppShell>
   );
 }
+
+/** MEMBER 向け画面の共通位置に、未連携時のインストラクター連携案内を表示する。 */
+function MemberInstructorLinkPrompt({ user }: { user: MeResponse }) {
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+
+  if (user.instructorId || !MEMBER_PATHS.has(pathname)) {
+    return null;
+  }
+
+  return (
+    <Container size="sm" pt="md">
+      <InstructorLinkPrompt />
+    </Container>
+  );
+}
+
+const MEMBER_PATHS = new Set(['/', '/shifts']);
 
 /** ヘッダー中央のよく使う導線用リンク（設定メニューボタンと統一感のあるスタイル） */
 function HeaderLink({ to, icon: Icon, children }: { to: string; icon: Icon; children: string }) {

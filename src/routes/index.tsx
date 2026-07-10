@@ -3,7 +3,6 @@ import { createFileRoute, redirect } from '@tanstack/react-router';
 
 import { ensureAuthenticated } from '@/features/auth/auth-guard';
 import { useMe } from '@/features/auth/queries';
-import { InstructorLinkPrompt } from '@/features/dashboard/components/InstructorLinkPrompt';
 import { InstructorLinkStatus } from '@/features/dashboard/components/InstructorLinkStatus';
 import { UpcomingShifts } from '@/features/dashboard/components/UpcomingShifts';
 
@@ -28,7 +27,6 @@ function DashboardPage() {
     <Container size="sm" py="md">
       <Stack gap="md">
         <Title order={2}>ダッシュボード</Title>
-        {!instructorId && <InstructorLinkPrompt />}
         {instructorId && (
           <>
             <UpcomingShifts instructorId={instructorId} />

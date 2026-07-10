@@ -4,7 +4,6 @@ import {
   ActionIcon,
   Alert,
   Avatar,
-  Badge,
   Button,
   EmptyState,
   Group,
@@ -20,6 +19,7 @@ import { notifications } from '@mantine/notifications';
 import { IconDotsVertical, IconPlus, IconSearch, IconUsers } from '@tabler/icons-react';
 
 import { ClickableTr } from '@/components/ClickableTr';
+import { AppBadge } from '@/components/AppBadge';
 import { SearchInput } from '@/components/SearchInput';
 import { TableRowsSkeleton } from '@/components/TableRowsSkeleton';
 
@@ -225,16 +225,16 @@ function InstructorRow({ instructor, onEdit }: InstructorRowProps) {
           <Group gap={4} wrap="wrap">
             {visibleCerts.map((cert) => (
               <Tooltip key={cert.id} label={cert.name}>
-                <Badge variant="light" color={cert.isActive ? 'blue' : 'gray'} size="sm">
+                <AppBadge kind={cert.isActive ? 'certification' : 'inactive'} size="sm">
                   {cert.shortName}
-                </Badge>
+                </AppBadge>
               </Tooltip>
             ))}
             {hiddenCerts.length > 0 && (
               <Tooltip label={hiddenCerts.map((c) => c.name).join('、')}>
-                <Badge variant="outline" color="gray" size="sm">
+                <AppBadge kind="count" size="sm">
                   +{hiddenCerts.length}
-                </Badge>
+                </AppBadge>
               </Tooltip>
             )}
           </Group>
@@ -245,9 +245,9 @@ function InstructorRow({ instructor, onEdit }: InstructorRowProps) {
         )}
       </Table.Td>
       <Table.Td>
-        <Badge color={isActive ? 'green' : 'gray'} variant="light">
+        <AppBadge kind={isActive ? 'active' : 'inactive'}>
           {isActive ? 'アクティブ' : '非アクティブ'}
-        </Badge>
+        </AppBadge>
       </Table.Td>
       <Table.Td>
         {instructor.notes && (

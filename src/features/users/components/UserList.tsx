@@ -4,7 +4,6 @@ import {
   ActionIcon,
   Alert,
   Avatar,
-  Badge,
   EmptyState,
   Group,
   Menu,
@@ -18,6 +17,7 @@ import { notifications } from '@mantine/notifications';
 import { IconDotsVertical, IconSearch, IconUsers } from '@tabler/icons-react';
 
 import { ClickableTr } from '@/components/ClickableTr';
+import { AppBadge, type AppBadgeKind } from '@/components/AppBadge';
 import { SearchInput } from '@/components/SearchInput';
 import { TableRowsSkeleton } from '@/components/TableRowsSkeleton';
 
@@ -25,11 +25,11 @@ import { useActivateUser, useDeactivateUser, useUsers } from '../queries';
 import type { User, UserRole } from '../schema';
 import { UserDrawer, type UserDrawerState } from './UserDrawer';
 
-/** ロールごとの表示ラベルとバッジカラー */
-const ROLE_META: Record<UserRole, { label: string; color: string }> = {
-  ADMIN: { label: '管理者', color: 'red' },
-  MANAGER: { label: 'マネージャー', color: 'blue' },
-  MEMBER: { label: 'メンバー', color: 'gray' },
+/** ロールごとの表示ラベルとバッジ種別 */
+const ROLE_META: Record<UserRole, { label: string; badgeKind: AppBadgeKind }> = {
+  ADMIN: { label: '管理者', badgeKind: 'roleAdmin' },
+  MANAGER: { label: 'マネージャー', badgeKind: 'roleManager' },
+  MEMBER: { label: 'メンバー', badgeKind: 'roleMember' },
 };
 
 /** ステータス絞り込みの選択肢 */
@@ -176,15 +176,15 @@ function UserRow({ user, onEdit }: UserRowProps) {
         </Group>
       </Table.Td>
       <Table.Td>
-        <Badge color={roleMeta.color} variant="light">
+        <AppBadge kind={roleMeta.badgeKind}>
           {roleMeta.label}
-        </Badge>
+        </AppBadge>
       </Table.Td>
       <Table.Td>
         {user.instructorId ? (
-          <Badge variant="light" color="blue">
+          <AppBadge kind="link">
             リンク済み
-          </Badge>
+          </AppBadge>
         ) : (
           <Text c="dimmed" size="sm">
             —
@@ -192,9 +192,9 @@ function UserRow({ user, onEdit }: UserRowProps) {
         )}
       </Table.Td>
       <Table.Td>
-        <Badge color={isActive ? 'green' : 'gray'} variant="light">
+        <AppBadge kind={isActive ? 'active' : 'inactive'}>
           {isActive ? 'アクティブ' : '無効'}
-        </Badge>
+        </AppBadge>
       </Table.Td>
       <Table.Td onClick={(e) => e.stopPropagation()}>
         <Menu position="bottom-end">

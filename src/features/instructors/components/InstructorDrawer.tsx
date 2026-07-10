@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 
 import {
   Alert,
-  Badge,
   Button,
   CloseButton,
   Divider,
@@ -16,6 +15,7 @@ import {
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 
+import { AppBadge } from '@/components/AppBadge';
 import { useCertifications } from '@/features/certifications/queries';
 import type { Certification } from '@/features/certifications/schema';
 
@@ -115,14 +115,13 @@ function CertEditor({ allCerts, pendingCertIds, onAdd, onRemove }: CertEditorPro
           {pendingCertIds.map((id) => {
             const cert = certMap.get(id);
             return (
-              <Badge
+              <AppBadge
                 key={id}
-                variant="light"
-                color={cert && !cert.isActive ? 'gray' : 'blue'}
+                kind={cert && !cert.isActive ? 'inactive' : 'certification'}
                 rightSection={<CloseButton size="xs" onClick={() => onRemove(id)} />}
               >
                 {cert ? `${cert.name}（${cert.shortName}）` : id}
-              </Badge>
+              </AppBadge>
             );
           })}
         </Group>

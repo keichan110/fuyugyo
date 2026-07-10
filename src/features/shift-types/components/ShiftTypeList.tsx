@@ -3,7 +3,6 @@ import { useMemo, useState } from 'react';
 import {
   ActionIcon,
   Alert,
-  Badge,
   Button,
   EmptyState,
   Group,
@@ -18,6 +17,7 @@ import { notifications } from '@mantine/notifications';
 import { IconClock, IconDotsVertical, IconPlus, IconSearch } from '@tabler/icons-react';
 
 import { ClickableTr } from '@/components/ClickableTr';
+import { AppBadge } from '@/components/AppBadge';
 import { SearchInput } from '@/components/SearchInput';
 import { TableRowsSkeleton } from '@/components/TableRowsSkeleton';
 
@@ -177,9 +177,9 @@ function ShiftTypeRow({ shiftType, onEdit }: ShiftTypeRowProps) {
         </Text>
       </Table.Td>
       <Table.Td>
-        <Badge color={isActive ? 'green' : 'gray'} variant="light">
+        <AppBadge kind={isActive ? 'active' : 'inactive'}>
           {isActive ? 'アクティブ' : '無効'}
-        </Badge>
+        </AppBadge>
       </Table.Td>
       <Table.Td onClick={(e) => e.stopPropagation()}>
         <Menu position="bottom-end">

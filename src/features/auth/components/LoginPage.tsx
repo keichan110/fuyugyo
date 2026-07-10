@@ -1,4 +1,6 @@
-import { Alert, Badge, Box, Center, Stack, Text, Title } from '@mantine/core';
+import { Alert, Box, Center, Stack, Text, Title } from '@mantine/core';
+
+import { AppBadge } from '@/components/AppBadge';
 
 import { LineLoginButton } from './LineLoginButton';
 import classes from './LoginPage.module.css';
@@ -29,9 +31,9 @@ export function LoginPage({ redirectUrl = '/', inviteToken, error }: LoginPagePr
     <Box mih="100dvh" p="md" className={classes.heroBackground}>
       <Center mih="100dvh">
         <Stack align="center" gap="xl">
-          <Badge variant="light" color="yellow" size="lg" radius="xl">
+          <AppBadge kind="highlight" size="lg" radius="xl">
             ❄ EXCLUSIVE ACCESS
-          </Badge>
+          </AppBadge>
 
           <Title order={1} fw={200} ta="center" lts="0.15em">
             Members only

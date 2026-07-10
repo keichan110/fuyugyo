@@ -3,7 +3,6 @@ import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Affix,
   Alert,
-  Badge,
   Box,
   Button,
   Card,
@@ -21,6 +20,7 @@ import { AgendaView } from '@mantine/schedule';
 import type { ScheduleEventData } from '@mantine/schedule';
 
 import { useMe } from '@/features/auth/queries';
+import { AppBadge } from '@/components/AppBadge';
 import { useDepartments } from '@/features/departments/queries';
 
 import { containsInstructorAssignment, filterAgendaDaysByInstructor } from '../aggregators';
@@ -339,25 +339,25 @@ function ShiftAgendaCard({ shift, includesMe }: { shift: ShiftViewItem; includes
             <Group gap={6}>
               <Text fw={600}>{shift.shiftType.name}</Text>
               {includesMe && (
-                <Badge size="xs" color="yellow" variant="filled">
+                <AppBadge kind="highlight" size="xs">
                   自分
-                </Badge>
+                </AppBadge>
               )}
             </Group>
             <Text size="sm" c="dimmed">
               {shift.department.name}
             </Text>
           </Stack>
-          <Badge variant="light" color={shift.assignedInstructors.length > 0 ? 'green' : 'gray'}>
+          <AppBadge kind={shift.assignedInstructors.length > 0 ? 'count' : 'inactive'}>
             {shift.assignedInstructors.length}名
-          </Badge>
+          </AppBadge>
         </Group>
         {shift.assignedInstructors.length > 0 ? (
           <Group gap={6}>
             {shift.assignedInstructors.map((instructor) => (
-              <Badge key={instructor.id} variant="outline" color="gray">
+              <AppBadge key={instructor.id} kind="person">
                 {instructor.displayName}
-              </Badge>
+              </AppBadge>
             ))}
           </Group>
         ) : (

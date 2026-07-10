@@ -3,7 +3,6 @@ import { useEffect, useState } from 'react';
 import {
   Alert,
   Avatar,
-  Badge,
   Button,
   CloseButton,
   Divider,
@@ -17,6 +16,7 @@ import {
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 
+import { AppBadge, type AppBadgeKind } from '@/components/AppBadge';
 import { useInstructor, useInstructors } from '@/features/instructors/queries';
 import type {
   InstructorListItem,
@@ -41,11 +41,11 @@ type Props = {
   onClose: () => void;
 };
 
-/** ロールごとの表示ラベルとバッジカラー（UserList と表示を揃える） */
-const ROLE_META: Record<UserRole, { label: string; color: string }> = {
-  ADMIN: { label: '管理者', color: 'red' },
-  MANAGER: { label: 'マネージャー', color: 'blue' },
-  MEMBER: { label: 'メンバー', color: 'gray' },
+/** ロールごとの表示ラベルとバッジ種別（UserList と表示を揃える） */
+const ROLE_META: Record<UserRole, { label: string; badgeKind: AppBadgeKind }> = {
+  ADMIN: { label: '管理者', badgeKind: 'roleAdmin' },
+  MANAGER: { label: 'マネージャー', badgeKind: 'roleManager' },
+  MEMBER: { label: 'メンバー', badgeKind: 'roleMember' },
 };
 
 /**
@@ -122,13 +122,12 @@ function InstructorLinkEditor({ instructorId, onSelect, onUnlink }: InstructorLi
           <Skeleton height={24} width={180} />
         ) : (
           <Group gap="xs">
-            <Badge
-              variant="light"
-              color="blue"
+            <AppBadge
+              kind="person"
               rightSection={<CloseButton size="xs" onClick={onUnlink} />}
             >
               {fullNameOf(linkedInstructor)}
-            </Badge>
+            </AppBadge>
           </Group>
         )
       ) : (
@@ -239,9 +238,9 @@ function EditForm({ user, onClose }: EditFormProps) {
           )}
           <div>
             <Text fw={500}>{user.displayName}</Text>
-            <Badge color={ROLE_META[user.role].color} variant="light" size="sm">
+            <AppBadge kind={ROLE_META[user.role].badgeKind} size="sm">
               {ROLE_META[user.role].label}
-            </Badge>
+            </AppBadge>
           </div>
         </Group>
 

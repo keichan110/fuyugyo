@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import {
   Alert,
-  Badge,
   Box,
   Button,
   Card,
@@ -23,6 +22,8 @@ import {
   Tooltip,
   UnstyledButton,
 } from '@mantine/core';
+
+import { AppBadge } from '@/components/AppBadge';
 
 import {
   useShiftAssignmentEditor,
@@ -634,14 +635,9 @@ function ShiftCell({ serverShift, staged, nameById, selected, onClick }: ShiftCe
       )}
       {hasAssignments ? (
         assignedNames.map((name, idx) => (
-          <Badge
-            key={`${name}-${idx}`}
-            size="xs"
-            variant={selected ? 'filled' : 'light'}
-            color={selected ? 'blue' : 'gray'}
-          >
+          <AppBadge key={`${name}-${idx}`} kind="person" size="xs">
             {name}
-          </Badge>
+          </AppBadge>
         ))
       ) : (
         <Text size="xs" c="dimmed">
@@ -776,14 +772,14 @@ function AssignmentPanel({
           <Group gap="xs" align="baseline">
             <Text fw={500}>{shortDateLabel(date)}</Text>
             <Text fw={500}>{shiftTypeName}</Text>
-            <Badge color="blue" variant="light">
+            <AppBadge kind="count">
               {selectedSet.size}名
-            </Badge>
+            </AppBadge>
           </Group>
           {stagedCell && (
-            <Badge color="orange" variant="light">
+            <AppBadge kind="pending">
               未保存
-            </Badge>
+            </AppBadge>
           )}
         </Group>
 
@@ -901,14 +897,14 @@ function InstructorCheckbox({
                   data={instructor.certifications}
                   gap={4}
                   renderItem={(cert, index) => (
-                    <Badge key={index} size="xs" variant="light" color="gray">
+                    <AppBadge key={index} kind="certification" size="xs">
                       {cert}
-                    </Badge>
+                    </AppBadge>
                   )}
                   renderOverflow={(items) => (
-                    <Badge size="xs" variant="light" color="gray">
+                    <AppBadge kind="count" size="xs">
                       +{items.length}
-                    </Badge>
+                    </AppBadge>
                   )}
                 />
               )}

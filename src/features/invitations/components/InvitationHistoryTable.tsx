@@ -1,14 +1,16 @@
-import { Badge, Table, Text } from '@mantine/core';
+import { Table, Text } from '@mantine/core';
+
+import { AppBadge, type AppBadgeKind } from '@/components/AppBadge';
 
 import { formatDateTime, invitationStatusOf, type InvitationStatus } from '../lib';
 import type { Invitation } from '../schema';
 
-/** ステータスごとのバッジ色 */
-const STATUS_COLORS: Record<InvitationStatus, string> = {
-  active: 'green',
-  expired: 'red',
-  deactivated: 'gray',
-  exhausted: 'orange', // 旧データ互換（UIからmaxUsesは送らないが過去データには残り得る）
+/** ステータスごとのバッジ種別 */
+const STATUS_BADGE_KINDS: Record<InvitationStatus, AppBadgeKind> = {
+  active: 'active',
+  expired: 'danger',
+  deactivated: 'inactive',
+  exhausted: 'warning', // 旧データ互換（UIからmaxUsesは送らないが過去データには残り得る）
 };
 
 /** ステータスごとの表示ラベル */
@@ -57,9 +59,9 @@ export function InvitationHistoryTable({ invitations }: InvitationHistoryTablePr
             return (
               <Table.Tr key={invitation.token}>
                 <Table.Td>
-                  <Badge color={STATUS_COLORS[status]} variant="light" size="sm">
+                  <AppBadge kind={STATUS_BADGE_KINDS[status]} size="sm">
                     {STATUS_LABELS[status]}
-                  </Badge>
+                  </AppBadge>
                 </Table.Td>
                 <Table.Td>
                   {invitation.description ? (

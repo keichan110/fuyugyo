@@ -1,5 +1,4 @@
 import {
-  Badge,
   Button,
   CopyButton,
   Group,
@@ -12,6 +11,8 @@ import {
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { IconBan, IconCheck, IconClock, IconCopy, IconUsers } from '@tabler/icons-react';
+
+import { AppBadge } from '@/components/AppBadge';
 
 import { buildInviteUrl, formatDateTime, remainingLabel } from '../lib';
 import { useDeactivateInvitation } from '../queries';
@@ -48,9 +49,9 @@ export function ActiveInvitationCard({ invitation }: ActiveInvitationCardProps) 
       <Stack gap="md">
         <Group justify="space-between" align="flex-start" wrap="nowrap">
           <Group gap="sm" wrap="wrap">
-            <Badge color="green" variant="light" size="lg">
+            <AppBadge kind="active" size="lg">
               有効
-            </Badge>
+            </AppBadge>
             {invitation.description && <Text fw={500}>{invitation.description}</Text>}
           </Group>
 

@@ -3,7 +3,6 @@ import { useMemo, useState } from 'react';
 import {
   ActionIcon,
   Alert,
-  Badge,
   Button,
   EmptyState,
   Group,
@@ -18,6 +17,7 @@ import { notifications } from '@mantine/notifications';
 import { IconBuilding, IconDotsVertical, IconPlus, IconSearch } from '@tabler/icons-react';
 
 import { ClickableTr } from '@/components/ClickableTr';
+import { AppBadge } from '@/components/AppBadge';
 import { SearchInput } from '@/components/SearchInput';
 import { TableRowsSkeleton } from '@/components/TableRowsSkeleton';
 
@@ -190,9 +190,9 @@ function DepartmentRow({ department, onEdit }: DepartmentRowProps) {
         )}
       </Table.Td>
       <Table.Td>
-        <Badge color={department.isActive ? 'green' : 'gray'} variant="light">
+        <AppBadge kind={department.isActive ? 'active' : 'inactive'}>
           {department.isActive ? 'アクティブ' : '無効'}
-        </Badge>
+        </AppBadge>
       </Table.Td>
       <Table.Td onClick={(e) => e.stopPropagation()}>
         <Menu position="bottom-end">

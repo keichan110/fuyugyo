@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 
 import {
-  Button,
   CloseButton,
   Divider,
   Drawer,
@@ -16,6 +15,7 @@ import { notifications } from '@mantine/notifications';
 
 import { ErrorAlert } from '@/components/AppAlert';
 import { AppBadge } from '@/components/AppBadge';
+import { FormFooterButtons } from '@/components/FormFooterButtons';
 import { useCertifications } from '@/features/certifications/queries';
 import type { Certification } from '@/features/certifications/schema';
 
@@ -70,20 +70,6 @@ export function InstructorDrawer({ state, onClose }: Props) {
         <CreatePanel onClose={onClose} />
       )}
     </Drawer>
-  );
-}
-
-/** フォーム末尾のキャンセル・保存ボタン */
-function FooterButtons({ saving, onCancel }: { saving: boolean; onCancel: () => void }) {
-  return (
-    <Group justify="flex-end">
-      <Button variant="default" type="button" onClick={onCancel} disabled={saving}>
-        キャンセル
-      </Button>
-      <Button type="submit" loading={saving}>
-        保存
-      </Button>
-    </Group>
   );
 }
 
@@ -209,7 +195,7 @@ function CreatePanel({ onClose }: { onClose: () => void }) {
           onRemove={remove}
         />
         {error && <ErrorAlert>{error}</ErrorAlert>}
-        <FooterButtons saving={saving} onCancel={onClose} />
+        <FormFooterButtons saving={saving} onCancel={onClose} />
       </Stack>
     </form>
   );
@@ -353,7 +339,7 @@ function EditForm({ detail, allCerts, onClose }: EditFormProps) {
 
         {error && <ErrorAlert>{error}</ErrorAlert>}
 
-        <FooterButtons saving={saving} onCancel={onClose} />
+        <FormFooterButtons saving={saving} onCancel={onClose} />
       </Stack>
     </form>
   );

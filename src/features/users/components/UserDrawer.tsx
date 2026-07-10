@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 
 import {
   Avatar,
-  Button,
   CloseButton,
   Divider,
   Drawer,
@@ -17,6 +16,7 @@ import { notifications } from '@mantine/notifications';
 
 import { ErrorAlert } from '@/components/AppAlert';
 import { AppBadge, type AppBadgeKind } from '@/components/AppBadge';
+import { FormFooterButtons } from '@/components/FormFooterButtons';
 import { useInstructor, useInstructors } from '@/features/instructors/queries';
 import type {
   InstructorListItem,
@@ -68,20 +68,6 @@ export function UserDrawer({ state, onClose }: Props) {
         <EditPanel key={effectiveState.userId} userId={effectiveState.userId} onClose={onClose} />
       )}
     </Drawer>
-  );
-}
-
-/** フォーム末尾のキャンセル・保存ボタン */
-function FooterButtons({ saving, onCancel }: { saving: boolean; onCancel: () => void }) {
-  return (
-    <Group justify="flex-end">
-      <Button variant="default" type="button" onClick={onCancel} disabled={saving}>
-        キャンセル
-      </Button>
-      <Button type="submit" loading={saving}>
-        保存
-      </Button>
-    </Group>
   );
 }
 
@@ -277,7 +263,7 @@ function EditForm({ user, onClose }: EditFormProps) {
 
         {error && <ErrorAlert>{error}</ErrorAlert>}
 
-        <FooterButtons saving={saving} onCancel={onClose} />
+        <FormFooterButtons saving={saving} onCancel={onClose} />
       </Stack>
     </form>
   );

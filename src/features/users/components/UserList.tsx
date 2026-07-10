@@ -17,6 +17,7 @@ import { AppBadge } from '@/components/AppBadge';
 import { AppTable } from '@/components/AppTable';
 import { ClickableTr } from '@/components/ClickableTr';
 import { ListEmptyState, ListNoResultsState } from '@/components/ListEmptyState';
+import { ListToolbar } from '@/components/ListToolbar';
 import { RowActionsButton } from '@/components/RowActionsButton';
 import { SearchInput } from '@/components/SearchInput';
 import { StatusFilterControl } from '@/components/StatusFilterControl';
@@ -64,14 +65,14 @@ export function UserList() {
         </div>
       </Group>
 
-      <Group justify="space-between" wrap="wrap">
+      <ListToolbar>
         <SearchInput
           placeholder="ユーザー名で検索"
           value={search}
           onChange={(e) => setSearch(e.currentTarget.value)}
         />
         <StatusFilterControl value={statusFilter} onChange={setStatusFilter} />
-      </Group>
+      </ListToolbar>
 
       {isError && <ErrorAlert>ユーザー一覧の取得に失敗しました</ErrorAlert>}
 

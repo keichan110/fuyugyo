@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 
 import {
-  ActionIcon,
   Alert,
   Avatar,
   EmptyState,
@@ -14,11 +13,12 @@ import {
   Title,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconDotsVertical, IconSearch, IconUsers } from '@tabler/icons-react';
+import { IconSearch, IconUsers } from '@tabler/icons-react';
 
 import { AppBadge, type AppBadgeKind } from '@/components/AppBadge';
 import { AppTable } from '@/components/AppTable';
 import { ClickableTr } from '@/components/ClickableTr';
+import { RowActionsButton } from '@/components/RowActionsButton';
 import { SearchInput } from '@/components/SearchInput';
 import { TableRowsSkeleton } from '@/components/TableRowsSkeleton';
 
@@ -198,9 +198,7 @@ function UserRow({ user, onEdit }: UserRowProps) {
       <Table.Td onClick={(e) => e.stopPropagation()}>
         <Menu position="bottom-end">
           <Menu.Target>
-            <ActionIcon variant="subtle" color="gray">
-              <IconDotsVertical size={16} />
-            </ActionIcon>
+            <RowActionsButton />
           </Menu.Target>
           <Menu.Dropdown>
             <Menu.Item onClick={onEdit}>編集</Menu.Item>

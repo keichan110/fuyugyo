@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 
 import {
-  ActionIcon,
   Alert,
   Button,
   EmptyState,
@@ -14,11 +13,12 @@ import {
   Title,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconCertificate, IconDotsVertical, IconPlus, IconSearch } from '@tabler/icons-react';
+import { IconCertificate, IconPlus, IconSearch } from '@tabler/icons-react';
 
 import { AppBadge } from '@/components/AppBadge';
 import { AppTable } from '@/components/AppTable';
 import { ClickableTr } from '@/components/ClickableTr';
+import { RowActionsButton } from '@/components/RowActionsButton';
 import { SearchInput } from '@/components/SearchInput';
 import { TableRowsSkeleton } from '@/components/TableRowsSkeleton';
 import { useDepartments } from '@/features/departments/queries';
@@ -205,9 +205,7 @@ function CertificationRow({ certification, departmentName, onEdit }: Certificati
       <Table.Td onClick={(e) => e.stopPropagation()}>
         <Menu position="bottom-end">
           <Menu.Target>
-            <ActionIcon variant="subtle" color="gray">
-              <IconDotsVertical size={16} />
-            </ActionIcon>
+            <RowActionsButton />
           </Menu.Target>
           <Menu.Dropdown>
             <Menu.Item onClick={onEdit}>編集</Menu.Item>

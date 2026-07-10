@@ -18,9 +18,10 @@ import {
   useRouterState,
 } from '@tanstack/react-router';
 
-import { useLogout, useMe } from '@/features/auth/queries';
+import { useLogout, useMe, useUnlinkInstructor } from '@/features/auth/queries';
 import { hasMinimumRole, type MeResponse } from '@/features/auth/schema';
 import { InstructorLinkPrompt } from '@/features/dashboard/components/InstructorLinkPrompt';
+import { useInstructor } from '@/features/instructors/queries';
 
 /** ルーターコンテキスト。ガードのデータ取得に QueryClient を共有する（ADR 0002） */
 export type RouterContext = {
@@ -178,7 +179,7 @@ function UserMenu({ user }: { user: MeResponse }) {
   const navigate = useNavigate();
 
   return (
-    <Menu width={180} position="bottom-end">
+    <Menu width={240} position="bottom-end">
       <Menu.Target>
         <UnstyledButton>
           <Avatar
@@ -192,6 +193,7 @@ function UserMenu({ user }: { user: MeResponse }) {
       </Menu.Target>
       <Menu.Dropdown>
         <Menu.Label>{user.displayName}</Menu.Label>
+        {user.instructorId && <InstructorLinkMenuSection instructorId={user.instructorId} />}
         <Menu.Divider />
         <Menu.Item
           onClick={() => {
@@ -203,5 +205,38 @@ function UserMenu({ user }: { user: MeResponse }) {
         </Menu.Item>
       </Menu.Dropdown>
     </Menu>
+  );
+}
+
+/** アバターメニュー内に連携中のインストラクターと解除操作を表示する。 */
+function InstructorLinkMenuSection({ instructorId }: { instructorId: string }) {
+  const { data: instructor } = useInstructor(instructorId);
+  const unlinkInstructor = useUnlinkInstructor();
+
+  return (
+    <>
+      <Menu.Divider />
+      <Menu.Label>インストラクター連携</Menu.Label>
+      <Group px="sm" pb="xs" gap="xs" wrap="nowrap">
+        <Text size="sm" truncate flex={1}>
+          {instructor ? `${instructor.lastName} ${instructor.firstName}` : '連携情報を読み込み中'}
+        </Text>
+        <Button
+          type="button"
+          variant="subtle"
+          color="red"
+          size="compact-xs"
+          loading={unlinkInstructor.isPending}
+          onClick={() => unlinkInstructor.mutate()}
+        >
+          解除
+        </Button>
+      </Group>
+      {unlinkInstructor.isError && (
+        <Text c="red" size="xs" px="sm" pt="xs">
+          {unlinkInstructor.error.message}
+        </Text>
+      )}
+    </>
   );
 }

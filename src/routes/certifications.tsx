@@ -16,7 +16,7 @@ export const Route = createFileRoute('/certifications')({
 
 function CertificationsPage() {
   return (
-    <Container size="sm" py="md">
+    <Container size="lg" py="md">
       <CertificationList />
     </Container>
   );

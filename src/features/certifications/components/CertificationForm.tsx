@@ -1,96 +1,71 @@
-import { useState } from 'react';
+import { Select, Stack, Textarea, TextInput } from '@mantine/core';
+import type { UseFormReturnType } from '@mantine/form';
 
-import { Alert, Button, Card, Select, Stack, Textarea, TextInput } from '@mantine/core';
+import type { Department } from '@/features/departments/schema';
 
-import { useDepartments } from '@/features/departments/queries';
-
-import { useCreateCertification } from '../queries';
+import type { CertificationFormValues } from './useCertificationForm';
 
 type Props = {
-  onSuccess?: () => void;
+  form: UseFormReturnType<CertificationFormValues>;
+  /** 部門選択肢（作成時のみ使用するアクティブな部門一覧） */
+  departments?: Department[] | undefined;
+  /**
+   * 指定した場合、部門は変更不可の読み取り専用表示になる（編集時の部門名）。
+   * 未指定（作成時）は Select による選択式にする。
+   */
+  departmentName?: string | undefined;
 };
 
 /**
- * 資格作成フォーム。departmentId・name・shortName・organization・description を入力して POST する。
+ * 資格の部門・資格名・省略名・発行団体・説明の入力フィールド群。
+ * 送信ボタンは持たず、フォーム全体の送信は呼び出し側に委ねる。
  */
-export function CertificationForm({ onSuccess }: Props) {
-  const [departmentId, setDepartmentId] = useState('');
-  const [name, setName] = useState('');
-  const [shortName, setShortName] = useState('');
-  const [organization, setOrganization] = useState('');
-  const [description, setDescription] = useState('');
-
-  const { data: departments } = useDepartments(true);
-  const create = useCreateCertification();
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    create.mutate(
-      {
-        departmentId,
-        name,
-        shortName,
-        organization,
-        description: description || undefined,
-      },
-      onSuccess ? { onSuccess } : undefined,
-    );
-  };
-
+export function CertificationFormFields({ form, departments, departmentName }: Props) {
   return (
-    <Card component="form" onSubmit={handleSubmit} withBorder padding="md" radius="md">
-      <Stack gap="sm">
+    <Stack gap="sm">
+      {departmentName !== undefined ? (
+        <TextInput label="部門" value={departmentName} disabled readOnly />
+      ) : (
         <Select
           label="部門"
           required
           placeholder="部門を選択してください"
           data={(departments ?? []).map((dept) => ({ value: dept.id, label: dept.name }))}
-          value={departmentId || null}
-          onChange={(value) => setDepartmentId(value ?? '')}
+          {...form.getInputProps('departmentId')}
         />
+      )}
 
-        <TextInput
-          label="資格名"
-          required
-          value={name}
-          onChange={(e) => setName(e.currentTarget.value)}
-          maxLength={100}
-          placeholder="例: スキー指導員"
-        />
+      <TextInput
+        label="資格名"
+        required
+        maxLength={100}
+        placeholder="例: スキー指導員"
+        {...form.getInputProps('name')}
+      />
 
-        <TextInput
-          label="省略名"
-          required
-          value={shortName}
-          onChange={(e) => setShortName(e.currentTarget.value)}
-          maxLength={20}
-          placeholder="例: 指導員"
-        />
+      <TextInput
+        label="省略名"
+        required
+        maxLength={20}
+        placeholder="例: 指導員"
+        {...form.getInputProps('shortName')}
+      />
 
-        <TextInput
-          label="発行団体"
-          required
-          value={organization}
-          onChange={(e) => setOrganization(e.currentTarget.value)}
-          maxLength={100}
-          placeholder="例: 全日本スキー連盟"
-        />
+      <TextInput
+        label="発行団体"
+        required
+        maxLength={100}
+        placeholder="例: 全日本スキー連盟"
+        {...form.getInputProps('organization')}
+      />
 
-        <Textarea
-          label="説明"
-          value={description}
-          onChange={(e) => setDescription(e.currentTarget.value)}
-          maxLength={500}
-          rows={2}
-          placeholder="資格の説明（任意）"
-        />
-
-        {create.isError && <Alert color="red">{create.error.message}</Alert>}
-
-        <Button type="submit" loading={create.isPending}>
-          作成
-        </Button>
-      </Stack>
-    </Card>
+      <Textarea
+        label="説明"
+        maxLength={500}
+        rows={2}
+        placeholder="資格の説明（任意）"
+        {...form.getInputProps('description')}
+      />
+    </Stack>
   );
 }

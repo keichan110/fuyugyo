@@ -1,43 +1,26 @@
-import { useState } from 'react';
+import { Stack, TextInput } from '@mantine/core';
+import type { UseFormReturnType } from '@mantine/form';
 
-import { Alert, Button, Card, Stack, TextInput } from '@mantine/core';
-
-import { useCreateShiftType } from '../queries';
+import type { ShiftTypeFormValues } from './useShiftTypeForm';
 
 type Props = {
-  onSuccess?: () => void;
+  form: UseFormReturnType<ShiftTypeFormValues>;
 };
 
 /**
- * シフト種別作成フォーム。name を入力して POST する。
+ * シフト種別名の入力フィールド群。
+ * 送信ボタンは持たず、フォーム全体の送信は呼び出し側に委ねる。
  */
-export function ShiftTypeForm({ onSuccess }: Props) {
-  const [name, setName] = useState('');
-  const create = useCreateShiftType();
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    create.mutate({ name }, onSuccess ? { onSuccess } : undefined);
-  };
-
+export function ShiftTypeFormFields({ form }: Props) {
   return (
-    <Card component="form" onSubmit={handleSubmit} withBorder padding="md" radius="md">
-      <Stack gap="sm">
-        <TextInput
-          label="種別名"
-          required
-          value={name}
-          onChange={(e) => setName(e.currentTarget.value)}
-          maxLength={100}
-          placeholder="例: 終日、午前、午後"
-        />
-
-        {create.isError && <Alert color="red">{create.error.message}</Alert>}
-
-        <Button type="submit" loading={create.isPending}>
-          作成
-        </Button>
-      </Stack>
-    </Card>
+    <Stack gap="sm">
+      <TextInput
+        label="種別名"
+        required
+        maxLength={100}
+        placeholder="例: 終日、午前、午後"
+        {...form.getInputProps('name')}
+      />
+    </Stack>
   );
 }

@@ -1,156 +1,208 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
-import { Alert, Badge, Button, Group, Stack, Table, Text, TextInput, Title } from '@mantine/core';
+import {
+  ActionIcon,
+  Alert,
+  Badge,
+  Button,
+  EmptyState,
+  Group,
+  Menu,
+  SegmentedControl,
+  Skeleton,
+  Stack,
+  Table,
+  Text,
+  TextInput,
+  Title,
+} from '@mantine/core';
+import { notifications } from '@mantine/notifications';
+import { IconClock, IconDotsVertical, IconPlus, IconSearch } from '@tabler/icons-react';
 
-import { useDeactivateShiftType, useShiftTypes, useUpdateShiftType } from '../queries';
-import { ShiftTypeForm } from './ShiftTypeForm';
+import { useDeactivateShiftType, useShiftTypes } from '../queries';
+import type { ShiftType } from '../schema';
+import { ShiftTypeDrawer, type ShiftTypeDrawerState } from './ShiftTypeDrawer';
+
+/** ステータス絞り込みの選択肢 */
+const STATUS_FILTERS = [
+  { label: 'すべて', value: 'ALL' },
+  { label: 'アクティブ', value: 'ACTIVE' },
+  { label: '無効', value: 'INACTIVE' },
+] as const;
+
+type StatusFilter = (typeof STATUS_FILTERS)[number]['value'];
 
 /**
- * シフト種別一覧と作成・編集・無効化操作を提供するコンポーネント。
+ * シフト種別一覧と検索・絞り込み、作成・編集への導線を提供するコンポーネント。
+ * 作成・編集・無効化は ShiftTypeDrawer に集約する。
  */
 export function ShiftTypeList() {
-  const [showForm, setShowForm] = useState(false);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
+  const [drawerState, setDrawerState] = useState<ShiftTypeDrawerState | null>(null);
+
   // 管理画面では無効種別も表示するため全件取得する
   const { data, isLoading, isError } = useShiftTypes(false);
 
+  const allShiftTypes = useMemo(() => data ?? [], [data]);
+  const activeCount = allShiftTypes.filter((s) => s.isActive).length;
+
+  const visibleShiftTypes = useMemo(() => {
+    const query = search.trim();
+    return allShiftTypes.filter((shiftType) => {
+      if (statusFilter === 'ACTIVE' && !shiftType.isActive) return false;
+      if (statusFilter === 'INACTIVE' && shiftType.isActive) return false;
+      if (query.length === 0) return true;
+      return shiftType.name.includes(query);
+    });
+  }, [allShiftTypes, statusFilter, search]);
+
   return (
     <Stack gap="md">
-      <Group justify="space-between">
-        <Title order={2}>シフト種別管理</Title>
-        <Button onClick={() => setShowForm((prev) => !prev)}>
-          {showForm ? 'キャンセル' : 'シフト種別を追加'}
+      <Group justify="space-between" align="flex-start">
+        <div>
+          <Title order={2}>シフト種別管理</Title>
+          {!isLoading && (
+            <Text c="dimmed" size="sm">
+              全{allShiftTypes.length}件（アクティブ{activeCount}件）
+            </Text>
+          )}
+        </div>
+        <Button
+          leftSection={<IconPlus size={16} />}
+          onClick={() => setDrawerState({ mode: 'create' })}
+        >
+          シフト種別を追加
         </Button>
       </Group>
 
-      {showForm && <ShiftTypeForm onSuccess={() => setShowForm(false)} />}
+      <Group justify="space-between" wrap="wrap">
+        <TextInput
+          placeholder="種別名で検索"
+          leftSection={<IconSearch size={16} />}
+          value={search}
+          onChange={(e) => setSearch(e.currentTarget.value)}
+          style={{ flex: 1, minWidth: 240 }}
+        />
+        <SegmentedControl
+          value={statusFilter}
+          onChange={(value) => setStatusFilter(value as StatusFilter)}
+          data={STATUS_FILTERS.map((f) => ({ label: f.label, value: f.value }))}
+        />
+      </Group>
 
-      {isLoading && (
-        <Text c="dimmed" size="sm">
-          読み込み中…
-        </Text>
-      )}
       {isError && <Alert color="red">シフト種別一覧の取得に失敗しました</Alert>}
 
-      {data && data.length === 0 && (
-        <Text c="dimmed" size="sm">
-          シフト種別がありません
-        </Text>
+      {isLoading && (
+        <Stack gap="xs">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Skeleton key={i} height={52} radius="sm" />
+          ))}
+        </Stack>
       )}
 
-      {data && data.length > 0 && (
-        <Table highlightOnHover withTableBorder withRowBorders>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>種別名</Table.Th>
-              <Table.Th w={160}>操作</Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {data.map((shiftType) => (
-              <ShiftTypeRow
-                key={shiftType.id}
-                id={shiftType.id}
-                name={shiftType.name}
-                isActive={shiftType.isActive}
-              />
-            ))}
-          </Table.Tbody>
-        </Table>
+      {!isLoading && allShiftTypes.length === 0 && (
+        <EmptyState
+          icon={<IconClock size={32} stroke={1.5} />}
+          title="シフト種別がありません"
+          description="最初のシフト種別を追加しましょう。"
+        >
+          <EmptyState.Actions>
+            <Button
+              leftSection={<IconPlus size={16} />}
+              onClick={() => setDrawerState({ mode: 'create' })}
+            >
+              シフト種別を追加
+            </Button>
+          </EmptyState.Actions>
+        </EmptyState>
       )}
+
+      {!isLoading && allShiftTypes.length > 0 && visibleShiftTypes.length === 0 && (
+        <EmptyState
+          icon={<IconSearch size={32} stroke={1.5} />}
+          title="条件に一致するシフト種別がありません"
+          description="検索キーワードや絞り込み条件を変更してみてください。"
+        />
+      )}
+
+      {visibleShiftTypes.length > 0 && (
+        <Table.ScrollContainer minWidth={400}>
+          <Table highlightOnHover withTableBorder withRowBorders verticalSpacing="sm">
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>種別名</Table.Th>
+                <Table.Th w={120}>状態</Table.Th>
+                <Table.Th w={56} />
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {visibleShiftTypes.map((shiftType) => (
+                <ShiftTypeRow
+                  key={shiftType.id}
+                  shiftType={shiftType}
+                  onEdit={() => setDrawerState({ mode: 'edit', shiftTypeId: shiftType.id })}
+                />
+              ))}
+            </Table.Tbody>
+          </Table>
+        </Table.ScrollContainer>
+      )}
+
+      <ShiftTypeDrawer state={drawerState} onClose={() => setDrawerState(null)} />
     </Stack>
   );
 }
 
 type ShiftTypeRowProps = {
-  id: string;
-  name: string;
-  isActive: boolean;
+  shiftType: ShiftType;
+  onEdit: () => void;
 };
 
-/**
- * シフト種別の1行表示。編集・無効化ボタンを持つ。
- * deactivate フックをアイテム内に持つことで、各行が独立した操作状態を管理する。
- */
-function ShiftTypeRow({ id, name, isActive }: ShiftTypeRowProps) {
-  const [editing, setEditing] = useState(false);
-  const [editName, setEditName] = useState(name);
-  const update = useUpdateShiftType(id);
+/** シフト種別一覧の1行。クリックで編集 Drawer を開く。 */
+function ShiftTypeRow({ shiftType, onEdit }: ShiftTypeRowProps) {
   const deactivate = useDeactivateShiftType();
+  const isActive = shiftType.isActive;
 
-  const handleUpdate = (e: React.FormEvent) => {
-    e.preventDefault();
-    update.mutate({ name: editName }, { onSuccess: () => setEditing(false) });
+  const handleDeactivate = () => {
+    deactivate.mutate(shiftType.id, {
+      onSuccess: () => {
+        notifications.show({
+          color: 'green',
+          message: `${shiftType.name}を無効化しました`,
+        });
+      },
+    });
   };
 
-  if (editing) {
-    return (
-      <Table.Tr>
-        <Table.Td colSpan={2}>
-          <Stack gap="xs">
-            <Group component="form" onSubmit={handleUpdate} wrap="nowrap">
-              <TextInput
-                value={editName}
-                onChange={(e) => setEditName(e.currentTarget.value)}
-                required
-                maxLength={100}
-                autoFocus
-                style={{ flex: 1 }}
-              />
-              <Button type="submit" size="xs" loading={update.isPending}>
-                保存
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="xs"
-                onClick={() => {
-                  setEditName(name);
-                  setEditing(false);
-                }}
-              >
-                キャンセル
-              </Button>
-            </Group>
-            {update.isError && <Alert color="red">{update.error.message}</Alert>}
-          </Stack>
-        </Table.Td>
-      </Table.Tr>
-    );
-  }
-
   return (
-    <Table.Tr>
+    <Table.Tr onClick={onEdit} style={{ cursor: 'pointer' }}>
       <Table.Td>
-        <Group gap="xs">
-          <Text fw={500}>{name}</Text>
-          {!isActive && (
-            <Badge color="gray" variant="light" size="sm">
-              無効
-            </Badge>
-          )}
-        </Group>
-        {deactivate.isError && (
-          <Alert color="red" mt="xs">
-            {deactivate.error.message}
-          </Alert>
-        )}
+        <Text fw={500} size="sm">
+          {shiftType.name}
+        </Text>
       </Table.Td>
       <Table.Td>
-        {isActive && (
-          <Group gap="xs">
-            <Button variant="outline" size="xs" onClick={() => setEditing(true)}>
-              編集
-            </Button>
-            <Button
-              variant="outline"
-              size="xs"
-              loading={deactivate.isPending}
-              onClick={() => deactivate.mutate(id)}
-            >
-              無効化
-            </Button>
-          </Group>
-        )}
+        <Badge color={isActive ? 'green' : 'gray'} variant="light">
+          {isActive ? 'アクティブ' : '無効'}
+        </Badge>
+      </Table.Td>
+      <Table.Td onClick={(e) => e.stopPropagation()}>
+        <Menu shadow="md" position="bottom-end">
+          <Menu.Target>
+            <ActionIcon variant="subtle" color="gray">
+              <IconDotsVertical size={16} />
+            </ActionIcon>
+          </Menu.Target>
+          <Menu.Dropdown>
+            <Menu.Item onClick={onEdit}>編集</Menu.Item>
+            {isActive && (
+              <Menu.Item onClick={handleDeactivate} disabled={deactivate.isPending}>
+                無効化
+              </Menu.Item>
+            )}
+          </Menu.Dropdown>
+        </Menu>
       </Table.Td>
     </Table.Tr>
   );

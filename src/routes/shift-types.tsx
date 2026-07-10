@@ -16,7 +16,7 @@ export const Route = createFileRoute('/shift-types')({
 
 function ShiftTypesPage() {
   return (
-    <Container size="sm" py="md">
+    <Container size="lg" py="md">
       <ShiftTypeList />
     </Container>
   );

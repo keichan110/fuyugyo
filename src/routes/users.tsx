@@ -20,7 +20,7 @@ export const Route = createFileRoute('/users')({
 
 function UsersPage() {
   return (
-    <Container size="sm" py="md">
+    <Container size="lg" py="md">
       <UserList />
     </Container>
   );

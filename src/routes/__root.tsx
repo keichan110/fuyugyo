@@ -1,7 +1,13 @@
 import { AppShell, Avatar, Button, Group, Menu, Text, UnstyledButton } from '@mantine/core';
 import { IconCalendarCog, IconCalendarWeek, IconSettings, type Icon } from '@tabler/icons-react';
 import type { QueryClient } from '@tanstack/react-query';
-import { createRootRouteWithContext, Link, Outlet, useNavigate } from '@tanstack/react-router';
+import {
+  createRootRouteWithContext,
+  Link,
+  Outlet,
+  useNavigate,
+  useRouterState,
+} from '@tanstack/react-router';
 
 import { useLogout, useMe } from '@/features/auth/queries';
 import { hasMinimumRole, type MeResponse } from '@/features/auth/schema';
@@ -56,12 +62,15 @@ function RootLayout() {
 
 /** ヘッダー中央のよく使う導線用リンク（設定メニューボタンと統一感のあるスタイル） */
 function HeaderLink({ to, icon: Icon, children }: { to: string; icon: Icon; children: string }) {
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const active = pathname === to;
+
   return (
     <Button
       component={Link}
       to={to}
-      variant="subtle"
-      color="gray"
+      variant={active ? 'light' : 'subtle'}
+      color={active ? 'blue' : 'gray'}
       size="sm"
       leftSection={<Icon size={16} stroke={1.75} />}
       px="sm"
@@ -78,12 +87,15 @@ function HeaderLink({ to, icon: Icon, children }: { to: string; icon: Icon; chil
  * のみに表示する（API 側の `requireRole` と揃える）。
  */
 function SettingsMenu({ isAdmin }: { isAdmin: boolean }) {
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const active = SETTINGS_PATHS.has(pathname);
+
   return (
     <Menu width={200}>
       <Menu.Target>
         <Button
-          variant="subtle"
-          color="gray"
+          variant={active ? 'light' : 'subtle'}
+          color={active ? 'blue' : 'gray'}
           size="sm"
           leftSection={<IconSettings size={16} stroke={1.75} />}
           px="sm"
@@ -122,6 +134,15 @@ function SettingsMenu({ isAdmin }: { isAdmin: boolean }) {
     </Menu>
   );
 }
+
+const SETTINGS_PATHS = new Set([
+  '/departments',
+  '/certifications',
+  '/shift-types',
+  '/instructors',
+  '/users',
+  '/invitations',
+]);
 
 /** アバター + ログアウトメニュー（全ユーザー共通） */
 function UserMenu({ user }: { user: MeResponse }) {

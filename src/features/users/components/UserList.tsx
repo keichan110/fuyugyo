@@ -15,7 +15,7 @@ import { notifications } from '@mantine/notifications';
 import { IconSearch, IconUsers } from '@tabler/icons-react';
 
 import { ErrorAlert } from '@/components/AppAlert';
-import { AppBadge, type AppBadgeKind } from '@/components/AppBadge';
+import { AppBadge } from '@/components/AppBadge';
 import { AppTable } from '@/components/AppTable';
 import { ClickableTr } from '@/components/ClickableTr';
 import { RowActionsButton } from '@/components/RowActionsButton';
@@ -23,15 +23,9 @@ import { SearchInput } from '@/components/SearchInput';
 import { TableRowsSkeleton } from '@/components/TableRowsSkeleton';
 
 import { useActivateUser, useDeactivateUser, useUsers } from '../queries';
-import type { User, UserRole } from '../schema';
+import { USER_ROLE_META } from '../role-meta';
+import type { User } from '../schema';
 import { UserDrawer, type UserDrawerState } from './UserDrawer';
-
-/** ロールごとの表示ラベルとバッジ種別 */
-const ROLE_META: Record<UserRole, { label: string; badgeKind: AppBadgeKind }> = {
-  ADMIN: { label: '管理者', badgeKind: 'roleAdmin' },
-  MANAGER: { label: 'マネージャー', badgeKind: 'roleManager' },
-  MEMBER: { label: 'メンバー', badgeKind: 'roleMember' },
-};
 
 /** ステータス絞り込みの選択肢 */
 const STATUS_FILTERS = [
@@ -145,7 +139,7 @@ function UserRow({ user, onEdit }: UserRowProps) {
   const deactivate = useDeactivateUser(user.id);
   const activate = useActivateUser(user.id);
   const isActive = user.isActive;
-  const roleMeta = ROLE_META[user.role];
+  const roleMeta = USER_ROLE_META[user.role];
 
   /** 行メニューからのステータス切り替え（無効化⇔アクティブ化）を実行する */
   const handleToggleStatus = () => {

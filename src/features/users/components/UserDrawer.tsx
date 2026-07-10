@@ -15,7 +15,7 @@ import {
 import { notifications } from '@mantine/notifications';
 
 import { ErrorAlert } from '@/components/AppAlert';
-import { AppBadge, type AppBadgeKind } from '@/components/AppBadge';
+import { AppBadge } from '@/components/AppBadge';
 import { FormFooterButtons } from '@/components/FormFooterButtons';
 import { useInstructor, useInstructors } from '@/features/instructors/queries';
 import type {
@@ -31,6 +31,7 @@ import {
   useUnlinkInstructor,
   useUsers,
 } from '../queries';
+import { USER_ROLE_META } from '../role-meta';
 import { userRoleSchema, type User, type UserRole } from '../schema';
 
 /** Drawer が表示する状態（対象ユーザーの ID）。users には作成 API がないため編集モードのみ持つ。 */
@@ -39,13 +40,6 @@ export type UserDrawerState = { userId: string };
 type Props = {
   state: UserDrawerState | null;
   onClose: () => void;
-};
-
-/** ロールごとの表示ラベルとバッジ種別（UserList と表示を揃える） */
-const ROLE_META: Record<UserRole, { label: string; badgeKind: AppBadgeKind }> = {
-  ADMIN: { label: '管理者', badgeKind: 'roleAdmin' },
-  MANAGER: { label: 'マネージャー', badgeKind: 'roleManager' },
-  MEMBER: { label: 'メンバー', badgeKind: 'roleMember' },
 };
 
 /**
@@ -224,8 +218,8 @@ function EditForm({ user, onClose }: EditFormProps) {
           )}
           <div>
             <Text fw={500}>{user.displayName}</Text>
-            <AppBadge kind={ROLE_META[user.role].badgeKind} size="sm">
-              {ROLE_META[user.role].label}
+            <AppBadge kind={USER_ROLE_META[user.role].badgeKind} size="sm">
+              {USER_ROLE_META[user.role].label}
             </AppBadge>
           </div>
         </Group>
@@ -234,7 +228,7 @@ function EditForm({ user, onClose }: EditFormProps) {
 
         <Select
           label="ロール"
-          data={userRoleSchema.options.map((r) => ({ value: r, label: ROLE_META[r].label }))}
+          data={userRoleSchema.options.map((r) => ({ value: r, label: USER_ROLE_META[r].label }))}
           value={role}
           onChange={(value) => setRole(userRoleSchema.parse(value))}
         />

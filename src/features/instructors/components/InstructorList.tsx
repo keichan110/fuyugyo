@@ -8,7 +8,6 @@ import {
   Stack,
   Table,
   Text,
-  Title,
   Tooltip,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
@@ -19,6 +18,7 @@ import { AppBadge } from '@/components/AppBadge';
 import { AppTable } from '@/components/AppTable';
 import { ClickableTr } from '@/components/ClickableTr';
 import { ListEmptyState, ListNoResultsState } from '@/components/ListEmptyState';
+import { ListHeader } from '@/components/ListHeader';
 import { ListToolbar } from '@/components/ListToolbar';
 import { RowActionsButton } from '@/components/RowActionsButton';
 import { SearchInput } from '@/components/SearchInput';
@@ -78,22 +78,21 @@ export function InstructorList() {
 
   return (
     <Stack gap="md">
-      <Group justify="space-between" align="flex-start">
-        <div>
-          <Title order={2}>インストラクター管理</Title>
-          {!isLoading && (
-            <Text c="dimmed" size="sm">
-              全{allInstructors.length}名（アクティブ{activeCount}名）
-            </Text>
-          )}
-        </div>
-        <Button
-          leftSection={<IconPlus size={16} />}
-          onClick={() => setDrawerState({ mode: 'create' })}
-        >
-          インストラクターを追加
-        </Button>
-      </Group>
+      <ListHeader
+        title="インストラクター管理"
+        total={allInstructors.length}
+        active={activeCount}
+        unit="名"
+        isLoading={isLoading}
+        action={
+          <Button
+            leftSection={<IconPlus size={16} />}
+            onClick={() => setDrawerState({ mode: 'create' })}
+          >
+            インストラクターを追加
+          </Button>
+        }
+      />
 
       <ListToolbar>
         <SearchInput

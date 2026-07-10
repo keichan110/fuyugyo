@@ -2,12 +2,10 @@ import { useMemo, useState } from 'react';
 
 import {
   Button,
-  Group,
   Menu,
   Stack,
   Table,
   Text,
-  Title,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { IconBuilding, IconPlus } from '@tabler/icons-react';
@@ -17,6 +15,7 @@ import { AppBadge } from '@/components/AppBadge';
 import { AppTable } from '@/components/AppTable';
 import { ClickableTr } from '@/components/ClickableTr';
 import { ListEmptyState, ListNoResultsState } from '@/components/ListEmptyState';
+import { ListHeader } from '@/components/ListHeader';
 import { ListToolbar } from '@/components/ListToolbar';
 import { RowActionsButton } from '@/components/RowActionsButton';
 import { SearchInput } from '@/components/SearchInput';
@@ -55,22 +54,21 @@ export function DepartmentList() {
 
   return (
     <Stack gap="md">
-      <Group justify="space-between" align="flex-start">
-        <div>
-          <Title order={2}>部門管理</Title>
-          {!isLoading && (
-            <Text c="dimmed" size="sm">
-              全{allDepartments.length}件（アクティブ{activeCount}件）
-            </Text>
-          )}
-        </div>
-        <Button
-          leftSection={<IconPlus size={16} />}
-          onClick={() => setDrawerState({ mode: 'create' })}
-        >
-          部門を追加
-        </Button>
-      </Group>
+      <ListHeader
+        title="部門管理"
+        total={allDepartments.length}
+        active={activeCount}
+        unit="件"
+        isLoading={isLoading}
+        action={
+          <Button
+            leftSection={<IconPlus size={16} />}
+            onClick={() => setDrawerState({ mode: 'create' })}
+          >
+            部門を追加
+          </Button>
+        }
+      />
 
       <ListToolbar>
         <SearchInput

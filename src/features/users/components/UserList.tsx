@@ -7,7 +7,6 @@ import {
   Stack,
   Table,
   Text,
-  Title,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { IconUsers } from '@tabler/icons-react';
@@ -17,6 +16,7 @@ import { AppBadge } from '@/components/AppBadge';
 import { AppTable } from '@/components/AppTable';
 import { ClickableTr } from '@/components/ClickableTr';
 import { ListEmptyState, ListNoResultsState } from '@/components/ListEmptyState';
+import { ListHeader } from '@/components/ListHeader';
 import { ListToolbar } from '@/components/ListToolbar';
 import { RowActionsButton } from '@/components/RowActionsButton';
 import { SearchInput } from '@/components/SearchInput';
@@ -54,16 +54,13 @@ export function UserList() {
 
   return (
     <Stack gap="md">
-      <Group justify="space-between" align="flex-start">
-        <div>
-          <Title order={2}>ユーザー管理</Title>
-          {!isLoading && (
-            <Text c="dimmed" size="sm">
-              全{allUsers.length}名（アクティブ{activeCount}名）
-            </Text>
-          )}
-        </div>
-      </Group>
+      <ListHeader
+        title="ユーザー管理"
+        total={allUsers.length}
+        active={activeCount}
+        unit="名"
+        isLoading={isLoading}
+      />
 
       <ListToolbar>
         <SearchInput

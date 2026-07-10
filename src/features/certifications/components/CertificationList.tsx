@@ -16,8 +16,9 @@ import {
 import { notifications } from '@mantine/notifications';
 import { IconCertificate, IconDotsVertical, IconPlus, IconSearch } from '@tabler/icons-react';
 
-import { ClickableTr } from '@/components/ClickableTr';
 import { AppBadge } from '@/components/AppBadge';
+import { AppTable } from '@/components/AppTable';
+import { ClickableTr } from '@/components/ClickableTr';
 import { SearchInput } from '@/components/SearchInput';
 import { TableRowsSkeleton } from '@/components/TableRowsSkeleton';
 import { useDepartments } from '@/features/departments/queries';
@@ -130,29 +131,27 @@ export function CertificationList() {
       )}
 
       {visibleCertifications.length > 0 && (
-        <Table.ScrollContainer minWidth={720}>
-          <Table highlightOnHover withTableBorder withRowBorders verticalSpacing="sm">
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>資格名</Table.Th>
-                <Table.Th>部門</Table.Th>
-                <Table.Th>発行団体</Table.Th>
-                <Table.Th w={100}>状態</Table.Th>
-                <Table.Th w={56} />
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {visibleCertifications.map((cert) => (
-                <CertificationRow
-                  key={cert.id}
-                  certification={cert}
-                  departmentName={deptNameMap.get(cert.departmentId)}
-                  onEdit={() => setDrawerState({ mode: 'edit', certificationId: cert.id })}
-                />
-              ))}
-            </Table.Tbody>
-          </Table>
-        </Table.ScrollContainer>
+        <AppTable minWidth={720}>
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>資格名</Table.Th>
+              <Table.Th>部門</Table.Th>
+              <Table.Th>発行団体</Table.Th>
+              <Table.Th w={100}>状態</Table.Th>
+              <Table.Th w={56} />
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
+            {visibleCertifications.map((cert) => (
+              <CertificationRow
+                key={cert.id}
+                certification={cert}
+                departmentName={deptNameMap.get(cert.departmentId)}
+                onEdit={() => setDrawerState({ mode: 'edit', certificationId: cert.id })}
+              />
+            ))}
+          </Table.Tbody>
+        </AppTable>
       )}
 
       <CertificationDrawer state={drawerState} onClose={() => setDrawerState(null)} />

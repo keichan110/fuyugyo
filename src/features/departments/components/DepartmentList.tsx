@@ -16,8 +16,9 @@ import {
 import { notifications } from '@mantine/notifications';
 import { IconBuilding, IconDotsVertical, IconPlus, IconSearch } from '@tabler/icons-react';
 
-import { ClickableTr } from '@/components/ClickableTr';
 import { AppBadge } from '@/components/AppBadge';
+import { AppTable } from '@/components/AppTable';
+import { ClickableTr } from '@/components/ClickableTr';
 import { SearchInput } from '@/components/SearchInput';
 import { TableRowsSkeleton } from '@/components/TableRowsSkeleton';
 
@@ -121,28 +122,26 @@ export function DepartmentList() {
       )}
 
       {visibleDepartments.length > 0 && (
-        <Table.ScrollContainer minWidth={560}>
-          <Table highlightOnHover withTableBorder withRowBorders verticalSpacing="sm">
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>コード</Table.Th>
-                <Table.Th>部門名</Table.Th>
-                <Table.Th>説明</Table.Th>
-                <Table.Th w={120}>状態</Table.Th>
-                <Table.Th w={56} />
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {visibleDepartments.map((department) => (
-                <DepartmentRow
-                  key={department.id}
-                  department={department}
-                  onEdit={() => setDrawerState({ mode: 'edit', departmentId: department.id })}
-                />
-              ))}
-            </Table.Tbody>
-          </Table>
-        </Table.ScrollContainer>
+        <AppTable minWidth={560}>
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>コード</Table.Th>
+              <Table.Th>部門名</Table.Th>
+              <Table.Th>説明</Table.Th>
+              <Table.Th w={120}>状態</Table.Th>
+              <Table.Th w={56} />
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
+            {visibleDepartments.map((department) => (
+              <DepartmentRow
+                key={department.id}
+                department={department}
+                onEdit={() => setDrawerState({ mode: 'edit', departmentId: department.id })}
+              />
+            ))}
+          </Table.Tbody>
+        </AppTable>
       )}
 
       <DepartmentDrawer state={drawerState} onClose={() => setDrawerState(null)} />

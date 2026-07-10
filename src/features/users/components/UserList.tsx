@@ -16,8 +16,9 @@ import {
 import { notifications } from '@mantine/notifications';
 import { IconDotsVertical, IconSearch, IconUsers } from '@tabler/icons-react';
 
-import { ClickableTr } from '@/components/ClickableTr';
 import { AppBadge, type AppBadgeKind } from '@/components/AppBadge';
+import { AppTable } from '@/components/AppTable';
+import { ClickableTr } from '@/components/ClickableTr';
 import { SearchInput } from '@/components/SearchInput';
 import { TableRowsSkeleton } from '@/components/TableRowsSkeleton';
 
@@ -107,28 +108,26 @@ export function UserList() {
       )}
 
       {visibleUsers.length > 0 && (
-        <Table.ScrollContainer minWidth={640}>
-          <Table highlightOnHover withTableBorder withRowBorders verticalSpacing="sm">
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>ユーザー名</Table.Th>
-                <Table.Th w={140}>ロール</Table.Th>
-                <Table.Th>Instructor リンク</Table.Th>
-                <Table.Th w={120}>状態</Table.Th>
-                <Table.Th w={56} />
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {visibleUsers.map((user) => (
-                <UserRow
-                  key={user.id}
-                  user={user}
-                  onEdit={() => setDrawerState({ userId: user.id })}
-                />
-              ))}
-            </Table.Tbody>
-          </Table>
-        </Table.ScrollContainer>
+        <AppTable minWidth={640}>
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>ユーザー名</Table.Th>
+              <Table.Th w={140}>ロール</Table.Th>
+              <Table.Th>Instructor リンク</Table.Th>
+              <Table.Th w={120}>状態</Table.Th>
+              <Table.Th w={56} />
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
+            {visibleUsers.map((user) => (
+              <UserRow
+                key={user.id}
+                user={user}
+                onEdit={() => setDrawerState({ userId: user.id })}
+              />
+            ))}
+          </Table.Tbody>
+        </AppTable>
       )}
 
       <UserDrawer state={drawerState} onClose={() => setDrawerState(null)} />

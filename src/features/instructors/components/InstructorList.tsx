@@ -18,8 +18,9 @@ import {
 import { notifications } from '@mantine/notifications';
 import { IconDotsVertical, IconPlus, IconSearch, IconUsers } from '@tabler/icons-react';
 
-import { ClickableTr } from '@/components/ClickableTr';
 import { AppBadge } from '@/components/AppBadge';
+import { AppTable } from '@/components/AppTable';
+import { ClickableTr } from '@/components/ClickableTr';
 import { SearchInput } from '@/components/SearchInput';
 import { TableRowsSkeleton } from '@/components/TableRowsSkeleton';
 
@@ -144,28 +145,26 @@ export function InstructorList() {
       )}
 
       {visibleInstructors.length > 0 && (
-        <Table.ScrollContainer minWidth={640}>
-          <Table highlightOnHover withTableBorder withRowBorders verticalSpacing="sm">
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>氏名</Table.Th>
-                <Table.Th>資格</Table.Th>
-                <Table.Th w={120}>状態</Table.Th>
-                <Table.Th>備考</Table.Th>
-                <Table.Th w={56} />
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {visibleInstructors.map((instructor) => (
-                <InstructorRow
-                  key={instructor.id}
-                  instructor={instructor}
-                  onEdit={() => setDrawerState({ mode: 'edit', instructorId: instructor.id })}
-                />
-              ))}
-            </Table.Tbody>
-          </Table>
-        </Table.ScrollContainer>
+        <AppTable minWidth={640}>
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>氏名</Table.Th>
+              <Table.Th>資格</Table.Th>
+              <Table.Th w={120}>状態</Table.Th>
+              <Table.Th>備考</Table.Th>
+              <Table.Th w={56} />
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
+            {visibleInstructors.map((instructor) => (
+              <InstructorRow
+                key={instructor.id}
+                instructor={instructor}
+                onEdit={() => setDrawerState({ mode: 'edit', instructorId: instructor.id })}
+              />
+            ))}
+          </Table.Tbody>
+        </AppTable>
       )}
 
       <InstructorDrawer state={drawerState} onClose={() => setDrawerState(null)} />

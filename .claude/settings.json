@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "jq -r '.tool_input.file_path' | xargs npx prettier --write --ignore-unknown"
+            "command": "jq -r '.tool_input.file_path' | xargs pnpm exec prettier --write --ignore-unknown"
           }
         ]
       }
@@ -34,11 +34,18 @@
   },
   "permissions": {
     "allow": [
-      "Bash(npm run typecheck:*)",
-      "Bash(npm run lint:*)",
-      "Bash(npm test:*)",
-      "Bash(npm run test:*)",
-      "Bash(npm run format:*)"
+      "Bash(pnpm run typecheck:*)",
+      "Bash(pnpm run lint:*)",
+      "Bash(pnpm test:*)",
+      "Bash(pnpm run test:*)",
+      "Bash(pnpm run format:*)",
+      "Bash(pnpm exec vitest run *)",
+      "Bash(pnpm exec tsc -p tsconfig.json --noEmit *)",
+      "Bash(pnpm view *)",
+      "mcp__mantine__get_item_doc",
+      "mcp__mantine__get_item_props",
+      "mcp__mantine__list_items",
+      "mcp__mantine__search_docs"
     ],
     "deny": [
       "Read(.env)",

@@ -5,7 +5,6 @@ import {
   EmptyState,
   Group,
   Menu,
-  SegmentedControl,
   Stack,
   Table,
   Text,
@@ -20,20 +19,13 @@ import { AppTable } from '@/components/AppTable';
 import { ClickableTr } from '@/components/ClickableTr';
 import { RowActionsButton } from '@/components/RowActionsButton';
 import { SearchInput } from '@/components/SearchInput';
+import { StatusFilterControl } from '@/components/StatusFilterControl';
+import type { ActiveStatusFilter } from '@/components/status-filter';
 import { TableRowsSkeleton } from '@/components/TableRowsSkeleton';
 
 import { useDeactivateDepartment, useDepartments } from '../queries';
 import type { Department } from '../schema';
 import { DepartmentDrawer, type DepartmentDrawerState } from './DepartmentDrawer';
-
-/** ステータス絞り込みの選択肢 */
-const STATUS_FILTERS = [
-  { label: 'すべて', value: 'ALL' },
-  { label: 'アクティブ', value: 'ACTIVE' },
-  { label: '無効', value: 'INACTIVE' },
-] as const;
-
-type StatusFilter = (typeof STATUS_FILTERS)[number]['value'];
 
 /**
  * 部門一覧と検索・絞り込み、作成・編集への導線を提供するコンポーネント。
@@ -41,7 +33,7 @@ type StatusFilter = (typeof STATUS_FILTERS)[number]['value'];
  */
 export function DepartmentList() {
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
+  const [statusFilter, setStatusFilter] = useState<ActiveStatusFilter>('ALL');
   const [drawerState, setDrawerState] = useState<DepartmentDrawerState | null>(null);
 
   // 管理画面では無効部門も表示するため全件取得する
@@ -85,11 +77,7 @@ export function DepartmentList() {
           value={search}
           onChange={(e) => setSearch(e.currentTarget.value)}
         />
-        <SegmentedControl
-          value={statusFilter}
-          onChange={(value) => setStatusFilter(value as StatusFilter)}
-          data={STATUS_FILTERS.map((f) => ({ label: f.label, value: f.value }))}
-        />
+        <StatusFilterControl value={statusFilter} onChange={setStatusFilter} />
       </Group>
 
       {isError && <ErrorAlert>部門一覧の取得に失敗しました</ErrorAlert>}

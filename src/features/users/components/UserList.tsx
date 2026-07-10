@@ -5,7 +5,6 @@ import {
   EmptyState,
   Group,
   Menu,
-  SegmentedControl,
   Stack,
   Table,
   Text,
@@ -20,21 +19,14 @@ import { AppTable } from '@/components/AppTable';
 import { ClickableTr } from '@/components/ClickableTr';
 import { RowActionsButton } from '@/components/RowActionsButton';
 import { SearchInput } from '@/components/SearchInput';
+import { StatusFilterControl } from '@/components/StatusFilterControl';
+import type { ActiveStatusFilter } from '@/components/status-filter';
 import { TableRowsSkeleton } from '@/components/TableRowsSkeleton';
 
 import { useActivateUser, useDeactivateUser, useUsers } from '../queries';
 import { USER_ROLE_META } from '../role-meta';
 import type { User } from '../schema';
 import { UserDrawer, type UserDrawerState } from './UserDrawer';
-
-/** ステータス絞り込みの選択肢 */
-const STATUS_FILTERS = [
-  { label: 'すべて', value: 'ALL' },
-  { label: 'アクティブ', value: 'ACTIVE' },
-  { label: '無効', value: 'INACTIVE' },
-] as const;
-
-type StatusFilter = (typeof STATUS_FILTERS)[number]['value'];
 
 /**
  * ユーザー一覧と検索・絞り込み、編集への導線を提供するコンポーネント（ADMIN 専用）。
@@ -43,7 +35,7 @@ type StatusFilter = (typeof STATUS_FILTERS)[number]['value'];
  */
 export function UserList() {
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
+  const [statusFilter, setStatusFilter] = useState<ActiveStatusFilter>('ALL');
   const [drawerState, setDrawerState] = useState<UserDrawerState | null>(null);
 
   const { data, isLoading, isError } = useUsers();
@@ -78,11 +70,7 @@ export function UserList() {
           value={search}
           onChange={(e) => setSearch(e.currentTarget.value)}
         />
-        <SegmentedControl
-          value={statusFilter}
-          onChange={(value) => setStatusFilter(value as StatusFilter)}
-          data={STATUS_FILTERS.map((f) => ({ label: f.label, value: f.value }))}
-        />
+        <StatusFilterControl value={statusFilter} onChange={setStatusFilter} />
       </Group>
 
       {isError && <ErrorAlert>ユーザー一覧の取得に失敗しました</ErrorAlert>}

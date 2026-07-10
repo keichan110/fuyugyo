@@ -6,7 +6,6 @@ import {
   EmptyState,
   Group,
   Menu,
-  SegmentedControl,
   Stack,
   Table,
   Text,
@@ -22,6 +21,8 @@ import { AppTable } from '@/components/AppTable';
 import { ClickableTr } from '@/components/ClickableTr';
 import { RowActionsButton } from '@/components/RowActionsButton';
 import { SearchInput } from '@/components/SearchInput';
+import { StatusFilterControl } from '@/components/StatusFilterControl';
+import type { ActiveStatusFilter } from '@/components/status-filter';
 import { TableRowsSkeleton } from '@/components/TableRowsSkeleton';
 
 import { useChangeInstructorStatus, useInstructors } from '../queries';
@@ -30,15 +31,6 @@ import { InstructorDrawer, type InstructorDrawerState } from './InstructorDrawer
 
 /** 一覧に表示する資格バッジの最大数（超過分は "+n" にまとめる） */
 const MAX_VISIBLE_CERTS = 3;
-
-/** ステータス絞り込みの選択肢 */
-const STATUS_FILTERS = [
-  { label: 'すべて', value: 'ALL' },
-  { label: 'アクティブ', value: 'ACTIVE' },
-  { label: '非アクティブ', value: 'INACTIVE' },
-] as const;
-
-type StatusFilter = (typeof STATUS_FILTERS)[number]['value'];
 
 /** インストラクターの表示名（姓 名）を組み立てる */
 function fullNameOf(instructor: InstructorListItem): string {
@@ -58,7 +50,7 @@ function fullNameKanaOf(instructor: InstructorListItem): string | null {
  */
 export function InstructorList() {
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
+  const [statusFilter, setStatusFilter] = useState<ActiveStatusFilter>('ALL');
   const [drawerState, setDrawerState] = useState<InstructorDrawerState | null>(null);
 
   // 管理画面では全ステータスを表示するため ACTIVE / INACTIVE を両方取得する
@@ -108,11 +100,7 @@ export function InstructorList() {
           value={search}
           onChange={(e) => setSearch(e.currentTarget.value)}
         />
-        <SegmentedControl
-          value={statusFilter}
-          onChange={(value) => setStatusFilter(value as StatusFilter)}
-          data={STATUS_FILTERS.map((f) => ({ label: f.label, value: f.value }))}
-        />
+        <StatusFilterControl value={statusFilter} onChange={setStatusFilter} />
       </Group>
 
       {isError && <ErrorAlert>インストラクター一覧の取得に失敗しました</ErrorAlert>}

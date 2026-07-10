@@ -5,7 +5,6 @@ import {
   EmptyState,
   Group,
   Menu,
-  SegmentedControl,
   Stack,
   Table,
   Text,
@@ -20,6 +19,8 @@ import { AppTable } from '@/components/AppTable';
 import { ClickableTr } from '@/components/ClickableTr';
 import { RowActionsButton } from '@/components/RowActionsButton';
 import { SearchInput } from '@/components/SearchInput';
+import { StatusFilterControl } from '@/components/StatusFilterControl';
+import type { ActiveStatusFilter } from '@/components/status-filter';
 import { TableRowsSkeleton } from '@/components/TableRowsSkeleton';
 import { useDepartments } from '@/features/departments/queries';
 
@@ -27,22 +28,13 @@ import { useCertifications, useDeactivateCertification } from '../queries';
 import type { Certification } from '../schema';
 import { CertificationDrawer, type CertificationDrawerState } from './CertificationDrawer';
 
-/** ステータス絞り込みの選択肢 */
-const STATUS_FILTERS = [
-  { label: 'すべて', value: 'ALL' },
-  { label: 'アクティブ', value: 'ACTIVE' },
-  { label: '無効', value: 'INACTIVE' },
-] as const;
-
-type StatusFilter = (typeof STATUS_FILTERS)[number]['value'];
-
 /**
  * 資格一覧と検索・絞り込み、作成・編集への導線を提供するコンポーネント。
  * 作成・編集・ステータス変更は CertificationDrawer に集約する。
  */
 export function CertificationList() {
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
+  const [statusFilter, setStatusFilter] = useState<ActiveStatusFilter>('ALL');
   const [drawerState, setDrawerState] = useState<CertificationDrawerState | null>(null);
 
   // 管理画面では無効資格も表示するため全件取得する
@@ -94,11 +86,7 @@ export function CertificationList() {
           value={search}
           onChange={(e) => setSearch(e.currentTarget.value)}
         />
-        <SegmentedControl
-          value={statusFilter}
-          onChange={(value) => setStatusFilter(value as StatusFilter)}
-          data={STATUS_FILTERS.map((f) => ({ label: f.label, value: f.value }))}
-        />
+        <StatusFilterControl value={statusFilter} onChange={setStatusFilter} />
       </Group>
 
       {isError && <ErrorAlert>資格一覧の取得に失敗しました</ErrorAlert>}

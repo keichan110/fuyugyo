@@ -5,7 +5,6 @@ import {
   EmptyState,
   Group,
   Menu,
-  SegmentedControl,
   Stack,
   Table,
   Text,
@@ -20,20 +19,13 @@ import { AppTable } from '@/components/AppTable';
 import { ClickableTr } from '@/components/ClickableTr';
 import { RowActionsButton } from '@/components/RowActionsButton';
 import { SearchInput } from '@/components/SearchInput';
+import { StatusFilterControl } from '@/components/StatusFilterControl';
+import type { ActiveStatusFilter } from '@/components/status-filter';
 import { TableRowsSkeleton } from '@/components/TableRowsSkeleton';
 
 import { useDeactivateShiftType, useShiftTypes } from '../queries';
 import type { ShiftType } from '../schema';
 import { ShiftTypeDrawer, type ShiftTypeDrawerState } from './ShiftTypeDrawer';
-
-/** ステータス絞り込みの選択肢 */
-const STATUS_FILTERS = [
-  { label: 'すべて', value: 'ALL' },
-  { label: 'アクティブ', value: 'ACTIVE' },
-  { label: '無効', value: 'INACTIVE' },
-] as const;
-
-type StatusFilter = (typeof STATUS_FILTERS)[number]['value'];
 
 /**
  * シフト種別一覧と検索・絞り込み、作成・編集への導線を提供するコンポーネント。
@@ -41,7 +33,7 @@ type StatusFilter = (typeof STATUS_FILTERS)[number]['value'];
  */
 export function ShiftTypeList() {
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
+  const [statusFilter, setStatusFilter] = useState<ActiveStatusFilter>('ALL');
   const [drawerState, setDrawerState] = useState<ShiftTypeDrawerState | null>(null);
 
   // 管理画面では無効種別も表示するため全件取得する
@@ -85,11 +77,7 @@ export function ShiftTypeList() {
           value={search}
           onChange={(e) => setSearch(e.currentTarget.value)}
         />
-        <SegmentedControl
-          value={statusFilter}
-          onChange={(value) => setStatusFilter(value as StatusFilter)}
-          data={STATUS_FILTERS.map((f) => ({ label: f.label, value: f.value }))}
-        />
+        <StatusFilterControl value={statusFilter} onChange={setStatusFilter} />
       </Group>
 
       {isError && <ErrorAlert>シフト種別一覧の取得に失敗しました</ErrorAlert>}

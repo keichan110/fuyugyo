@@ -1,7 +1,8 @@
 import { useState } from 'react';
 
-import { Alert, Button, Card, Group, Select, Stack, Text } from '@mantine/core';
+import { Button, Card, Group, Select, Stack, Text } from '@mantine/core';
 
+import { WarningAlert } from '@/components/AppAlert';
 import { useLinkInstructor } from '@/features/auth/queries';
 import { useInstructors } from '@/features/instructors/queries';
 
@@ -23,9 +24,9 @@ export function InstructorLinkPrompt() {
   return (
     <Card padding="lg">
       <Stack gap="md">
-        <Alert color="yellow" variant="light" title="インストラクターと連携してください">
+        <WarningAlert title="インストラクターと連携してください">
           連携すると、すべての機能が使えるようになります。
-        </Alert>
+        </WarningAlert>
         <Group align="flex-end">
           <Select
             placeholder="インストラクターを選択"

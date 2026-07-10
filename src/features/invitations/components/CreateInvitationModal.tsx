@@ -1,19 +1,10 @@
 import { useState } from 'react';
 
-import {
-  Alert,
-  Button,
-  Group,
-  Input,
-  Modal,
-  SegmentedControl,
-  Stack,
-  TextInput,
-} from '@mantine/core';
+import { Button, Group, Input, Modal, SegmentedControl, Stack, TextInput } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { IconAlertTriangle } from '@tabler/icons-react';
 
-import { ErrorAlert } from '@/components/AppAlert';
+import { ErrorAlert, WarningAlert } from '@/components/AppAlert';
 
 import { DEFAULT_EXPIRY_HOURS, EXPIRY_PRESETS } from '../lib';
 import { useCreateInvitation } from '../queries';
@@ -77,9 +68,9 @@ function CreateInvitationForm({ onClose, hasActiveInvitation }: CreateInvitation
     <form onSubmit={handleSubmit}>
       <Stack gap="md">
         {hasActiveInvitation && (
-          <Alert color="yellow" variant="light" icon={<IconAlertTriangle size={16} stroke={1.5} />}>
+          <WarningAlert icon={<IconAlertTriangle size={16} stroke={1.5} />}>
             現在有効な招待リンクは自動的に停止され、新しいリンクに置き換わります。
-          </Alert>
+          </WarningAlert>
         )}
 
         <div>

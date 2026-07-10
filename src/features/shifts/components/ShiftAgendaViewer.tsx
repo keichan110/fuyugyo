@@ -2,7 +2,6 @@ import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   Affix,
-  Alert,
   Box,
   Button,
   Card,
@@ -19,7 +18,7 @@ import { useWindowScroll } from '@mantine/hooks';
 import { AgendaView } from '@mantine/schedule';
 import type { ScheduleEventData } from '@mantine/schedule';
 
-import { ErrorAlert } from '@/components/AppAlert';
+import { ErrorAlert, InfoAlert } from '@/components/AppAlert';
 import { AppBadge } from '@/components/AppBadge';
 import { useMe } from '@/features/auth/queries';
 import { useDepartments } from '@/features/departments/queries';
@@ -180,7 +179,7 @@ export function ShiftAgendaViewer({ date, onVisibleDateChange }: ShiftAgendaView
         </Button>
 
         {pastError && <ErrorAlert>{pastError}</ErrorAlert>}
-        {hasReachedPastEnd && <Alert color="blue">これ以上遡れるシフトはありません。</Alert>}
+        {hasReachedPastEnd && <InfoAlert>これ以上遡れるシフトはありません。</InfoAlert>}
         {future.isLoading && (
           <Text c="dimmed" size="sm">
             読み込み中...

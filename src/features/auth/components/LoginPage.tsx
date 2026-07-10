@@ -1,6 +1,7 @@
 import { Alert, Badge, Box, Center, Stack, Text, Title } from '@mantine/core';
 
 import { LineLoginButton } from './LineLoginButton';
+import classes from './LoginPage.module.css';
 
 type LoginPageProps = {
   /** 認証後の戻り先 */
@@ -25,21 +26,14 @@ export function LoginPage({ redirectUrl = '/', inviteToken, error }: LoginPagePr
   };
 
   return (
-    <Box
-      mih="100dvh"
-      p="md"
-      style={{
-        background:
-          'linear-gradient(180deg, var(--mantine-color-blue-0) 0%, var(--mantine-color-white) 100%)',
-      }}
-    >
+    <Box mih="100dvh" p="md" className={classes.heroBackground}>
       <Center mih="100dvh">
         <Stack align="center" gap="xl">
           <Badge variant="light" color="yellow" size="lg" radius="xl">
             ❄ EXCLUSIVE ACCESS
           </Badge>
 
-          <Title order={1} fw={200} ta="center" style={{ letterSpacing: '0.15em' }}>
+          <Title order={1} fw={200} ta="center" lts="0.15em">
             Members only
           </Title>
 

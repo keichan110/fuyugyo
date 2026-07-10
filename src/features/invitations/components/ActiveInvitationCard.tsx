@@ -79,7 +79,7 @@ export function ActiveInvitationCard({ invitation }: ActiveInvitationCardProps) 
         </Group>
 
         <Group gap="sm" wrap="nowrap">
-          <TextInput readOnly value={url} style={{ flex: 1 }} />
+          <TextInput readOnly value={url} flex={1} />
           <CopyButton value={url} timeout={2000}>
             {({ copied, copy }) => (
               <Button

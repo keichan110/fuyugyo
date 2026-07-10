@@ -1,0 +1,67 @@
+/* 部門セレクタ横並びエリア: 右パネルの内容量にシフト表の高さを合わせないよう、グリッド項目を上端揃えにする */
+.matrixGrid {
+  align-items: start;
+}
+
+/* 月間シフト表カード。高さは PANEL_HEIGHT（JS定数）を h prop で与えるため、ここでは内部を縦方向 flex にするだけ */
+.matrixCard {
+  display: flex;
+  flex-direction: column;
+}
+
+/* テーブルを内部スクロールにする領域。Thead は stickyHeader 側で固定表示を担う */
+.tableScrollArea {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* table-layout: fixed 下で日付列の幅を固定する */
+.dateColumn {
+  width: 64px;
+}
+
+/* シフト表の1セル。割り当ての有無・選択状態でレイアウト/背景色が変わる */
+.cell {
+  position: relative;
+  display: flex;
+  width: 100%;
+  padding: 6px;
+  overflow-y: auto;
+  align-content: flex-start;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.cellHasAssignments {
+  align-items: flex-start;
+  justify-content: flex-start;
+}
+
+.cellEmpty {
+  align-items: center;
+  justify-content: center;
+}
+
+.cellSelected {
+  background-color: var(--mantine-color-blue-1);
+}
+
+/* 割り当て編集パネルのカード。親 Box の高さ(PANEL_HEIGHT)いっぱいに広がり、内部は縦方向 flex */
+.assignmentPanelCard {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 候補リスト: 残余領域を占め、リスト内スクロールで画面全体は動かさない */
+.candidateList {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* 偏差バーの土台: 親の Group が縮めようとしても幅を維持する */
+.deviationBarTrack {
+  flex-shrink: 0;
+}

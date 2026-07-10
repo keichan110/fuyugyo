@@ -4,6 +4,7 @@ import {
   Affix,
   Alert,
   Badge,
+  Box,
   Button,
   Card,
   Group,
@@ -26,6 +27,7 @@ import { containsInstructorAssignment, filterAgendaDaysByInstructor } from '../a
 import { fetchShiftAgendaPage, useShiftAgendaFuture } from '../queries';
 import type { ShiftAgendaDay, ShiftAgendaResponse, ShiftViewItem } from '../schema';
 import { addDays, addMonths, shortDateLabel, toMonth } from '../view-utils';
+import classes from './ShiftAgendaViewer.module.css';
 
 type ShiftAgendaViewerProps = {
   /** 初回表示の起点日（YYYY-MM-DD） */
@@ -195,7 +197,7 @@ export function ShiftAgendaViewer({ date, onVisibleDateChange }: ShiftAgendaView
 
         <AgendaDayList days={filteredDays} myInstructorId={myInstructorId} />
 
-        <div ref={sentinelRef} style={{ minHeight: 1 }} />
+        <Box ref={sentinelRef} mih={1} />
         {future.isFetchingNextPage && (
           <Text c="dimmed" size="sm" ta="center">
             続きを読み込み中...
@@ -306,7 +308,8 @@ function AgendaDayList({
                 <UnstyledButton
                   {...props}
                   data-agenda-date={payload.shift.date}
-                  style={{ display: 'block', width: '100%' }}
+                  display="block"
+                  w="100%"
                 >
                   <ShiftAgendaCard shift={payload.shift} includesMe={payload.includesMe} />
                 </UnstyledButton>
@@ -321,17 +324,7 @@ function AgendaDayList({
 
 function MonthHeader({ month }: { month: string }) {
   return (
-    <Text
-      fw={700}
-      size="sm"
-      style={{
-        position: 'sticky',
-        top: 0,
-        zIndex: 1,
-        background: 'var(--mantine-color-body)',
-        paddingBlock: '8px',
-      }}
-    >
+    <Text fw={700} size="sm" className={classes.monthHeader}>
       {month.replace('-', '年')}月
     </Text>
   );
@@ -339,18 +332,7 @@ function MonthHeader({ month }: { month: string }) {
 
 function ShiftAgendaCard({ shift, includesMe }: { shift: ShiftViewItem; includesMe: boolean }) {
   return (
-    <Card
-      padding="sm"
-      radius="sm"
-      {...(includesMe
-        ? {
-            style: {
-              backgroundColor: 'var(--mantine-color-yellow-0)',
-              borderColor: 'var(--mantine-color-yellow-5)',
-            },
-          }
-        : {})}
-    >
+    <Card padding="sm" radius="sm" className={includesMe ? classes.includesMe : undefined}>
       <Stack gap="xs">
         <Group justify="space-between" align="flex-start">
           <Stack gap={2}>

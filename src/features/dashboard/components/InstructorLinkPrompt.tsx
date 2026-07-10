@@ -33,7 +33,7 @@ export function InstructorLinkPrompt() {
             searchable
             value={selectedId}
             onChange={setSelectedId}
-            style={{ flex: 1 }}
+            flex={1}
           />
           <Button
             type="button"

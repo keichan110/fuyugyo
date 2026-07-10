@@ -33,6 +33,7 @@ import {
 import type { AvailableInstructor, ShiftViewItem } from '../schema';
 import { addMonths, shortDateLabel, todayString, toMonth, weekdayIndex } from '../view-utils';
 import { calculateFairShare, countCurrentMonthWorkDays, type CellAssignment } from '../workload';
+import classes from './ShiftManager.module.css';
 
 const DEPARTMENT_STORAGE_KEY = 'fuyugyo.shiftManage.departmentId';
 
@@ -372,7 +373,7 @@ export function ShiftManager() {
             <Alert color="red">{upsertMonthly.error?.message ?? '保存に失敗しました'}</Alert>
           )}
 
-          <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="md" style={{ alignItems: 'start' }}>
+          <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="md" className={classes.matrixGrid}>
             <ShiftMatrix
               days={days}
               departmentId={departmentId}
@@ -387,7 +388,7 @@ export function ShiftManager() {
               onSelectCell={setSelectedCell}
             />
             {/* 左右の高さを PANEL_HEIGHT で揃え、内部スクロールで画面内に収める */}
-            <Box style={{ height: PANEL_HEIGHT }}>
+            <Box h={PANEL_HEIGHT}>
               {selectedCell && departmentId ? (
                 <AssignmentPanel
                   key={`${selectedCell.date}-${departmentId}-${selectedCell.shiftTypeId}`}
@@ -407,7 +408,7 @@ export function ShiftManager() {
                   currentMonthWorkDays={currentMonthWorkDays}
                 />
               ) : (
-                <Card padding="md" style={{ height: '100%' }}>
+                <Card padding="md" h="100%">
                   <Text c="dimmed" size="sm">
                     セルを選択してください
                   </Text>
@@ -494,7 +495,7 @@ function ShiftMatrix({
     shiftTypes.find((shiftType) => shiftType.id === activeShiftTypeId)?.name ?? '';
 
   return (
-    <Card padding="md" style={{ height: PANEL_HEIGHT, display: 'flex', flexDirection: 'column' }}>
+    <Card padding="md" h={PANEL_HEIGHT} className={classes.matrixCard}>
       <Text fw={500} mb="sm">
         月間シフト表
       </Text>
@@ -510,14 +511,7 @@ function ShiftMatrix({
               value={shiftType.id}
               rightSection={
                 stagedShiftTypeIds.has(shiftType.id) ? (
-                  <Box
-                    style={{
-                      width: 8,
-                      height: 8,
-                      borderRadius: '50%',
-                      backgroundColor: 'var(--mantine-color-orange-6)',
-                    }}
-                  />
+                  <Box w={8} h={8} bdrs="50%" bg="var(--mantine-color-orange-6)" />
                 ) : undefined
               }
             >
@@ -527,7 +521,7 @@ function ShiftMatrix({
         </Tabs.List>
       </Tabs>
       {/* テーブルを内部スクロールにし、Thead は stickyHeader でスクロール中も列見出しを維持する */}
-      <Box style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+      <Box className={classes.tableScrollArea}>
         <Table
           stickyHeader
           stickyHeaderOffset={0}
@@ -535,11 +529,11 @@ function ShiftMatrix({
           withTableBorder
           verticalSpacing={2}
           horizontalSpacing={2}
-          style={{ tableLayout: 'fixed' }}
+          layout="fixed"
         >
           {/* table-layout: fixed 下で日付列の幅を確実に固定するため colgroup で明示指定する */}
           <colgroup>
-            <col style={{ width: 64 }} />
+            <col className={classes.dateColumn} />
             <col />
           </colgroup>
           <Table.Thead>
@@ -616,36 +610,26 @@ function ShiftCell({ serverShift, staged, nameById, selected, onClick }: ShiftCe
     : (serverShift?.assignedInstructors ?? []).map((i) => i.displayName);
 
   const hasAssignments = assignedNames.length > 0;
+  // セルの見た目: 割り当て有無で内容の揃え位置、選択状態で背景色が変わる
+  const cellClassName = [
+    classes.cell,
+    hasAssignments ? classes.cellHasAssignments : classes.cellEmpty,
+    selected ? classes.cellSelected : null,
+  ]
+    .filter(Boolean)
+    .join(' ');
 
   return (
-    <UnstyledButton
-      onClick={onClick}
-      h={60}
-      style={{
-        position: 'relative',
-        display: 'flex',
-        width: '100%',
-        padding: 6,
-        overflowY: 'auto',
-        alignItems: hasAssignments ? 'flex-start' : 'center',
-        justifyContent: hasAssignments ? 'flex-start' : 'center',
-        alignContent: 'flex-start',
-        flexWrap: 'wrap',
-        gap: 4,
-        backgroundColor: selected ? 'var(--mantine-color-blue-1)' : undefined,
-      }}
-    >
+    <UnstyledButton onClick={onClick} h={60} className={cellClassName}>
       {staged && (
         <Box
-          style={{
-            position: 'absolute',
-            top: 2,
-            right: 2,
-            width: 8,
-            height: 8,
-            borderRadius: '50%',
-            backgroundColor: 'var(--mantine-color-orange-6)',
-          }}
+          pos="absolute"
+          top={2}
+          right={2}
+          w={8}
+          h={8}
+          bdrs="50%"
+          bg="var(--mantine-color-orange-6)"
         />
       )}
       {hasAssignments ? (
@@ -785,9 +769,9 @@ function AssignmentPanel({
   };
 
   return (
-    <Card padding="md" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <Card padding="md" className={classes.assignmentPanelCard}>
       {/* 候補リストが flex-grow で残余領域を占め、リスト内スクロールで画面全体は動かさない */}
-      <Stack gap="sm" style={{ flex: 1, minHeight: 0 }}>
+      <Stack gap="sm" flex={1} mih={0}>
         <Group justify="space-between" align="flex-start">
           <Group gap="xs" align="baseline">
             <Text fw={500}>{shortDateLabel(date)}</Text>
@@ -829,7 +813,7 @@ function AssignmentPanel({
               ]}
             />
 
-            <Stack gap="xs" style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
+            <Stack gap="xs" className={classes.candidateList}>
               {candidates.length === 0 ? (
                 <Text c="dimmed" size="sm">
                   候補がありません
@@ -962,7 +946,7 @@ function WorkloadDeviationBar({ load, average, maxAbsDeviation }: WorkloadDeviat
 
   return (
     <Tooltip label={tooltip} withArrow>
-      <Box pos="relative" w={100} h={8} bg="gray.2" style={{ borderRadius: 4, flexShrink: 0 }}>
+      <Box pos="relative" w={100} h={8} bg="gray.2" bdrs={4} className={classes.deviationBarTrack}>
         <Box pos="absolute" top={0} bottom={0} left="50%" w={1} bg="gray.5" />
         <Box
           pos="absolute"
@@ -971,7 +955,7 @@ function WorkloadDeviationBar({ load, average, maxAbsDeviation }: WorkloadDeviat
           w={`${pct}%`}
           bg={isUnder ? 'teal.5' : 'orange.5'}
           {...(isUnder ? { right: '50%' } : { left: '50%' })}
-          style={{ borderRadius: 4 }}
+          bdrs={4}
         />
       </Box>
     </Tooltip>

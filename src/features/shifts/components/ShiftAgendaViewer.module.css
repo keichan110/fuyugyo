@@ -1,0 +1,14 @@
+/* 月見出し: スクロール中も月ラベルが隠れないよう先頭に固定表示する */
+.monthHeader {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--mantine-color-body);
+  padding-block: 8px;
+}
+
+/* 自分が割り当てられているシフトのカードを黄色系で強調する */
+.includesMe {
+  background-color: var(--mantine-color-yellow-0);
+  border-color: var(--mantine-color-yellow-5);
+}

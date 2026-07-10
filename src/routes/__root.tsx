@@ -6,6 +6,8 @@ import { createRootRouteWithContext, Link, Outlet, useNavigate } from '@tanstack
 import { useLogout, useMe } from '@/features/auth/queries';
 import { hasMinimumRole, type MeResponse } from '@/features/auth/schema';
 
+import classes from './__root.module.css';
+
 /** ルーターコンテキスト。ガードのデータ取得に QueryClient を共有する（ADR 0002） */
 export type RouterContext = {
   queryClient: QueryClient;
@@ -28,17 +30,10 @@ function RootLayout() {
     <AppShell header={{ height: 60 }} padding="md">
       <AppShell.Header>
         <Group h="100%" px="md" justify="space-between" wrap="nowrap">
-          <Text
-            component={Link}
-            to="/"
-            fw={700}
-            size="lg"
-            c="blue"
-            style={{ textDecoration: 'none' }}
-          >
+          <Text component={Link} to="/" fw={700} size="lg" c="blue" td="none">
             Fuyugyō
           </Text>
-          <Group gap="xs" justify="center" style={{ flex: 1 }} wrap="nowrap">
+          <Group gap="xs" justify="center" flex={1} wrap="nowrap">
             <HeaderLink to="/shifts" icon={IconCalendarWeek}>
               シフト表
             </HeaderLink>
@@ -72,13 +67,7 @@ function HeaderLink({ to, icon: Icon, children }: { to: string; icon: Icon; chil
       c="var(--mantine-color-text)"
       px="sm"
       py={4}
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 6,
-        textDecoration: 'none',
-        borderRadius: 4,
-      }}
+      className={classes.headerLink}
     >
       <Icon size={16} stroke={1.75} />
       {children}
@@ -96,7 +85,7 @@ function SettingsMenu({ isAdmin }: { isAdmin: boolean }) {
   return (
     <Menu width={200}>
       <Menu.Target>
-        <UnstyledButton px="sm" py={4} style={{ borderRadius: 4 }}>
+        <UnstyledButton px="sm" py={4} bdrs={4}>
           <Group gap={6} wrap="nowrap">
             <IconSettings size={16} stroke={1.75} />
             <Text size="sm" fw={500}>

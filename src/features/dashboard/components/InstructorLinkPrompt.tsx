@@ -21,7 +21,7 @@ export function InstructorLinkPrompt() {
   }));
 
   return (
-    <Card withBorder padding="lg" radius="md">
+    <Card padding="lg">
       <Stack gap="md">
         <Alert color="yellow" variant="light" title="インストラクターと連携してください">
           連携すると、すべての機能が使えるようになります。

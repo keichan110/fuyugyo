@@ -1,12 +1,13 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 
-import { createTheme, MantineProvider } from '@mantine/core';
+import { localStorageColorSchemeManager, MantineProvider } from '@mantine/core';
 import { Notifications } from '@mantine/notifications';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { createRouter, RouterProvider } from '@tanstack/react-router';
 
 import { queryClient } from '@/lib/query-client';
+import { theme } from '@/lib/theme';
 
 import { routeTree } from './routeTree.gen';
 
@@ -16,10 +17,8 @@ import '@mantine/notifications/styles.css';
 import '@mantine/schedule/styles.css';
 import './styles.css';
 
-/** ブランドカラーはブルー系（ADR 0008） */
-const theme = createTheme({
-  primaryColor: 'blue',
-});
+// 将来のダークモード対応（ADR 0008）に備え、配色設定を localStorage に永続化する
+const colorSchemeManager = localStorageColorSchemeManager({ key: 'fuyugyo-color-scheme' });
 
 const router = createRouter({ routeTree, context: { queryClient } });
 
@@ -36,7 +35,11 @@ if (!rootElement) {
 
 createRoot(rootElement).render(
   <StrictMode>
-    <MantineProvider theme={theme} defaultColorScheme="light">
+    <MantineProvider
+      theme={theme}
+      defaultColorScheme="light"
+      colorSchemeManager={colorSchemeManager}
+    >
       <Notifications />
       <QueryClientProvider client={queryClient}>
         <RouterProvider router={router} />

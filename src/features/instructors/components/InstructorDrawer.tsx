@@ -58,8 +58,6 @@ export function InstructorDrawer({ state, onClose }: Props) {
     <Drawer
       opened={state !== null}
       onClose={onClose}
-      position="right"
-      size="md"
       title={isEdit ? 'インストラクターを編集' : 'インストラクターを追加'}
     >
       {effectiveState?.mode === 'edit' ? (

@@ -36,13 +36,7 @@ export function DepartmentDrawer({ state, onClose }: Props) {
   const isEdit = effectiveState?.mode === 'edit';
 
   return (
-    <Drawer
-      opened={state !== null}
-      onClose={onClose}
-      position="right"
-      size="md"
-      title={isEdit ? '部門を編集' : '部門を追加'}
-    >
+    <Drawer opened={state !== null} onClose={onClose} title={isEdit ? '部門を編集' : '部門を追加'}>
       {effectiveState?.mode === 'edit' ? (
         <EditPanel
           key={effectiveState.departmentId}

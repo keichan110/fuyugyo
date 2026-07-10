@@ -51,13 +51,7 @@ export function CertificationDrawer({ state, onClose }: Props) {
   const isEdit = effectiveState?.mode === 'edit';
 
   return (
-    <Drawer
-      opened={state !== null}
-      onClose={onClose}
-      position="right"
-      size="md"
-      title={isEdit ? '資格を編集' : '資格を追加'}
-    >
+    <Drawer opened={state !== null} onClose={onClose} title={isEdit ? '資格を編集' : '資格を追加'}>
       {effectiveState?.mode === 'edit' ? (
         <EditPanel
           key={effectiveState.certificationId}

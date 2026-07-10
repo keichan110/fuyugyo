@@ -201,7 +201,7 @@ function DepartmentRow({ department, onEdit }: DepartmentRowProps) {
         </Badge>
       </Table.Td>
       <Table.Td onClick={(e) => e.stopPropagation()}>
-        <Menu shadow="md" position="bottom-end">
+        <Menu position="bottom-end">
           <Menu.Target>
             <ActionIcon variant="subtle" color="gray">
               <IconDotsVertical size={16} />

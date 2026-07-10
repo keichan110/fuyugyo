@@ -63,13 +63,7 @@ export function UserDrawer({ state, onClose }: Props) {
   const effectiveState = state ?? lastState;
 
   return (
-    <Drawer
-      opened={state !== null}
-      onClose={onClose}
-      position="right"
-      size="md"
-      title="ユーザーを編集"
-    >
+    <Drawer opened={state !== null} onClose={onClose} title="ユーザーを編集">
       {effectiveState && (
         <EditPanel key={effectiveState.userId} userId={effectiveState.userId} onClose={onClose} />
       )}

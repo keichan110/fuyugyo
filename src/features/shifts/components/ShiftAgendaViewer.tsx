@@ -340,7 +340,6 @@ function MonthHeader({ month }: { month: string }) {
 function ShiftAgendaCard({ shift, includesMe }: { shift: ShiftViewItem; includesMe: boolean }) {
   return (
     <Card
-      withBorder
       padding="sm"
       radius="sm"
       {...(includesMe

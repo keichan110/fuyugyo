@@ -23,7 +23,7 @@ export function UpcomingShifts({ instructorId }: { instructorId: string }) {
     .slice(0, UPCOMING_SHIFTS_LIMIT);
 
   return (
-    <Card withBorder padding="lg" radius="md">
+    <Card padding="lg">
       <Title order={3} size="h4" mb="sm">
         直近の勤務予定
       </Title>

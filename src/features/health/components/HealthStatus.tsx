@@ -10,7 +10,7 @@ export function HealthStatus() {
   const { data, isLoading, isError, refetch, isRefetching } = useHealth();
 
   return (
-    <Card withBorder padding="xl" radius="lg">
+    <Card padding="xl" radius="lg">
       <Stack align="center" gap="md">
         <Title order={1}>Fuyugyō</Title>
         <Text c="dimmed" size="sm">

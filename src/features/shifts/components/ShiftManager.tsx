@@ -407,7 +407,7 @@ export function ShiftManager() {
                   currentMonthWorkDays={currentMonthWorkDays}
                 />
               ) : (
-                <Card withBorder padding="md" radius="md" style={{ height: '100%' }}>
+                <Card padding="md" style={{ height: '100%' }}>
                   <Text c="dimmed" size="sm">
                     セルを選択してください
                   </Text>
@@ -494,12 +494,7 @@ function ShiftMatrix({
     shiftTypes.find((shiftType) => shiftType.id === activeShiftTypeId)?.name ?? '';
 
   return (
-    <Card
-      withBorder
-      padding="md"
-      radius="md"
-      style={{ height: PANEL_HEIGHT, display: 'flex', flexDirection: 'column' }}
-    >
+    <Card padding="md" style={{ height: PANEL_HEIGHT, display: 'flex', flexDirection: 'column' }}>
       <Text fw={500} mb="sm">
         月間シフト表
       </Text>
@@ -790,12 +785,7 @@ function AssignmentPanel({
   };
 
   return (
-    <Card
-      withBorder
-      padding="md"
-      radius="md"
-      style={{ height: '100%', display: 'flex', flexDirection: 'column' }}
-    >
+    <Card padding="md" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       {/* 候補リストが flex-grow で残余領域を占め、リスト内スクロールで画面全体は動かさない */}
       <Stack gap="sm" style={{ flex: 1, minHeight: 0 }}>
         <Group justify="space-between" align="flex-start">

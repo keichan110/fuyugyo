@@ -50,8 +50,6 @@ export function ShiftTypeDrawer({ state, onClose }: Props) {
     <Drawer
       opened={state !== null}
       onClose={onClose}
-      position="right"
-      size="md"
       title={isEdit ? 'シフト種別を編集' : 'シフト種別を追加'}
     >
       {effectiveState?.mode === 'edit' ? (

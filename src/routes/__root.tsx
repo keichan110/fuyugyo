@@ -94,7 +94,7 @@ function HeaderLink({ to, icon: Icon, children }: { to: string; icon: Icon; chil
  */
 function SettingsMenu({ isAdmin }: { isAdmin: boolean }) {
   return (
-    <Menu shadow="md" width={200}>
+    <Menu width={200}>
       <Menu.Target>
         <UnstyledButton px="sm" py={4} style={{ borderRadius: 4 }}>
           <Group gap={6} wrap="nowrap">
@@ -143,7 +143,7 @@ function UserMenu({ user }: { user: MeResponse }) {
   const navigate = useNavigate();
 
   return (
-    <Menu shadow="md" width={180} position="bottom-end">
+    <Menu width={180} position="bottom-end">
       <Menu.Target>
         <UnstyledButton>
           <Avatar

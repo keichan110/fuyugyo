@@ -1,12 +1,10 @@
-import { AppShell, Avatar, Group, Menu, Text, UnstyledButton } from '@mantine/core';
+import { AppShell, Avatar, Button, Group, Menu, Text, UnstyledButton } from '@mantine/core';
 import { IconCalendarCog, IconCalendarWeek, IconSettings, type Icon } from '@tabler/icons-react';
 import type { QueryClient } from '@tanstack/react-query';
 import { createRootRouteWithContext, Link, Outlet, useNavigate } from '@tanstack/react-router';
 
 import { useLogout, useMe } from '@/features/auth/queries';
 import { hasMinimumRole, type MeResponse } from '@/features/auth/schema';
-
-import classes from './__root.module.css';
 
 /** ルーターコンテキスト。ガードのデータ取得に QueryClient を共有する（ADR 0002） */
 export type RouterContext = {
@@ -59,19 +57,17 @@ function RootLayout() {
 /** ヘッダー中央のよく使う導線用リンク（設定メニューボタンと統一感のあるスタイル） */
 function HeaderLink({ to, icon: Icon, children }: { to: string; icon: Icon; children: string }) {
   return (
-    <Text
+    <Button
       component={Link}
       to={to}
+      variant="subtle"
+      color="gray"
       size="sm"
-      fw={500}
-      c="var(--mantine-color-text)"
+      leftSection={<Icon size={16} stroke={1.75} />}
       px="sm"
-      py={4}
-      className={classes.headerLink}
     >
-      <Icon size={16} stroke={1.75} />
       {children}
-    </Text>
+    </Button>
   );
 }
 
@@ -85,14 +81,15 @@ function SettingsMenu({ isAdmin }: { isAdmin: boolean }) {
   return (
     <Menu width={200}>
       <Menu.Target>
-        <UnstyledButton px="sm" py={4} bdrs={4}>
-          <Group gap={6} wrap="nowrap">
-            <IconSettings size={16} stroke={1.75} />
-            <Text size="sm" fw={500}>
-              設定
-            </Text>
-          </Group>
-        </UnstyledButton>
+        <Button
+          variant="subtle"
+          color="gray"
+          size="sm"
+          leftSection={<IconSettings size={16} stroke={1.75} />}
+          px="sm"
+        >
+          設定
+        </Button>
       </Menu.Target>
       <Menu.Dropdown>
         <Menu.Label>マスタ管理</Menu.Label>

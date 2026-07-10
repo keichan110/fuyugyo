@@ -1,8 +1,0 @@
-/* ヘッダー中央のリンク: アイコンとテキストを横並びにし、下線なし・角丸のホバー領域を持たせる */
-.headerLink {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  text-decoration: none;
-  border-radius: 4px;
-}

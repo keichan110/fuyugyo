@@ -7,8 +7,7 @@
   padding-block: 8px;
 }
 
-/* 自分が割り当てられているシフトのカードを黄色系で強調する */
+/* 自分が割り当てられているシフトを淡い青で強調する */
 .includesMe {
-  background-color: var(--mantine-color-yellow-0);
-  border-color: var(--mantine-color-yellow-5);
+  background-color: var(--mantine-color-blue-0);
 }

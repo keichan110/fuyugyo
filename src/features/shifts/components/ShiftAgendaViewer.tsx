@@ -311,7 +311,11 @@ function AgendaDayList({
                   display="block"
                   w="100%"
                 >
-                  <ShiftAgendaCard shift={payload.shift} includesMe={payload.includesMe} />
+                  <ShiftAgendaCard
+                    shift={payload.shift}
+                    includesMe={payload.includesMe}
+                    myInstructorId={myInstructorId}
+                  />
                 </UnstyledButton>
               );
             }}
@@ -330,20 +334,21 @@ function MonthHeader({ month }: { month: string }) {
   );
 }
 
-function ShiftAgendaCard({ shift, includesMe }: { shift: ShiftViewItem; includesMe: boolean }) {
+function ShiftAgendaCard({
+  shift,
+  includesMe,
+  myInstructorId,
+}: {
+  shift: ShiftViewItem;
+  includesMe: boolean;
+  myInstructorId: string | null;
+}) {
   return (
     <Card padding="sm" radius="sm" className={includesMe ? classes.includesMe : undefined}>
       <Stack gap="xs">
         <Group justify="space-between" align="flex-start">
           <Stack gap={2}>
-            <Group gap={6}>
-              <Text fw={600}>{shift.shiftType.name}</Text>
-              {includesMe && (
-                <AppBadge kind="highlight" size="xs">
-                  自分
-                </AppBadge>
-              )}
-            </Group>
+            <Text fw={600}>{shift.shiftType.name}</Text>
             <Text size="sm" c="dimmed">
               {shift.department.name}
             </Text>
@@ -355,7 +360,10 @@ function ShiftAgendaCard({ shift, includesMe }: { shift: ShiftViewItem; includes
         {shift.assignedInstructors.length > 0 ? (
           <Group gap={6}>
             {shift.assignedInstructors.map((instructor) => (
-              <AppBadge key={instructor.id} kind="person">
+              <AppBadge
+                key={instructor.id}
+                kind={instructor.id === myInstructorId ? 'personEmphasized' : 'person'}
+              >
                 {instructor.displayName}
               </AppBadge>
             ))}

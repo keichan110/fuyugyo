@@ -9,15 +9,17 @@ import {
   Group,
   Menu,
   SegmentedControl,
-  Skeleton,
   Stack,
   Table,
   Text,
-  TextInput,
   Title,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { IconClock, IconDotsVertical, IconPlus, IconSearch } from '@tabler/icons-react';
+
+import { ClickableTr } from '@/components/ClickableTr';
+import { SearchInput } from '@/components/SearchInput';
+import { TableRowsSkeleton } from '@/components/TableRowsSkeleton';
 
 import { useDeactivateShiftType, useShiftTypes } from '../queries';
 import type { ShiftType } from '../schema';
@@ -77,12 +79,10 @@ export function ShiftTypeList() {
       </Group>
 
       <Group justify="space-between" wrap="wrap">
-        <TextInput
+        <SearchInput
           placeholder="種別名で検索"
-          leftSection={<IconSearch size={16} />}
           value={search}
           onChange={(e) => setSearch(e.currentTarget.value)}
-          style={{ flex: 1, minWidth: 240 }}
         />
         <SegmentedControl
           value={statusFilter}
@@ -93,13 +93,7 @@ export function ShiftTypeList() {
 
       {isError && <Alert color="red">シフト種別一覧の取得に失敗しました</Alert>}
 
-      {isLoading && (
-        <Stack gap="xs">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} height={52} radius="sm" />
-          ))}
-        </Stack>
-      )}
+      {isLoading && <TableRowsSkeleton />}
 
       {!isLoading && allShiftTypes.length === 0 && (
         <EmptyState
@@ -176,7 +170,7 @@ function ShiftTypeRow({ shiftType, onEdit }: ShiftTypeRowProps) {
   };
 
   return (
-    <Table.Tr onClick={onEdit} style={{ cursor: 'pointer' }}>
+    <ClickableTr onClick={onEdit}>
       <Table.Td>
         <Text fw={500} size="sm">
           {shiftType.name}
@@ -204,6 +198,6 @@ function ShiftTypeRow({ shiftType, onEdit }: ShiftTypeRowProps) {
           </Menu.Dropdown>
         </Menu>
       </Table.Td>
-    </Table.Tr>
+    </ClickableTr>
   );
 }

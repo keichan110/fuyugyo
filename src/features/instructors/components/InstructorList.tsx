@@ -10,16 +10,18 @@ import {
   Group,
   Menu,
   SegmentedControl,
-  Skeleton,
   Stack,
   Table,
   Text,
-  TextInput,
   Title,
   Tooltip,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { IconDotsVertical, IconPlus, IconSearch, IconUsers } from '@tabler/icons-react';
+
+import { ClickableTr } from '@/components/ClickableTr';
+import { SearchInput } from '@/components/SearchInput';
+import { TableRowsSkeleton } from '@/components/TableRowsSkeleton';
 
 import { useChangeInstructorStatus, useInstructors } from '../queries';
 import type { InstructorListItem } from '../schema';
@@ -100,12 +102,10 @@ export function InstructorList() {
       </Group>
 
       <Group justify="space-between" wrap="wrap">
-        <TextInput
+        <SearchInput
           placeholder="氏名・カナで検索"
-          leftSection={<IconSearch size={16} />}
           value={search}
           onChange={(e) => setSearch(e.currentTarget.value)}
-          style={{ flex: 1, minWidth: 240 }}
         />
         <SegmentedControl
           value={statusFilter}
@@ -116,13 +116,7 @@ export function InstructorList() {
 
       {isError && <Alert color="red">インストラクター一覧の取得に失敗しました</Alert>}
 
-      {isLoading && (
-        <Stack gap="xs">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} height={52} radius="sm" />
-          ))}
-        </Stack>
-      )}
+      {isLoading && <TableRowsSkeleton />}
 
       {!isLoading && allInstructors.length === 0 && (
         <EmptyState
@@ -210,7 +204,7 @@ function InstructorRow({ instructor, onEdit }: InstructorRowProps) {
   };
 
   return (
-    <Table.Tr onClick={onEdit} style={{ cursor: 'pointer' }}>
+    <ClickableTr onClick={onEdit}>
       <Table.Td>
         <Group gap="sm" wrap="nowrap">
           <Avatar color="initials" name={fullName} radius="xl" size="sm" />
@@ -277,6 +271,6 @@ function InstructorRow({ instructor, onEdit }: InstructorRowProps) {
           </Menu.Dropdown>
         </Menu>
       </Table.Td>
-    </Table.Tr>
+    </ClickableTr>
   );
 }

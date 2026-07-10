@@ -9,16 +9,17 @@ import {
   Group,
   Menu,
   SegmentedControl,
-  Skeleton,
   Stack,
   Table,
   Text,
-  TextInput,
   Title,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { IconCertificate, IconDotsVertical, IconPlus, IconSearch } from '@tabler/icons-react';
 
+import { ClickableTr } from '@/components/ClickableTr';
+import { SearchInput } from '@/components/SearchInput';
+import { TableRowsSkeleton } from '@/components/TableRowsSkeleton';
 import { useDepartments } from '@/features/departments/queries';
 
 import { useCertifications, useDeactivateCertification } from '../queries';
@@ -87,12 +88,10 @@ export function CertificationList() {
       </Group>
 
       <Group justify="space-between" wrap="wrap">
-        <TextInput
+        <SearchInput
           placeholder="資格名・略称・発行団体で検索"
-          leftSection={<IconSearch size={16} />}
           value={search}
           onChange={(e) => setSearch(e.currentTarget.value)}
-          style={{ flex: 1, minWidth: 240 }}
         />
         <SegmentedControl
           value={statusFilter}
@@ -103,13 +102,7 @@ export function CertificationList() {
 
       {isError && <Alert color="red">資格一覧の取得に失敗しました</Alert>}
 
-      {isLoading && (
-        <Stack gap="xs">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} height={52} radius="sm" />
-          ))}
-        </Stack>
-      )}
+      {isLoading && <TableRowsSkeleton />}
 
       {!isLoading && certifications.length === 0 && (
         <EmptyState
@@ -190,7 +183,7 @@ function CertificationRow({ certification, departmentName, onEdit }: Certificati
   };
 
   return (
-    <Table.Tr onClick={onEdit} style={{ cursor: 'pointer' }}>
+    <ClickableTr onClick={onEdit}>
       <Table.Td>
         <Text fw={500} size="sm">
           {certification.name}
@@ -227,6 +220,6 @@ function CertificationRow({ certification, departmentName, onEdit }: Certificati
           </Menu.Dropdown>
         </Menu>
       </Table.Td>
-    </Table.Tr>
+    </ClickableTr>
   );
 }

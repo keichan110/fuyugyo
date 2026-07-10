@@ -9,15 +9,17 @@ import {
   Group,
   Menu,
   SegmentedControl,
-  Skeleton,
   Stack,
   Table,
   Text,
-  TextInput,
   Title,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { IconDotsVertical, IconSearch, IconUsers } from '@tabler/icons-react';
+
+import { ClickableTr } from '@/components/ClickableTr';
+import { SearchInput } from '@/components/SearchInput';
+import { TableRowsSkeleton } from '@/components/TableRowsSkeleton';
 
 import { useActivateUser, useDeactivateUser, useUsers } from '../queries';
 import type { User, UserRole } from '../schema';
@@ -76,12 +78,10 @@ export function UserList() {
       </Group>
 
       <Group justify="space-between" wrap="wrap">
-        <TextInput
+        <SearchInput
           placeholder="ユーザー名で検索"
-          leftSection={<IconSearch size={16} />}
           value={search}
           onChange={(e) => setSearch(e.currentTarget.value)}
-          style={{ flex: 1, minWidth: 240 }}
         />
         <SegmentedControl
           value={statusFilter}
@@ -92,13 +92,7 @@ export function UserList() {
 
       {isError && <Alert color="red">ユーザー一覧の取得に失敗しました</Alert>}
 
-      {isLoading && (
-        <Stack gap="xs">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} height={52} radius="sm" />
-          ))}
-        </Stack>
-      )}
+      {isLoading && <TableRowsSkeleton />}
 
       {!isLoading && allUsers.length === 0 && (
         <EmptyState icon={<IconUsers size={32} stroke={1.5} />} title="ユーザーがいません" />
@@ -168,7 +162,7 @@ function UserRow({ user, onEdit }: UserRowProps) {
   };
 
   return (
-    <Table.Tr onClick={onEdit} style={{ cursor: 'pointer' }}>
+    <ClickableTr onClick={onEdit}>
       <Table.Td>
         <Group gap="sm" wrap="nowrap">
           {user.pictureUrl ? (
@@ -220,6 +214,6 @@ function UserRow({ user, onEdit }: UserRowProps) {
           </Menu.Dropdown>
         </Menu>
       </Table.Td>
-    </Table.Tr>
+    </ClickableTr>
   );
 }

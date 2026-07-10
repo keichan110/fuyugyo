@@ -1,66 +1,46 @@
-import { useState } from 'react';
+import { Stack, Textarea, TextInput } from '@mantine/core';
+import type { UseFormReturnType } from '@mantine/form';
 
-import { Alert, Button, Card, Stack, Textarea, TextInput } from '@mantine/core';
-
-import { useCreateDepartment } from '../queries';
+import type { DepartmentFormValues } from './useDepartmentForm';
 
 type Props = {
-  onSuccess?: () => void;
+  form: UseFormReturnType<DepartmentFormValues>;
+  /** true の場合コード欄を編集不可にする（編集モードではコードを変更できない仕様のため） */
+  codeDisabled?: boolean;
 };
 
 /**
- * 部門作成フォーム。code・name・description を入力して POST する。
+ * 部門のコード・部門名・説明の入力フィールド群。
+ * 送信ボタンは持たず、フォーム全体の送信は呼び出し側に委ねる。
  */
-export function DepartmentForm({ onSuccess }: Props) {
-  const [code, setCode] = useState('');
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const create = useCreateDepartment();
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    create.mutate(
-      { code, name, description: description || undefined },
-      onSuccess ? { onSuccess } : undefined,
-    );
-  };
-
+export function DepartmentFormFields({ form, codeDisabled = false }: Props) {
   return (
-    <Card component="form" onSubmit={handleSubmit} withBorder padding="md" radius="md">
-      <Stack gap="sm">
-        <TextInput
-          label="部門コード"
-          required
-          value={code}
-          onChange={(e) => setCode(e.currentTarget.value)}
-          maxLength={32}
-          placeholder="例: ski"
-        />
+    <Stack gap="sm">
+      <TextInput
+        label="部門コード"
+        required
+        disabled={codeDisabled}
+        description={codeDisabled ? '作成後はコードを変更できません' : undefined}
+        maxLength={32}
+        placeholder="例: ski"
+        {...form.getInputProps('code')}
+      />
 
-        <TextInput
-          label="部門名"
-          required
-          value={name}
-          onChange={(e) => setName(e.currentTarget.value)}
-          maxLength={100}
-          placeholder="例: スキー"
-        />
+      <TextInput
+        label="部門名"
+        required
+        maxLength={100}
+        placeholder="例: スキー"
+        {...form.getInputProps('name')}
+      />
 
-        <Textarea
-          label="説明"
-          value={description}
-          onChange={(e) => setDescription(e.currentTarget.value)}
-          maxLength={500}
-          rows={2}
-          placeholder="部門の説明（任意）"
-        />
-
-        {create.isError && <Alert color="red">{create.error.message}</Alert>}
-
-        <Button type="submit" loading={create.isPending}>
-          作成
-        </Button>
-      </Stack>
-    </Card>
+      <Textarea
+        label="説明"
+        maxLength={500}
+        rows={2}
+        placeholder="部門の説明（任意）"
+        {...form.getInputProps('description')}
+      />
+    </Stack>
   );
 }

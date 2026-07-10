@@ -16,7 +16,7 @@ export const Route = createFileRoute('/departments')({
 
 function DepartmentsPage() {
   return (
-    <Container size="sm" py="md">
+    <Container size="lg" py="md">
       <DepartmentList />
     </Container>
   );

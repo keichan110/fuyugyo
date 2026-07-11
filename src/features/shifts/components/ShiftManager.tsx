@@ -1,30 +1,34 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import {
+  ActionIcon,
   Box,
   Button,
   Card,
   Checkbox,
+  Drawer,
   Group,
   Modal,
-  OverflowList,
   SegmentedControl,
   Select,
+  SimpleGrid,
   Stack,
-  Table,
   Tabs,
   Text,
   Textarea,
   TextInput,
-  ThemeIcon,
   Title,
   Tooltip,
   UnstyledButton,
 } from '@mantine/core';
-import { IconUserFilled } from '@tabler/icons-react';
+import { MonthView, type ScheduleEventData } from '@mantine/schedule';
+import { IconMessage } from '@tabler/icons-react';
+
+import 'dayjs/locale/ja';
 
 import { ErrorAlert } from '@/components/AppAlert';
 import { AppBadge } from '@/components/AppBadge';
+import { useMe } from '@/features/auth/queries';
 import { getDepartmentAppearance } from '@/features/departments/appearance';
 import { DepartmentTag } from '@/features/departments/DepartmentTag';
 import { departmentCodeSchema, type DepartmentCode } from '@/features/departments/schema';
@@ -36,19 +40,12 @@ import {
   useUpsertAssignments,
 } from '../queries';
 import type { AvailableInstructor, ShiftViewItem } from '../schema';
-import { addMonths, shortDateLabel, todayString, toMonth, weekdayIndex } from '../view-utils';
+import { addDays, shortDateLabel, todayString, toMonth, weekdayIndex } from '../view-utils';
 import { calculateFairShare, countCurrentMonthWorkDays, type CellAssignment } from '../workload';
 import classes from './ShiftManager.module.css';
 
 const DEPARTMENT_STORAGE_KEY = 'fuyugyo.shiftManage.departmentCode';
-
-/**
- * 月間シフト表／割り当てパネルの共通高さ。
- * AppShell ヘッダー（60）＋ Main と Container の padding（32）＋
- * タイトル行と部門セレクタ（〜150）＋ 下部余白（〜18）を差し引き、
- * ページ全体をビューポート内に収める。
- */
-const PANEL_HEIGHT = 'calc(100vh - 260px)';
+const ASSIGNMENT_DRAWER_HEIGHT = '55vh';
 
 type CandidateSortMode = 'kana' | 'workload';
 
@@ -72,8 +69,10 @@ export function ShiftManager() {
   const [month, setMonth] = useState(toMonth(todayString()));
   const [departmentCode, setDepartmentCode] = useState<DepartmentCode>('ski');
   const [selectedCell, setSelectedCell] = useState<SelectedCell | null>(null);
+  const [drawerOpened, setDrawerOpened] = useState(false);
   const [stagedCells, setStagedCells] = useState<Map<string, StagedCell>>(new Map());
   const [pendingNav, setPendingNav] = useState<PendingNavigation | null>(null);
+  const selectedDayElementRef = useRef<HTMLElement | null>(null);
   // ステージ済みセルの Instructor 名を解決するためのローカルレジストリ。
   // 月次ビューと編集パネルの候補で見た Instructor を蓄積する。
   const [nameById, setNameById] = useState<Map<string, string>>(new Map());
@@ -81,6 +80,7 @@ export function ShiftManager() {
   const formData = useShiftCreationContext();
   const monthly = useShiftCalendar(month);
   const upsertMonthly = useUpsertAssignments();
+  const me = useMe();
   const days = useMemo(() => monthDays(month), [month]);
   const isDirty = stagedCells.size > 0;
   // シフト種別タブに「未保存の編集あり」のドットを出すため、ステージ済みセルの種別IDを集計する
@@ -168,6 +168,7 @@ export function ShiftManager() {
       setMonth(nav.nextMonth);
     }
     setStagedCells(new Map());
+    setDrawerOpened(false);
   };
 
   const confirmNavigation = () => {
@@ -193,9 +194,31 @@ export function ShiftManager() {
   const changeActiveShiftType = useCallback(
     (shiftTypeId: string) => {
       setSelectedCell((prev) => ({ date: prev?.date ?? days[0] ?? todayString(), shiftTypeId }));
+      setDrawerOpened(false);
     },
     [days],
   );
+
+  const openAssignmentDrawer = useCallback((cell: SelectedCell) => {
+    setSelectedCell(cell);
+    selectedDayElementRef.current = document.querySelector<HTMLElement>(
+      `[data-shift-date="${cell.date}"]`,
+    );
+    setDrawerOpened(true);
+  }, []);
+
+  // 最終週を選んだ場合も、ボトムドロワーより上に選択行が残る位置まで先に移動する。
+  useLayoutEffect(() => {
+    if (!drawerOpened || !selectedDayElementRef.current) {
+      return;
+    }
+    const rect = selectedDayElementRef.current.getBoundingClientRect();
+    const drawerHeight = window.innerHeight * 0.55;
+    const visibleBottom = window.innerHeight - drawerHeight - 16;
+    if (rect.bottom > visibleBottom) {
+      window.scrollBy({ top: rect.bottom - visibleBottom });
+    }
+  }, [drawerOpened, selectedCell]);
 
   // instructorId → 競合先の表示ラベル（「部門名 / シフト種別名」）。
   // DB 保存値ではなく「フォームの現在値」（ステージ済み優先）で判定することで、
@@ -288,34 +311,50 @@ export function ShiftManager() {
     );
   };
 
+  const selectedStagedCell = selectedCell
+    ? stagedCells.get(cellKey(selectedCell.date, selectedCell.shiftTypeId))
+    : undefined;
+  const selectedServerShift = selectedCell
+    ? monthly.data?.shifts.find(
+        (shift) =>
+          shift.date === selectedCell.date &&
+          shift.department.code === departmentCode &&
+          shift.shiftType.id === selectedCell.shiftTypeId,
+      )
+    : undefined;
+  const selectedAssignmentCount =
+    selectedStagedCell?.instructorIds.length ??
+    selectedServerShift?.assignedInstructors.length ??
+    0;
+
   return (
     <Stack gap="md">
       <Group justify="space-between" align="flex-end" wrap="wrap">
         <Title order={2}>シフト管理</Title>
-        <Group gap="xs" align="flex-end">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => requestNavigation({ type: 'month', nextMonth: addMonths(month, -1) })}
-          >
-            前月
-          </Button>
-          <TextInput
-            type="month"
-            label="対象月"
-            value={month}
-            onChange={(e) => requestNavigation({ type: 'month', nextMonth: e.currentTarget.value })}
-          />
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => requestNavigation({ type: 'month', nextMonth: addMonths(month, 1) })}
-          >
-            次月
-          </Button>
-        </Group>
+        <Select
+          label="部門"
+          data={departmentCodeSchema.options.map((code) => ({
+            value: code,
+            label: getDepartmentAppearance(code).label,
+          }))}
+          value={departmentCode}
+          onChange={(value) => {
+            if (!value || value === departmentCode) {
+              return;
+            }
+            const parsed = departmentCodeSchema.safeParse(value);
+            if (parsed.success) {
+              requestNavigation({ type: 'department', nextDepartmentCode: parsed.data });
+            }
+          }}
+          renderOption={({ option }) => <DepartmentTag code={option.value} name={option.label} />}
+          leftSection={(() => {
+            const SelectedIcon = getDepartmentAppearance(departmentCode).icon;
+            return <SelectedIcon size={16} stroke={1.75} />;
+          })()}
+          allowDeselect={false}
+          w={{ base: '100%', sm: 280 }}
+        />
       </Group>
 
       {formData.isLoading && (
@@ -330,36 +369,7 @@ export function ShiftManager() {
 
       {formData.data && (
         <>
-          <Group justify="space-between" align="flex-end" wrap="wrap">
-            <Select
-              label="部門"
-              data={departmentCodeSchema.options.map((code) => ({
-                value: code,
-                label: getDepartmentAppearance(code).label,
-              }))}
-              value={departmentCode || null}
-              onChange={(value) => {
-                if (!value || value === departmentCode) {
-                  return;
-                }
-                const parsed = departmentCodeSchema.safeParse(value);
-                if (parsed.success) {
-                  requestNavigation({ type: 'department', nextDepartmentCode: parsed.data });
-                }
-              }}
-              renderOption={({ option }) => {
-                return <DepartmentTag code={option.value} name={option.label} />;
-              }}
-              leftSection={(() => {
-                if (!departmentCode) {
-                  return undefined;
-                }
-                const SelectedIcon = getDepartmentAppearance(departmentCode).icon;
-                return <SelectedIcon size={16} stroke={1.75} />;
-              })()}
-              allowDeselect={false}
-              w={{ base: '100%', sm: 280 }}
-            />
+          <Group justify="flex-end" align="center" wrap="wrap">
             <Group gap="xs">
               {isDirty && (
                 <Text size="sm" c="orange">
@@ -382,7 +392,7 @@ export function ShiftManager() {
                 loading={upsertMonthly.isPending}
                 disabled={!isDirty}
               >
-                保存
+                一括保存
               </Button>
             </Group>
           </Group>
@@ -391,49 +401,76 @@ export function ShiftManager() {
             <ErrorAlert>{upsertMonthly.error?.message ?? '保存に失敗しました'}</ErrorAlert>
           )}
 
-          <Box className={classes.matrixGrid}>
-            <ShiftMatrix
-              days={days}
-              departmentCode={departmentCode}
-              shiftTypes={formData.data.shiftTypes}
-              activeShiftTypeId={selectedCell?.shiftTypeId ?? formData.data.shiftTypes[0]?.id ?? ''}
-              onChangeShiftType={changeActiveShiftType}
-              stagedShiftTypeIds={stagedShiftTypeIds}
-              shifts={monthly.data?.shifts ?? []}
-              stagedCells={stagedCells}
-              nameById={nameById}
-              selectedCell={selectedCell}
-              onSelectCell={setSelectedCell}
-            />
-            {/* 編集パネルは表と同じ高さにして、候補リストだけを内部スクロールにする */}
-            <Box h={PANEL_HEIGHT}>
-              {selectedCell && departmentCode ? (
-                <AssignmentPanel
-                  key={`${selectedCell.date}-${departmentCode}-${selectedCell.shiftTypeId}`}
-                  date={selectedCell.date}
-                  departmentCode={departmentCode}
-                  shiftTypeId={selectedCell.shiftTypeId}
-                  shiftTypeName={
-                    formData.data.shiftTypes.find((st) => st.id === selectedCell.shiftTypeId)
-                      ?.name ?? ''
-                  }
-                  stagedCell={stagedCells.get(cellKey(selectedCell.date, selectedCell.shiftTypeId))}
-                  onStageChange={(next) =>
-                    stageCell(cellKey(selectedCell.date, selectedCell.shiftTypeId), next)
-                  }
-                  onRegisterInstructorNames={registerInstructorNames}
-                  conflictLabelById={conflictLabelById}
-                  currentMonthWorkDays={currentMonthWorkDays}
-                />
-              ) : (
-                <Card padding="md" h="100%">
-                  <Text c="dimmed" size="sm">
-                    セルを選択してください
-                  </Text>
-                </Card>
-              )}
-            </Box>
-          </Box>
+          <ShiftCalendar
+            month={month}
+            onMonthChange={(nextMonth) =>
+              requestNavigation({ type: 'month', nextMonth: toMonth(nextMonth) })
+            }
+            days={days}
+            departmentCode={departmentCode}
+            shiftTypes={formData.data.shiftTypes}
+            activeShiftTypeId={selectedCell?.shiftTypeId ?? formData.data.shiftTypes[0]?.id ?? ''}
+            onChangeShiftType={changeActiveShiftType}
+            stagedShiftTypeIds={stagedShiftTypeIds}
+            shifts={monthly.data?.shifts ?? []}
+            stagedCells={stagedCells}
+            nameById={nameById}
+            selectedCell={drawerOpened ? selectedCell : null}
+            myInstructorId={me.data?.instructorId ?? null}
+            onSelectCell={openAssignmentDrawer}
+          />
+
+          {drawerOpened && <Box h={ASSIGNMENT_DRAWER_HEIGHT} aria-hidden />}
+
+          <Drawer
+            opened={drawerOpened}
+            onClose={() => setDrawerOpened(false)}
+            position="bottom"
+            size={ASSIGNMENT_DRAWER_HEIGHT}
+            title={
+              selectedCell ? (
+                <Group justify="space-between" wrap="nowrap" w="100%">
+                  <Stack gap={0}>
+                    <Text fw={600}>{shortDateLabel(selectedCell.date)}</Text>
+                    <Text size="xs" c="dimmed" fw={400}>
+                      {formData.data.shiftTypes.find(
+                        (shiftType) => shiftType.id === selectedCell.shiftTypeId,
+                      )?.name ?? ''}
+                    </Text>
+                  </Stack>
+                  <Group gap="xs" wrap="nowrap" mr="xs">
+                    <Text size="sm" c="dimmed">
+                      {selectedAssignmentCount}名
+                    </Text>
+                    {selectedStagedCell && <AppBadge kind="pending">未保存</AppBadge>}
+                  </Group>
+                </Group>
+              ) : undefined
+            }
+            offset={8}
+            radius="md"
+            overlayProps={{ backgroundOpacity: 0.18 }}
+            classNames={{
+              body: classes.assignmentDrawerBody,
+              title: classes.assignmentDrawerTitle,
+            }}
+          >
+            {selectedCell && (
+              <AssignmentPanel
+                key={`${selectedCell.date}-${departmentCode}-${selectedCell.shiftTypeId}`}
+                date={selectedCell.date}
+                departmentCode={departmentCode}
+                shiftTypeId={selectedCell.shiftTypeId}
+                stagedCell={stagedCells.get(cellKey(selectedCell.date, selectedCell.shiftTypeId))}
+                onStageChange={(next) =>
+                  stageCell(cellKey(selectedCell.date, selectedCell.shiftTypeId), next)
+                }
+                onRegisterInstructorNames={registerInstructorNames}
+                conflictLabelById={conflictLabelById}
+                currentMonthWorkDays={currentMonthWorkDays}
+              />
+            )}
+          </Drawer>
         </>
       )}
 
@@ -468,24 +505,31 @@ type ShiftTypeOption = {
   name: string;
 };
 
-type ShiftMatrixProps = {
+type ShiftCalendarProps = {
+  month: string;
+  onMonthChange: (month: string) => void;
   days: string[];
   departmentCode: DepartmentCode;
   shiftTypes: ShiftTypeOption[];
-  /** タブで選択中のシフト種別ID。表はこの種別の列のみを表示する */
   activeShiftTypeId: string;
   onChangeShiftType: (shiftTypeId: string) => void;
-  /** 未保存セルが存在するシフト種別ID（タブのドット表示に使用） */
   stagedShiftTypeIds: Set<string>;
   shifts: ShiftViewItem[];
   stagedCells: Map<string, StagedCell>;
   nameById: Map<string, string>;
   selectedCell: SelectedCell | null;
+  myInstructorId: string | null;
   onSelectCell: (cell: SelectedCell) => void;
 };
 
-/** 日付 × シフト種別の割り当てマトリクス（日付を縦軸、シフト種別はタブで切替）。 */
-function ShiftMatrix({
+type AssignmentEventPayload =
+  | { kind: 'instructor'; date: string; instructorId: string }
+  | { kind: 'description'; date: string; description: string };
+
+/** 選択中の部門・シフト種別について、担当者を日付ごとに縦表示する月間カレンダー。 */
+function ShiftCalendar({
+  month,
+  onMonthChange,
   days,
   departmentCode,
   shiftTypes,
@@ -496,9 +540,9 @@ function ShiftMatrix({
   stagedCells,
   nameById,
   selectedCell,
+  myInstructorId,
   onSelectCell,
-}: ShiftMatrixProps) {
-  // (date, shiftTypeId) → 対象部門のサーバー状態 Shift のマップ
+}: ShiftCalendarProps) {
   const shiftByCell = useMemo(() => {
     const map = new Map<string, ShiftViewItem>();
     for (const shift of shifts) {
@@ -509,14 +553,72 @@ function ShiftMatrix({
     return map;
   }, [departmentCode, shifts]);
 
-  const activeShiftTypeName =
-    shiftTypes.find((shiftType) => shiftType.id === activeShiftTypeId)?.name ?? '';
+  const assignmentsByDay = useMemo(() => {
+    const map = new Map<string, Array<{ id: string; name: string }>>();
+    for (const day of days) {
+      const key = cellKey(day, activeShiftTypeId);
+      const serverShift = shiftByCell.get(key);
+      const staged = stagedCells.get(key);
+      const assigned = staged
+        ? staged.instructorIds.map((id) => ({
+            id,
+            name:
+              serverShift?.assignedInstructors.find((instructor) => instructor.id === id)
+                ?.displayName ??
+              nameById.get(id) ??
+              id,
+          }))
+        : (serverShift?.assignedInstructors ?? []).map((instructor) => ({
+            id: instructor.id,
+            name: instructor.displayName,
+          }));
+      map.set(day, assigned);
+    }
+    return map;
+  }, [activeShiftTypeId, days, nameById, shiftByCell, stagedCells]);
+
+  const events = useMemo<ScheduleEventData<AssignmentEventPayload>[]>(() => {
+    const instructorEvents = days.flatMap((day) =>
+      (assignmentsByDay.get(day) ?? []).map(
+        (instructor): ScheduleEventData<AssignmentEventPayload> => ({
+          id: `${day}:${activeShiftTypeId}:${instructor.id}`,
+          title: instructor.name,
+          start: `${day} 00:00:00`,
+          end: `${addDays(day, 1)} 00:00:00`,
+          color: 'gray',
+          payload: { kind: 'instructor', date: day, instructorId: instructor.id },
+        }),
+      ),
+    );
+    const descriptionEvents = days.flatMap((day) => {
+      const key = cellKey(day, activeShiftTypeId);
+      const description =
+        stagedCells.get(key)?.description ?? shiftByCell.get(key)?.description ?? '';
+      if (!description.trim()) {
+        return [];
+      }
+      return [
+        {
+          id: `${day}:${activeShiftTypeId}:description`,
+          title: description,
+          start: `${day} 00:00:00`,
+          end: `${addDays(day, 1)} 00:00:00`,
+          color: 'gray',
+          display: 'background' as const,
+          payload: { kind: 'description' as const, date: day, description },
+        },
+      ];
+    });
+    return [...instructorEvents, ...descriptionEvents];
+  }, [activeShiftTypeId, assignmentsByDay, days, shiftByCell, stagedCells]);
+
+  const maxEventsPerDay = Math.min(
+    10,
+    Math.max(2, ...Array.from(assignmentsByDay.values(), (assigned) => assigned.length)),
+  );
 
   return (
-    <Card padding="md" h={PANEL_HEIGHT} className={classes.matrixCard}>
-      <Text fw={500} mb="sm">
-        月間シフト表
-      </Text>
+    <Card padding="md">
       <Tabs
         value={activeShiftTypeId}
         onChange={(value) => value && onChangeShiftType(value)}
@@ -538,133 +640,103 @@ function ShiftMatrix({
           ))}
         </Tabs.List>
       </Tabs>
-      {/* テーブルを内部スクロールにし、Thead は stickyHeader でスクロール中も列見出しを維持する */}
-      <Box className={classes.tableScrollArea}>
-        <Table
-          stickyHeader
-          stickyHeaderOffset={0}
-          withColumnBorders
-          withTableBorder
-          verticalSpacing={2}
-          horizontalSpacing={2}
-          layout="fixed"
-        >
-          {/* table-layout: fixed 下で日付列の幅を確実に固定するため colgroup で明示指定する */}
-          <colgroup>
-            <col className={classes.dateColumn} />
-            <col />
-          </colgroup>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th w={64} bg="gray.0">
-                <Text size="xs" ta="center" fw={500}>
-                  日付
-                </Text>
-              </Table.Th>
-              <Table.Th bg="gray.0">
-                <Text size="xs" ta="center" fw={500}>
-                  {activeShiftTypeName}
-                </Text>
-              </Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {days.map((day) => {
-              const key = cellKey(day, activeShiftTypeId);
-              const serverShift = shiftByCell.get(key);
-              const staged = stagedCells.get(key);
-              const selected =
-                selectedCell?.date === day && selectedCell.shiftTypeId === activeShiftTypeId;
-              return (
-                <Table.Tr key={day}>
-                  <Table.Th>
-                    <Stack gap={0} align="center">
-                      <Text size="xs" fw={500}>
-                        {day.slice(5).replace('-', '/')}
-                      </Text>
-                      <Text size="xs" c={weekdayColor(day)}>
-                        {weekdayLabel(day)}
-                      </Text>
-                    </Stack>
-                  </Table.Th>
-                  <Table.Td p={0}>
-                    <ShiftCell
-                      serverShift={serverShift}
-                      staged={staged}
-                      nameById={nameById}
-                      selected={selected}
-                      onClick={() => onSelectCell({ date: day, shiftTypeId: activeShiftTypeId })}
-                    />
-                  </Table.Td>
-                </Table.Tr>
-              );
-            })}
-          </Table.Tbody>
-        </Table>
-      </Box>
+
+      <MonthView
+        date={`${month}-01`}
+        onDateChange={onMonthChange}
+        events={events}
+        locale="ja"
+        firstDayOfWeek={1}
+        weekdayFormat="dd"
+        withOutsideDays={false}
+        consistentWeeks
+        maxEventsPerDay={maxEventsPerDay}
+        labels={{
+          today: '今日',
+          next: '翌月',
+          previous: '前月',
+          more: 'その他',
+          moreLabel: (count) => `+${count}名`,
+          selectMonth: '月を選択',
+          selectYear: '年を選択',
+          month: '月',
+          viewSelectLabel: '表示形式',
+        }}
+        monthYearSelectProps={{
+          labelFormat: (date) => `${date.slice(0, 4)}年${Number(date.slice(5, 7))}月`,
+          monthsListFormat: (date) => `${Number(date.slice(5, 7))}月`,
+        }}
+        viewSelectProps={{ views: ['month'], style: { display: 'none' } }}
+        getDayProps={(date) => {
+          const selected =
+            selectedCell?.date === date && selectedCell.shiftTypeId === activeShiftTypeId;
+          return {
+            'data-shift-date': date,
+            'data-selected': selected || undefined,
+            'data-staged': stagedCells.has(cellKey(date, activeShiftTypeId)) || undefined,
+            'aria-label': `${Number(date.slice(5, 7))}月${Number(date.slice(8, 10))}日（${weekdayLabel(date)}）の割り当てを編集`,
+            style: {
+              color:
+                weekdayIndex(date) === 0
+                  ? 'var(--mantine-color-red-7)'
+                  : weekdayIndex(date) === 6
+                    ? 'var(--mantine-color-blue-7)'
+                    : undefined,
+            },
+          };
+        }}
+        onDayClick={(date) => onSelectCell({ date, shiftTypeId: activeShiftTypeId })}
+        onEventClick={(event) => {
+          const date = event.payload?.date;
+          if (typeof date === 'string') {
+            onSelectCell({ date, shiftTypeId: activeShiftTypeId });
+          }
+        }}
+        renderEvent={(event, props) => {
+          const payload = event.payload;
+          return payload?.kind === 'description' ? (
+            <Box style={props.style} className={classes.descriptionLayer}>
+              <Tooltip label={payload.description} multiline maw={320} withArrow>
+                <ActionIcon
+                  type="button"
+                  variant="subtle"
+                  color="gray"
+                  size="sm"
+                  className={classes.descriptionIcon}
+                  aria-label={`備考: ${payload.description}`}
+                  onClick={() =>
+                    onSelectCell({
+                      date: payload.date,
+                      shiftTypeId: activeShiftTypeId,
+                    })
+                  }
+                >
+                  <IconMessage size={14} stroke={1.75} />
+                </ActionIcon>
+              </Tooltip>
+            </Box>
+          ) : (
+            <UnstyledButton
+              {...props}
+              className={[props.className, classes.instructorEvent].filter(Boolean).join(' ')}
+              data-current-user={
+                payload?.kind === 'instructor' && payload.instructorId === myInstructorId
+                  ? true
+                  : undefined
+              }
+            >
+              {event.title}
+            </UnstyledButton>
+          );
+        }}
+        classNames={{
+          header: classes.calendarHeader,
+          monthViewDay: classes.calendarDay,
+          monthViewWeekday: classes.calendarWeekday,
+          monthViewScrollArea: classes.calendarScrollArea,
+        }}
+      />
     </Card>
-  );
-}
-
-type ShiftCellProps = {
-  serverShift: ShiftViewItem | undefined;
-  staged: StagedCell | undefined;
-  nameById: Map<string, string>;
-  selected: boolean;
-  onClick: () => void;
-};
-
-/** 単一セル: 割り当て済み Instructor をバッジで列挙。stage 中は表示を staged 側で上書き。 */
-function ShiftCell({ serverShift, staged, nameById, selected, onClick }: ShiftCellProps) {
-  // staged があれば staged の割り当てを、そうでなければサーバー状態を表示する。
-  // stage された Instructor 名はレジストリ（月次ビュー＋パネル候補で蓄積）から解決する
-  const assignedNames = staged
-    ? staged.instructorIds.map(
-        (id) =>
-          serverShift?.assignedInstructors.find((i) => i.id === id)?.displayName ??
-          nameById.get(id) ??
-          id,
-      )
-    : (serverShift?.assignedInstructors ?? []).map((i) => i.displayName);
-
-  const hasAssignments = assignedNames.length > 0;
-  // セルの見た目: 割り当て有無で内容の揃え位置、選択状態で背景色が変わる
-  const cellClassName = [
-    classes.cell,
-    hasAssignments ? classes.cellHasAssignments : classes.cellEmpty,
-    selected ? classes.cellSelected : null,
-  ]
-    .filter(Boolean)
-    .join(' ');
-
-  return (
-    <UnstyledButton onClick={onClick} mih={60} className={cellClassName}>
-      {staged && (
-        <Box
-          pos="absolute"
-          top={2}
-          right={2}
-          w={8}
-          h={8}
-          bdrs="50%"
-          bg="var(--mantine-color-orange-6)"
-        />
-      )}
-      {hasAssignments ? (
-        <Group gap={4} align="flex-start" wrap="nowrap">
-          <ThemeIcon color="gray" variant="transparent" size={16} mt={1}>
-            <IconUserFilled size={14} />
-          </ThemeIcon>
-          <Text size="xs" lh={1.35} ta="left" flex={1} miw={0}>
-            {assignedNames.join(' ・ ')}
-          </Text>
-        </Group>
-      ) : (
-        <Text size="xs" c="dimmed">
-          -
-        </Text>
-      )}
-    </UnstyledButton>
   );
 }
 
@@ -672,7 +744,6 @@ type AssignmentPanelProps = {
   date: string;
   departmentCode: DepartmentCode;
   shiftTypeId: string;
-  shiftTypeName: string;
   stagedCell: StagedCell | undefined;
   onStageChange: (next: StagedCell) => void;
   onRegisterInstructorNames: (entries: Array<{ id: string; name: string }>) => void;
@@ -692,7 +763,6 @@ function AssignmentPanel({
   date,
   departmentCode,
   shiftTypeId,
-  shiftTypeName,
   stagedCell,
   onStageChange,
   onRegisterInstructorNames,
@@ -785,36 +855,21 @@ function AssignmentPanel({
   };
 
   return (
-    <Card padding="md" className={classes.assignmentPanelCard}>
-      {/* 候補リストが flex-grow で残余領域を占め、リスト内スクロールで画面全体は動かさない */}
-      <Stack gap="sm" flex={1} mih={0}>
-        <Group justify="space-between" align="flex-start">
-          <Group gap="xs" align="baseline">
-            <Text fw={500}>{shortDateLabel(date)}</Text>
-            <Text fw={500}>{shiftTypeName}</Text>
-            <AppBadge kind="count">{selectedSet.size}名</AppBadge>
-          </Group>
-          {stagedCell && <AppBadge kind="pending">未保存</AppBadge>}
-        </Group>
+    <Stack gap="md">
+      {editData.isLoading && (
+        <Text c="dimmed" size="sm">
+          候補を読み込み中…
+        </Text>
+      )}
+      {editData.isError && (
+        <ErrorAlert>{editData.error?.message ?? '候補の取得に失敗しました'}</ErrorAlert>
+      )}
 
-        {editData.isLoading && (
-          <Text c="dimmed" size="sm">
-            候補を読み込み中…
-          </Text>
-        )}
-        {editData.isError && (
-          <ErrorAlert>{editData.error?.message ?? '候補の取得に失敗しました'}</ErrorAlert>
-        )}
-
-        {editData.data && (
-          <>
-            <TextInput
-              label="名前検索"
-              value={search}
-              onChange={(e) => setSearch(e.currentTarget.value)}
-            />
+      {editData.data && (
+        <>
+          <Group justify="space-between" align="center" wrap="wrap">
             <SegmentedControl
-              size="xs"
+              size="sm"
               value={sortMode}
               onChange={(value) => setSortMode(parseCandidateSortMode(value))}
               data={[
@@ -822,44 +877,52 @@ function AssignmentPanel({
                 { value: 'workload', label: '負荷が低い順' },
               ]}
             />
-
-            <Stack gap="xs" className={classes.candidateList}>
-              {candidates.length === 0 ? (
-                <Text c="dimmed" size="sm">
-                  候補がありません
-                </Text>
-              ) : (
-                candidates.map((instructor) => (
-                  <InstructorCheckbox
-                    key={instructor.id}
-                    instructor={instructor}
-                    departmentCode={departmentCode}
-                    checked={selectedSet.has(instructor.id)}
-                    onToggle={() => toggle(instructor.id)}
-                    conflictLabel={conflictLabelById.get(instructor.id)}
-                    load={loadByInstructor.get(instructor.id) ?? 0}
-                    fairShareAverage={fairShareAverage}
-                    maxAbsDeviation={maxAbsDeviation}
-                  />
-                ))
-              )}
-            </Stack>
-
-            <Textarea
-              label="備考"
-              value={displayedDescription}
-              onChange={(e) => changeDescription(e.currentTarget.value)}
-              maxLength={500}
-              rows={3}
+            <TextInput
+              aria-label="名前検索"
+              placeholder="名前を検索"
+              value={search}
+              onChange={(e) => setSearch(e.currentTarget.value)}
+              size="sm"
+              w={{ base: '100%', sm: 320 }}
             />
-          </>
-        )}
-      </Stack>
-    </Card>
+          </Group>
+
+          <SimpleGrid cols={{ base: 1, sm: 2, xl: 3 }} spacing="sm">
+            {candidates.length === 0 ? (
+              <Text c="dimmed" size="sm">
+                候補がありません
+              </Text>
+            ) : (
+              candidates.map((instructor) => (
+                <InstructorCard
+                  key={instructor.id}
+                  instructor={instructor}
+                  departmentCode={departmentCode}
+                  checked={selectedSet.has(instructor.id)}
+                  onToggle={() => toggle(instructor.id)}
+                  conflictLabel={conflictLabelById.get(instructor.id)}
+                  load={loadByInstructor.get(instructor.id) ?? 0}
+                  fairShareAverage={fairShareAverage}
+                  maxAbsDeviation={maxAbsDeviation}
+                />
+              ))
+            )}
+          </SimpleGrid>
+
+          <Textarea
+            label="備考"
+            value={displayedDescription}
+            onChange={(e) => changeDescription(e.currentTarget.value)}
+            maxLength={500}
+            rows={3}
+          />
+        </>
+      )}
+    </Stack>
   );
 }
 
-type InstructorCheckboxProps = {
+type InstructorCardProps = {
   instructor: AvailableInstructor;
   departmentCode: DepartmentCode;
   checked: boolean;
@@ -875,11 +938,11 @@ type InstructorCheckboxProps = {
 };
 
 /**
- * 割り当て候補インストラクターの1行。
+ * 割り当て候補インストラクターの選択カード。
  * 同日の別 Shift に割り当て済み（競合）かつ未チェックの場合は disabled にし、
  * 新規の二重割り当てを防ぐ（既存の割り当て解除はできるよう checked 時は除外）。
  */
-function InstructorCheckbox({
+function InstructorCard({
   instructor,
   departmentCode,
   checked,
@@ -888,57 +951,58 @@ function InstructorCheckbox({
   load,
   fairShareAverage,
   maxAbsDeviation,
-}: InstructorCheckboxProps) {
+}: InstructorCardProps) {
   const isConflict = conflictLabel !== undefined;
   const isDisabled = isConflict && !checked;
 
   return (
     <Tooltip label={`${conflictLabel}に割当済`} disabled={!isConflict} withArrow>
-      <Group justify="space-between" gap="xs" wrap="nowrap">
-        <Checkbox
+      <Box h="100%">
+        <Checkbox.Card
           checked={checked}
-          onChange={onToggle}
+          onClick={onToggle}
           disabled={isDisabled}
-          label={
-            <Stack gap={0}>
-              <Group gap={4} wrap="nowrap">
-                <Text size="sm">{instructor.displayName}</Text>
-                {instructor.displayNameKana && (
-                  <Text size="xs" c="dimmed">
-                    {instructor.displayNameKana}
+          className={classes.instructorCard}
+          h="100%"
+        >
+          <Group justify="space-between" gap="sm" wrap="nowrap" align="flex-start">
+            <Group gap="sm" wrap="nowrap" align="flex-start" flex={1} miw={0}>
+              <Checkbox.Indicator />
+              <Stack gap={4} flex={1} miw={0}>
+                <Group gap={4} wrap="nowrap">
+                  <Text size="sm" fw={500}>
+                    {instructor.displayName}
                   </Text>
+                  {instructor.displayNameKana && (
+                    <Text size="xs" c="dimmed">
+                      {instructor.displayNameKana}
+                    </Text>
+                  )}
+                </Group>
+                {instructor.certifications.length > 0 && (
+                  <Group gap={4} wrap="wrap">
+                    {instructor.certifications.map((cert, index) => (
+                      <AppBadge
+                        key={index}
+                        kind="certification"
+                        departmentCode={departmentCode}
+                        size="xs"
+                      >
+                        {cert}
+                      </AppBadge>
+                    ))}
+                  </Group>
                 )}
-              </Group>
-              {instructor.certifications.length > 0 && (
-                <OverflowList
-                  data={instructor.certifications}
-                  gap={4}
-                  renderItem={(cert, index) => (
-                    <AppBadge
-                      key={index}
-                      kind="certification"
-                      departmentCode={departmentCode}
-                      size="xs"
-                    >
-                      {cert}
-                    </AppBadge>
-                  )}
-                  renderOverflow={(items) => (
-                    <AppBadge kind="count" size="xs">
-                      +{items.length}
-                    </AppBadge>
-                  )}
-                />
-              )}
-            </Stack>
-          }
-        />
-        <WorkloadDeviationBar
-          load={load}
-          average={fairShareAverage}
-          maxAbsDeviation={maxAbsDeviation}
-        />
-      </Group>
+              </Stack>
+            </Group>
+            <WorkloadDeviationBar
+              load={load}
+              average={fairShareAverage}
+              maxAbsDeviation={maxAbsDeviation}
+            />
+          </Group>
+        </Checkbox.Card>
+      </Box>
     </Tooltip>
   );
 }
@@ -1002,18 +1066,6 @@ function splitCellKey(key: string): [string, string] {
 
 function weekdayLabel(date: string): string {
   return ['日', '月', '火', '水', '木', '金', '土'][weekdayIndex(date)] ?? '';
-}
-
-/** 曜日インデックスから、日曜=赤・土曜=青・平日=dimmed の色トークンを返す。 */
-function weekdayColor(date: string): 'red' | 'blue' | 'dimmed' {
-  const index = weekdayIndex(date);
-  if (index === 0) {
-    return 'red';
-  }
-  if (index === 6) {
-    return 'blue';
-  }
-  return 'dimmed';
 }
 
 function compareInstructorKana(a: AvailableInstructor, b: AvailableInstructor): number {

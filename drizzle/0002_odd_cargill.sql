@@ -1,4 +1,4 @@
-PRAGMA foreign_keys=OFF;--> statement-breakpoint
+PRAGMA defer_foreign_keys=on;--> statement-breakpoint
 ALTER TABLE `certifications` ADD `department_code` text;--> statement-breakpoint
 UPDATE `certifications`
 SET `department_code` = (
@@ -53,4 +53,4 @@ CREATE INDEX `idx_shifts_date_department` ON `shifts` (`date`,`department_code`)
 CREATE INDEX `idx_shifts_department_type_date` ON `shifts` (`department_code`,`shift_type_id`,`date`);--> statement-breakpoint
 CREATE INDEX `idx_shifts_date_type` ON `shifts` (`date`,`shift_type_id`);--> statement-breakpoint
 DROP TABLE `departments`;--> statement-breakpoint
-PRAGMA foreign_keys=ON;
+PRAGMA defer_foreign_keys=off;

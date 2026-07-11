@@ -711,7 +711,6 @@ export const shiftsRoute = new Hono<{
         description: shifts.description,
         createdAt: shifts.createdAt,
         updatedAt: shifts.updatedAt,
-        departmentName: shifts.departmentCode,
         shiftTypeName: shiftTypes.name,
       })
       .from(shifts)

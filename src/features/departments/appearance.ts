@@ -1,6 +1,6 @@
 import { IconBuilding, IconSkiJumping, IconSnowboarding, type Icon } from '@tabler/icons-react';
 
-import { departmentCodeSchema, type DepartmentCode } from './schema';
+import { DEPARTMENT_LABELS, departmentCodeSchema, type DepartmentCode } from './schema';
 
 /** 部門の視覚的アイデンティティ（ラベル・色・アイコン） */
 export type DepartmentAppearance = {
@@ -15,8 +15,12 @@ export type DepartmentAppearance = {
  * TypeScript がコンパイルエラーで強制する（色・アイコンの付け忘れを防ぐ）。
  */
 export const DEPARTMENT_APPEARANCE: Record<DepartmentCode, DepartmentAppearance> = {
-  ski: { label: 'スキー', color: 'blue', icon: IconSkiJumping },
-  snowboard: { label: 'スノーボード', color: 'orange', icon: IconSnowboarding },
+  ski: { label: DEPARTMENT_LABELS.ski, color: 'blue', icon: IconSkiJumping },
+  snowboard: {
+    label: DEPARTMENT_LABELS.snowboard,
+    color: 'orange',
+    icon: IconSnowboarding,
+  },
 };
 
 /** 既知のマップに無い部門コードに対するフォールバック外観 */

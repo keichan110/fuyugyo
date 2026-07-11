@@ -5,6 +5,16 @@ import { z } from 'zod';
  * サーバー（`api.ts`）の入出力検証とクライアント（`queries.ts`）の表示で共有する。
  */
 
+/**
+ * 部門コードの固定分類語彙（ADR 0011）。
+ * 現時点では `departments` テーブルを廃止せず DB は不変のまま（コミット1）だが、
+ * 視覚的アイデンティティ（色・アイコン・ラベル）はこの enum をキーにした
+ * 全域マップ（`DepartmentTag.tsx`）で表現する。
+ */
+export const departmentCodeSchema = z.enum(['ski', 'snowboard']);
+
+export type DepartmentCode = z.infer<typeof departmentCodeSchema>;
+
 /** Department の単一レコード */
 export const departmentSchema = z.object({
   id: z.string(),

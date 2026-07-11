@@ -1,5 +1,6 @@
 import { Card, Group, Stack, Text, Title } from '@mantine/core';
 
+import { DepartmentTag } from '@/features/departments/DepartmentTag';
 import { useShifts } from '@/features/shifts/queries';
 import { formatDate, shortDateLabel, todayString } from '@/features/shifts/view-utils';
 
@@ -45,9 +46,12 @@ export function UpcomingShifts({ instructorId }: { instructorId: string }) {
           {upcoming.map((shift) => (
             <Group key={shift.id} justify="space-between" px="sm" py="xs" bg="gray.0">
               <Text size="sm">{shortDateLabel(shift.dateStr)}</Text>
-              <Text size="sm" c="dimmed">
-                {shift.departmentName} / {shift.shiftTypeName}
-              </Text>
+              <Group gap="xs" wrap="nowrap">
+                <DepartmentTag code={shift.departmentCode} name={shift.departmentName} />
+                <Text size="sm" c="dimmed">
+                  {shift.shiftTypeName}
+                </Text>
+              </Group>
             </Group>
           ))}
         </Stack>

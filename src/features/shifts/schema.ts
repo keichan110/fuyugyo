@@ -51,9 +51,11 @@ export const shiftWithAssignmentsSchema = shiftSchema.extend({
 
 export type ShiftWithAssignments = z.infer<typeof shiftWithAssignmentsSchema>;
 
-/** Shift 一覧の1件（部門名・シフト種別名を JOIN で同梱） */
+/** Shift 一覧の1件（部門名・部門コード・シフト種別名を JOIN で同梱） */
 export const shiftListItemSchema = shiftWithAssignmentsSchema.extend({
   departmentName: z.string(),
+  /** 部門の視覚的アイデンティティ（色・アイコン）解決に使う（`DepartmentTag`） */
+  departmentCode: z.string(),
   shiftTypeName: z.string(),
 });
 

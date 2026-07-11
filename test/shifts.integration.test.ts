@@ -72,12 +72,13 @@ async function seedToken(role: 'MANAGER' | 'MEMBER'): Promise<string> {
   );
 }
 
-async function seedDepartment(name = 'スキー', isActive = true): Promise<string> {
+async function seedDepartment(
+  name = 'スキー',
+  isActive = true,
+  code = `dept-${crypto.randomUUID()}`,
+): Promise<string> {
   const db = createDb(env.DB);
-  const [dept] = await db
-    .insert(departments)
-    .values({ code: `dept-${crypto.randomUUID()}`, name, isActive })
-    .returning();
+  const [dept] = await db.insert(departments).values({ code, name, isActive }).returning();
   if (!dept) {
     throw new Error('seedDepartment: insert failed');
   }
@@ -640,8 +641,8 @@ describe('GET /api/shifts', () => {
     ).toBe(true);
   });
 
-  it('部門名・シフト種別名を JOIN で同梱する', async () => {
-    const deptId = await seedDepartment('スキー');
+  it('部門名・部門コード・シフト種別名を JOIN で同梱する', async () => {
+    const deptId = await seedDepartment('スキー', true, 'ski');
     const stId = await seedShiftType('終日');
     const token = await seedToken('MANAGER');
     const inst = await seedInstructor();
@@ -651,6 +652,7 @@ describe('GET /api/shifts', () => {
     expect(res.status).toBe(200);
     const body = shiftListSchema.parse(await res.json());
     expect(body[0]?.departmentName).toBe('スキー');
+    expect(body[0]?.departmentCode).toBe('ski');
     expect(body[0]?.shiftTypeName).toBe('終日');
   });
 

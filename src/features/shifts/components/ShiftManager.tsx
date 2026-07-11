@@ -24,6 +24,8 @@ import {
 
 import { ErrorAlert } from '@/components/AppAlert';
 import { AppBadge } from '@/components/AppBadge';
+import { getDepartmentAppearance } from '@/features/departments/appearance';
+import { DepartmentTag } from '@/features/departments/DepartmentTag';
 
 import {
   useShiftAssignmentEditor,
@@ -340,6 +342,21 @@ export function ShiftManager() {
                 }
                 requestNavigation({ type: 'department', nextDepartmentId: value });
               }}
+              renderOption={({ option }) => {
+                const dept = formData.data.departments.find((d) => d.id === option.value);
+                return <DepartmentTag code={dept?.code ?? ''} name={option.label} />;
+              }}
+              leftSection={(() => {
+                const selectedDept = formData.data.departments.find((d) => d.id === departmentId);
+                if (!selectedDept) {
+                  return undefined;
+                }
+                const SelectedIcon = getDepartmentAppearance(
+                  selectedDept.code,
+                  selectedDept.name,
+                ).icon;
+                return <SelectedIcon size={16} stroke={1.75} />;
+              })()}
               allowDeselect={false}
               w={{ base: '100%', sm: 280 }}
             />
@@ -772,15 +789,9 @@ function AssignmentPanel({
           <Group gap="xs" align="baseline">
             <Text fw={500}>{shortDateLabel(date)}</Text>
             <Text fw={500}>{shiftTypeName}</Text>
-            <AppBadge kind="count">
-              {selectedSet.size}名
-            </AppBadge>
+            <AppBadge kind="count">{selectedSet.size}名</AppBadge>
           </Group>
-          {stagedCell && (
-            <AppBadge kind="pending">
-              未保存
-            </AppBadge>
-          )}
+          {stagedCell && <AppBadge kind="pending">未保存</AppBadge>}
         </Group>
 
         {editData.isLoading && (

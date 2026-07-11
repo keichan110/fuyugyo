@@ -21,6 +21,7 @@ import type { ScheduleEventData } from '@mantine/schedule';
 import { ErrorAlert, InfoAlert } from '@/components/AppAlert';
 import { AppBadge } from '@/components/AppBadge';
 import { useMe } from '@/features/auth/queries';
+import { DepartmentTag } from '@/features/departments/DepartmentTag';
 import { useDepartments } from '@/features/departments/queries';
 
 import { containsInstructorAssignment, filterAgendaDaysByInstructor } from '../aggregators';
@@ -349,9 +350,7 @@ function ShiftAgendaCard({
         <Group justify="space-between" align="flex-start">
           <Stack gap={2}>
             <Text fw={600}>{shift.shiftType.name}</Text>
-            <Text size="sm" c="dimmed">
-              {shift.department.name}
-            </Text>
+            <DepartmentTag code={shift.department.code} name={shift.department.name} />
           </Stack>
           <AppBadge kind={shift.assignedInstructors.length > 0 ? 'count' : 'inactive'}>
             {shift.assignedInstructors.length}名

@@ -7,7 +7,24 @@
   padding-block: 8px;
 }
 
-/* 自分が割り当てられているシフトを淡い青で強調する */
-.includesMe {
+/* AgendaView の標準イベントと同じく、左端バーで部門を識別する */
+.eventBody {
+  display: flex;
+  gap: var(--mantine-spacing-sm);
+  padding: var(--mantine-spacing-xs) var(--mantine-spacing-sm);
+}
+
+.eventBody[data-includes-me] {
   background-color: var(--mantine-color-blue-0);
+}
+
+.departmentBar {
+  width: 4px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.eventDetails {
+  flex: 1;
+  min-width: 0;
 }

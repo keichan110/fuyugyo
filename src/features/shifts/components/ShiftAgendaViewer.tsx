@@ -4,12 +4,12 @@ import {
   Affix,
   Box,
   Button,
-  Card,
   Group,
   Select,
   Stack,
   Switch,
   Text,
+  ThemeIcon,
   Title,
   Transition,
   UnstyledButton,
@@ -22,7 +22,6 @@ import { ErrorAlert, InfoAlert } from '@/components/AppAlert';
 import { AppBadge } from '@/components/AppBadge';
 import { useMe } from '@/features/auth/queries';
 import { getDepartmentAppearance } from '@/features/departments/appearance';
-import { DepartmentTag } from '@/features/departments/DepartmentTag';
 import { departmentCodeSchema, type DepartmentCode } from '@/features/departments/schema';
 
 import { containsInstructorAssignment, filterAgendaDaysByInstructor } from '../aggregators';
@@ -271,7 +270,8 @@ function buildMonthEvents(
         title: shift.shiftType.name,
         start: `${shift.date} 00:00:00`,
         end: `${addDays(shift.date, 1)} 00:00:00`,
-        color: shift.assignedInstructors.length > 0 ? 'green' : 'gray',
+        // AgendaView の左端バーで部門を判別できるよう、部門固有の色を使う。
+        color: getDepartmentAppearance(shift.department.code, shift.department.name).color,
         payload: {
           shift,
           includesMe: containsInstructorAssignment(shift, myInstructorId),
@@ -314,11 +314,21 @@ function AgendaDayList({
                   display="block"
                   w="100%"
                 >
-                  <ShiftAgendaCard
-                    shift={payload.shift}
-                    includesMe={payload.includesMe}
-                    myInstructorId={myInstructorId}
-                  />
+                  <Box
+                    className={classes.eventBody}
+                    data-includes-me={payload.includesMe || undefined}
+                  >
+                    <Box
+                      className={classes.departmentBar}
+                      bg={
+                        getDepartmentAppearance(
+                          payload.shift.department.code,
+                          payload.shift.department.name,
+                        ).color
+                      }
+                    />
+                    <ShiftAgendaContent shift={payload.shift} myInstructorId={myInstructorId} />
+                  </Box>
                 </UnstyledButton>
               );
             }}
@@ -337,50 +347,46 @@ function MonthHeader({ month }: { month: string }) {
   );
 }
 
-function ShiftAgendaCard({
+function ShiftAgendaContent({
   shift,
-  includesMe,
   myInstructorId,
 }: {
   shift: ShiftViewItem;
-  includesMe: boolean;
   myInstructorId: string | null;
 }) {
+  const department = getDepartmentAppearance(shift.department.code, shift.department.name);
+  const DepartmentIcon = department.icon;
+
   return (
-    <Card padding="sm" radius="sm" className={includesMe ? classes.includesMe : undefined}>
-      <Stack gap="xs">
-        <Group justify="space-between" align="flex-start">
-          <Stack gap={2}>
-            <Text fw={600}>{shift.shiftType.name}</Text>
-            <DepartmentTag code={shift.department.code} name={shift.department.name} />
-          </Stack>
-          <AppBadge kind={shift.assignedInstructors.length > 0 ? 'count' : 'inactive'}>
-            {shift.assignedInstructors.length}名
-          </AppBadge>
+    <Stack gap={4} className={classes.eventDetails}>
+      <Group justify="space-between" wrap="nowrap">
+        <Group gap={4} wrap="nowrap">
+          <ThemeIcon color={department.color} variant="transparent" size="sm">
+            <DepartmentIcon size={18} stroke={1.75} />
+          </ThemeIcon>
+          <Text fw={600}>{shift.shiftType.name}</Text>
         </Group>
-        {shift.assignedInstructors.length > 0 ? (
-          <Group gap={6}>
-            {shift.assignedInstructors.map((instructor) => (
-              <AppBadge
-                key={instructor.id}
-                kind={instructor.id === myInstructorId ? 'personEmphasized' : 'person'}
-              >
-                {instructor.displayName}
-              </AppBadge>
-            ))}
-          </Group>
-        ) : (
-          <Text size="sm" c="dimmed">
-            未割り当て
-          </Text>
-        )}
-        {shift.description && (
-          <Text size="sm" c="dimmed">
-            {shift.description}
-          </Text>
-        )}
-      </Stack>
-    </Card>
+        <Text size="sm" c="dimmed">
+          {shift.assignedInstructors.length}名
+        </Text>
+      </Group>
+      {shift.assignedInstructors.length > 0 ? (
+        <Group gap={6}>
+          {shift.assignedInstructors.map((instructor) => (
+            <AppBadge
+              key={instructor.id}
+              kind={instructor.id === myInstructorId ? 'personEmphasized' : 'person'}
+            >
+              {instructor.displayName}
+            </AppBadge>
+          ))}
+        </Group>
+      ) : (
+        <Text size="sm" c="dimmed">
+          未割り当て
+        </Text>
+      )}
+    </Stack>
   );
 }
 

@@ -17,7 +17,7 @@ import {
 import { useWindowScroll } from '@mantine/hooks';
 import { AgendaView } from '@mantine/schedule';
 import type { ScheduleEventData } from '@mantine/schedule';
-import { IconUserFilled } from '@tabler/icons-react';
+import { IconMessage, IconUserFilled } from '@tabler/icons-react';
 
 import { ErrorAlert, InfoAlert } from '@/components/AppAlert';
 import { useMe } from '@/features/auth/queries';
@@ -376,20 +376,30 @@ function ShiftAgendaContent({
             <IconUserFilled size={14} />
           </ThemeIcon>
           <Text size="sm" className={classes.assignedInstructorList}>
-          {shift.assignedInstructors.map((instructor) => (
-            <Fragment key={instructor.id}>
-              <Text component="span" fw={instructor.id === myInstructorId ? 600 : 400}>
-                {instructor.displayName}
-              </Text>
-              {instructor.id !== shift.assignedInstructors.at(-1)?.id && ' ・ '}
-            </Fragment>
-          ))}
+            {shift.assignedInstructors.map((instructor) => (
+              <Fragment key={instructor.id}>
+                <Text component="span" fw={instructor.id === myInstructorId ? 600 : 400}>
+                  {instructor.displayName}
+                </Text>
+                {instructor.id !== shift.assignedInstructors.at(-1)?.id && ' ・ '}
+              </Fragment>
+            ))}
           </Text>
         </Group>
       ) : (
         <Text size="sm" c="dimmed">
           未割り当て
         </Text>
+      )}
+      {shift.description && (
+        <Group gap={4} align="flex-start" wrap="nowrap">
+          <ThemeIcon color="gray.6" variant="transparent" size={16} mt={1}>
+            <IconMessage size={14} stroke={1.75} />
+          </ThemeIcon>
+          <Text size="xs" c="dimmed" className={classes.descriptionText}>
+            {shift.description}
+          </Text>
+        </Group>
       )}
     </Stack>
   );

@@ -35,10 +35,10 @@ describe('calculateFairShare', () => {
 describe('countCurrentMonthWorkDays', () => {
   const cell = (
     date: string,
-    departmentId: string,
+    departmentCode: string,
     shiftTypeId: string,
     instructorIds: string[],
-  ): CellAssignment => ({ date, departmentId, shiftTypeId, instructorIds });
+  ): CellAssignment => ({ date, departmentCode, shiftTypeId, instructorIds });
 
   it('保存済み割り当てを部門横断で日数集計する', () => {
     const saved: CellAssignment[] = [

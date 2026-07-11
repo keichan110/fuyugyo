@@ -1,15 +1,6 @@
 import { useMemo, useState } from 'react';
 
-import {
-  Avatar,
-  Button,
-  Group,
-  Menu,
-  Stack,
-  Table,
-  Text,
-  Tooltip,
-} from '@mantine/core';
+import { Avatar, Button, Group, Menu, Stack, Table, Text, Tooltip } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { IconPlus, IconUsers } from '@tabler/icons-react';
 
@@ -22,8 +13,8 @@ import { ListHeader } from '@/components/ListHeader';
 import { ListToolbar } from '@/components/ListToolbar';
 import { RowActionsButton } from '@/components/RowActionsButton';
 import { SearchInput } from '@/components/SearchInput';
-import { StatusFilterControl } from '@/components/StatusFilterControl';
 import type { ActiveStatusFilter } from '@/components/status-filter';
+import { StatusFilterControl } from '@/components/StatusFilterControl';
 import { TableRowsSkeleton } from '@/components/TableRowsSkeleton';
 
 import { useChangeInstructorStatus, useInstructors } from '../queries';
@@ -207,7 +198,11 @@ function InstructorRow({ instructor, onEdit }: InstructorRowProps) {
           <Group gap={4} wrap="wrap">
             {visibleCerts.map((cert) => (
               <Tooltip key={cert.id} label={cert.name}>
-                <AppBadge kind={cert.isActive ? 'certification' : 'inactive'} size="sm">
+                <AppBadge
+                  kind={cert.isActive ? 'certification' : 'inactive'}
+                  departmentCode={cert.departmentCode}
+                  size="sm"
+                >
                   {cert.shortName}
                 </AppBadge>
               </Tooltip>

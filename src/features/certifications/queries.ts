@@ -20,15 +20,15 @@ export const CERTIFICATIONS_QUERY_KEY = ['certifications'] as const;
 /**
  * 資格一覧を取得する。
  * @param activeOnly - true（デフォルト）のときアクティブな資格のみ返す
- * @param departmentId - 指定すると特定の Department に絞り込む
+ * @param departmentCode - 指定すると特定の Department に絞り込む
  */
-export function useCertifications(activeOnly = true, departmentId?: string) {
+export function useCertifications(activeOnly = true, departmentCode?: string) {
   return useQuery<Certification[]>({
-    queryKey: [...CERTIFICATIONS_QUERY_KEY, { activeOnly, departmentId }],
+    queryKey: [...CERTIFICATIONS_QUERY_KEY, { activeOnly, departmentCode }],
     queryFn: async () => {
       const query: Record<string, string> = {};
       if (!activeOnly) query['active'] = 'false';
-      if (departmentId) query['departmentId'] = departmentId;
+      if (departmentCode) query['departmentCode'] = departmentCode;
 
       const res = await client.api.certifications.$get({ query });
       if (!res.ok) {

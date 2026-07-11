@@ -12,7 +12,6 @@ import { signJwt } from '../src/server/auth/jwt';
 import { createDb } from '../src/server/db/client';
 import {
   certifications,
-  departments,
   instructorCertifications,
   instructors,
   shiftAssignments,
@@ -72,17 +71,10 @@ async function seedToken(role: 'MANAGER' | 'MEMBER'): Promise<string> {
   );
 }
 
-async function seedDepartment(
-  name = 'スキー',
-  isActive = true,
-  code = `dept-${crypto.randomUUID()}`,
-): Promise<string> {
-  const db = createDb(env.DB);
-  const [dept] = await db.insert(departments).values({ code, name, isActive }).returning();
-  if (!dept) {
-    throw new Error('seedDepartment: insert failed');
-  }
-  return dept.id;
+async function seedDepartment(name = 'スキー', _isActive = true, code?: string): Promise<string> {
+  void _isActive;
+  if (code === 'ski' || code === 'snowboard') return code;
+  return name.includes('スノ') || name.includes('廃止') ? 'snowboard' : 'ski';
 }
 
 async function seedShiftType(name = '終日', isActive = true): Promise<string> {
@@ -94,12 +86,12 @@ async function seedShiftType(name = '終日', isActive = true): Promise<string> 
   return st.id;
 }
 
-async function seedCertification(departmentId: string, name = 'スキー指導員'): Promise<string> {
+async function seedCertification(departmentCode: string, name = 'スキー指導員'): Promise<string> {
   const db = createDb(env.DB);
   const [cert] = await db
     .insert(certifications)
     .values({
-      departmentId,
+      departmentCode,
       name,
       shortName: '指導員',
       organization: '全日本スキー連盟',
@@ -145,7 +137,7 @@ async function countAssignments(): Promise<number> {
 async function upsertShift(
   token: string,
   date: string,
-  departmentId: string,
+  departmentCode: string,
   shiftTypeId: string,
   instructorIds: string[] = [],
 ): Promise<string> {
@@ -156,7 +148,7 @@ async function upsertShift(
       method: 'PUT',
       ...authJsonRequest(token, {
         month,
-        departmentId,
+        departmentCode,
         cells: [{ date, shiftTypeId, instructorIds }],
       }),
     },
@@ -171,7 +163,7 @@ async function upsertShift(
   const created = shiftsBody.find(
     (s) =>
       s.date.toISOString().startsWith(date) &&
-      s.departmentId === departmentId &&
+      s.departmentCode === departmentCode &&
       s.shiftTypeId === shiftTypeId,
   );
   if (!created) {
@@ -187,7 +179,6 @@ beforeEach(async () => {
   await db.delete(shifts);
   await db.delete(instructorCertifications);
   await db.delete(certifications);
-  await db.delete(departments);
   await db.delete(shiftTypes);
   await db.delete(instructors);
   await db.delete(users);
@@ -210,7 +201,7 @@ describe('PUT /api/shifts/assignments', () => {
         method: 'PUT',
         ...authJsonRequest(token, {
           month: '2026-02',
-          departmentId: deptId,
+          departmentCode: deptId,
           cells: [
             {
               date: '2026-02-01',
@@ -262,7 +253,7 @@ describe('PUT /api/shifts/assignments', () => {
         method: 'PUT',
         ...authJsonRequest(token, {
           month: '2026-02',
-          departmentId: deptId,
+          departmentCode: deptId,
           cells: [
             {
               date: '2026-02-01',
@@ -303,7 +294,7 @@ describe('PUT /api/shifts/assignments', () => {
         method: 'PUT',
         ...authJsonRequest(token, {
           month: '2026-02',
-          departmentId: deptId,
+          departmentCode: deptId,
           cells: [
             {
               date: '2026-02-05',
@@ -337,7 +328,7 @@ describe('PUT /api/shifts/assignments', () => {
         method: 'PUT',
         ...authJsonRequest(token, {
           month: '2026-02',
-          departmentId: deptId,
+          departmentCode: deptId,
           cells: [],
         }),
       },
@@ -361,7 +352,7 @@ describe('PUT /api/shifts/assignments', () => {
         method: 'PUT',
         ...authJsonRequest(token, {
           month: '2026-02',
-          departmentId: deptId,
+          departmentCode: deptId,
           cells: [
             {
               // 2026-02-31 は不在。dateStringSchema の形式は通るが暦上存在しない
@@ -393,7 +384,7 @@ describe('PUT /api/shifts/assignments', () => {
         method: 'PUT',
         ...authJsonRequest(token, {
           month: '2026-02',
-          departmentId: deptId,
+          departmentCode: deptId,
           cells: [
             {
               // 2026-03-01 は対象月 2026-02 の範囲外
@@ -425,7 +416,7 @@ describe('PUT /api/shifts/assignments', () => {
         method: 'PUT',
         ...authJsonRequest(token, {
           month: '2026-02',
-          departmentId: deptId,
+          departmentCode: deptId,
           cells: [
             {
               date: '2026-02-01',
@@ -460,7 +451,7 @@ describe('PUT /api/shifts/assignments', () => {
         method: 'PUT',
         ...authJsonRequest(token, {
           month: '2026-02',
-          departmentId: deptA,
+          departmentCode: deptA,
           cells: [
             {
               date: '2026-02-01',
@@ -482,7 +473,7 @@ describe('PUT /api/shifts/assignments', () => {
     const shiftsBody = shiftListSchema.parse(await list.json());
     // 別部門のシフトは残っている
     expect(shiftsBody).toHaveLength(1);
-    expect(shiftsBody[0]?.departmentId).toBe(deptB);
+    expect(shiftsBody[0]?.departmentCode).toBe(deptB);
   });
 
   it('複数セルの途中で UNIQUE 違反が起きた場合、全体をロールバックする', async () => {
@@ -499,7 +490,7 @@ describe('PUT /api/shifts/assignments', () => {
         method: 'PUT',
         ...authJsonRequest(token, {
           month: '2026-02',
-          departmentId: deptId,
+          departmentCode: deptId,
           cells: [
             { date: '2026-02-05', shiftTypeId: stId, instructorIds: [inst] },
             { date: '2026-02-10', shiftTypeId: stId, instructorIds: [inst] },
@@ -529,7 +520,7 @@ describe('PUT /api/shifts/assignments', () => {
         method: 'PUT',
         ...authJsonRequest(token, {
           month: '2026-02',
-          departmentId: deptId,
+          departmentCode: deptId,
           cells: [],
         }),
       },
@@ -624,7 +615,7 @@ describe('GET /api/shifts', () => {
       '/api/shifts/assignments',
       {
         method: 'PUT',
-        ...authJsonRequest(token, { month: '2026-01', departmentId: deptId, cells }),
+        ...authJsonRequest(token, { month: '2026-01', departmentCode: deptId, cells }),
       },
       envWith({}),
     );
@@ -715,12 +706,9 @@ describe('GET /api/shifts/creation-context', () => {
     const res = await app.request('/api/shifts/creation-context', authHeader(token), envWith({}));
     expect(res.status).toBe(200);
     const body = shiftFormDataSchema.parse(await res.json());
-    expect(body.departments).toHaveLength(1);
-    expect(body.departments[0]?.name).toBe('スキー');
     expect(body.shiftTypes).toHaveLength(1);
     expect(body.shiftTypes[0]?.name).toBe('終日');
     expect(body.stats.activeInstructorsCount).toBe(1);
-    expect(body.stats.totalDepartments).toBe(1);
     expect(body.stats.totalShiftTypes).toBe(1);
   });
 
@@ -742,7 +730,7 @@ describe('GET /api/shifts/assignment-editor', () => {
     const token = await seedToken('MANAGER');
 
     const res = await app.request(
-      `/api/shifts/assignment-editor?date=2026-01-15&departmentId=${deptId}&shiftTypeId=${stId}`,
+      `/api/shifts/assignment-editor?date=2026-01-15&departmentCode=${deptId}&shiftTypeId=${stId}`,
       authHeader(token),
       envWith({}),
     );
@@ -767,7 +755,7 @@ describe('GET /api/shifts/assignment-editor', () => {
     await upsertShift(token, '2026-01-15', deptId, stId, [inst]);
 
     const res = await app.request(
-      `/api/shifts/assignment-editor?date=2026-01-15&departmentId=${deptId}&shiftTypeId=${stId}`,
+      `/api/shifts/assignment-editor?date=2026-01-15&departmentCode=${deptId}&shiftTypeId=${stId}`,
       authHeader(token),
       envWith({}),
     );
@@ -788,7 +776,7 @@ describe('GET /api/shifts/assignment-editor', () => {
     const token = await seedToken('MANAGER');
 
     const res = await app.request(
-      `/api/shifts/assignment-editor?date=2026-01-15&departmentId=${deptSki}&shiftTypeId=${stId}`,
+      `/api/shifts/assignment-editor?date=2026-01-15&departmentCode=${deptSki}&shiftTypeId=${stId}`,
       authHeader(token),
       envWith({}),
     );
@@ -810,7 +798,7 @@ describe('GET /api/shifts/assignment-editor', () => {
 
     // 午後シフトの編集データでは午前が競合として現れる
     const res = await app.request(
-      `/api/shifts/assignment-editor?date=2026-01-15&departmentId=${deptId}&shiftTypeId=${stAfternoon}`,
+      `/api/shifts/assignment-editor?date=2026-01-15&departmentCode=${deptId}&shiftTypeId=${stAfternoon}`,
       authHeader(token),
       envWith({}),
     );
@@ -837,7 +825,7 @@ describe('GET /api/shifts/assignment-editor', () => {
     await upsertShift(token, '2026-01-14', deptId, stId, [inst]);
 
     const res = await app.request(
-      `/api/shifts/assignment-editor?date=2026-01-15&departmentId=${deptId}&shiftTypeId=${stId}`,
+      `/api/shifts/assignment-editor?date=2026-01-15&departmentCode=${deptId}&shiftTypeId=${stId}`,
       authHeader(token),
       envWith({}),
     );
@@ -861,7 +849,7 @@ describe('GET /api/shifts/assignment-editor', () => {
     const stId = await seedShiftType();
     const token = await seedToken('MEMBER');
     const res = await app.request(
-      `/api/shifts/assignment-editor?date=2026-01-15&departmentId=${deptId}&shiftTypeId=${stId}`,
+      `/api/shifts/assignment-editor?date=2026-01-15&departmentCode=${deptId}&shiftTypeId=${stId}`,
       authHeader(token),
       envWith({}),
     );

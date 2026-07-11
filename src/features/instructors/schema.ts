@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { departmentCodeSchema } from '@/features/departments/schema';
+
 /**
  * Instructor feature の境界スキーマ（isomorphic）。
  * サーバー（`api.ts`）の入出力検証とクライアント（`queries.ts`）の表示で共有する。
@@ -30,6 +32,7 @@ export const certBadgeSchema = z.object({
   name: z.string(),
   shortName: z.string(),
   isActive: z.boolean(),
+  departmentCode: departmentCodeSchema,
 });
 
 export type CertBadge = z.infer<typeof certBadgeSchema>;

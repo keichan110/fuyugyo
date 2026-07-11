@@ -21,8 +21,9 @@ import type { ScheduleEventData } from '@mantine/schedule';
 import { ErrorAlert, InfoAlert } from '@/components/AppAlert';
 import { AppBadge } from '@/components/AppBadge';
 import { useMe } from '@/features/auth/queries';
+import { getDepartmentAppearance } from '@/features/departments/appearance';
 import { DepartmentTag } from '@/features/departments/DepartmentTag';
-import { useDepartments } from '@/features/departments/queries';
+import { departmentCodeSchema, type DepartmentCode } from '@/features/departments/schema';
 
 import { containsInstructorAssignment, filterAgendaDaysByInstructor } from '../aggregators';
 import { fetchShiftAgendaPage, useShiftAgendaFuture } from '../queries';
@@ -46,14 +47,13 @@ export function ShiftAgendaViewer({ date, onVisibleDateChange }: ShiftAgendaView
   const [isLoadingPast, setIsLoadingPast] = useState(false);
   const [hasReachedPastEnd, setHasReachedPastEnd] = useState(false);
   const [pastError, setPastError] = useState<string | null>(null);
-  const [departmentId, setDepartmentId] = useState<string | null>(null);
+  const [departmentCode, setDepartmentCode] = useState<DepartmentCode | null>(null);
   const [showMineOnly, setShowMineOnly] = useState(false);
   const me = useMe();
-  const departmentQuery = useDepartments();
   const [scroll, scrollTo] = useWindowScroll();
   const myInstructorId = me.data?.instructorId ?? null;
   const effectiveShowMineOnly = showMineOnly && myInstructorId !== null;
-  const future = useShiftAgendaFuture(initialDateRef.current, departmentId ?? undefined);
+  const future = useShiftAgendaFuture(initialDateRef.current, departmentCode ?? undefined);
 
   const futureDays = useMemo(
     () => future.data?.pages.flatMap((page) => page.days) ?? [],
@@ -65,14 +65,13 @@ export function ShiftAgendaViewer({ date, onVisibleDateChange }: ShiftAgendaView
     () => (effectiveShowMineOnly ? filterAgendaDaysByInstructor(days, myInstructorId) : days),
     [days, effectiveShowMineOnly, myInstructorId],
   );
-  const departments = departmentQuery.data ?? [];
   const firstDate = days[0]?.date ?? initialDateRef.current;
 
   useEffect(() => {
     setPastPages([]);
     setPastError(null);
     setHasReachedPastEnd(false);
-  }, [departmentId]);
+  }, [departmentCode]);
 
   useEffect(() => {
     const sentinel = sentinelRef.current;
@@ -124,7 +123,7 @@ export function ShiftAgendaViewer({ date, onVisibleDateChange }: ShiftAgendaView
         cursor: firstDate,
         direction: 'past',
         limit: 7,
-        ...(departmentId ? { departmentId } : {}),
+        ...(departmentCode ? { departmentCode } : {}),
       });
       if (page.days.length === 0 || page.pageInfo.previousCursor === null) {
         setHasReachedPastEnd(true);
@@ -148,13 +147,16 @@ export function ShiftAgendaViewer({ date, onVisibleDateChange }: ShiftAgendaView
             label="部門"
             data={[
               { value: 'all', label: 'すべて' },
-              ...departments.map((department) => ({
-                value: department.id,
-                label: department.name,
+              ...departmentCodeSchema.options.map((code) => ({
+                value: code,
+                label: getDepartmentAppearance(code).label,
               })),
             ]}
-            value={departmentId ?? 'all'}
-            onChange={(value) => setDepartmentId(value && value !== 'all' ? value : null)}
+            value={departmentCode ?? 'all'}
+            onChange={(value) => {
+              const parsed = departmentCodeSchema.safeParse(value);
+              setDepartmentCode(parsed.success ? parsed.data : null);
+            }}
             allowDeselect={false}
             size="sm"
             w={{ base: '100%', sm: 220 }}

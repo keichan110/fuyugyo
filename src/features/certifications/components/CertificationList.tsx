@@ -1,12 +1,6 @@
 import { useMemo, useState } from 'react';
 
-import {
-  Button,
-  Menu,
-  Stack,
-  Table,
-  Text,
-} from '@mantine/core';
+import { Button, Menu, Stack, Table, Text } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { IconCertificate, IconPlus } from '@tabler/icons-react';
 
@@ -19,10 +13,10 @@ import { ListHeader } from '@/components/ListHeader';
 import { ListToolbar } from '@/components/ListToolbar';
 import { RowActionsButton } from '@/components/RowActionsButton';
 import { SearchInput } from '@/components/SearchInput';
-import { StatusFilterControl } from '@/components/StatusFilterControl';
 import type { ActiveStatusFilter } from '@/components/status-filter';
+import { StatusFilterControl } from '@/components/StatusFilterControl';
 import { TableRowsSkeleton } from '@/components/TableRowsSkeleton';
-import { useDepartments } from '@/features/departments/queries';
+import { DepartmentTag } from '@/features/departments/DepartmentTag';
 
 import { useCertifications, useDeactivateCertification } from '../queries';
 import type { Certification } from '../schema';
@@ -39,16 +33,9 @@ export function CertificationList() {
 
   // 管理画面では無効資格も表示するため全件取得する
   const { data, isLoading, isError } = useCertifications(false);
-  const { data: departments } = useDepartments(false);
 
   const certifications = useMemo(() => data ?? [], [data]);
   const activeCount = certifications.filter((c) => c.isActive).length;
-
-  /** departmentId → name のマップ */
-  const deptNameMap = useMemo(
-    () => new Map(departments?.map((d) => [d.id, d.name]) ?? []),
-    [departments],
-  );
 
   const visibleCertifications = useMemo(() => {
     const query = search.trim();
@@ -128,7 +115,6 @@ export function CertificationList() {
               <CertificationRow
                 key={cert.id}
                 certification={cert}
-                departmentName={deptNameMap.get(cert.departmentId)}
                 onEdit={() => setDrawerState({ mode: 'edit', certificationId: cert.id })}
               />
             ))}
@@ -143,12 +129,11 @@ export function CertificationList() {
 
 type CertificationRowProps = {
   certification: Certification;
-  departmentName: string | undefined;
   onEdit: () => void;
 };
 
 /** 資格一覧の1行。クリックで編集 Drawer を開く。 */
-function CertificationRow({ certification, departmentName, onEdit }: CertificationRowProps) {
+function CertificationRow({ certification, onEdit }: CertificationRowProps) {
   const deactivate = useDeactivateCertification();
   const isActive = certification.isActive;
 
@@ -174,7 +159,7 @@ function CertificationRow({ certification, departmentName, onEdit }: Certificati
         </Text>
       </Table.Td>
       <Table.Td>
-        <Text size="sm">{departmentName ?? '—'}</Text>
+        <DepartmentTag code={certification.departmentCode} />
       </Table.Td>
       <Table.Td>
         <Text size="sm">{certification.organization}</Text>

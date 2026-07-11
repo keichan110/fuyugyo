@@ -1,14 +1,13 @@
 import { Select, Stack, Textarea, TextInput } from '@mantine/core';
 import type { UseFormReturnType } from '@mantine/form';
 
-import type { Department } from '@/features/departments/schema';
+import { DEPARTMENT_APPEARANCE } from '@/features/departments/appearance';
+import { departmentCodeSchema } from '@/features/departments/schema';
 
 import type { CertificationFormValues } from './useCertificationForm';
 
 type Props = {
   form: UseFormReturnType<CertificationFormValues>;
-  /** 部門選択肢（作成時のみ使用するアクティブな部門一覧） */
-  departments?: Department[] | undefined;
   /**
    * 指定した場合、部門は変更不可の読み取り専用表示になる（編集時の部門名）。
    * 未指定（作成時）は Select による選択式にする。
@@ -20,7 +19,7 @@ type Props = {
  * 資格の部門・資格名・省略名・発行団体・説明の入力フィールド群。
  * 送信ボタンは持たず、フォーム全体の送信は呼び出し側に委ねる。
  */
-export function CertificationFormFields({ form, departments, departmentName }: Props) {
+export function CertificationFormFields({ form, departmentName }: Props) {
   return (
     <Stack gap="sm">
       {departmentName !== undefined ? (
@@ -30,8 +29,11 @@ export function CertificationFormFields({ form, departments, departmentName }: P
           label="部門"
           required
           placeholder="部門を選択してください"
-          data={(departments ?? []).map((dept) => ({ value: dept.id, label: dept.name }))}
-          {...form.getInputProps('departmentId')}
+          data={departmentCodeSchema.options.map((code) => ({
+            value: code,
+            label: DEPARTMENT_APPEARANCE[code].label,
+          }))}
+          {...form.getInputProps('departmentCode')}
         />
       )}
 

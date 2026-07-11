@@ -2,7 +2,7 @@ import { sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 
 import { createDb } from '@/server/db/client';
-import { departments } from '@/server/db/schema';
+import { shifts } from '@/server/db/schema';
 import type { Env } from '@/server/types';
 
 /**
@@ -12,11 +12,11 @@ import type { Env } from '@/server/types';
  */
 export const healthRoute = new Hono<{ Bindings: Env }>().get('/', async (c) => {
   const db = createDb(c.env.DB);
-  const [row] = await db.select({ count: sql<number>`count(*)` }).from(departments);
+  const [row] = await db.select({ count: sql<number>`count(*)` }).from(shifts);
 
   return c.json({
     status: 'ok' as const,
-    departmentCount: row?.count ?? 0,
+    shiftCount: row?.count ?? 0,
     timestamp: new Date().toISOString(),
   });
 });

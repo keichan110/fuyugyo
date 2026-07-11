@@ -3,6 +3,7 @@ import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { validator } from 'hono/validator';
 
+import { departmentCodeSchema } from '@/features/departments/schema';
 import { createDb } from '@/server/db/client';
 import { isUniqueViolation } from '@/server/db/errors';
 import { certifications, instructorCertifications, instructors } from '@/server/db/schema';
@@ -31,8 +32,11 @@ export const instructorsRoute = new Hono<{
    * 静的セグメントが `:id` より先に評価されるよう、先頭に登録する。
    * 返す certifications は指定 Department に属するアクティブなもののみ。
    */
-  .get('/by-department/:departmentId/active', requireAuth, async (c) => {
-    const { departmentId } = c.req.param();
+  .get('/by-department/:departmentCode/active', requireAuth, async (c) => {
+    const { departmentCode } = c.req.param();
+    if (!departmentCodeSchema.safeParse(departmentCode).success) {
+      throw new HTTPException(400, { message: 'departmentCode が不正です' });
+    }
     const db = createDb(c.env.DB);
 
     // 1 回の JOIN クエリで全データを取得してから JS 側でグルーピングする（N+1 回避）
@@ -60,7 +64,7 @@ export const instructorsRoute = new Hono<{
       .where(
         and(
           eq(instructors.status, 'ACTIVE'),
-          eq(certifications.departmentId, departmentId),
+          eq(certifications.departmentCode, departmentCode),
           eq(certifications.isActive, true),
         ),
       );
@@ -131,6 +135,7 @@ export const instructorsRoute = new Hono<{
         certName: certifications.name,
         certShortName: certifications.shortName,
         certIsActive: certifications.isActive,
+        certDepartmentCode: certifications.departmentCode,
       })
       .from(instructors)
       .leftJoin(instructorCertifications, eq(instructorCertifications.instructorId, instructors.id))
@@ -148,7 +153,13 @@ export const instructorsRoute = new Hono<{
       notes: string | null;
       createdAt: Date;
       updatedAt: Date;
-      certifications: Array<{ id: string; name: string; shortName: string; isActive: boolean }>;
+      certifications: Array<{
+        id: string;
+        name: string;
+        shortName: string;
+        isActive: boolean;
+        departmentCode: string;
+      }>;
     };
 
     const map = new Map<string, InstructorListItem>();
@@ -173,13 +184,15 @@ export const instructorsRoute = new Hono<{
         row.certId !== null &&
         row.certName !== null &&
         row.certShortName !== null &&
-        row.certIsActive !== null
+        row.certIsActive !== null &&
+        row.certDepartmentCode !== null
       ) {
         existing.certifications.push({
           id: row.certId,
           name: row.certName,
           shortName: row.certShortName,
           isActive: row.certIsActive,
+          departmentCode: row.certDepartmentCode,
         });
       }
     }

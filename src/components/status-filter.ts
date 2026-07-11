@@ -6,4 +6,3 @@ export const ACTIVE_STATUS_FILTERS = [
 ] as const;
 
 export type ActiveStatusFilter = (typeof ACTIVE_STATUS_FILTERS)[number]['value'];
-

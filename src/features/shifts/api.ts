@@ -4,12 +4,12 @@ import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { validator } from 'hono/validator';
 
+import { DEPARTMENT_LABELS, departmentCodeSchema } from '@/features/departments/schema';
 import { createDb } from '@/server/db/client';
 import type { Database } from '@/server/db/client';
 import { isUniqueViolation } from '@/server/db/errors';
 import {
   certifications,
-  departments,
   instructorCertifications,
   instructors,
   shiftAssignments,
@@ -125,7 +125,7 @@ async function allInstructorsExist(db: Database, ids: string[]): Promise<boolean
 
 /**
  * 指定期間 [from, to]（両端含む）のシフトを表示ビュー用に整形する（2クエリ・N+1 なし）。
- * shifts × departments × shiftTypes を JOIN し、割り当てを別クエリでまとめて付与する。
+ * shifts × shiftTypes を JOIN し、割り当てを別クエリでまとめて付与する。
  * カレンダービュー（月次）が使う読み取りロジック。
  */
 async function loadShiftView(db: Database, from: Date, to: Date): Promise<ShiftViewItem[]> {
@@ -134,17 +134,14 @@ async function loadShiftView(db: Database, from: Date, to: Date): Promise<ShiftV
       id: shifts.id,
       date: shifts.date,
       description: shifts.description,
-      departmentId: departments.id,
-      departmentName: departments.name,
-      departmentCode: departments.code,
+      departmentCode: shifts.departmentCode,
       shiftTypeId: shiftTypes.id,
       shiftTypeName: shiftTypes.name,
     })
     .from(shifts)
-    .innerJoin(departments, eq(departments.id, shifts.departmentId))
     .innerJoin(shiftTypes, eq(shiftTypes.id, shifts.shiftTypeId))
     .where(and(gte(shifts.date, from), lte(shifts.date, to)))
-    .orderBy(asc(shifts.date), asc(shifts.departmentId), asc(shifts.shiftTypeId));
+    .orderBy(asc(shifts.date), asc(shifts.departmentCode), asc(shifts.shiftTypeId));
 
   // 割り当ては shiftId の inArray ではなく、シフト本体と同じ日付範囲条件で shifts へ
   // innerJoin して絞り込む（バインドパラメータ数を件数に依存させないため）。
@@ -174,18 +171,20 @@ async function loadShiftView(db: Database, from: Date, to: Date): Promise<ShiftV
     assignedByShift.set(row.shiftId, list);
   }
 
-  return shiftRows.map((s) => ({
-    id: s.id,
-    date: formatDate(s.date),
-    description: s.description,
-    department: {
-      id: s.departmentId,
-      name: s.departmentName,
-      code: s.departmentCode,
-    },
-    shiftType: { id: s.shiftTypeId, name: s.shiftTypeName },
-    assignedInstructors: assignedByShift.get(s.id) ?? [],
-  }));
+  return shiftRows.map((s) => {
+    const code = departmentCodeSchema.parse(s.departmentCode);
+    return {
+      id: s.id,
+      date: formatDate(s.date),
+      description: s.description,
+      department: {
+        name: DEPARTMENT_LABELS[code],
+        code,
+      },
+      shiftType: { id: s.shiftTypeId, name: s.shiftTypeName },
+      assignedInstructors: assignedByShift.get(s.id) ?? [],
+    };
+  });
 }
 
 /**
@@ -195,15 +194,15 @@ async function loadShiftView(db: Database, from: Date, to: Date): Promise<ShiftV
 async function loadShiftViewByDates(
   db: Database,
   dates: Date[],
-  departmentId: string | undefined,
+  departmentCode: string | undefined,
 ): Promise<ShiftViewItem[]> {
   if (dates.length === 0) {
     return [];
   }
 
   const conditions = [inArray(shifts.date, dates)];
-  if (departmentId) {
-    conditions.push(eq(shifts.departmentId, departmentId));
+  if (departmentCode) {
+    conditions.push(eq(shifts.departmentCode, departmentCode));
   }
 
   const shiftRows = await db
@@ -211,17 +210,14 @@ async function loadShiftViewByDates(
       id: shifts.id,
       date: shifts.date,
       description: shifts.description,
-      departmentId: departments.id,
-      departmentName: departments.name,
-      departmentCode: departments.code,
+      departmentCode: shifts.departmentCode,
       shiftTypeId: shiftTypes.id,
       shiftTypeName: shiftTypes.name,
     })
     .from(shifts)
-    .innerJoin(departments, eq(departments.id, shifts.departmentId))
     .innerJoin(shiftTypes, eq(shiftTypes.id, shifts.shiftTypeId))
     .where(and(...conditions))
-    .orderBy(asc(shifts.date), asc(departments.name), asc(shiftTypes.name));
+    .orderBy(asc(shifts.date), asc(shifts.departmentCode), asc(shiftTypes.name));
 
   // 割り当ては shiftId の inArray ではなく、シフト本体と同じ絞り込み条件（日付群 + 任意の部門）で
   // shifts へ innerJoin する（バインドパラメータ数を件数に依存させないため）。
@@ -251,18 +247,20 @@ async function loadShiftViewByDates(
     assignedByShift.set(row.shiftId, list);
   }
 
-  return shiftRows.map((s) => ({
-    id: s.id,
-    date: formatDate(s.date),
-    description: s.description,
-    department: {
-      id: s.departmentId,
-      name: s.departmentName,
-      code: s.departmentCode,
-    },
-    shiftType: { id: s.shiftTypeId, name: s.shiftTypeName },
-    assignedInstructors: assignedByShift.get(s.id) ?? [],
-  }));
+  return shiftRows.map((s) => {
+    const code = departmentCodeSchema.parse(s.departmentCode);
+    return {
+      id: s.id,
+      date: formatDate(s.date),
+      description: s.description,
+      department: {
+        name: DEPARTMENT_LABELS[code],
+        code,
+      },
+      shiftType: { id: s.shiftTypeId, name: s.shiftTypeName },
+      assignedInstructors: assignedByShift.get(s.id) ?? [],
+    };
+  });
 }
 
 /** アジェンダの `limit` クエリを過大取得にならない範囲へ丸める */
@@ -307,16 +305,7 @@ export const shiftsRoute = new Hono<{
   .get('/creation-context', requireAuth, async (c) => {
     const db = createDb(c.env.DB);
 
-    const [deptRows, shiftTypeRows, activeCountRows] = await Promise.all([
-      db
-        .select({
-          id: departments.id,
-          name: departments.name,
-          code: departments.code,
-        })
-        .from(departments)
-        .where(eq(departments.isActive, true))
-        .orderBy(asc(departments.name)),
+    const [shiftTypeRows, activeCountRows] = await Promise.all([
       db
         .select({ id: shiftTypes.id, name: shiftTypes.name })
         .from(shiftTypes)
@@ -328,29 +317,30 @@ export const shiftsRoute = new Hono<{
     const activeInstructorsCount = activeCountRows[0]?.value ?? 0;
 
     return c.json({
-      departments: deptRows,
       shiftTypes: shiftTypeRows,
       stats: {
         activeInstructorsCount,
-        totalDepartments: deptRows.length,
         totalShiftTypes: shiftTypeRows.length,
       },
     });
   })
   /**
    * シフト編集フォームの集約データを返す（1リクエスト・N+1 なし）。
-   * (date, departmentId, shiftTypeId) から既存 Shift を引いて create/edit を判定し、
+   * (date, departmentCode, shiftTypeId) から既存 Shift を引いて create/edit を判定し、
    * 対象部門の割り当て候補 Instructor（資格フィルタ済み・割り当て/競合状態付き）を返す。
    */
   .get('/assignment-editor', requireAuth, requireRole('MANAGER'), async (c) => {
     const dateStr = c.req.query('date');
-    const departmentId = c.req.query('departmentId');
+    const departmentCode = c.req.query('departmentCode');
     const shiftTypeId = c.req.query('shiftTypeId');
 
-    if (!(dateStr && departmentId && shiftTypeId)) {
+    if (!(dateStr && departmentCode && shiftTypeId)) {
       throw new HTTPException(400, {
-        message: 'date, departmentId, shiftTypeId は必須です',
+        message: 'date, departmentCode, shiftTypeId は必須です',
       });
+    }
+    if (!departmentCodeSchema.safeParse(departmentCode).success) {
+      throw new HTTPException(400, { message: '不正な部門コードです' });
     }
     if (!dateStringSchema.safeParse(dateStr).success) {
       throw new HTTPException(400, {
@@ -368,7 +358,7 @@ export const shiftsRoute = new Hono<{
       .where(
         and(
           eq(shifts.date, date),
-          eq(shifts.departmentId, departmentId),
+          eq(shifts.departmentCode, departmentCode),
           eq(shifts.shiftTypeId, shiftTypeId),
         ),
       )
@@ -406,7 +396,7 @@ export const shiftsRoute = new Hono<{
       .where(
         and(
           eq(instructors.status, 'ACTIVE'),
-          eq(certifications.departmentId, departmentId),
+          eq(certifications.departmentCode, departmentCode),
           eq(certifications.isActive, true),
         ),
       )
@@ -416,11 +406,10 @@ export const shiftsRoute = new Hono<{
     const otherShiftRows = await db
       .select({
         id: shifts.id,
-        departmentName: departments.name,
+        departmentCode: shifts.departmentCode,
         shiftTypeName: shiftTypes.name,
       })
       .from(shifts)
-      .innerJoin(departments, eq(departments.id, shifts.departmentId))
       .innerJoin(shiftTypes, eq(shiftTypes.id, shifts.shiftTypeId))
       .where(
         existingShift
@@ -450,7 +439,7 @@ export const shiftsRoute = new Hono<{
     const conflictShiftById = new Map(otherShiftRows.map((s) => [s.id, s]));
     const conflictByInstructor = new Map<
       string,
-      { id: string; departmentName: string; shiftTypeName: string }
+      { id: string; departmentCode: string; shiftTypeName: string }
     >();
     for (const row of otherAssignRows) {
       if (!conflictByInstructor.has(row.instructorId)) {
@@ -557,7 +546,8 @@ export const shiftsRoute = new Hono<{
           instructorName: inst.displayName,
           conflictingShift: {
             id: conflictShift.id,
-            departmentName: conflictShift.departmentName,
+            departmentName:
+              DEPARTMENT_LABELS[departmentCodeSchema.parse(conflictShift.departmentCode)],
             shiftTypeName: conflictShift.shiftTypeName,
           },
         };
@@ -570,7 +560,7 @@ export const shiftsRoute = new Hono<{
         ? {
             id: existingShift.id,
             date: formatDate(existingShift.date),
-            departmentId: existingShift.departmentId,
+            departmentCode: existingShift.departmentCode,
             shiftTypeId: existingShift.shiftTypeId,
             description: existingShift.description,
             assignedInstructorIds,
@@ -587,7 +577,7 @@ export const shiftsRoute = new Hono<{
   .get('/agenda', requireAuth, async (c) => {
     const cursor = c.req.query('cursor');
     const directionQuery = c.req.query('direction') ?? 'future';
-    const departmentId = c.req.query('departmentId');
+    const departmentCode = c.req.query('departmentCode');
 
     if (!(cursor && dateStringSchema.safeParse(cursor).success)) {
       throw new HTTPException(400, {
@@ -600,6 +590,9 @@ export const shiftsRoute = new Hono<{
         message: 'direction は future または past を指定してください',
       });
     }
+    if (departmentCode && !departmentCodeSchema.safeParse(departmentCode).success) {
+      throw new HTTPException(400, { message: 'departmentCode が不正です' });
+    }
 
     const direction = directionResult.data;
     const limit = parseAgendaLimit(c.req.query('limit'));
@@ -608,8 +601,8 @@ export const shiftsRoute = new Hono<{
     const dateConditions = [
       direction === 'future' ? gte(shifts.date, cursorDate) : lt(shifts.date, cursorDate),
     ];
-    if (departmentId) {
-      dateConditions.push(eq(shifts.departmentId, departmentId));
+    if (departmentCode) {
+      dateConditions.push(eq(shifts.departmentCode, departmentCode));
     }
 
     const dateRows = await db
@@ -624,7 +617,7 @@ export const shiftsRoute = new Hono<{
       direction === 'future'
         ? dateRows.map((row) => row.date)
         : dateRows.map((row) => row.date).reverse();
-    const shiftsView = await loadShiftViewByDates(db, pageDates, departmentId);
+    const shiftsView = await loadShiftViewByDates(db, pageDates, departmentCode);
     const days = groupShiftsByWorkingDay(shiftsView);
     const firstDay = days[0];
     const lastDay = days.at(-1);
@@ -713,17 +706,15 @@ export const shiftsRoute = new Hono<{
       .select({
         id: shifts.id,
         date: shifts.date,
-        departmentId: shifts.departmentId,
+        departmentCode: shifts.departmentCode,
         shiftTypeId: shifts.shiftTypeId,
         description: shifts.description,
         createdAt: shifts.createdAt,
         updatedAt: shifts.updatedAt,
-        departmentName: departments.name,
-        departmentCode: departments.code,
+        departmentName: shifts.departmentCode,
         shiftTypeName: shiftTypes.name,
       })
       .from(shifts)
-      .innerJoin(departments, eq(departments.id, shifts.departmentId))
       .innerJoin(shiftTypes, eq(shiftTypes.id, shifts.shiftTypeId));
 
     // date だけだと同日中の順序が不定になるため、id を第2ソートキーにして
@@ -766,6 +757,7 @@ export const shiftsRoute = new Hono<{
     return c.json(
       shiftRows.map((s) => ({
         ...s,
+        departmentName: DEPARTMENT_LABELS[departmentCodeSchema.parse(s.departmentCode)],
         assignedInstructorIds: assignedByShift.get(s.id) ?? [],
       })),
     );
@@ -833,7 +825,7 @@ export const shiftsRoute = new Hono<{
         .from(shifts)
         .where(
           and(
-            eq(shifts.departmentId, input.departmentId),
+            eq(shifts.departmentCode, input.departmentCode),
             gte(shifts.date, monthFrom),
             lte(shifts.date, monthTo),
           ),
@@ -883,7 +875,7 @@ export const shiftsRoute = new Hono<{
             db.insert(shifts).values({
               id: shiftId,
               date,
-              departmentId: input.departmentId,
+              departmentCode: input.departmentCode,
               shiftTypeId: cell.shiftTypeId,
               description,
             }),

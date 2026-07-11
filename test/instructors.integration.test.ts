@@ -14,7 +14,6 @@ import { signJwt } from '../src/server/auth/jwt';
 import { createDb } from '../src/server/db/client';
 import {
   certifications,
-  departments,
   instructorCertifications,
   instructors,
   users,
@@ -94,21 +93,15 @@ async function seedMemberToken(): Promise<string> {
 }
 
 async function seedDepartment(name = 'スキー'): Promise<string> {
-  const db = createDb(env.DB);
-  const [dept] = await db
-    .insert(departments)
-    .values({ code: `dept-${crypto.randomUUID()}`, name })
-    .returning();
-  if (!dept) throw new Error('seedDepartment: insert failed');
-  return dept.id;
+  return name.includes('スノ') ? 'snowboard' : 'ski';
 }
 
-async function seedCertification(departmentId: string, name = 'スキー指導員'): Promise<string> {
+async function seedCertification(departmentCode: string, name = 'スキー指導員'): Promise<string> {
   const db = createDb(env.DB);
   const [cert] = await db
     .insert(certifications)
     .values({
-      departmentId,
+      departmentCode,
       name,
       shortName: '指導員',
       organization: '全日本スキー連盟',
@@ -135,7 +128,6 @@ beforeEach(async () => {
   // 外部キー依存順に削除する
   await db.delete(instructorCertifications);
   await db.delete(certifications);
-  await db.delete(departments);
   await db.delete(instructors);
   await db.delete(users);
 });
@@ -592,9 +584,9 @@ describe('DELETE /api/instructors/:id/certifications/:certId', () => {
   });
 });
 
-// ─── GET /api/instructors/by-department/:departmentId/active ─────────────────
+// ─── GET /api/instructors/by-department/:departmentCode/active ─────────────────
 
-describe('GET /api/instructors/by-department/:departmentId/active', () => {
+describe('GET /api/instructors/by-department/:departmentCode/active', () => {
   it('指定部門のアクティブ Instructor と Certification を返す（N+1 なし）', async () => {
     const deptId = await seedDepartment('スキー');
     const certId1 = await seedCertification(deptId, 'スキー指導員');
@@ -671,7 +663,7 @@ describe('GET /api/instructors/by-department/:departmentId/active', () => {
     const [inactiveCert] = await db
       .insert(certifications)
       .values({
-        departmentId: deptId,
+        departmentCode: deptId,
         name: '廃止資格',
         shortName: '廃止',
         organization: '旧団体',
@@ -697,7 +689,7 @@ describe('GET /api/instructors/by-department/:departmentId/active', () => {
     expect(body).toHaveLength(0);
   });
 
-  it('存在しない部門に対して空配列を返す', async () => {
+  it('固定語彙にない部門コードを拒否する', async () => {
     const token = await seedManagerToken();
     const res = await app.request(
       '/api/instructors/by-department/nonexistent-dept/active',
@@ -705,8 +697,6 @@ describe('GET /api/instructors/by-department/:departmentId/active', () => {
       envWith({}),
     );
 
-    expect(res.status).toBe(200);
-    const body = activeInstructorInDepartmentListSchema.parse(await res.json());
-    expect(body).toHaveLength(0);
+    expect(res.status).toBe(400);
   });
 });

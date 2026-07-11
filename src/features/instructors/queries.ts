@@ -65,21 +65,21 @@ export function useInstructor(id: string) {
 
 /**
  * 部門別アクティブ Instructor 一覧を取得する（N+1 なし）。
- * @param departmentId - 対象部門の ID
+ * @param departmentCode - 対象部門のコード
  */
-export function useActiveInstructorsByDepartment(departmentId: string) {
+export function useActiveInstructorsByDepartment(departmentCode: string) {
   return useQuery<ActiveInstructorInDepartment[]>({
-    queryKey: [...INSTRUCTORS_QUERY_KEY, 'by-department', departmentId, 'active'],
+    queryKey: [...INSTRUCTORS_QUERY_KEY, 'by-department', departmentCode, 'active'],
     queryFn: async () => {
-      const res = await client.api.instructors['by-department'][':departmentId'].active.$get({
-        param: { departmentId },
+      const res = await client.api.instructors['by-department'][':departmentCode'].active.$get({
+        param: { departmentCode },
       });
       if (!res.ok) {
         throw new Error('部門別インストラクターの取得に失敗しました');
       }
       return activeInstructorInDepartmentListSchema.parse(await res.json());
     },
-    enabled: !!departmentId,
+    enabled: !!departmentCode,
   });
 }
 

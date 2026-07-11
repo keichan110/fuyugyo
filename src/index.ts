@@ -5,7 +5,6 @@ import { secureHeaders } from 'hono/secure-headers';
 
 import { authRoute } from '@/features/auth/api';
 import { certificationsRoute } from '@/features/certifications/api';
-import { departmentsRoute } from '@/features/departments/api';
 import { healthRoute } from '@/features/health/api';
 import { instructorsRoute } from '@/features/instructors/api';
 import { invitationsRoute } from '@/features/invitations/api';
@@ -41,7 +40,6 @@ app.onError((err, c) => {
 const routes = app
   .route('/api/health', healthRoute)
   .route('/api/auth', authRoute)
-  .route('/api/departments', departmentsRoute)
   .route('/api/certifications', certificationsRoute)
   .route('/api/shift-types', shiftTypesRoute)
   .route('/api/instructors', instructorsRoute)

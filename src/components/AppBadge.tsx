@@ -1,5 +1,8 @@
 import { Badge, type BadgeProps } from '@mantine/core';
 
+import { getDepartmentAppearance } from '@/features/departments/appearance';
+import type { DepartmentCode } from '@/features/departments/schema';
+
 /** アプリ全体で使うバッジの意味。色と見た目はこのコンポーネントに集約する。 */
 export type AppBadgeKind =
   | 'active'
@@ -19,6 +22,8 @@ export type AppBadgeKind =
 
 type AppBadgeProps = Omit<BadgeProps, 'color' | 'variant'> & {
   kind: AppBadgeKind;
+  /** 資格バッジが継承する所属部門の色 */
+  departmentCode?: DepartmentCode;
 };
 
 const BADGE_STYLE_BY_KIND: Record<AppBadgeKind, Pick<BadgeProps, 'color' | 'variant'>> = {
@@ -42,7 +47,11 @@ const BADGE_STYLE_BY_KIND: Record<AppBadgeKind, Pick<BadgeProps, 'color' | 'vari
  * 意味ベースで色を決める共通バッジ。
  * 画面側で Mantine の color / variant を直指定せず、同じ意味の表示を揃える。
  */
-export function AppBadge({ kind, ...props }: AppBadgeProps) {
+export function AppBadge({ kind, departmentCode, ...props }: AppBadgeProps) {
   const style = BADGE_STYLE_BY_KIND[kind];
-  return <Badge {...style} {...props} />;
+  const color =
+    kind === 'certification' && departmentCode
+      ? getDepartmentAppearance(departmentCode).color
+      : (style.color ?? 'gray');
+  return <Badge {...style} color={color} {...props} />;
 }

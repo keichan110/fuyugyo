@@ -33,8 +33,8 @@ export function HealthStatus() {
                 <Table.Td ff="monospace">{data.status}</Table.Td>
               </Table.Tr>
               <Table.Tr>
-                <Table.Td c="dimmed">departmentCount</Table.Td>
-                <Table.Td ff="monospace">{data.departmentCount}</Table.Td>
+                <Table.Td c="dimmed">shiftCount</Table.Td>
+                <Table.Td ff="monospace">{data.shiftCount}</Table.Td>
               </Table.Tr>
               <Table.Tr>
                 <Table.Td c="dimmed">timestamp</Table.Td>

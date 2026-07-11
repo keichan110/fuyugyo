@@ -26,6 +26,7 @@ import { ErrorAlert } from '@/components/AppAlert';
 import { AppBadge } from '@/components/AppBadge';
 import { getDepartmentAppearance } from '@/features/departments/appearance';
 import { DepartmentTag } from '@/features/departments/DepartmentTag';
+import { departmentCodeSchema, type DepartmentCode } from '@/features/departments/schema';
 
 import {
   useShiftAssignmentEditor,
@@ -38,7 +39,7 @@ import { addMonths, shortDateLabel, todayString, toMonth, weekdayIndex } from '.
 import { calculateFairShare, countCurrentMonthWorkDays, type CellAssignment } from '../workload';
 import classes from './ShiftManager.module.css';
 
-const DEPARTMENT_STORAGE_KEY = 'fuyugyo.shiftManage.departmentId';
+const DEPARTMENT_STORAGE_KEY = 'fuyugyo.shiftManage.departmentCode';
 
 /**
  * 月間シフト表／割り当てパネルの共通高さ。
@@ -63,12 +64,12 @@ type StagedCell = {
 
 /** 部門・対象月変更をユーザー承認で確定するための保留アクション */
 type PendingNavigation =
-  { type: 'department'; nextDepartmentId: string } | { type: 'month'; nextMonth: string };
+  { type: 'department'; nextDepartmentCode: DepartmentCode } | { type: 'month'; nextMonth: string };
 
 /** シフト枠（日付 × 部門 × シフト種別）を月間シフト表で編集する管理コンポーネント。 */
 export function ShiftManager() {
   const [month, setMonth] = useState(toMonth(todayString()));
-  const [departmentId, setDepartmentId] = useState('');
+  const [departmentCode, setDepartmentCode] = useState<DepartmentCode>('ski');
   const [selectedCell, setSelectedCell] = useState<SelectedCell | null>(null);
   const [stagedCells, setStagedCells] = useState<Map<string, StagedCell>>(new Map());
   const [pendingNav, setPendingNav] = useState<PendingNavigation | null>(null);
@@ -117,20 +118,20 @@ export function ShiftManager() {
   }, [monthly.data, registerInstructorNames]);
 
   useEffect(() => {
-    if (!formData.data || departmentId) {
+    if (!formData.data) {
       return;
     }
 
     const stored = window.localStorage.getItem(DEPARTMENT_STORAGE_KEY);
-    const storedDepartment = formData.data.departments.find((dept) => dept.id === stored);
-    setDepartmentId(storedDepartment?.id ?? formData.data.departments[0]?.id ?? '');
-  }, [departmentId, formData.data]);
+    const storedDepartment = departmentCodeSchema.safeParse(stored);
+    setDepartmentCode(storedDepartment.success ? storedDepartment.data : 'ski');
+  }, [formData.data]);
 
   useEffect(() => {
-    if (departmentId) {
-      window.localStorage.setItem(DEPARTMENT_STORAGE_KEY, departmentId);
+    if (departmentCode) {
+      window.localStorage.setItem(DEPARTMENT_STORAGE_KEY, departmentCode);
     }
-  }, [departmentId]);
+  }, [departmentCode]);
 
   useEffect(() => {
     const firstDay = days[0];
@@ -161,7 +162,7 @@ export function ShiftManager() {
 
   const applyNavigation = (nav: PendingNavigation) => {
     if (nav.type === 'department') {
-      setDepartmentId(nav.nextDepartmentId);
+      setDepartmentCode(nav.nextDepartmentCode);
     } else {
       setMonth(nav.nextMonth);
     }
@@ -200,11 +201,11 @@ export function ShiftManager() {
   // 未保存の編集や空シフト状態でも同日の二重割り当てを防げるようにする。
   const conflictLabelById = useMemo(() => {
     const map = new Map<string, string>();
-    if (!selectedCell || !departmentId || !formData.data) {
+    if (!selectedCell || !departmentCode || !formData.data) {
       return map;
     }
     const { date, shiftTypeId } = selectedCell;
-    const deptName = formData.data.departments.find((d) => d.id === departmentId)?.name ?? '';
+    const deptName = getDepartmentAppearance(departmentCode).label;
 
     const add = (ids: string[], label: string) => {
       for (const id of ids) {
@@ -225,7 +226,7 @@ export function ShiftManager() {
         : (monthly.data?.shifts
             .find(
               (s) =>
-                s.date === date && s.department.id === departmentId && s.shiftType.id === st.id,
+                s.date === date && s.department.code === departmentCode && s.shiftType.id === st.id,
             )
             ?.assignedInstructors.map((i) => i.id) ?? []);
       add(ids, `${deptName} / ${st.name}`);
@@ -233,7 +234,7 @@ export function ShiftManager() {
 
     // (b) 他部門・同日の保存済みシフト（他部門はこの画面で編集できないため保存値のみ）。
     for (const s of monthly.data?.shifts ?? []) {
-      if (s.date !== date || s.department.id === departmentId) {
+      if (s.date !== date || s.department.code === departmentCode) {
         continue;
       }
       add(
@@ -242,7 +243,7 @@ export function ShiftManager() {
       );
     }
     return map;
-  }, [selectedCell, departmentId, formData.data, stagedCells, monthly.data]);
+  }, [selectedCell, departmentCode, formData.data, stagedCells, monthly.data]);
 
   // Instructor 別の当月勤務日数（全部門横断・現部門はステージ済み編集を反映）。
   // 月単位でまとめて編集する UI 特性上、保存前の変更も負荷バーへ即座に反映するため、
@@ -250,21 +251,21 @@ export function ShiftManager() {
   const currentMonthWorkDays = useMemo(() => {
     const savedAssignments: CellAssignment[] = (monthly.data?.shifts ?? []).map((shift) => ({
       date: shift.date,
-      departmentId: shift.department.id,
+      departmentCode: shift.department.code,
       shiftTypeId: shift.shiftType.id,
       instructorIds: shift.assignedInstructors.map((i) => i.id),
     }));
     const stagedAssignments: CellAssignment[] = Array.from(stagedCells.entries()).map(
       ([key, cell]) => {
         const [date, shiftTypeId] = splitCellKey(key);
-        return { date, departmentId, shiftTypeId, instructorIds: cell.instructorIds };
+        return { date, departmentCode, shiftTypeId, instructorIds: cell.instructorIds };
       },
     );
     return countCurrentMonthWorkDays(savedAssignments, stagedAssignments);
-  }, [monthly.data, stagedCells, departmentId]);
+  }, [monthly.data, stagedCells, departmentCode]);
 
   const saveMonthly = () => {
-    if (!departmentId || stagedCells.size === 0) {
+    if (!departmentCode || stagedCells.size === 0) {
       return;
     }
     const cells = Array.from(stagedCells.entries()).map(([key, value]) => {
@@ -277,7 +278,7 @@ export function ShiftManager() {
       };
     });
     upsertMonthly.mutate(
-      { month, departmentId, cells },
+      { month, departmentCode, cells },
       {
         onSuccess: () => {
           setStagedCells(new Map());
@@ -331,30 +332,28 @@ export function ShiftManager() {
           <Group justify="space-between" align="flex-end" wrap="wrap">
             <Select
               label="部門"
-              data={formData.data.departments.map((dept) => ({
-                value: dept.id,
-                label: dept.name,
+              data={departmentCodeSchema.options.map((code) => ({
+                value: code,
+                label: getDepartmentAppearance(code).label,
               }))}
-              value={departmentId || null}
+              value={departmentCode || null}
               onChange={(value) => {
-                if (!value || value === departmentId) {
+                if (!value || value === departmentCode) {
                   return;
                 }
-                requestNavigation({ type: 'department', nextDepartmentId: value });
+                const parsed = departmentCodeSchema.safeParse(value);
+                if (parsed.success) {
+                  requestNavigation({ type: 'department', nextDepartmentCode: parsed.data });
+                }
               }}
               renderOption={({ option }) => {
-                const dept = formData.data.departments.find((d) => d.id === option.value);
-                return <DepartmentTag code={dept?.code ?? ''} name={option.label} />;
+                return <DepartmentTag code={option.value} name={option.label} />;
               }}
               leftSection={(() => {
-                const selectedDept = formData.data.departments.find((d) => d.id === departmentId);
-                if (!selectedDept) {
+                if (!departmentCode) {
                   return undefined;
                 }
-                const SelectedIcon = getDepartmentAppearance(
-                  selectedDept.code,
-                  selectedDept.name,
-                ).icon;
+                const SelectedIcon = getDepartmentAppearance(departmentCode).icon;
                 return <SelectedIcon size={16} stroke={1.75} />;
               })()}
               allowDeselect={false}
@@ -394,7 +393,7 @@ export function ShiftManager() {
           <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="md" className={classes.matrixGrid}>
             <ShiftMatrix
               days={days}
-              departmentId={departmentId}
+              departmentCode={departmentCode}
               shiftTypes={formData.data.shiftTypes}
               activeShiftTypeId={selectedCell?.shiftTypeId ?? formData.data.shiftTypes[0]?.id ?? ''}
               onChangeShiftType={changeActiveShiftType}
@@ -407,11 +406,11 @@ export function ShiftManager() {
             />
             {/* 左右の高さを PANEL_HEIGHT で揃え、内部スクロールで画面内に収める */}
             <Box h={PANEL_HEIGHT}>
-              {selectedCell && departmentId ? (
+              {selectedCell && departmentCode ? (
                 <AssignmentPanel
-                  key={`${selectedCell.date}-${departmentId}-${selectedCell.shiftTypeId}`}
+                  key={`${selectedCell.date}-${departmentCode}-${selectedCell.shiftTypeId}`}
                   date={selectedCell.date}
-                  departmentId={departmentId}
+                  departmentCode={departmentCode}
                   shiftTypeId={selectedCell.shiftTypeId}
                   shiftTypeName={
                     formData.data.shiftTypes.find((st) => st.id === selectedCell.shiftTypeId)
@@ -470,7 +469,7 @@ type ShiftTypeOption = {
 
 type ShiftMatrixProps = {
   days: string[];
-  departmentId: string;
+  departmentCode: DepartmentCode;
   shiftTypes: ShiftTypeOption[];
   /** タブで選択中のシフト種別ID。表はこの種別の列のみを表示する */
   activeShiftTypeId: string;
@@ -487,7 +486,7 @@ type ShiftMatrixProps = {
 /** 日付 × シフト種別の割り当てマトリクス（日付を縦軸、シフト種別はタブで切替）。 */
 function ShiftMatrix({
   days,
-  departmentId,
+  departmentCode,
   shiftTypes,
   activeShiftTypeId,
   onChangeShiftType,
@@ -502,12 +501,12 @@ function ShiftMatrix({
   const shiftByCell = useMemo(() => {
     const map = new Map<string, ShiftViewItem>();
     for (const shift of shifts) {
-      if (shift.department.id === departmentId) {
+      if (shift.department.code === departmentCode) {
         map.set(cellKey(shift.date, shift.shiftType.id), shift);
       }
     }
     return map;
-  }, [departmentId, shifts]);
+  }, [departmentCode, shifts]);
 
   const activeShiftTypeName =
     shiftTypes.find((shiftType) => shiftType.id === activeShiftTypeId)?.name ?? '';
@@ -667,7 +666,7 @@ function ShiftCell({ serverShift, staged, nameById, selected, onClick }: ShiftCe
 
 type AssignmentPanelProps = {
   date: string;
-  departmentId: string;
+  departmentCode: DepartmentCode;
   shiftTypeId: string;
   shiftTypeName: string;
   stagedCell: StagedCell | undefined;
@@ -687,7 +686,7 @@ type AssignmentPanelProps = {
  */
 function AssignmentPanel({
   date,
-  departmentId,
+  departmentCode,
   shiftTypeId,
   shiftTypeName,
   stagedCell,
@@ -696,7 +695,7 @@ function AssignmentPanel({
   conflictLabelById,
   currentMonthWorkDays,
 }: AssignmentPanelProps) {
-  const editData = useShiftAssignmentEditor({ date, departmentId, shiftTypeId });
+  const editData = useShiftAssignmentEditor({ date, departmentCode, shiftTypeId });
 
   useEffect(() => {
     if (!editData.data) {
@@ -830,6 +829,7 @@ function AssignmentPanel({
                   <InstructorCheckbox
                     key={instructor.id}
                     instructor={instructor}
+                    departmentCode={departmentCode}
                     checked={selectedSet.has(instructor.id)}
                     onToggle={() => toggle(instructor.id)}
                     conflictLabel={conflictLabelById.get(instructor.id)}
@@ -857,6 +857,7 @@ function AssignmentPanel({
 
 type InstructorCheckboxProps = {
   instructor: AvailableInstructor;
+  departmentCode: DepartmentCode;
   checked: boolean;
   onToggle: () => void;
   /** 競合先（同日の別 Shift）の表示ラベル。未競合なら undefined */
@@ -876,6 +877,7 @@ type InstructorCheckboxProps = {
  */
 function InstructorCheckbox({
   instructor,
+  departmentCode,
   checked,
   onToggle,
   conflictLabel,
@@ -908,7 +910,12 @@ function InstructorCheckbox({
                   data={instructor.certifications}
                   gap={4}
                   renderItem={(cert, index) => (
-                    <AppBadge key={index} kind="certification" size="xs">
+                    <AppBadge
+                      key={index}
+                      kind="certification"
+                      departmentCode={departmentCode}
+                      size="xs"
+                    >
                       {cert}
                     </AppBadge>
                   )}

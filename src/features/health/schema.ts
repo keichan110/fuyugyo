@@ -7,8 +7,8 @@ import { z } from 'zod';
 export const healthResponseSchema = z.object({
   /** 常に "ok"。D1 まで疎通できた場合のみ返る */
   status: z.literal('ok'),
-  /** D1 から取得した部門数（接続とスキーマ適用の確認用） */
-  departmentCount: z.number().int().nonnegative(),
+  /** D1 から取得したシフト数（接続とスキーマ適用の確認用） */
+  shiftCount: z.number().int().nonnegative(),
   /** サーバー時刻（ISO 8601） */
   timestamp: z.string(),
 });

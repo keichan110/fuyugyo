@@ -104,6 +104,7 @@ function CertEditor({ allCerts, pendingCertIds, onAdd, onRemove }: CertEditorPro
               <AppBadge
                 key={id}
                 kind={cert && !cert.isActive ? 'inactive' : 'certification'}
+                {...(cert ? { departmentCode: cert.departmentCode } : {})}
                 rightSection={<CloseButton size="xs" onClick={() => onRemove(id)} />}
               >
                 {cert ? `${cert.name}（${cert.shortName}）` : id}

@@ -51,7 +51,7 @@ export function calculateFairShare(workDays: number[]): number {
 /** 月マトリクスの1セル分の割り当て（Instructor 別の当月勤務日数集計に使う最小情報） */
 export type CellAssignment = {
   date: string;
-  departmentId: string;
+  departmentCode: string;
   shiftTypeId: string;
   instructorIds: string[];
 };
@@ -70,7 +70,7 @@ export function countCurrentMonthWorkDays(
   stagedAssignments: CellAssignment[],
 ): Map<string, number> {
   const stagedKeys = new Set(
-    stagedAssignments.map((a) => cellAssignmentKey(a.departmentId, a.date, a.shiftTypeId)),
+    stagedAssignments.map((a) => cellAssignmentKey(a.departmentCode, a.date, a.shiftTypeId)),
   );
 
   const datesByInstructor = new Map<string, Set<string>>();
@@ -84,7 +84,7 @@ export function countCurrentMonthWorkDays(
     // ステージ済みセルは保存値ではなくステージ値を正とするため、ここでは数えない
     if (
       stagedKeys.has(
-        cellAssignmentKey(assignment.departmentId, assignment.date, assignment.shiftTypeId),
+        cellAssignmentKey(assignment.departmentCode, assignment.date, assignment.shiftTypeId),
       )
     ) {
       continue;
@@ -106,8 +106,8 @@ export function countCurrentMonthWorkDays(
   return counts;
 }
 
-function cellAssignmentKey(departmentId: string, date: string, shiftTypeId: string): string {
-  return `${departmentId}:${date}:${shiftTypeId}`;
+function cellAssignmentKey(departmentCode: string, date: string, shiftTypeId: string): string {
+  return `${departmentCode}:${date}:${shiftTypeId}`;
 }
 
 function parseDate(dateStr: string): Date {

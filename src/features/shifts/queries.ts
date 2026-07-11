@@ -31,13 +31,13 @@ export type ShiftAgendaParams = {
   cursor: string;
   direction: ShiftAgendaDirection;
   limit?: number;
-  departmentId?: string;
+  departmentCode?: string;
 };
 
 /** assignment-editor 取得パラメータ */
 export type ShiftEditDataParams = {
   date: string;
-  departmentId: string;
+  departmentCode: string;
   shiftTypeId: string;
 };
 
@@ -102,7 +102,7 @@ export function useShiftCalendar(month: string | undefined) {
 
 /**
  * アジェンダを1ページ取得する。
- * @param params - 起点日・方向・取得する稼働日数・任意の部門 ID
+ * @param params - 起点日・方向・取得する稼働日数・任意の部門コード
  */
 export async function fetchShiftAgendaPage(
   params: ShiftAgendaParams,
@@ -114,8 +114,8 @@ export async function fetchShiftAgendaPage(
   if (params.limit) {
     query['limit'] = String(params.limit);
   }
-  if (params.departmentId) {
-    query['departmentId'] = params.departmentId;
+  if (params.departmentCode) {
+    query['departmentCode'] = params.departmentCode;
   }
 
   const res = await client.api.shifts.agenda.$get({ query });
@@ -129,17 +129,17 @@ export async function fetchShiftAgendaPage(
 /**
  * 未来方向のアジェンダを続読する Infinite Query。
  * @param cursor - 初回ページの起点日（YYYY-MM-DD）
- * @param departmentId - 任意の部門 ID。指定時はその部門の稼働日だけを取得する
+ * @param departmentCode - 任意の部門コード。指定時はその部門の稼働日だけを取得する
  */
-export function useShiftAgendaFuture(cursor: string, departmentId?: string) {
+export function useShiftAgendaFuture(cursor: string, departmentCode?: string) {
   return useInfiniteQuery<ShiftAgendaResponse>({
-    queryKey: [...SHIFTS_QUERY_KEY, 'agenda', 'future', cursor, departmentId ?? 'all'],
+    queryKey: [...SHIFTS_QUERY_KEY, 'agenda', 'future', cursor, departmentCode ?? 'all'],
     queryFn: ({ pageParam }) =>
       fetchShiftAgendaPage({
         cursor: typeof pageParam === 'string' ? pageParam : cursor,
         direction: 'future',
         limit: 14,
-        ...(departmentId ? { departmentId } : {}),
+        ...(departmentCode ? { departmentCode } : {}),
       }),
     initialPageParam: cursor,
     getNextPageParam: (lastPage) => lastPage.pageInfo.nextCursor ?? undefined,
@@ -164,17 +164,17 @@ export function useShiftCreationContext() {
 
 /**
  * シフト編集フォームの集約データを取得する（既存シフト・割り当て候補・競合）。
- * @param params - date / departmentId / shiftTypeId（全て揃ったときのみ取得）
+ * @param params - date / departmentCode / shiftTypeId（全て揃ったときのみ取得）
  */
 export function useShiftAssignmentEditor(params: Partial<ShiftEditDataParams>) {
-  const enabled = !!(params.date && params.departmentId && params.shiftTypeId);
+  const enabled = !!(params.date && params.departmentCode && params.shiftTypeId);
   return useQuery<ShiftEditData>({
     queryKey: [...SHIFTS_QUERY_KEY, 'assignment-editor', params],
     queryFn: async () => {
       const res = await client.api.shifts['assignment-editor'].$get({
         query: {
           date: params.date ?? '',
-          departmentId: params.departmentId ?? '',
+          departmentCode: params.departmentCode ?? '',
           shiftTypeId: params.shiftTypeId ?? '',
         },
       });

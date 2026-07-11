@@ -27,9 +27,8 @@ export const UNKNOWN_DEPARTMENT_APPEARANCE: Pick<DepartmentAppearance, 'color' |
 
 /**
  * 部門コードから表示用の外観（ラベル・色・アイコン）を解決する。
- * `code` は現状 DB 由来の任意文字列（コミット1では departments テーブルの CRUD が残る）
- * のため、既知の `DepartmentCode` に一致しない値でも壊れず表示できるようフォールバックする。
- * @param code - 部門コード（`departments.code`）
+ * API 外から渡された未知値でも壊れず表示できるようフォールバックする。
+ * @param code - 部門コード
  * @param name - 未知コード時のラベルに使う表示名（省略時は `code` をそのまま使う）
  */
 export function getDepartmentAppearance(code: string, name?: string): DepartmentAppearance {

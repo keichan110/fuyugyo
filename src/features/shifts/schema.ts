@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { departmentCodeSchema } from '@/features/departments/schema';
+
 /**
  * Shift / ShiftAssignment feature の境界スキーマ（isomorphic）。
  * サーバー（`api.ts`）の入出力検証とクライアント（`queries.ts`）の表示で共有する。
@@ -25,7 +27,7 @@ export const monthStringSchema = z
 export const shiftSchema = z.object({
   id: z.string(),
   date: z.coerce.date(),
-  departmentId: z.string(),
+  departmentCode: departmentCodeSchema,
   shiftTypeId: z.string(),
   description: z.string().nullable(),
   createdAt: z.coerce.date(),
@@ -54,8 +56,6 @@ export type ShiftWithAssignments = z.infer<typeof shiftWithAssignmentsSchema>;
 /** Shift 一覧の1件（部門名・部門コード・シフト種別名を JOIN で同梱） */
 export const shiftListItemSchema = shiftWithAssignmentsSchema.extend({
   departmentName: z.string(),
-  /** 部門の視覚的アイデンティティ（色・アイコン）解決に使う（`DepartmentTag`） */
-  departmentCode: z.string(),
   shiftTypeName: z.string(),
 });
 
@@ -80,7 +80,7 @@ export type MonthlyAssignmentCell = z.infer<typeof monthlyAssignmentCellSchema>;
  */
 export const upsertMonthlyAssignmentsSchema = z.object({
   month: monthStringSchema,
-  departmentId: z.string().min(1),
+  departmentCode: departmentCodeSchema,
   cells: z.array(monthlyAssignmentCellSchema),
 });
 
@@ -96,13 +96,6 @@ export type UpsertMonthlyAssignmentsResult = z.infer<typeof upsertMonthlyAssignm
 
 // ─── 集約（フォーム）データ ─────────────────────────────────────────────────
 
-/** form-data の Department 最小情報 */
-const formDepartmentSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  code: z.string(),
-});
-
 /** form-data の ShiftType 最小情報 */
 const formShiftTypeSchema = z.object({
   id: z.string(),
@@ -111,14 +104,12 @@ const formShiftTypeSchema = z.object({
 
 /**
  * シフト作成フォームの初期表示データ（1リクエスト・N+1 なし）。
- * 部門・シフト種別一覧と、選択肢の規模を示す統計を含む。
+ * シフト種別一覧と、選択肢の規模を示す統計を含む。
  */
 export const shiftFormDataSchema = z.object({
-  departments: z.array(formDepartmentSchema),
   shiftTypes: z.array(formShiftTypeSchema),
   stats: z.object({
     activeInstructorsCount: z.number(),
-    totalDepartments: z.number(),
     totalShiftTypes: z.number(),
   }),
 });
@@ -169,7 +160,7 @@ export const shiftEditDataSchema = z.object({
     .object({
       id: z.string(),
       date: dateStringSchema,
-      departmentId: z.string(),
+      departmentCode: departmentCodeSchema,
       shiftTypeId: z.string(),
       description: z.string().nullable(),
       assignedInstructorIds: z.array(z.string()),
@@ -199,9 +190,8 @@ export const shiftViewItemSchema = z.object({
   date: dateStringSchema,
   description: z.string().nullable(),
   department: z.object({
-    id: z.string(),
     name: z.string(),
-    code: z.string(),
+    code: departmentCodeSchema,
   }),
   shiftType: z.object({ id: z.string(), name: z.string() }),
   assignedInstructors: z.array(viewInstructorSchema),

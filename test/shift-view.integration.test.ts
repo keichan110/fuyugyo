@@ -5,14 +5,7 @@ import { shiftAgendaResponseSchema, shiftViewResponseSchema } from '../src/featu
 import app from '../src/index';
 import { signJwt } from '../src/server/auth/jwt';
 import { createDb } from '../src/server/db/client';
-import {
-  departments,
-  instructors,
-  shiftAssignments,
-  shifts,
-  shiftTypes,
-  users,
-} from '../src/server/db/schema';
+import { instructors, shiftAssignments, shifts, shiftTypes, users } from '../src/server/db/schema';
 import type { Env } from '../src/server/types';
 
 /**
@@ -64,12 +57,7 @@ async function seedToken(role: 'MANAGER' | 'MEMBER' = 'MEMBER'): Promise<string>
 }
 
 async function seedDepartment(name: string, code: string): Promise<string> {
-  const db = createDb(env.DB);
-  const [dept] = await db.insert(departments).values({ code, name, isActive: true }).returning();
-  if (!dept) {
-    throw new Error('seedDepartment: insert failed');
-  }
-  return dept.id;
+  return name.includes('スノ') || code.toLowerCase().includes('snb') ? 'snowboard' : 'ski';
 }
 
 async function seedShiftType(name = '終日'): Promise<string> {
@@ -96,7 +84,7 @@ async function seedInstructor(lastName: string, firstName: string): Promise<stri
 /** 指定日（YYYY-MM-DD）にシフトを直接 INSERT し、割り当てを付与する */
 async function seedShift(
   dateStr: string,
-  departmentId: string,
+  departmentCode: string,
   shiftTypeId: string,
   instructorIds: string[] = [],
 ): Promise<string> {
@@ -105,7 +93,7 @@ async function seedShift(
   await db.insert(shifts).values({
     id: shiftId,
     date: new Date(`${dateStr}T00:00:00.000Z`),
-    departmentId,
+    departmentCode,
     shiftTypeId,
     description: null,
   });
@@ -119,7 +107,6 @@ beforeEach(async () => {
   const db = createDb(env.DB);
   await db.delete(shiftAssignments);
   await db.delete(shifts);
-  await db.delete(departments);
   await db.delete(shiftTypes);
   await db.delete(instructors);
   await db.delete(users);
@@ -129,8 +116,8 @@ beforeEach(async () => {
 
 describe('GET /api/shifts/calendar', () => {
   it('指定月の全シフトとサマリを返し、前後月は含まない', async () => {
-    const ski = await seedDepartment('スキー', 'SKI');
-    const snb = await seedDepartment('スノーボード', 'SNB');
+    const ski = await seedDepartment('スキー', 'ski');
+    const snb = await seedDepartment('スノーボード', 'snowboard');
     const st = await seedShiftType();
     const inst = await seedInstructor('山田', '太郎');
     // 2026-01 に3件（月初・月中・月末）、前月末と翌月初に各1件
@@ -163,7 +150,7 @@ describe('GET /api/shifts/calendar', () => {
     // 1部門 × 4シフト種別 × 31日 = 124件のシフトを1回の月次一括 upsert で作成する。
     // shiftId の inArray に頼ると 100 個を超えるバインドパラメータでクエリが失敗するため、
     // JOIN ベースの絞り込みへ書き換えたことの回帰テストとして、意図的に上限超えの件数を用意する。
-    const ski = await seedDepartment('スキー', 'SKI');
+    const ski = await seedDepartment('スキー', 'ski');
     const shiftTypeIds = await Promise.all([
       seedShiftType('午前'),
       seedShiftType('午後'),
@@ -186,7 +173,7 @@ describe('GET /api/shifts/calendar', () => {
       '/api/shifts/assignments',
       {
         method: 'PUT',
-        ...authJsonRequest(managerToken, { month: '2026-01', departmentId: ski, cells }),
+        ...authJsonRequest(managerToken, { month: '2026-01', departmentCode: ski, cells }),
       },
       envWith({}),
     );
@@ -248,8 +235,8 @@ describe('GET /api/shifts/agenda', () => {
   });
 
   it('未来方向は起点日以降の稼働日のみを昇順で返し、休校日をスキップする', async () => {
-    const ski = await seedDepartment('スキー', 'SKI');
-    const snb = await seedDepartment('スノーボード', 'SNB');
+    const ski = await seedDepartment('スキー', 'ski');
+    const snb = await seedDepartment('スノーボード', 'snowboard');
     const fullDay = await seedShiftType('終日');
     const morning = await seedShiftType('午前');
     const inst1 = await seedInstructor('山田', '太郎');
@@ -285,7 +272,7 @@ describe('GET /api/shifts/agenda', () => {
   });
 
   it('過去方向は起点日前の稼働日を遡り、レスポンスは昇順で返す', async () => {
-    const ski = await seedDepartment('スキー', 'SKI');
+    const ski = await seedDepartment('スキー', 'ski');
     const fullDay = await seedShiftType('終日');
     const inst = await seedInstructor('山田', '太郎');
     await seedShift('2026-01-02', ski, fullDay, [inst]);
@@ -307,9 +294,9 @@ describe('GET /api/shifts/agenda', () => {
     expect(body.pageInfo.previousCursor).toBe('2026-01-05');
   });
 
-  it('departmentId を指定すると対象部門の稼働日のみを返す', async () => {
-    const ski = await seedDepartment('スキー', 'SKI');
-    const snb = await seedDepartment('スノーボード', 'SNB');
+  it('departmentCode を指定すると対象部門の稼働日のみを返す', async () => {
+    const ski = await seedDepartment('スキー', 'ski');
+    const snb = await seedDepartment('スノーボード', 'snowboard');
     const fullDay = await seedShiftType('終日');
     const inst = await seedInstructor('山田', '太郎');
     await seedShift('2026-01-10', ski, fullDay, [inst]);
@@ -318,7 +305,7 @@ describe('GET /api/shifts/agenda', () => {
     const token = await seedToken('MEMBER');
 
     const res = await app.request(
-      `/api/shifts/agenda?cursor=2026-01-10&direction=future&limit=3&departmentId=${ski}`,
+      `/api/shifts/agenda?cursor=2026-01-10&direction=future&limit=3&departmentCode=${ski}`,
       authHeader(token),
       envWith({}),
     );
@@ -326,7 +313,7 @@ describe('GET /api/shifts/agenda', () => {
     const body = shiftAgendaResponseSchema.parse(await res.json());
 
     expect(body.days.map((day) => day.date)).toEqual(['2026-01-10', '2026-01-12']);
-    expect(body.days.flatMap((day) => day.shifts.map((shift) => shift.department.id))).toEqual([
+    expect(body.days.flatMap((day) => day.shifts.map((shift) => shift.department.code))).toEqual([
       ski,
       ski,
     ]);

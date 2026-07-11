@@ -2,7 +2,7 @@ import { useForm } from '@mantine/form';
 
 /** CertificationForm が扱う入力値 */
 export type CertificationFormValues = {
-  departmentId: string;
+  departmentCode: '' | 'ski' | 'snowboard';
   name: string;
   shortName: string;
   organization: string;
@@ -10,7 +10,7 @@ export type CertificationFormValues = {
 };
 
 const EMPTY_VALUES: CertificationFormValues = {
-  departmentId: '',
+  departmentCode: '',
   name: '',
   shortName: '',
   organization: '',
@@ -26,7 +26,7 @@ export function useCertificationForm(initialValues?: CertificationFormValues) {
   return useForm<CertificationFormValues>({
     initialValues: initialValues ?? EMPTY_VALUES,
     validate: {
-      departmentId: (value) => (value.trim().length === 0 ? '部門を選択してください' : null),
+      departmentCode: (value) => (value.trim().length === 0 ? '部門を選択してください' : null),
       name: (value) => {
         if (value.trim().length === 0) return '資格名を入力してください';
         if (value.length > 100) return '資格名は100文字以内で入力してください';

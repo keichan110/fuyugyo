@@ -1,20 +1,12 @@
 import { useEffect, useState } from 'react';
 
-import {
-  Divider,
-  Drawer,
-  Group,
-  Skeleton,
-  Stack,
-  Switch,
-  Text,
-} from '@mantine/core';
+import { Divider, Drawer, Group, Skeleton, Stack, Switch, Text } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 
 import { ErrorAlert } from '@/components/AppAlert';
 import { FormFooterButtons } from '@/components/FormFooterButtons';
-import { useDepartments } from '@/features/departments/queries';
-import type { Department } from '@/features/departments/schema';
+import { getDepartmentAppearance } from '@/features/departments/appearance';
+import { departmentCodeSchema } from '@/features/departments/schema';
 
 import {
   useCertification,
@@ -73,15 +65,15 @@ function CreatePanel({ onClose }: { onClose: () => void }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const { data: departments } = useDepartments(true);
   const create = useCreateCertification();
 
   const handleSave = async (values: CertificationFormValues) => {
+    const departmentCode = departmentCodeSchema.parse(values.departmentCode);
     setSaving(true);
     setError(null);
     try {
       const created = await create.mutateAsync({
-        departmentId: values.departmentId,
+        departmentCode,
         name: values.name,
         shortName: values.shortName,
         organization: values.organization,
@@ -102,7 +94,7 @@ function CreatePanel({ onClose }: { onClose: () => void }) {
   return (
     <form onSubmit={form.onSubmit(handleSave)}>
       <Stack gap="lg">
-        <CertificationFormFields form={form} departments={departments} />
+        <CertificationFormFields form={form} />
         {error && <ErrorAlert>{error}</ErrorAlert>}
         <FormFooterButtons saving={saving} onCancel={onClose} />
       </Stack>
@@ -113,8 +105,6 @@ function CreatePanel({ onClose }: { onClose: () => void }) {
 /** 編集対象の詳細を読み込み、揃うまで Skeleton を表示するローダー */
 function EditPanel({ certificationId, onClose }: { certificationId: string; onClose: () => void }) {
   const { data: detail, isLoading } = useCertification(certificationId);
-  // 部門名表示用（無効化済みの部門も含めて解決できるよう全件取得する）
-  const { data: departments } = useDepartments(false);
 
   if (isLoading || !detail) {
     return (
@@ -126,12 +116,11 @@ function EditPanel({ certificationId, onClose }: { certificationId: string; onCl
     );
   }
 
-  return <EditForm key={detail.id} detail={detail} departments={departments} onClose={onClose} />;
+  return <EditForm key={detail.id} detail={detail} onClose={onClose} />;
 }
 
 type EditFormProps = {
   detail: Certification;
-  departments: Department[] | undefined;
   onClose: () => void;
 };
 
@@ -140,9 +129,9 @@ type EditFormProps = {
  * 基本情報とステータスをローカルで編集して初期値との差分だけを API に反映する。
  * ステータスは無効化のみ対応し、一度無効化すると再有効化はできない。
  */
-function EditForm({ detail, departments, onClose }: EditFormProps) {
+function EditForm({ detail, onClose }: EditFormProps) {
   const form = useCertificationForm({
-    departmentId: detail.departmentId,
+    departmentCode: detail.departmentCode,
     name: detail.name,
     shortName: detail.shortName,
     organization: detail.organization,
@@ -155,7 +144,7 @@ function EditForm({ detail, departments, onClose }: EditFormProps) {
   const update = useUpdateCertification(detail.id);
   const deactivate = useDeactivateCertification();
 
-  const departmentName = departments?.find((d) => d.id === detail.departmentId)?.name ?? '—';
+  const departmentName = getDepartmentAppearance(detail.departmentCode).label;
 
   const handleSave = async (values: CertificationFormValues) => {
     setSaving(true);

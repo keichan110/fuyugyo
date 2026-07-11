@@ -459,35 +459,39 @@ async function clearExistingData(db: Db) {
 
 async function main() {
   const client = createClient({ url: `file:${getLocalD1Path()}` });
-  const db = drizzle(client);
+  try {
+    const db = drizzle(client);
 
-  console.log('スキー・スノーボードスクール 初期データ投入開始...\n');
+    console.log('スキー・スノーボードスクール 初期データ投入開始...\n');
 
-  await clearExistingData(db);
+    await clearExistingData(db);
 
-  const shiftTypeRows = await seedShiftTypes(db);
-  const shiftTypeIds = {
-    general: shiftTypeRows.general.id,
-    group: shiftTypeRows.group.id,
-    badgeTest: shiftTypeRows.badgeTest.id,
-    prefectureEvent: shiftTypeRows.prefectureEvent.id,
-  };
+    const shiftTypeRows = await seedShiftTypes(db);
+    const shiftTypeIds = {
+      general: shiftTypeRows.general.id,
+      group: shiftTypeRows.group.id,
+      badgeTest: shiftTypeRows.badgeTest.id,
+      prefectureEvent: shiftTypeRows.prefectureEvent.id,
+    };
 
-  const certs = await seedCertifications(db);
-  const instructorRows = await seedInstructors(db);
-  const instructorCertRows = await seedInstructorCertifications(db, instructorRows, certs);
+    const certs = await seedCertifications(db);
+    const instructorRows = await seedInstructors(db);
+    const instructorCertRows = await seedInstructorCertifications(db, instructorRows, certs);
 
-  const shiftRows = await seedShifts(db, shiftTypeIds);
-  await seedShiftAssignments(
-    db,
-    shiftRows,
-    instructorRows,
-    instructorCertRows,
-    certs,
-    shiftTypeIds,
-  );
+    const shiftRows = await seedShifts(db, shiftTypeIds);
+    await seedShiftAssignments(
+      db,
+      shiftRows,
+      instructorRows,
+      instructorCertRows,
+      certs,
+      shiftTypeIds,
+    );
 
-  console.log('\n初期データ投入完了！');
+    console.log('\n初期データ投入完了！');
+  } finally {
+    client.close();
+  }
 }
 
 main().catch((e: unknown) => {

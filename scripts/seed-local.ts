@@ -19,47 +19,51 @@ const DEV_INVITE_TOKEN = 'dev-invite';
 
 async function main() {
   const client = createClient({ url: `file:${getLocalD1Path()}` });
-  const db = drizzle(client);
+  try {
+    const db = drizzle(client);
 
-  const [existingPlaceholder] = await db
-    .select()
-    .from(users)
-    .where(eq(users.lineUserId, SEED_PLACEHOLDER_LINE_USER_ID))
-    .limit(1);
+    const [existingPlaceholder] = await db
+      .select()
+      .from(users)
+      .where(eq(users.lineUserId, SEED_PLACEHOLDER_LINE_USER_ID))
+      .limit(1);
 
-  const [placeholderUser] = existingPlaceholder
-    ? [existingPlaceholder]
-    : await db
-        .insert(users)
-        .values({
-          lineUserId: SEED_PLACEHOLDER_LINE_USER_ID,
-          displayName: 'Seed Placeholder',
-          isActive: false,
-        })
-        .returning();
+    const [placeholderUser] = existingPlaceholder
+      ? [existingPlaceholder]
+      : await db
+          .insert(users)
+          .values({
+            lineUserId: SEED_PLACEHOLDER_LINE_USER_ID,
+            displayName: 'Seed Placeholder',
+            isActive: false,
+          })
+          .returning();
 
-  if (!placeholderUser) {
-    throw new Error('placeholder User の作成に失敗しました');
+    if (!placeholderUser) {
+      throw new Error('placeholder User の作成に失敗しました');
+    }
+
+    const [existingInvite] = await db
+      .select()
+      .from(invitationTokens)
+      .where(eq(invitationTokens.token, DEV_INVITE_TOKEN))
+      .limit(1);
+
+    if (!existingInvite) {
+      await db.insert(invitationTokens).values({
+        token: DEV_INVITE_TOKEN,
+        expiresAt: new Date('2099-01-01'),
+        createdBy: placeholderUser.id,
+        maxUses: null,
+        description: 'ローカル開発用の恒久招待トークン',
+      });
+    }
+
+    console.log('シード完了');
+    console.log(`招待URL: http://localhost:5173/api/auth/line/login?invite=${DEV_INVITE_TOKEN}`);
+  } finally {
+    client.close();
   }
-
-  const [existingInvite] = await db
-    .select()
-    .from(invitationTokens)
-    .where(eq(invitationTokens.token, DEV_INVITE_TOKEN))
-    .limit(1);
-
-  if (!existingInvite) {
-    await db.insert(invitationTokens).values({
-      token: DEV_INVITE_TOKEN,
-      expiresAt: new Date('2099-01-01'),
-      createdBy: placeholderUser.id,
-      maxUses: null,
-      description: 'ローカル開発用の恒久招待トークン',
-    });
-  }
-
-  console.log('シード完了');
-  console.log(`招待URL: http://localhost:5173/api/auth/line/login?invite=${DEV_INVITE_TOKEN}`);
 }
 
 main();

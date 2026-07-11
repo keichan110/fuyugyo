@@ -42,6 +42,10 @@ import {
 import type { AvailableInstructor, ShiftViewItem } from '../schema';
 import { addDays, shortDateLabel, todayString, toMonth, weekdayIndex } from '../view-utils';
 import { calculateFairShare, countCurrentMonthWorkDays, type CellAssignment } from '../workload';
+import {
+  reconcileShiftManagerSelection,
+  type ShiftManagerSelection,
+} from './shift-manager-selection';
 import classes from './ShiftManager.module.css';
 
 const DEPARTMENT_STORAGE_KEY = 'fuyugyo.shiftManage.departmentCode';
@@ -49,10 +53,7 @@ const ASSIGNMENT_DRAWER_HEIGHT = '55vh';
 
 type CandidateSortMode = 'kana' | 'workload';
 
-type SelectedCell = {
-  date: string;
-  shiftTypeId: string;
-};
+type SelectedCell = ShiftManagerSelection;
 
 /** 月次まとめ登録のステージ状態（cellKey → 変更内容） */
 type StagedCell = {
@@ -135,19 +136,17 @@ export function ShiftManager() {
   }, [departmentCode]);
 
   useEffect(() => {
-    const firstDay = days[0];
-    const firstShiftType = formData.data?.shiftTypes[0];
-    if (!firstDay || !firstShiftType) {
-      return;
-    }
-    if (!selectedCell || !selectedCell.date.startsWith(month)) {
-      setSelectedCell({ date: firstDay, shiftTypeId: firstShiftType.id });
-      return;
-    }
-    if (!formData.data?.shiftTypes.some((shiftType) => shiftType.id === selectedCell.shiftTypeId)) {
-      setSelectedCell({ date: selectedCell.date, shiftTypeId: firstShiftType.id });
-    }
-  }, [days, formData.data, month, selectedCell]);
+    setSelectedCell((current) => {
+      const next = reconcileShiftManagerSelection({
+        selection: current,
+        days,
+        shiftTypeIds: formData.data?.shiftTypes.map((shiftType) => shiftType.id) ?? [],
+      });
+      return current?.date === next?.date && current?.shiftTypeId === next?.shiftTypeId
+        ? current
+        : next;
+    });
+  }, [days, formData.data]);
 
   /** 部門・対象月の遷移を要求する。dirty ならモーダルで確認、そうでなければ即時適用。 */
   const requestNavigation = useCallback(

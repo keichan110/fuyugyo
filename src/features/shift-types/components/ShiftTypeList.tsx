@@ -1,12 +1,6 @@
 import { useMemo, useState } from 'react';
 
-import {
-  Button,
-  Menu,
-  Stack,
-  Table,
-  Text,
-} from '@mantine/core';
+import { Button, Menu, Stack, Table, Text } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { IconClock, IconPlus } from '@tabler/icons-react';
 
@@ -19,8 +13,8 @@ import { ListHeader } from '@/components/ListHeader';
 import { ListToolbar } from '@/components/ListToolbar';
 import { RowActionsButton } from '@/components/RowActionsButton';
 import { SearchInput } from '@/components/SearchInput';
-import { StatusFilterControl } from '@/components/StatusFilterControl';
 import type { ActiveStatusFilter } from '@/components/status-filter';
+import { StatusFilterControl } from '@/components/StatusFilterControl';
 import { TableRowsSkeleton } from '@/components/TableRowsSkeleton';
 
 import { useDeactivateShiftType, useShiftTypes } from '../queries';

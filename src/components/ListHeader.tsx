@@ -20,7 +20,14 @@ type ListHeaderProps = {
 /**
  * 一覧画面のタイトル、件数サマリ、右上操作を配置するヘッダー。
  */
-export function ListHeader({ title, total, active, unit, isLoading = false, action }: ListHeaderProps) {
+export function ListHeader({
+  title,
+  total,
+  active,
+  unit,
+  isLoading = false,
+  action,
+}: ListHeaderProps) {
   return (
     <Group justify="space-between" align="flex-start">
       <div>

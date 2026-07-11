@@ -102,12 +102,7 @@ function InstructorLinkEditor({ instructorId, onSelect, onUnlink }: InstructorLi
           <Skeleton height={24} width={180} />
         ) : (
           <Group gap="xs">
-            <Avatar
-              color="initials"
-              name={fullNameOf(linkedInstructor)}
-              radius="xl"
-              size="sm"
-            />
+            <Avatar color="initials" name={fullNameOf(linkedInstructor)} radius="xl" size="sm" />
             <Text size="sm">{fullNameOf(linkedInstructor)}</Text>
             <CloseButton size="xs" onClick={onUnlink} />
           </Group>

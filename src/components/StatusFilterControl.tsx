@@ -7,10 +7,7 @@ type StatusFilterOption = {
   value: ActiveStatusFilter;
 };
 
-type StatusFilterControlProps = Omit<
-  SegmentedControlProps,
-  'data' | 'value' | 'onChange'
-> & {
+type StatusFilterControlProps = Omit<SegmentedControlProps, 'data' | 'value' | 'onChange'> & {
   /** 現在選択されている絞り込み値 */
   value: ActiveStatusFilter;
   /** 絞り込み値を変更したときに呼ばれる */

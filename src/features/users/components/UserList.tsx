@@ -1,13 +1,6 @@
 import { useMemo, useState } from 'react';
 
-import {
-  Avatar,
-  Group,
-  Menu,
-  Stack,
-  Table,
-  Text,
-} from '@mantine/core';
+import { Avatar, Group, Menu, Stack, Table, Text } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { IconUsers } from '@tabler/icons-react';
 
@@ -20,8 +13,8 @@ import { ListHeader } from '@/components/ListHeader';
 import { ListToolbar } from '@/components/ListToolbar';
 import { RowActionsButton } from '@/components/RowActionsButton';
 import { SearchInput } from '@/components/SearchInput';
-import { StatusFilterControl } from '@/components/StatusFilterControl';
 import type { ActiveStatusFilter } from '@/components/status-filter';
+import { StatusFilterControl } from '@/components/StatusFilterControl';
 import { TableRowsSkeleton } from '@/components/TableRowsSkeleton';
 
 import { useActivateUser, useDeactivateUser, useUsers } from '../queries';
@@ -151,15 +144,11 @@ function UserRow({ user, onEdit }: UserRowProps) {
         </Group>
       </Table.Td>
       <Table.Td>
-        <AppBadge kind={roleMeta.badgeKind}>
-          {roleMeta.label}
-        </AppBadge>
+        <AppBadge kind={roleMeta.badgeKind}>{roleMeta.label}</AppBadge>
       </Table.Td>
       <Table.Td>
         {user.instructorId ? (
-          <AppBadge kind="link">
-            リンク済み
-          </AppBadge>
+          <AppBadge kind="link">リンク済み</AppBadge>
         ) : (
           <Text c="dimmed" size="sm">
             —

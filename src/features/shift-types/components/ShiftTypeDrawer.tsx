@@ -1,14 +1,6 @@
 import { useEffect, useState } from 'react';
 
-import {
-  Divider,
-  Drawer,
-  Group,
-  Skeleton,
-  Stack,
-  Switch,
-  Text,
-} from '@mantine/core';
+import { Divider, Drawer, Group, Skeleton, Stack, Switch, Text } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 
 import { ErrorAlert } from '@/components/AppAlert';

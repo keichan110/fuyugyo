@@ -1,4 +1,6 @@
 PRAGMA defer_foreign_keys=on;--> statement-breakpoint
+CREATE TABLE `__backup_instructor_certifications` AS SELECT * FROM `instructor_certifications`;--> statement-breakpoint
+CREATE TABLE `__backup_shift_assignments` AS SELECT * FROM `shift_assignments`;--> statement-breakpoint
 ALTER TABLE `certifications` ADD `department_code` text;--> statement-breakpoint
 UPDATE `certifications`
 SET `department_code` = (
@@ -52,5 +54,9 @@ CREATE INDEX `idx_shifts_date` ON `shifts` (`date`);--> statement-breakpoint
 CREATE INDEX `idx_shifts_date_department` ON `shifts` (`date`,`department_code`);--> statement-breakpoint
 CREATE INDEX `idx_shifts_department_type_date` ON `shifts` (`department_code`,`shift_type_id`,`date`);--> statement-breakpoint
 CREATE INDEX `idx_shifts_date_type` ON `shifts` (`date`,`shift_type_id`);--> statement-breakpoint
+INSERT INTO `instructor_certifications` SELECT * FROM `__backup_instructor_certifications`;--> statement-breakpoint
+INSERT INTO `shift_assignments` SELECT * FROM `__backup_shift_assignments`;--> statement-breakpoint
+DROP TABLE `__backup_instructor_certifications`;--> statement-breakpoint
+DROP TABLE `__backup_shift_assignments`;--> statement-breakpoint
 DROP TABLE `departments`;--> statement-breakpoint
 PRAGMA defer_foreign_keys=off;

@@ -11,7 +11,6 @@ import JapaneseHolidays from 'japanese-holidays';
 
 import {
   certifications,
-  departments,
   instructorCertifications,
   instructors,
   shiftAssignments,
@@ -22,6 +21,7 @@ import { getLocalD1Path } from './lib/get-local-d1-path.ts';
 
 const INSTRUCTOR_COUNT = 70;
 const ACTIVE_RATIO = 0.9; // 90%がアクティブ、残り10%が休職(INACTIVE)
+const DEPARTMENT_CODES = { ski: 'ski', snowboard: 'snowboard' } as const;
 
 /** 配列を指定サイズごとのチャンクに分割する（SQLite のバインド変数上限対策） */
 function chunk<T>(items: T[], size: number): T[][] {
@@ -33,24 +33,6 @@ function chunk<T>(items: T[], size: number): T[][] {
 }
 
 type Db = ReturnType<typeof drizzle>;
-
-/** 部門データ（スキー・スノーボード）を投入する */
-async function seedDepartments(db: Db) {
-  const [ski, snowboard] = await db
-    .insert(departments)
-    .values([
-      { code: 'ski', name: 'スキー', description: 'スキー部門' },
-      { code: 'snowboard', name: 'スノーボード', description: 'スノーボード部門' },
-    ])
-    .returning();
-
-  if (!ski || !snowboard) {
-    throw new Error('部門データの作成に失敗しました');
-  }
-
-  console.log(`部門: ${ski.name}, ${snowboard.name}`);
-  return { ski, snowboard };
-}
 
 /** シフト種類データ（一般レッスン・団体レッスン・バッジテスト・県連事業）を投入する */
 async function seedShiftTypes(db: Db) {
@@ -93,13 +75,13 @@ const SNOWBOARD_CERTIFICATIONS = [
 ];
 
 /** 資格データ（部門ごとに6件ずつ）を投入する */
-async function seedCertifications(db: Db, departmentIds: { ski: string; snowboard: string }) {
+async function seedCertifications(db: Db) {
   const skiCertifications = await db
     .insert(certifications)
     .values(
       SKI_CERTIFICATIONS.map((cert) => ({
         ...cert,
-        departmentId: departmentIds.ski,
+        departmentCode: DEPARTMENT_CODES.ski,
         description: '',
       })),
     )
@@ -110,7 +92,7 @@ async function seedCertifications(db: Db, departmentIds: { ski: string; snowboar
     .values(
       SNOWBOARD_CERTIFICATIONS.map((cert) => ({
         ...cert,
-        departmentId: departmentIds.snowboard,
+        departmentCode: DEPARTMENT_CODES.snowboard,
         description: '',
       })),
     )
@@ -213,12 +195,11 @@ async function seedInstructorCertifications(
   return rows;
 }
 
-type ShiftSeed = { id: string; date: Date; departmentId: string; shiftTypeId: string };
+type ShiftSeed = { id: string; date: Date; departmentCode: string; shiftTypeId: string };
 
 /** 当年12月1日〜翌年3月31日の期間でシフトデータを作成する */
 async function seedShifts(
   db: Db,
-  departmentIds: { ski: string; snowboard: string },
   shiftTypeIds: { general: string; group: string; badgeTest: string; prefectureEvent: string },
 ): Promise<ShiftSeed[]> {
   const currentYear = new Date().getFullYear();
@@ -267,7 +248,7 @@ async function seedShifts(
     }
   }
 
-  const values: { date: Date; departmentId: string; shiftTypeId: string; description: string }[] =
+  const values: { date: Date; departmentCode: string; shiftTypeId: string; description: string }[] =
     [];
 
   for (
@@ -284,13 +265,13 @@ async function seedShifts(
     if (isWeekendOrHoliday) {
       values.push({
         date: checkDate,
-        departmentId: departmentIds.ski,
+        departmentCode: DEPARTMENT_CODES.ski,
         shiftTypeId: shiftTypeIds.general,
         description: 'スキー一般レッスン',
       });
       values.push({
         date: checkDate,
-        departmentId: departmentIds.snowboard,
+        departmentCode: DEPARTMENT_CODES.snowboard,
         shiftTypeId: shiftTypeIds.general,
         description: 'スノーボード一般レッスン',
       });
@@ -298,13 +279,13 @@ async function seedShifts(
       if (groupLessonDates.includes(dateString)) {
         values.push({
           date: checkDate,
-          departmentId: departmentIds.ski,
+          departmentCode: DEPARTMENT_CODES.ski,
           shiftTypeId: shiftTypeIds.group,
           description: 'スキー団体レッスン',
         });
         values.push({
           date: checkDate,
-          departmentId: departmentIds.snowboard,
+          departmentCode: DEPARTMENT_CODES.snowboard,
           shiftTypeId: shiftTypeIds.group,
           description: 'スノーボード団体レッスン',
         });
@@ -313,7 +294,7 @@ async function seedShifts(
       if (badgeTestDates.includes(dateString)) {
         values.push({
           date: checkDate,
-          departmentId: departmentIds.ski,
+          departmentCode: DEPARTMENT_CODES.ski,
           shiftTypeId: shiftTypeIds.badgeTest,
           description: 'スキーバッジテスト',
         });
@@ -322,7 +303,7 @@ async function seedShifts(
       if (prefectureEventDates.includes(dateString)) {
         values.push({
           date: checkDate,
-          departmentId: departmentIds.snowboard,
+          departmentCode: DEPARTMENT_CODES.snowboard,
           shiftTypeId: shiftTypeIds.prefectureEvent,
           description: '県連事業',
         });
@@ -330,7 +311,7 @@ async function seedShifts(
     } else {
       values.push({
         date: checkDate,
-        departmentId: departmentIds.ski,
+        departmentCode: DEPARTMENT_CODES.ski,
         shiftTypeId: shiftTypeIds.general,
         description: 'スキー一般レッスン',
       });
@@ -356,18 +337,20 @@ async function seedShifts(
 /** シフト種類・日付・部門ごとの必要人数を返す */
 function getRequiredInstructorCount(
   shift: ShiftSeed,
-  departmentIds: { ski: string; snowboard: string },
   shiftTypeIds: { general: string; group: string; badgeTest: string; prefectureEvent: string },
 ): number {
   const dayOfWeek = shift.date.getUTCDay();
   const isWeekendOrHoliday =
     dayOfWeek === 0 || dayOfWeek === 6 || !!JapaneseHolidays.isHoliday(shift.date);
 
-  if (shift.departmentId === departmentIds.ski && shift.shiftTypeId === shiftTypeIds.general) {
+  if (
+    shift.departmentCode === DEPARTMENT_CODES.ski &&
+    shift.shiftTypeId === shiftTypeIds.general
+  ) {
     return isWeekendOrHoliday ? 5 : 3;
   }
   if (
-    shift.departmentId === departmentIds.snowboard &&
+    shift.departmentCode === DEPARTMENT_CODES.snowboard &&
     shift.shiftTypeId === shiftTypeIds.general
   ) {
     return 3;
@@ -391,7 +374,6 @@ async function seedShiftAssignments(
   instructorRows: Awaited<ReturnType<typeof seedInstructors>>,
   instructorCertRows: { instructorId: string; certificationId: string }[],
   certs: { skiCertifications: CertRow[]; snowboardCertifications: CertRow[] },
-  departmentIds: { ski: string; snowboard: string },
   shiftTypeIds: { general: string; group: string; badgeTest: string; prefectureEvent: string },
 ) {
   const activeInstructors = instructorRows.filter((i) => i.status === 'ACTIVE');
@@ -425,8 +407,9 @@ async function seedShiftAssignments(
     const assignedToday = new Set<string>();
 
     for (const shift of dateShifts) {
-      const requiredCount = getRequiredInstructorCount(shift, departmentIds, shiftTypeIds);
-      const pool = shift.departmentId === departmentIds.ski ? skiInstructors : snowboardInstructors;
+      const requiredCount = getRequiredInstructorCount(shift, shiftTypeIds);
+      const pool =
+        shift.departmentCode === DEPARTMENT_CODES.ski ? skiInstructors : snowboardInstructors;
       if (pool.length === 0) continue;
 
       const assigned: string[] = [];
@@ -435,7 +418,7 @@ async function seedShiftAssignments(
 
       while (assigned.length < requiredCount && attempts < maxAttempts) {
         const instructor =
-          shift.departmentId === departmentIds.ski
+          shift.departmentCode === DEPARTMENT_CODES.ski
             ? pool[skiIndex++ % pool.length]!
             : pool[snowboardIndex++ % pool.length]!;
         attempts++;
@@ -471,7 +454,6 @@ async function clearExistingData(db: Db) {
   await db.delete(instructors);
   await db.delete(certifications);
   await db.delete(shiftTypes);
-  await db.delete(departments);
   console.log('既存データのクリア完了\n');
 }
 
@@ -483,9 +465,6 @@ async function main() {
 
   await clearExistingData(db);
 
-  const departmentRows = await seedDepartments(db);
-  const departmentIds = { ski: departmentRows.ski.id, snowboard: departmentRows.snowboard.id };
-
   const shiftTypeRows = await seedShiftTypes(db);
   const shiftTypeIds = {
     general: shiftTypeRows.general.id,
@@ -494,18 +473,17 @@ async function main() {
     prefectureEvent: shiftTypeRows.prefectureEvent.id,
   };
 
-  const certs = await seedCertifications(db, departmentIds);
+  const certs = await seedCertifications(db);
   const instructorRows = await seedInstructors(db);
   const instructorCertRows = await seedInstructorCertifications(db, instructorRows, certs);
 
-  const shiftRows = await seedShifts(db, departmentIds, shiftTypeIds);
+  const shiftRows = await seedShifts(db, shiftTypeIds);
   await seedShiftAssignments(
     db,
     shiftRows,
     instructorRows,
     instructorCertRows,
     certs,
-    departmentIds,
     shiftTypeIds,
   );
 

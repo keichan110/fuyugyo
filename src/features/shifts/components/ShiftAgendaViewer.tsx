@@ -17,9 +17,9 @@ import {
 import { useWindowScroll } from '@mantine/hooks';
 import { AgendaView } from '@mantine/schedule';
 import type { ScheduleEventData } from '@mantine/schedule';
+import { IconUserFilled } from '@tabler/icons-react';
 
 import { ErrorAlert, InfoAlert } from '@/components/AppAlert';
-import { AppBadge } from '@/components/AppBadge';
 import { useMe } from '@/features/auth/queries';
 import { getDepartmentAppearance } from '@/features/departments/appearance';
 import { departmentCodeSchema, type DepartmentCode } from '@/features/departments/schema';
@@ -371,15 +371,20 @@ function ShiftAgendaContent({
         </Text>
       </Group>
       {shift.assignedInstructors.length > 0 ? (
-        <Group gap={6}>
+        <Group gap={4} align="flex-start" wrap="nowrap">
+          <ThemeIcon color="gray" variant="transparent" size={16} mt={3}>
+            <IconUserFilled size={14} />
+          </ThemeIcon>
+          <Text size="sm" className={classes.assignedInstructorList}>
           {shift.assignedInstructors.map((instructor) => (
-            <AppBadge
-              key={instructor.id}
-              kind={instructor.id === myInstructorId ? 'personEmphasized' : 'person'}
-            >
-              {instructor.displayName}
-            </AppBadge>
+            <Fragment key={instructor.id}>
+              <Text component="span" fw={instructor.id === myInstructorId ? 600 : 400}>
+                {instructor.displayName}
+              </Text>
+              {instructor.id !== shift.assignedInstructors.at(-1)?.id && ' ・ '}
+            </Fragment>
           ))}
+          </Text>
         </Group>
       ) : (
         <Text size="sm" c="dimmed">

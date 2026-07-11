@@ -10,8 +10,6 @@ export type AppBadgeKind =
   | 'danger'
   | 'warning'
   | 'pending'
-  | 'person'
-  | 'personEmphasized'
   | 'certification'
   | 'roleAdmin'
   | 'roleManager'
@@ -32,8 +30,6 @@ const BADGE_STYLE_BY_KIND: Record<AppBadgeKind, Pick<BadgeProps, 'color' | 'vari
   danger: { color: 'red', variant: 'light' },
   warning: { color: 'orange', variant: 'light' },
   pending: { color: 'orange', variant: 'light' },
-  person: { color: 'grape', variant: 'light' },
-  personEmphasized: { color: 'grape', variant: 'filled' },
   certification: { color: 'indigo', variant: 'light' },
   roleAdmin: { color: 'red', variant: 'light' },
   roleManager: { color: 'blue', variant: 'light' },

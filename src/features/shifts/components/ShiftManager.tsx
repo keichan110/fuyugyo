@@ -10,17 +10,18 @@ import {
   OverflowList,
   SegmentedControl,
   Select,
-  SimpleGrid,
   Stack,
   Table,
   Tabs,
   Text,
   Textarea,
   TextInput,
+  ThemeIcon,
   Title,
   Tooltip,
   UnstyledButton,
 } from '@mantine/core';
+import { IconUserFilled } from '@tabler/icons-react';
 
 import { ErrorAlert } from '@/components/AppAlert';
 import { AppBadge } from '@/components/AppBadge';
@@ -390,7 +391,7 @@ export function ShiftManager() {
             <ErrorAlert>{upsertMonthly.error?.message ?? '保存に失敗しました'}</ErrorAlert>
           )}
 
-          <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="md" className={classes.matrixGrid}>
+          <Box className={classes.matrixGrid}>
             <ShiftMatrix
               days={days}
               departmentCode={departmentCode}
@@ -404,7 +405,7 @@ export function ShiftManager() {
               selectedCell={selectedCell}
               onSelectCell={setSelectedCell}
             />
-            {/* 左右の高さを PANEL_HEIGHT で揃え、内部スクロールで画面内に収める */}
+            {/* 編集パネルは表と同じ高さにして、候補リストだけを内部スクロールにする */}
             <Box h={PANEL_HEIGHT}>
               {selectedCell && departmentCode ? (
                 <AssignmentPanel
@@ -432,7 +433,7 @@ export function ShiftManager() {
                 </Card>
               )}
             </Box>
-          </SimpleGrid>
+          </Box>
         </>
       )}
 
@@ -637,7 +638,7 @@ function ShiftCell({ serverShift, staged, nameById, selected, onClick }: ShiftCe
     .join(' ');
 
   return (
-    <UnstyledButton onClick={onClick} h={60} className={cellClassName}>
+    <UnstyledButton onClick={onClick} mih={60} className={cellClassName}>
       {staged && (
         <Box
           pos="absolute"
@@ -650,11 +651,14 @@ function ShiftCell({ serverShift, staged, nameById, selected, onClick }: ShiftCe
         />
       )}
       {hasAssignments ? (
-        assignedNames.map((name, idx) => (
-          <AppBadge key={`${name}-${idx}`} kind="person" size="xs">
-            {name}
-          </AppBadge>
-        ))
+        <Group gap={4} align="flex-start" wrap="nowrap">
+          <ThemeIcon color="gray" variant="transparent" size={16} mt={1}>
+            <IconUserFilled size={14} />
+          </ThemeIcon>
+          <Text size="xs" lh={1.35} ta="left" flex={1} miw={0}>
+            {assignedNames.join(' ・ ')}
+          </Text>
+        </Group>
       ) : (
         <Text size="xs" c="dimmed">
           -

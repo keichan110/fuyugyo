@@ -28,3 +28,10 @@
   flex: 1;
   min-width: 0;
 }
+
+/* 担当者一覧は名前を主情報にし、人物アイコンは一覧全体の目印として一度だけ添える */
+.assignedInstructorList {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.5;
+}

@@ -102,12 +102,14 @@ function InstructorLinkEditor({ instructorId, onSelect, onUnlink }: InstructorLi
           <Skeleton height={24} width={180} />
         ) : (
           <Group gap="xs">
-            <AppBadge
-              kind="person"
-              rightSection={<CloseButton size="xs" onClick={onUnlink} />}
-            >
-              {fullNameOf(linkedInstructor)}
-            </AppBadge>
+            <Avatar
+              color="initials"
+              name={fullNameOf(linkedInstructor)}
+              radius="xl"
+              size="sm"
+            />
+            <Text size="sm">{fullNameOf(linkedInstructor)}</Text>
+            <CloseButton size="xs" onClick={onUnlink} />
           </Group>
         )
       ) : (

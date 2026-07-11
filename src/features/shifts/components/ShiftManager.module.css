@@ -1,6 +1,15 @@
-/* 部門セレクタ横並びエリア: 右パネルの内容量にシフト表の高さを合わせないよう、グリッド項目を上端揃えにする */
+/* シフト表と編集パネルの情報密度を両立する 6:4 の 2ペイン構成 */
 .matrixGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(22rem, 2fr);
+  gap: var(--mantine-spacing-md);
   align-items: start;
+}
+
+@media (max-width: 62em) {
+  .matrixGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 /* 月間シフト表カード。高さは PANEL_HEIGHT（JS定数）を h prop で与えるため、ここでは内部を縦方向 flex にするだけ */
@@ -21,16 +30,13 @@
   width: 64px;
 }
 
-/* シフト表の1セル。割り当ての有無・選択状態でレイアウト/背景色が変わる */
+/* シフト表の1セル。担当者数に応じて行高を広げ、セル内にはスクロールを作らない */
 .cell {
   position: relative;
   display: flex;
   width: 100%;
   padding: 6px;
-  overflow-y: auto;
   align-content: flex-start;
-  flex-wrap: wrap;
-  gap: 4px;
 }
 
 .cellHasAssignments {

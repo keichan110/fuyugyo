@@ -6,12 +6,7 @@ import { notifications } from '@mantine/notifications';
 import { ErrorAlert } from '@/components/AppAlert';
 import { FormFooterButtons } from '@/components/FormFooterButtons';
 
-import {
-  useCreateShiftType,
-  useDeactivateShiftType,
-  useShiftType,
-  useUpdateShiftType,
-} from '../queries';
+import { useCreateShiftType, useShiftType, useShiftTypes, useUpdateShiftType } from '../queries';
 import type { ShiftType } from '../schema';
 import { ShiftTypeFormFields } from './ShiftTypeForm';
 import { useShiftTypeForm, type ShiftTypeFormValues } from './useShiftTypeForm';
@@ -25,7 +20,7 @@ type Props = {
 };
 
 /**
- * シフト種別の作成・編集・無効化を1つの右 Drawer にまとめたパネル。
+ * シフト種別の作成・編集・有効状態の変更を1つの右 Drawer にまとめたパネル。
  * 基本情報・ステータスを1フォームとして扱い、保存で一括反映・キャンセルで破棄する。
  */
 export function ShiftTypeDrawer({ state, onClose }: Props) {
@@ -43,7 +38,7 @@ export function ShiftTypeDrawer({ state, onClose }: Props) {
     <Drawer
       opened={state !== null}
       onClose={onClose}
-      title={isEdit ? 'シフト種別を編集' : 'シフト種別を追加'}
+      title={isEdit ? 'シフト種別を編集' : 'シフト種別を新規登録'}
     >
       {effectiveState?.mode === 'edit' ? (
         <EditPanel
@@ -75,7 +70,7 @@ function CreatePanel({ onClose }: { onClose: () => void }) {
       const created = await create.mutateAsync({ name: values.name });
       notifications.show({
         color: 'green',
-        message: `${created.name}を作成しました`,
+        message: `${created.name}をマスタに登録しました`,
       });
       onClose();
     } catch (e) {
@@ -99,6 +94,7 @@ function CreatePanel({ onClose }: { onClose: () => void }) {
 /** 編集対象の詳細を読み込み、揃うまで Skeleton を表示するローダー */
 function EditPanel({ shiftTypeId, onClose }: { shiftTypeId: string; onClose: () => void }) {
   const { data: detail, isLoading } = useShiftType(shiftTypeId);
+  const { data: shiftTypes } = useShiftTypes(false);
 
   if (isLoading || !detail) {
     return (
@@ -109,45 +105,45 @@ function EditPanel({ shiftTypeId, onClose }: { shiftTypeId: string; onClose: () 
     );
   }
 
-  return <EditForm key={detail.id} detail={detail} onClose={onClose} />;
+  const availableDepartmentCount = shiftTypes?.find((shiftType) => shiftType.id === detail.id)
+    ?.availableDepartmentCodes.length;
+
+  return (
+    <EditForm
+      key={detail.id}
+      detail={detail}
+      availableDepartmentCount={availableDepartmentCount}
+      onClose={onClose}
+    />
+  );
 }
 
 type EditFormProps = {
   detail: ShiftType;
+  availableDepartmentCount: number | undefined;
   onClose: () => void;
 };
 
 /**
  * 編集モードのフォーム。種別名・ステータスをローカルで編集し、
  * 保存で初期値との差分だけをまとめて API に反映する。
- * API はステータスの無効化のみをサポートし再有効化はできないため、
- * すでに無効なシフト種別に対してはステータス操作 UI を出さない。
+ * 有効・無効の切り替えは可逆であり、無効化による影響は保存前に表示する。
  */
-function EditForm({ detail, onClose }: EditFormProps) {
+function EditForm({ detail, availableDepartmentCount, onClose }: EditFormProps) {
   const form = useShiftTypeForm({ name: detail.name });
   const [active, setActive] = useState(detail.isActive);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const update = useUpdateShiftType(detail.id);
-  const deactivate = useDeactivateShiftType();
 
   const handleSave = async (values: ShiftTypeFormValues) => {
     setSaving(true);
     setError(null);
     try {
-      const tasks: Promise<unknown>[] = [];
-
-      if (values.name !== detail.name) {
-        tasks.push(update.mutateAsync({ name: values.name }));
+      if (values.name !== detail.name || active !== detail.isActive) {
+        await update.mutateAsync({ name: values.name, isActive: active });
       }
-
-      // 無効化は一方向の操作のため、アクティブ→無効の変化時のみ実行する
-      if (detail.isActive && !active) {
-        tasks.push(deactivate.mutateAsync(detail.id));
-      }
-
-      await Promise.all(tasks);
       notifications.show({
         color: 'green',
         message: `${values.name}を保存しました`,
@@ -167,28 +163,28 @@ function EditForm({ detail, onClose }: EditFormProps) {
 
         <Divider />
 
-        {detail.isActive ? (
-          <Stack gap={4}>
-            <Group justify="space-between">
-              <Text fw={500} size="sm">
-                ステータス
-              </Text>
-              <Switch checked={active} onChange={(e) => setActive(e.currentTarget.checked)} />
-            </Group>
-            <Text c="dimmed" size="xs">
-              無効化すると元に戻せません
-            </Text>
-          </Stack>
-        ) : (
-          <Stack gap={4}>
+        <Stack gap={4}>
+          <Group justify="space-between">
             <Text fw={500} size="sm">
-              ステータス
+              状態
             </Text>
-            <Text c="dimmed" size="sm">
-              無効（再有効化はできません）
+            <Switch
+              checked={active}
+              label={active ? '有効' : '無効'}
+              onChange={(e) => setActive(e.currentTarget.checked)}
+            />
+          </Group>
+          <Text c="dimmed" size="xs">
+            {availableDepartmentCount === undefined
+              ? '利用部門を確認中です。'
+              : `現在${availableDepartmentCount}部門で利用されています。`}
+          </Text>
+          {detail.isActive && !active && (
+            <Text c="dimmed" size="xs">
+              無効にすると、すべての部門で新規のシフト入力には使えなくなります。既存のシフトと部門への割り当ては保持されます。
             </Text>
-          </Stack>
-        )}
+          )}
+        </Stack>
 
         {error && <ErrorAlert>{error}</ErrorAlert>}
 

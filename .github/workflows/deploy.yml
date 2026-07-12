@@ -62,14 +62,16 @@ jobs:
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           LINE_CHANNEL_SECRET: ${{ secrets.LINE_CHANNEL_SECRET }}
 
+      # 新コードが参照するスキーマを先に用意し、デプロイ中の 500 を防ぐ。
+      # Wrangler は migration ごとに D1 バックアップを取得し、失敗した migration をロールバックする。
+      - name: Apply database migrations with D1 backup
+        run: pnpm exec wrangler d1 migrations apply fuyugyo --remote
+
       - name: Deploy to Cloudflare Workers
         run: pnpm exec wrangler deploy --var "APP_URL:$APP_URL" --var "LINE_CHANNEL_ID:$LINE_CHANNEL_ID"
         env:
           APP_URL: ${{ vars.APP_URL }}
           LINE_CHANNEL_ID: ${{ vars.LINE_CHANNEL_ID }}
-
-      - name: Apply database migrations
-        run: pnpm exec wrangler d1 migrations apply fuyugyo --remote
 
   health-check:
     runs-on: ubuntu-latest

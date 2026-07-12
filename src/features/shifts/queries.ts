@@ -147,18 +147,22 @@ export function useShiftAgendaFuture(cursor: string, departmentCode?: string) {
 }
 
 /**
- * シフト作成フォームの集約データを取得する（部門・シフト種別・統計）。
+ * シフト作成フォームの集約データを取得する（選択部門のシフト種別・統計）。
+ * @param departmentCode - 選択中の部門コード
  */
-export function useShiftCreationContext() {
+export function useShiftCreationContext(departmentCode: string) {
   return useQuery<ShiftFormData>({
-    queryKey: [...SHIFTS_QUERY_KEY, 'creation-context'],
+    queryKey: [...SHIFTS_QUERY_KEY, 'creation-context', departmentCode],
     queryFn: async () => {
-      const res = await client.api.shifts['creation-context'].$get();
+      const res = await client.api.shifts['creation-context'].$get({
+        query: { departmentCode },
+      });
       if (!res.ok) {
         throw new Error('シフト作成データの取得に失敗しました');
       }
       return shiftFormDataSchema.parse(await res.json());
     },
+    enabled: !!departmentCode,
   });
 }
 

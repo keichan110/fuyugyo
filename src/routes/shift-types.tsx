@@ -1,14 +1,15 @@
 import { Container } from '@mantine/core';
 import { createFileRoute, redirect } from '@tanstack/react-router';
 
-import { ensureAuthenticated } from '@/features/auth/auth-guard';
-import { ShiftTypeList } from '@/features/shift-types/components/ShiftTypeList';
+import { fetchMe } from '@/features/auth/auth-guard';
+import { hasMinimumRole } from '@/features/auth/schema';
+import { ShiftTypeSettings } from '@/features/shift-types/components/ShiftTypeSettings';
 
 export const Route = createFileRoute('/shift-types')({
   beforeLoad: async ({ context }) => {
-    const result = await ensureAuthenticated(context.queryClient, '/shift-types');
-    if (!result.authenticated) {
-      throw redirect({ to: result.loginTo });
+    const user = await fetchMe(context.queryClient);
+    if (!user || !hasMinimumRole(user.role, 'ADMIN')) {
+      throw redirect({ to: '/' });
     }
   },
   component: ShiftTypesPage,
@@ -17,7 +18,7 @@ export const Route = createFileRoute('/shift-types')({
 function ShiftTypesPage() {
   return (
     <Container size="lg" py="md">
-      <ShiftTypeList />
+      <ShiftTypeSettings />
     </Container>
   );
 }

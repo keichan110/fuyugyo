@@ -12,6 +12,7 @@ import { signJwt } from '../src/server/auth/jwt';
 import { createDb } from '../src/server/db/client';
 import {
   certifications,
+  departmentShiftTypes,
   instructorCertifications,
   instructors,
   shiftAssignments,
@@ -83,6 +84,10 @@ async function seedShiftType(name = '終日', isActive = true): Promise<string> 
   if (!st) {
     throw new Error('seedShiftType: insert failed');
   }
+  await db.insert(departmentShiftTypes).values([
+    { departmentCode: 'ski', shiftTypeId: st.id, sortOrder: 1 },
+    { departmentCode: 'snowboard', shiftTypeId: st.id, sortOrder: 1 },
+  ]);
   return st.id;
 }
 
@@ -177,6 +182,7 @@ beforeEach(async () => {
   // 外部キー依存順に削除する
   await db.delete(shiftAssignments);
   await db.delete(shifts);
+  await db.delete(departmentShiftTypes);
   await db.delete(instructorCertifications);
   await db.delete(certifications);
   await db.delete(shiftTypes);
@@ -338,6 +344,40 @@ describe('PUT /api/shifts/assignments', () => {
     expect(res.status).toBe(200);
     const body = upsertMonthlyAssignmentsResultSchema.parse(await res.json());
     expect(body).toEqual({ upsertedCount: 0, deletedCount: 0 });
+  });
+
+  it('部門で利用不可の種別を含むと 400 で何も作成しない', async () => {
+    const db = createDb(env.DB);
+    const available = await seedShiftType('午前');
+    const unavailable = await seedShiftType('午後');
+    const inst = await seedInstructor();
+    const token = await seedToken('MANAGER');
+    await db.delete(departmentShiftTypes);
+    await db.insert(departmentShiftTypes).values({
+      departmentCode: 'ski',
+      shiftTypeId: available,
+      sortOrder: 1,
+    });
+
+    const res = await app.request(
+      '/api/shifts/assignments',
+      {
+        method: 'PUT',
+        ...authJsonRequest(token, {
+          month: '2026-02',
+          departmentCode: 'ski',
+          cells: [
+            { date: '2026-02-01', shiftTypeId: available, instructorIds: [inst] },
+            { date: '2026-02-02', shiftTypeId: unavailable, instructorIds: [inst] },
+          ],
+        }),
+      },
+      envWith({}),
+    );
+
+    expect(res.status).toBe(400);
+    const list = await app.request('/api/shifts', authHeader(token), envWith({}));
+    expect(shiftListSchema.parse(await list.json())).toHaveLength(0);
   });
 
   it('実在しない日付 (2026-02-31) は 400 で正規化による月外作成を防ぐ', async () => {
@@ -694,26 +734,41 @@ describe('GET /api/shifts', () => {
 // ─── GET /api/shifts/creation-context ────────────────────────────────────────────────
 
 describe('GET /api/shifts/creation-context', () => {
-  it('アクティブな部門・シフト種別と統計を返す', async () => {
-    await seedDepartment('スキー', true);
-    await seedDepartment('廃止部門', false);
-    await seedShiftType('終日', true);
-    await seedShiftType('旧種別', false);
+  it('選択部門で利用可能かつアクティブな種別だけを表示順で返す', async () => {
+    const db = createDb(env.DB);
+    const first = await seedShiftType('終日', true);
+    const second = await seedShiftType('午前', true);
+    const third = await seedShiftType('午後', true);
+    const inactive = await seedShiftType('旧種別', false);
+    await db.delete(departmentShiftTypes);
+    await db.insert(departmentShiftTypes).values([
+      { departmentCode: 'ski', shiftTypeId: second, sortOrder: 1 },
+      { departmentCode: 'ski', shiftTypeId: third, sortOrder: 2 },
+      { departmentCode: 'ski', shiftTypeId: inactive, sortOrder: 3 },
+      { departmentCode: 'snowboard', shiftTypeId: first, sortOrder: 1 },
+    ]);
     await seedInstructor('山田', '太郎', 'ACTIVE');
     await seedInstructor('鈴木', '花子', 'INACTIVE');
     const token = await seedToken('MEMBER');
 
-    const res = await app.request('/api/shifts/creation-context', authHeader(token), envWith({}));
+    const res = await app.request(
+      '/api/shifts/creation-context?departmentCode=ski',
+      authHeader(token),
+      envWith({}),
+    );
     expect(res.status).toBe(200);
     const body = shiftFormDataSchema.parse(await res.json());
-    expect(body.shiftTypes).toHaveLength(1);
-    expect(body.shiftTypes[0]?.name).toBe('終日');
+    expect(body.shiftTypes.map((shiftType) => shiftType.name)).toEqual(['午前', '午後']);
     expect(body.stats.activeInstructorsCount).toBe(1);
-    expect(body.stats.totalShiftTypes).toBe(1);
+    expect(body.stats.totalShiftTypes).toBe(2);
   });
 
   it('未認証は 401 を返す', async () => {
-    const res = await app.request('/api/shifts/creation-context', {}, envWith({}));
+    const res = await app.request(
+      '/api/shifts/creation-context?departmentCode=ski',
+      {},
+      envWith({}),
+    );
     expect(res.status).toBe(401);
   });
 });

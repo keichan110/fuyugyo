@@ -8,13 +8,12 @@ import { ErrorAlert } from '@/components/AppAlert';
 import { AppBadge } from '@/components/AppBadge';
 import { AppTable } from '@/components/AppTable';
 import { ClickableTr } from '@/components/ClickableTr';
+import { InactiveVisibilityToggle } from '@/components/InactiveVisibilityToggle';
 import { ListEmptyState, ListNoResultsState } from '@/components/ListEmptyState';
 import { ListHeader } from '@/components/ListHeader';
 import { ListToolbar } from '@/components/ListToolbar';
 import { RowActionsButton } from '@/components/RowActionsButton';
 import { SearchInput } from '@/components/SearchInput';
-import type { ActiveStatusFilter } from '@/components/status-filter';
-import { StatusFilterControl } from '@/components/StatusFilterControl';
 import { TableRowsSkeleton } from '@/components/TableRowsSkeleton';
 import { DepartmentTag } from '@/features/departments/DepartmentTag';
 
@@ -28,40 +27,37 @@ import { CertificationDrawer, type CertificationDrawerState } from './Certificat
  */
 export function CertificationList() {
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<ActiveStatusFilter>('ALL');
+  const [showInactive, setShowInactive] = useState(false);
   const [drawerState, setDrawerState] = useState<CertificationDrawerState | null>(null);
 
   // 管理画面では無効資格も表示するため全件取得する
   const { data, isLoading, isError } = useCertifications(false);
 
   const certifications = useMemo(() => data ?? [], [data]);
-  const activeCount = certifications.filter((c) => c.isActive).length;
 
   const visibleCertifications = useMemo(() => {
     const query = search.trim();
     return certifications.filter((cert) => {
-      if (statusFilter === 'ACTIVE' && !cert.isActive) return false;
-      if (statusFilter === 'INACTIVE' && cert.isActive) return false;
+      if (!showInactive && !cert.isActive) return false;
       if (query.length === 0) return true;
       const haystack = `${cert.name}${cert.shortName}${cert.organization}`;
       return haystack.includes(query);
     });
-  }, [certifications, statusFilter, search]);
+  }, [certifications, showInactive, search]);
 
   return (
     <Stack gap="md">
       <ListHeader
         title="資格管理"
-        total={certifications.length}
-        active={activeCount}
-        unit="件"
+        summary={{ count: visibleCertifications.length, unit: '件' }}
         isLoading={isLoading}
         action={
           <Button
+            size="sm"
             leftSection={<IconPlus size={16} />}
             onClick={() => setDrawerState({ mode: 'create' })}
           >
-            資格を追加
+            登録
           </Button>
         }
       />
@@ -72,7 +68,7 @@ export function CertificationList() {
           value={search}
           onChange={(e) => setSearch(e.currentTarget.value)}
         />
-        <StatusFilterControl value={statusFilter} onChange={setStatusFilter} />
+        <InactiveVisibilityToggle shown={showInactive} onChange={setShowInactive} />
       </ListToolbar>
 
       {isError && <ErrorAlert>資格一覧の取得に失敗しました</ErrorAlert>}
@@ -89,7 +85,7 @@ export function CertificationList() {
               leftSection={<IconPlus size={16} />}
               onClick={() => setDrawerState({ mode: 'create' })}
             >
-              資格を追加
+              登録
             </Button>
           }
         />
@@ -165,9 +161,7 @@ function CertificationRow({ certification, onEdit }: CertificationRowProps) {
         <Text size="sm">{certification.organization}</Text>
       </Table.Td>
       <Table.Td>
-        <AppBadge kind={isActive ? 'active' : 'inactive'}>
-          {isActive ? 'アクティブ' : '無効'}
-        </AppBadge>
+        <AppBadge kind={isActive ? 'active' : 'inactive'}>{isActive ? '有効' : '無効'}</AppBadge>
       </Table.Td>
       <Table.Td onClick={(e) => e.stopPropagation()}>
         <Menu position="bottom-end">

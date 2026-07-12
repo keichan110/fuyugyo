@@ -329,7 +329,7 @@ function EditForm({ detail, allCerts, onClose }: EditFormProps) {
               ステータス
             </Text>
             <Text c="dimmed" size="xs">
-              {isActive ? 'アクティブ' : '非アクティブ'}
+              {isActive ? '有効' : '無効'}
             </Text>
           </div>
           <Switch

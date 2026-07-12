@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, exists, gte, inArray, lt, lte, ne } from 'drizzle-orm';
+import { and, asc, count, desc, eq, exists, gte, inArray, lt, lte, ne, sql } from 'drizzle-orm';
 import type { BatchItem } from 'drizzle-orm/batch';
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
@@ -10,6 +10,7 @@ import type { Database } from '@/server/db/client';
 import { isUniqueViolation } from '@/server/db/errors';
 import {
   certifications,
+  departmentShiftTypes,
   instructorCertifications,
   instructors,
   shiftAssignments,
@@ -95,6 +96,16 @@ function formatNameKana(lastNameKana: string | null, firstNameKana: string | nul
  */
 const MAX_IN_ARRAY_CHUNK_SIZE = 90;
 
+// junction がない既存 Shift は可用性から外れていても表示する必要があるため、
+// 可用種別を sortOrder 順、junction のない種別を名前順で末尾へ並べる。
+const shiftViewOrder = [
+  asc(shifts.date),
+  asc(shifts.departmentCode),
+  asc(sql`case when ${departmentShiftTypes.sortOrder} is null then 1 else 0 end`),
+  asc(departmentShiftTypes.sortOrder),
+  asc(shiftTypes.name),
+];
+
 function chunkArray<T>(items: T[], size: number = MAX_IN_ARRAY_CHUNK_SIZE): T[][] {
   const chunks: T[][] = [];
   for (let i = 0; i < items.length; i += size) {
@@ -140,8 +151,15 @@ async function loadShiftView(db: Database, from: Date, to: Date): Promise<ShiftV
     })
     .from(shifts)
     .innerJoin(shiftTypes, eq(shiftTypes.id, shifts.shiftTypeId))
+    .leftJoin(
+      departmentShiftTypes,
+      and(
+        eq(departmentShiftTypes.departmentCode, shifts.departmentCode),
+        eq(departmentShiftTypes.shiftTypeId, shifts.shiftTypeId),
+      ),
+    )
     .where(and(gte(shifts.date, from), lte(shifts.date, to)))
-    .orderBy(asc(shifts.date), asc(shifts.departmentCode), asc(shifts.shiftTypeId));
+    .orderBy(...shiftViewOrder);
 
   // 割り当ては shiftId の inArray ではなく、シフト本体と同じ日付範囲条件で shifts へ
   // innerJoin して絞り込む（バインドパラメータ数を件数に依存させないため）。
@@ -216,8 +234,15 @@ async function loadShiftViewByDates(
     })
     .from(shifts)
     .innerJoin(shiftTypes, eq(shiftTypes.id, shifts.shiftTypeId))
+    .leftJoin(
+      departmentShiftTypes,
+      and(
+        eq(departmentShiftTypes.departmentCode, shifts.departmentCode),
+        eq(departmentShiftTypes.shiftTypeId, shifts.shiftTypeId),
+      ),
+    )
     .where(and(...conditions))
-    .orderBy(asc(shifts.date), asc(shifts.departmentCode), asc(shiftTypes.name));
+    .orderBy(...shiftViewOrder);
 
   // 割り当ては shiftId の inArray ではなく、シフト本体と同じ絞り込み条件（日付群 + 任意の部門）で
   // shifts へ innerJoin する（バインドパラメータ数を件数に依存させないため）。
@@ -303,14 +328,25 @@ export const shiftsRoute = new Hono<{
    * シフト作成フォームの集約データを返す（1リクエスト・N+1 なし）。
    */
   .get('/creation-context', requireAuth, async (c) => {
+    const departmentCodeResult = departmentCodeSchema.safeParse(c.req.query('departmentCode'));
+    if (!departmentCodeResult.success) {
+      throw new HTTPException(400, { message: '不正な部門コードです' });
+    }
+    const departmentCode = departmentCodeResult.data;
     const db = createDb(c.env.DB);
 
     const [shiftTypeRows, activeCountRows] = await Promise.all([
       db
         .select({ id: shiftTypes.id, name: shiftTypes.name })
-        .from(shiftTypes)
-        .where(eq(shiftTypes.isActive, true))
-        .orderBy(asc(shiftTypes.name)),
+        .from(departmentShiftTypes)
+        .innerJoin(shiftTypes, eq(shiftTypes.id, departmentShiftTypes.shiftTypeId))
+        .where(
+          and(
+            eq(departmentShiftTypes.departmentCode, departmentCode),
+            eq(shiftTypes.isActive, true),
+          ),
+        )
+        .orderBy(asc(departmentShiftTypes.sortOrder)),
       db.select({ value: count() }).from(instructors).where(eq(instructors.status, 'ACTIVE')),
     ]);
 
@@ -798,6 +834,20 @@ export const shiftsRoute = new Hono<{
 
       if (input.cells.length === 0) {
         return c.json({ upsertedCount: 0, deletedCount: 0 });
+      }
+
+      const shiftTypeIds = [...new Set(input.cells.map((cell) => cell.shiftTypeId))];
+      const availableRows = await db
+        .select({ shiftTypeId: departmentShiftTypes.shiftTypeId })
+        .from(departmentShiftTypes)
+        .where(
+          and(
+            eq(departmentShiftTypes.departmentCode, input.departmentCode),
+            inArray(departmentShiftTypes.shiftTypeId, shiftTypeIds),
+          ),
+        );
+      if (availableRows.length !== shiftTypeIds.length) {
+        throw new HTTPException(400, { message: '部門で利用できないシフト種別が含まれています' });
       }
 
       // 全セルで参照される Instructor が実在するかを1クエリで検証

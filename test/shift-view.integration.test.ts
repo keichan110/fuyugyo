@@ -5,7 +5,14 @@ import { shiftAgendaResponseSchema, shiftViewResponseSchema } from '../src/featu
 import app from '../src/index';
 import { signJwt } from '../src/server/auth/jwt';
 import { createDb } from '../src/server/db/client';
-import { instructors, shiftAssignments, shifts, shiftTypes, users } from '../src/server/db/schema';
+import {
+  departmentShiftTypes,
+  instructors,
+  shiftAssignments,
+  shifts,
+  shiftTypes,
+  users,
+} from '../src/server/db/schema';
 import type { Env } from '../src/server/types';
 
 /**
@@ -60,11 +67,23 @@ async function seedDepartment(name: string, code: string): Promise<string> {
   return name.includes('スノ') || code.toLowerCase().includes('snb') ? 'snowboard' : 'ski';
 }
 
-async function seedShiftType(name = '終日'): Promise<string> {
+async function seedShiftType(
+  name = '終日',
+  departmentCodes: Array<'ski' | 'snowboard'> = ['ski', 'snowboard'],
+): Promise<string> {
   const db = createDb(env.DB);
   const [st] = await db.insert(shiftTypes).values({ name, isActive: true }).returning();
   if (!st) {
     throw new Error('seedShiftType: insert failed');
+  }
+  if (departmentCodes.length > 0) {
+    await db.insert(departmentShiftTypes).values(
+      departmentCodes.map((departmentCode) => ({
+        departmentCode,
+        shiftTypeId: st.id,
+        sortOrder: 1,
+      })),
+    );
   }
   return st.id;
 }
@@ -107,6 +126,7 @@ beforeEach(async () => {
   const db = createDb(env.DB);
   await db.delete(shiftAssignments);
   await db.delete(shifts);
+  await db.delete(departmentShiftTypes);
   await db.delete(shiftTypes);
   await db.delete(instructors);
   await db.delete(users);
@@ -216,6 +236,32 @@ describe('GET /api/shifts/calendar', () => {
     expect(outOfRange.status).toBe(400);
   });
 
+  it('部門ごとの表示順で並べ、可用性から外れた既存シフトは種別名順で末尾に置く', async () => {
+    const db = createDb(env.DB);
+    const ski = await seedDepartment('スキー', 'ski');
+    const morning = await seedShiftType('午前', []);
+    const afternoon = await seedShiftType('午後', []);
+    const fullDay = await seedShiftType('終日', []);
+    await db.insert(departmentShiftTypes).values([
+      { departmentCode: ski, shiftTypeId: afternoon, sortOrder: 1 },
+      { departmentCode: ski, shiftTypeId: fullDay, sortOrder: 2 },
+    ]);
+    await seedShift('2026-01-15', ski, morning);
+    await seedShift('2026-01-15', ski, fullDay);
+    await seedShift('2026-01-15', ski, afternoon);
+    const token = await seedToken('MEMBER');
+
+    const res = await app.request(
+      '/api/shifts/calendar?month=2026-01',
+      authHeader(token),
+      envWith({}),
+    );
+
+    expect(res.status).toBe(200);
+    const body = shiftViewResponseSchema.parse(await res.json());
+    expect(body.shifts.map((shift) => shift.shiftType.name)).toEqual(['午後', '終日', '午前']);
+  });
+
   it('未認証は 401 を返す', async () => {
     const res = await app.request('/api/shifts/calendar?month=2026-01', {}, envWith({}));
     expect(res.status).toBe(401);
@@ -232,6 +278,36 @@ describe('GET /api/shifts/agenda', () => {
       envWith({}),
     );
     expect(res.status).toBe(401);
+  });
+
+  it('部門ごとの表示順で並べ、可用性から外れた既存シフトを末尾に置く', async () => {
+    const db = createDb(env.DB);
+    const ski = await seedDepartment('スキー', 'ski');
+    const morning = await seedShiftType('午前', []);
+    const afternoon = await seedShiftType('午後', []);
+    const fullDay = await seedShiftType('終日', []);
+    await db.insert(departmentShiftTypes).values([
+      { departmentCode: ski, shiftTypeId: afternoon, sortOrder: 1 },
+      { departmentCode: ski, shiftTypeId: fullDay, sortOrder: 2 },
+    ]);
+    await seedShift('2026-01-10', ski, morning);
+    await seedShift('2026-01-10', ski, fullDay);
+    await seedShift('2026-01-10', ski, afternoon);
+    const token = await seedToken('MEMBER');
+
+    const res = await app.request(
+      '/api/shifts/agenda?cursor=2026-01-10&direction=future',
+      authHeader(token),
+      envWith({}),
+    );
+
+    expect(res.status).toBe(200);
+    const body = shiftAgendaResponseSchema.parse(await res.json());
+    expect(body.days[0]?.shifts.map((shift) => shift.shiftType.name)).toEqual([
+      '午後',
+      '終日',
+      '午前',
+    ]);
   });
 
   it('未来方向は起点日以降の稼働日のみを昇順で返し、休校日をスキップする', async () => {

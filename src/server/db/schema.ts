@@ -95,6 +95,24 @@ export const shiftTypes = sqliteTable(
   (t) => [index('idx_shift_types_active').on(t.isActive)],
 );
 
+/** 部門別シフト種別テーブル（部門ごとの可用性と表示順を管理） */
+export const departmentShiftTypes = sqliteTable(
+  'department_shift_types',
+  {
+    id: primaryId(),
+    departmentCode: text('department_code').notNull(),
+    shiftTypeId: text('shift_type_id')
+      .notNull()
+      .references(() => shiftTypes.id, { onDelete: 'cascade' }),
+    sortOrder: integer('sort_order').notNull(),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('idx_department_shift_types_unique').on(t.departmentCode, t.shiftTypeId),
+    index('idx_department_shift_types_department_code').on(t.departmentCode),
+  ],
+);
+
 /** シフトテーブル（シフト枠を管理） */
 export const shifts = sqliteTable(
   'shifts',

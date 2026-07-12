@@ -50,12 +50,16 @@ export function summarizeShifts(
 /**
  * シフト配列をアジェンダ表示用の稼働日単位にまとめる。
  * @param shifts - 整形済みシフト配列
- * @returns Shift が 1 件以上ある日だけを日付昇順で並べたアジェンダ日配列
+ * @returns Shift が 1 件以上ある日だけを入力順で並べたアジェンダ日配列
  */
 export function groupShiftsByWorkingDay(shifts: ShiftViewItem[]): ShiftAgendaDay[] {
-  const sorted = [...shifts].sort(compareShiftViewItems);
+  const sorted = [...shifts].sort(
+    (a, b) =>
+      a.date.localeCompare(b.date) || a.department.name.localeCompare(b.department.name, 'ja'),
+  );
   const days = new Map<string, ShiftViewItem[]>();
 
+  // API が部門別の可用種別順を確定しているため、日付以外は並べ替え直さず入力順を保つ。
   for (const shift of sorted) {
     const list = days.get(shift.date);
     if (list) {
@@ -107,12 +111,4 @@ export function filterAgendaDaysByInstructor(
       shifts: day.shifts.filter((shift) => containsInstructorAssignment(shift, instructorId)),
     }))
     .filter((day) => day.shifts.length > 0);
-}
-
-function compareShiftViewItems(a: ShiftViewItem, b: ShiftViewItem): number {
-  return (
-    a.date.localeCompare(b.date) ||
-    a.department.name.localeCompare(b.department.name, 'ja') ||
-    a.shiftType.name.localeCompare(b.shiftType.name, 'ja')
-  );
 }

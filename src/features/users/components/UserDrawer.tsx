@@ -246,7 +246,7 @@ function EditForm({ user, onClose }: EditFormProps) {
               ステータス
             </Text>
             <Text c="dimmed" size="xs">
-              {isActive ? 'アクティブ' : '無効'}
+              {isActive ? '有効' : '無効'}
             </Text>
           </div>
           <Switch checked={isActive} onChange={(e) => setIsActive(e.currentTarget.checked)} />

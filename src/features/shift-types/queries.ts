@@ -8,6 +8,7 @@ import {
   shiftTypeSchema,
   type CreateShiftTypeInput,
   type ShiftType,
+  type ShiftTypeListItem,
   type UpdateShiftTypeInput,
 } from './schema';
 
@@ -22,7 +23,7 @@ export const SHIFT_TYPES_QUERY_KEY = ['shift-types'] as const;
  * @param activeOnly - true（デフォルト）のときアクティブなシフト種別のみ返す
  */
 export function useShiftTypes(activeOnly = true) {
-  return useQuery<ShiftType[]>({
+  return useQuery<ShiftTypeListItem[]>({
     queryKey: [...SHIFT_TYPES_QUERY_KEY, { activeOnly }],
     queryFn: async () => {
       const res = await client.api['shift-types'].$get({
@@ -89,29 +90,6 @@ export function useUpdateShiftType(id: string) {
       if (!res.ok) {
         const body = apiErrorSchema.parse(await res.json());
         throw new Error(body.message ?? 'シフト種別の更新に失敗しました');
-      }
-      return shiftTypeSchema.parse(await res.json());
-    },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: SHIFT_TYPES_QUERY_KEY });
-    },
-  });
-}
-
-/**
- * シフト種別を無効化するミューテーション（論理削除）。
- * 成功後は一覧キャッシュを無効化する。
- */
-export function useDeactivateShiftType() {
-  const queryClient = useQueryClient();
-  return useMutation<ShiftType, Error, string>({
-    mutationFn: async (id) => {
-      const res = await client.api['shift-types'][':id'].deactivate.$post({
-        param: { id },
-      });
-      if (!res.ok) {
-        const body = apiErrorSchema.parse(await res.json());
-        throw new Error(body.message ?? 'シフト種別の無効化に失敗しました');
       }
       return shiftTypeSchema.parse(await res.json());
     },

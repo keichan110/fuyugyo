@@ -195,7 +195,7 @@ function EditForm({ detail, onClose }: EditFormProps) {
           {detail.isActive ? (
             <>
               <Group justify="space-between" mt="xs">
-                <Text size="sm">{isActive ? 'アクティブ' : '無効にする'}</Text>
+                <Text size="sm">{isActive ? '有効' : '無効にする'}</Text>
                 <Switch checked={isActive} onChange={(e) => setIsActive(e.currentTarget.checked)} />
               </Group>
               <Text c="dimmed" size="xs" mt={4}>

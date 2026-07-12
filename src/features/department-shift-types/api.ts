@@ -1,0 +1,208 @@
+import { and, asc, eq, inArray, max } from 'drizzle-orm';
+import { Hono } from 'hono';
+import { HTTPException } from 'hono/http-exception';
+import { validator } from 'hono/validator';
+
+import { departmentCodeSchema } from '@/features/departments/schema';
+import { createDb } from '@/server/db/client';
+import { departmentShiftTypes, shiftTypes } from '@/server/db/schema';
+import { requireAuth, requireRole, type AuthVariables } from '@/server/middleware/auth';
+import type { Env } from '@/server/types';
+
+import {
+  assignDepartmentShiftTypeSchema,
+  createDepartmentShiftTypeSchema,
+  departmentShiftTypeUpdateSchema,
+} from './schema';
+
+function validateDepartmentCode(value: string): ReturnType<typeof departmentCodeSchema.parse> {
+  const parsed = departmentCodeSchema.safeParse(value);
+  if (!parsed.success) {
+    throw new HTTPException(400, { message: 'Invalid department code' });
+  }
+  return parsed.data;
+}
+
+function selectDepartmentShiftTypes(
+  db: ReturnType<typeof createDb>,
+  departmentCode: ReturnType<typeof departmentCodeSchema.parse>,
+) {
+  return db
+    .select({
+      shiftTypeId: departmentShiftTypes.shiftTypeId,
+      name: shiftTypes.name,
+      isActive: shiftTypes.isActive,
+      sortOrder: departmentShiftTypes.sortOrder,
+    })
+    .from(departmentShiftTypes)
+    .innerJoin(shiftTypes, eq(departmentShiftTypes.shiftTypeId, shiftTypes.id))
+    .where(eq(departmentShiftTypes.departmentCode, departmentCode))
+    .orderBy(asc(departmentShiftTypes.sortOrder));
+}
+
+/** 部門別シフト種別の取得・作成と割り当て・一括更新ルート。 */
+export const departmentShiftTypesRoute = new Hono<{
+  Bindings: Env;
+  Variables: AuthVariables;
+}>()
+  .get('/:departmentCode', requireAuth, async (c) => {
+    const departmentCode = validateDepartmentCode(c.req.param('departmentCode'));
+    const db = createDb(c.env.DB);
+    const rows = await selectDepartmentShiftTypes(db, departmentCode);
+
+    return c.json(rows);
+  })
+  .post(
+    '/:departmentCode',
+    requireAuth,
+    requireRole('ADMIN'),
+    validator('json', (value, c) => {
+      const parsed = createDepartmentShiftTypeSchema.safeParse(value);
+      if (!parsed.success) {
+        return c.json({ message: parsed.error.message }, 400);
+      }
+      return parsed.data;
+    }),
+    async (c) => {
+      const departmentCode = validateDepartmentCode(c.req.param('departmentCode'));
+      const input = c.req.valid('json');
+      const db = createDb(c.env.DB);
+      const shiftTypeId = crypto.randomUUID();
+
+      // 新しい種別を選択部門の末尾へ配置し、作成だけが残らないよう2レコードを一括保存する
+      const [sortOrderRow] = await db
+        .select({ lastSortOrder: max(departmentShiftTypes.sortOrder) })
+        .from(departmentShiftTypes)
+        .where(eq(departmentShiftTypes.departmentCode, departmentCode));
+      const lastSortOrder = sortOrderRow?.lastSortOrder ?? 0;
+
+      await db.batch([
+        db.insert(shiftTypes).values({ id: shiftTypeId, name: input.name }),
+        db.insert(departmentShiftTypes).values({
+          departmentCode,
+          shiftTypeId,
+          sortOrder: lastSortOrder + 1,
+        }),
+      ]);
+
+      return c.json(await selectDepartmentShiftTypes(db, departmentCode), 201);
+    },
+  )
+  .post(
+    '/:departmentCode/assignments',
+    requireAuth,
+    requireRole('ADMIN'),
+    validator('json', (value, c) => {
+      const parsed = assignDepartmentShiftTypeSchema.safeParse(value);
+      if (!parsed.success) {
+        return c.json({ message: parsed.error.message }, 400);
+      }
+      return parsed.data;
+    }),
+    async (c) => {
+      const departmentCode = validateDepartmentCode(c.req.param('departmentCode'));
+      const { shiftTypeId } = c.req.valid('json');
+      const db = createDb(c.env.DB);
+      const [shiftType] = await db
+        .select({ isActive: shiftTypes.isActive })
+        .from(shiftTypes)
+        .where(eq(shiftTypes.id, shiftTypeId));
+      if (!shiftType) {
+        throw new HTTPException(400, { message: 'Unknown shift type ID' });
+      }
+      if (!shiftType.isActive) {
+        throw new HTTPException(400, { message: 'Inactive shift type cannot be assigned' });
+      }
+
+      const [sortOrderRow] = await db
+        .select({ lastSortOrder: max(departmentShiftTypes.sortOrder) })
+        .from(departmentShiftTypes)
+        .where(eq(departmentShiftTypes.departmentCode, departmentCode));
+      const lastSortOrder = sortOrderRow?.lastSortOrder ?? 0;
+      // 重複リクエストでは既存の関連を維持して同じ結果を返し、追加操作を冪等にする
+      await db
+        .insert(departmentShiftTypes)
+        .values({ departmentCode, shiftTypeId, sortOrder: lastSortOrder + 1 })
+        .onConflictDoNothing();
+
+      return c.json(await selectDepartmentShiftTypes(db, departmentCode));
+    },
+  )
+  .delete(
+    '/:departmentCode/assignments/:shiftTypeId',
+    requireAuth,
+    requireRole('ADMIN'),
+    async (c) => {
+      const departmentCode = validateDepartmentCode(c.req.param('departmentCode'));
+      const shiftTypeId = c.req.param('shiftTypeId');
+      const db = createDb(c.env.DB);
+      await db
+        .delete(departmentShiftTypes)
+        .where(
+          and(
+            eq(departmentShiftTypes.departmentCode, departmentCode),
+            eq(departmentShiftTypes.shiftTypeId, shiftTypeId),
+          ),
+        );
+
+      return c.json(await selectDepartmentShiftTypes(db, departmentCode));
+    },
+  )
+  .put(
+    '/:departmentCode',
+    requireAuth,
+    requireRole('ADMIN'),
+    validator('json', (value, c) => {
+      const parsed = departmentShiftTypeUpdateSchema.safeParse(value);
+      if (!parsed.success) {
+        return c.json({ message: parsed.error.message }, 400);
+      }
+      return parsed.data;
+    }),
+    async (c) => {
+      const departmentCode = validateDepartmentCode(c.req.param('departmentCode'));
+      const { shiftTypeIds } = c.req.valid('json');
+      const db = createDb(c.env.DB);
+
+      if (shiftTypeIds.length > 0) {
+        const existing = await db
+          .select({ id: shiftTypes.id })
+          .from(shiftTypes)
+          .where(inArray(shiftTypes.id, shiftTypeIds));
+        if (existing.length !== shiftTypeIds.length) {
+          throw new HTTPException(400, { message: 'Unknown shift type ID' });
+        }
+      }
+
+      const currentAssignments = await db
+        .select({ shiftTypeId: departmentShiftTypes.shiftTypeId })
+        .from(departmentShiftTypes)
+        .where(eq(departmentShiftTypes.departmentCode, departmentCode));
+      const currentShiftTypeIds = new Set(
+        currentAssignments.map((assignment) => assignment.shiftTypeId),
+      );
+      // 一括更新は並べ替え専用とし、割当集合の変更は個別の追加・除外APIへ委ねる
+      if (
+        currentShiftTypeIds.size !== shiftTypeIds.length ||
+        shiftTypeIds.some((shiftTypeId) => !currentShiftTypeIds.has(shiftTypeId))
+      ) {
+        throw new HTTPException(400, { message: 'Shift type IDs must match current assignments' });
+      }
+
+      const removeCurrent = db
+        .delete(departmentShiftTypes)
+        .where(eq(departmentShiftTypes.departmentCode, departmentCode));
+      const additions = shiftTypeIds.map((shiftTypeId, index) =>
+        db.insert(departmentShiftTypes).values({
+          departmentCode,
+          shiftTypeId,
+          sortOrder: index + 1,
+        }),
+      );
+      await db.batch([removeCurrent, ...additions]);
+
+      const rows = await selectDepartmentShiftTypes(db, departmentCode);
+
+      return c.json(rows);
+    },
+  );

@@ -22,6 +22,13 @@
       "when": 1783743016028,
       "tag": "0002_odd_cargill",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1783818533168,
+      "tag": "0003_far_wolf_cub",
+      "breakpoints": true
     }
   ]
 }

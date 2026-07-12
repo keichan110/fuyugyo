@@ -78,7 +78,7 @@ export function ShiftManager() {
   // 月次ビューと編集パネルの候補で見た Instructor を蓄積する。
   const [nameById, setNameById] = useState<Map<string, string>>(new Map());
 
-  const formData = useShiftCreationContext();
+  const formData = useShiftCreationContext(departmentCode);
   const monthly = useShiftCalendar(month);
   const upsertMonthly = useUpsertAssignments();
   const me = useMe();

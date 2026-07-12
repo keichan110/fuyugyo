@@ -152,9 +152,7 @@ function UserRow({ user, onEdit }: UserRowProps) {
         )}
       </Table.Td>
       <Table.Td>
-        <AppBadge kind={isActive ? 'active' : 'inactive'}>
-          {isActive ? '有効' : '無効'}
-        </AppBadge>
+        <AppBadge kind={isActive ? 'active' : 'inactive'}>{isActive ? '有効' : '無効'}</AppBadge>
       </Table.Td>
       <Table.Td onClick={(e) => e.stopPropagation()}>
         <Menu position="bottom-end">

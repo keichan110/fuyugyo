@@ -219,9 +219,7 @@ function InstructorRow({ instructor, onEdit }: InstructorRowProps) {
         )}
       </Table.Td>
       <Table.Td>
-        <AppBadge kind={isActive ? 'active' : 'inactive'}>
-          {isActive ? '有効' : '無効'}
-        </AppBadge>
+        <AppBadge kind={isActive ? 'active' : 'inactive'}>{isActive ? '有効' : '無効'}</AppBadge>
       </Table.Td>
       <Table.Td>
         {instructor.notes && (

@@ -4,7 +4,7 @@ import { HTTPException } from 'hono/http-exception';
 import { validator } from 'hono/validator';
 
 import { createDb } from '@/server/db/client';
-import { shiftTypes } from '@/server/db/schema';
+import { departmentShiftTypes, shiftTypes } from '@/server/db/schema';
 import { requireAuth, requireRole, type AuthVariables } from '@/server/middleware/auth';
 import type { Env } from '@/server/types';
 
@@ -25,11 +25,29 @@ export const shiftTypesRoute = new Hono<{
     const db = createDb(c.env.DB);
     const activeOnly = c.req.query('active') !== 'false';
 
-    const rows = activeOnly
+    const shiftTypeRows = activeOnly
       ? await db.select().from(shiftTypes).where(eq(shiftTypes.isActive, true))
       : await db.select().from(shiftTypes);
+    const availabilityRows = await db
+      .select({
+        shiftTypeId: departmentShiftTypes.shiftTypeId,
+        departmentCode: departmentShiftTypes.departmentCode,
+      })
+      .from(departmentShiftTypes);
 
-    return c.json(rows);
+    const availableDepartmentCodesByShiftTypeId = new Map<string, string[]>();
+    for (const { shiftTypeId, departmentCode } of availabilityRows) {
+      const codes = availableDepartmentCodesByShiftTypeId.get(shiftTypeId) ?? [];
+      codes.push(departmentCode);
+      availableDepartmentCodesByShiftTypeId.set(shiftTypeId, codes);
+    }
+
+    return c.json(
+      shiftTypeRows.map((shiftType) => ({
+        ...shiftType,
+        availableDepartmentCodes: availableDepartmentCodesByShiftTypeId.get(shiftType.id) ?? [],
+      })),
+    );
   })
   /** シフト種別を1件取得する */
   .get('/:id', requireAuth, async (c) => {

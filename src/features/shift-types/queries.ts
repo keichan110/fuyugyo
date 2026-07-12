@@ -8,6 +8,7 @@ import {
   shiftTypeSchema,
   type CreateShiftTypeInput,
   type ShiftType,
+  type ShiftTypeListItem,
   type UpdateShiftTypeInput,
 } from './schema';
 
@@ -22,7 +23,7 @@ export const SHIFT_TYPES_QUERY_KEY = ['shift-types'] as const;
  * @param activeOnly - true（デフォルト）のときアクティブなシフト種別のみ返す
  */
 export function useShiftTypes(activeOnly = true) {
-  return useQuery<ShiftType[]>({
+  return useQuery<ShiftTypeListItem[]>({
     queryKey: [...SHIFT_TYPES_QUERY_KEY, { activeOnly }],
     queryFn: async () => {
       const res = await client.api['shift-types'].$get({

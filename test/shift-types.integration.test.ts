@@ -5,7 +5,7 @@ import { shiftTypeListSchema, shiftTypeSchema } from '../src/features/shift-type
 import app from '../src/index';
 import { signJwt } from '../src/server/auth/jwt';
 import { createDb } from '../src/server/db/client';
-import { shiftTypes, users } from '../src/server/db/schema';
+import { departmentShiftTypes, shiftTypes, users } from '../src/server/db/schema';
 import type { Env } from '../src/server/types';
 
 /**
@@ -116,6 +116,38 @@ describe('GET /api/shift-types', () => {
     const body = shiftTypeListSchema.parse(await res.json());
     // デフォルトはアクティブのみ
     expect(body).toHaveLength(2);
+  });
+
+  it('各種別の可用部門コード集合を返す', async () => {
+    const db = createDb(env.DB);
+    const [allDepartments, unused] = await db
+      .insert(shiftTypes)
+      .values([
+        { name: '終日', isActive: true },
+        { name: '夜間', isActive: true },
+      ])
+      .returning();
+    if (!allDepartments || !unused) throw new Error('insert failed');
+
+    await db.insert(departmentShiftTypes).values([
+      { departmentCode: 'ski', shiftTypeId: allDepartments.id, sortOrder: 0 },
+      { departmentCode: 'snowboard', shiftTypeId: allDepartments.id, sortOrder: 0 },
+    ]);
+
+    const token = await seedManagerToken();
+    const res = await app.request('/api/shift-types', authHeader(token), envWith({}));
+
+    expect(res.status).toBe(200);
+    const body = shiftTypeListSchema.parse(await res.json());
+    expect(body).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: allDepartments.id,
+          availableDepartmentCodes: ['ski', 'snowboard'],
+        }),
+        expect.objectContaining({ id: unused.id, availableDepartmentCodes: [] }),
+      ]),
+    );
   });
 
   it('active=false でアクティブ・非アクティブ両方を返す', async () => {

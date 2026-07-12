@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 
-import { Button, Menu, Stack, Table, Text } from '@mantine/core';
+import { Button, Group, Menu, Stack, Table, Text } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { IconClock, IconPlus } from '@tabler/icons-react';
 
@@ -16,9 +16,10 @@ import { SearchInput } from '@/components/SearchInput';
 import type { ActiveStatusFilter } from '@/components/status-filter';
 import { StatusFilterControl } from '@/components/StatusFilterControl';
 import { TableRowsSkeleton } from '@/components/TableRowsSkeleton';
+import { DepartmentTag } from '@/features/departments/DepartmentTag';
 
 import { useDeactivateShiftType, useShiftTypes } from '../queries';
-import type { ShiftType } from '../schema';
+import type { ShiftTypeListItem } from '../schema';
 import { ShiftTypeDrawer, type ShiftTypeDrawerState } from './ShiftTypeDrawer';
 
 /**
@@ -102,6 +103,7 @@ export function ShiftTypeList() {
           <Table.Thead>
             <Table.Tr>
               <Table.Th>種別名</Table.Th>
+              <Table.Th>可用部門</Table.Th>
               <Table.Th w={120}>状態</Table.Th>
               <Table.Th w={56} />
             </Table.Tr>
@@ -124,7 +126,7 @@ export function ShiftTypeList() {
 }
 
 type ShiftTypeRowProps = {
-  shiftType: ShiftType;
+  shiftType: ShiftTypeListItem;
   onEdit: () => void;
 };
 
@@ -150,6 +152,17 @@ function ShiftTypeRow({ shiftType, onEdit }: ShiftTypeRowProps) {
         <Text fw={500} size="sm">
           {shiftType.name}
         </Text>
+      </Table.Td>
+      <Table.Td>
+        {shiftType.availableDepartmentCodes.length === 0 ? (
+          <AppBadge kind="inactive">未使用</AppBadge>
+        ) : (
+          <Group gap="xs">
+            {shiftType.availableDepartmentCodes.map((departmentCode) => (
+              <DepartmentTag key={departmentCode} code={departmentCode} />
+            ))}
+          </Group>
+        )}
       </Table.Td>
       <Table.Td>
         <AppBadge kind={isActive ? 'active' : 'inactive'}>

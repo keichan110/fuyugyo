@@ -54,7 +54,6 @@ export function InstructorList() {
   );
   const isLoading = activeData.isLoading || inactiveData.isLoading;
   const isError = activeData.isError || inactiveData.isError;
-  const activeCount = allInstructors.filter((i) => i.status === 'ACTIVE').length;
 
   const visibleInstructors = useMemo(() => {
     const query = search.trim();
@@ -70,10 +69,7 @@ export function InstructorList() {
     <Stack gap="md">
       <ListHeader
         title="インストラクター管理"
-        total={allInstructors.length}
-        active={activeCount}
-        unit="名"
-        activeLabel="有効"
+        summary={{ count: visibleInstructors.length, unit: '名' }}
         isLoading={isLoading}
         action={
           <Button

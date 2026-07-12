@@ -17,7 +17,7 @@ export function ShiftTypeSettings() {
 
   return (
     <Stack gap="lg">
-      <ListHeader title="シフト種別設定" unit="件" />
+      <ListHeader title="シフト種別設定" />
       <Grid gap="lg">
         <Grid.Col span={{ base: 12, md: 6 }}>
           <Paper withBorder p="md">

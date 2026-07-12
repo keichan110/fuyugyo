@@ -37,7 +37,6 @@ export function ShiftTypeList({ renderRowAction, rowActionHeader }: ShiftTypeLis
   const { data, isLoading, isError } = useShiftTypes(false);
 
   const allShiftTypes = useMemo(() => data ?? [], [data]);
-  const activeCount = allShiftTypes.filter((s) => s.isActive).length;
 
   const visibleShiftTypes = useMemo(() => {
     const query = search.trim();
@@ -52,10 +51,7 @@ export function ShiftTypeList({ renderRowAction, rowActionHeader }: ShiftTypeLis
     <Stack gap="md">
       <ListHeader
         title="シフト種別マスタ"
-        total={allShiftTypes.length}
-        active={activeCount}
-        unit="件"
-        activeLabel="有効"
+        summary={{ count: visibleShiftTypes.length, unit: '件' }}
         isLoading={isLoading}
         action={
           <Button

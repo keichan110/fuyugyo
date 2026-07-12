@@ -34,7 +34,6 @@ export function CertificationList() {
   const { data, isLoading, isError } = useCertifications(false);
 
   const certifications = useMemo(() => data ?? [], [data]);
-  const activeCount = certifications.filter((c) => c.isActive).length;
 
   const visibleCertifications = useMemo(() => {
     const query = search.trim();
@@ -50,10 +49,7 @@ export function CertificationList() {
     <Stack gap="md">
       <ListHeader
         title="資格管理"
-        total={certifications.length}
-        active={activeCount}
-        unit="件"
-        activeLabel="有効"
+        summary={{ count: visibleCertifications.length, unit: '件' }}
         isLoading={isLoading}
         action={
           <Button

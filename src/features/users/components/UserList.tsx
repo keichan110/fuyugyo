@@ -33,7 +33,6 @@ export function UserList() {
 
   const { data, isLoading, isError } = useUsers();
   const allUsers = useMemo(() => data ?? [], [data]);
-  const activeCount = allUsers.filter((u) => u.isActive).length;
 
   const visibleUsers = useMemo(() => {
     const query = search.trim();
@@ -48,10 +47,7 @@ export function UserList() {
     <Stack gap="md">
       <ListHeader
         title="ユーザー管理"
-        total={allUsers.length}
-        active={activeCount}
-        unit="名"
-        activeLabel="有効"
+        summary={{ count: visibleUsers.length, unit: '名' }}
         isLoading={isLoading}
       />
 

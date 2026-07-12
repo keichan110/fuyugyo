@@ -1004,10 +1004,17 @@ components:
   schemas:
     HealthStatus:
       type: object
+      required:
+        - status
+        - timestamp
       properties:
         status:
           type: string
+          enum: [ok]
           example: ok
+        timestamp:
+          type: string
+          format: date-time
 
     ApiErrorEnvelope:
       type: object

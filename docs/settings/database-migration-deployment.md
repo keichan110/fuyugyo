@@ -9,9 +9,9 @@
 3. Worker secret の反映
 4. `wrangler d1 migrations apply fuyugyo --remote`
 5. `wrangler deploy`
-6. D1 の既存テーブルと新規 junction テーブルへのクエリを含む `/api/health` の確認
+6. D1 にアクセスしない `/api/health` による Worker の応答確認
 
-build が失敗した場合は本番 DB を変更しない。migration が失敗した場合は Worker をデプロイしない。Wrangler は migration の適用前に D1 バックアップを取得し、失敗した migration をロールバックする。deploy が失敗した場合は、additive な DB 変更だけが残り、稼働中の旧 Worker はそのまま動作する。
+build が失敗した場合は本番 DB を変更しない。migration が失敗した場合は Worker をデプロイしない。Wrangler は migration の適用前に D1 バックアップを取得し、失敗した migration をロールバックする。deploy が失敗した場合は、additive な DB 変更だけが残り、稼働中の旧 Worker はそのまま動作する。公開 health endpoint は攻撃者による D1 リクエストの増幅を避けるため、DB readiness を確認しない。スキーマ適用の成否は migration コマンドの終了コードで判定する。
 
 同時デプロイは GitHub Actions の `deploy-production` concurrency group で直列化する。
 

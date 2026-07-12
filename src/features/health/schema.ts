@@ -5,10 +5,8 @@ import { z } from 'zod';
  * サーバー（`api.ts`）の出力検証とクライアント表示で共有する isomorphic スキーマ。
  */
 export const healthResponseSchema = z.object({
-  /** 常に "ok"。D1 まで疎通できた場合のみ返る */
+  /** 常に "ok"。Worker が応答できた場合のみ返る */
   status: z.literal('ok'),
-  /** D1 から取得したシフト数（接続確認用） */
-  shiftCount: z.number().int().nonnegative(),
   /** サーバー時刻（ISO 8601） */
   timestamp: z.string(),
 });

@@ -140,6 +140,9 @@ function SettingsMenu({ isAdmin }: { isAdmin: boolean }) {
         <Menu.Item component={Link} to="/shift-types">
           シフト種別
         </Menu.Item>
+        <Menu.Item component={Link} to="/department-shift-types">
+          部門別シフト種別
+        </Menu.Item>
         <Menu.Item component={Link} to="/instructors">
           インストラクター
         </Menu.Item>
@@ -164,6 +167,7 @@ function SettingsMenu({ isAdmin }: { isAdmin: boolean }) {
 const SETTINGS_PATHS = new Set([
   '/certifications',
   '/shift-types',
+  '/department-shift-types',
   '/instructors',
   '/users',
   '/invitations',

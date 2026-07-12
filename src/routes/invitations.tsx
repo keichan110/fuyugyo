@@ -1,7 +1,8 @@
+import { Container } from '@mantine/core';
 import { createFileRoute, redirect } from '@tanstack/react-router';
 
 import { ensureAuthenticated } from '@/features/auth/auth-guard';
-import { InvitationList } from '@/features/invitations/components/InvitationList';
+import { InvitationManager } from '@/features/invitations/components/InvitationManager';
 
 export const Route = createFileRoute('/invitations')({
   beforeLoad: async ({ context }) => {
@@ -19,8 +20,8 @@ export const Route = createFileRoute('/invitations')({
 
 function InvitationsPage() {
   return (
-    <main className="mx-auto max-w-2xl p-6">
-      <InvitationList />
-    </main>
+    <Container size="sm" py="md">
+      <InvitationManager />
+    </Container>
   );
 }

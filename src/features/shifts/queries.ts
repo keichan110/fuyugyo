@@ -1,20 +1,23 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 
 import { client } from '@/lib/rpc';
 
 import {
+  shiftAgendaResponseSchema,
   shiftEditDataSchema,
   shiftFormDataSchema,
   shiftListSchema,
   shiftViewResponseSchema,
-  shiftWithAssignmentsSchema,
-  type CreateShiftInput,
+  upsertMonthlyAssignmentsResultSchema,
+  type ShiftAgendaDirection,
+  type ShiftAgendaResponse,
   type ShiftEditData,
   type ShiftFormData,
+  type ShiftListItem,
   type ShiftViewResponse,
-  type ShiftWithAssignments,
-  type UpdateShiftInput,
+  type UpsertMonthlyAssignmentsInput,
+  type UpsertMonthlyAssignmentsResult,
 } from './schema';
 
 /** API エラーレスポンスのスキーマ（型アサーションを避けるためランタイム検証する） */
@@ -23,19 +26,34 @@ const apiErrorSchema = z.object({ message: z.string().optional() });
 /** Shift 関連クエリキー */
 export const SHIFTS_QUERY_KEY = ['shifts'] as const;
 
-/** edit-data 取得パラメータ */
+/** アジェンダ取得パラメータ */
+export type ShiftAgendaParams = {
+  cursor: string;
+  direction: ShiftAgendaDirection;
+  limit?: number;
+  departmentCode?: string;
+};
+
+/** assignment-editor 取得パラメータ */
 export type ShiftEditDataParams = {
   date: string;
-  departmentId: string;
+  departmentCode: string;
   shiftTypeId: string;
 };
 
 /**
  * シフト一覧を取得する。
- * @param params - `dateFrom`/`dateTo`（YYYY-MM-DD）で期間を絞り込める
+ * @param params - `dateFrom`/`dateTo`（YYYY-MM-DD）で期間を、`instructorId` で
+ * その Instructor が割り当てられたシフトのみに絞り込める。`limit` は返却件数の
+ * 上限（サーバー既定100・上限200）で、無指定の全件取得を避けたいときに指定する
  */
-export function useShifts(params?: { dateFrom?: string; dateTo?: string }) {
-  return useQuery<ShiftWithAssignments[]>({
+export function useShifts(params?: {
+  dateFrom?: string;
+  dateTo?: string;
+  instructorId?: string;
+  limit?: number;
+}) {
+  return useQuery<ShiftListItem[]>({
     queryKey: [...SHIFTS_QUERY_KEY, 'list', params ?? {}],
     queryFn: async () => {
       const query: Record<string, string> = {};
@@ -44,6 +62,12 @@ export function useShifts(params?: { dateFrom?: string; dateTo?: string }) {
       }
       if (params?.dateTo) {
         query['dateTo'] = params.dateTo;
+      }
+      if (params?.instructorId) {
+        query['instructorId'] = params.instructorId;
+      }
+      if (params?.limit) {
+        query['limit'] = String(params.limit);
       }
 
       const res = await client.api.shifts.$get({ query });
@@ -56,58 +80,19 @@ export function useShifts(params?: { dateFrom?: string; dateTo?: string }) {
 }
 
 /**
- * シフトを1件取得する（割り当て済み Instructor ID 付き）。
- * @param id - 対象シフトの ID
- */
-export function useShift(id: string) {
-  return useQuery<ShiftWithAssignments>({
-    queryKey: [...SHIFTS_QUERY_KEY, id],
-    queryFn: async () => {
-      const res = await client.api.shifts[':id'].$get({ param: { id } });
-      if (!res.ok) {
-        throw new Error('シフトの取得に失敗しました');
-      }
-      return shiftWithAssignmentsSchema.parse(await res.json());
-    },
-    enabled: !!id,
-  });
-}
-
-/**
- * 週次ビューを取得する（開始日から7日間のシフト + 集計）。
- * @param dateFrom - 週の開始日（YYYY-MM-DD）。未指定なら取得を行わない
- */
-export function useWeeklyView(dateFrom: string | undefined) {
-  return useQuery<ShiftViewResponse>({
-    queryKey: [...SHIFTS_QUERY_KEY, 'weekly-view', dateFrom],
-    queryFn: async () => {
-      const res = await client.api.shifts['weekly-view'].$get({
-        query: { dateFrom: dateFrom ?? '' },
-      });
-      if (!res.ok) {
-        const body = apiErrorSchema.parse(await res.json());
-        throw new Error(body.message ?? '週次ビューの取得に失敗しました');
-      }
-      return shiftViewResponseSchema.parse(await res.json());
-    },
-    enabled: !!dateFrom,
-  });
-}
-
-/**
- * 月次ビューを取得する（指定月の全シフト + 集計）。
+ * 月次カレンダーを取得する（指定月の全シフト + 集計）。
  * @param month - 対象月（YYYY-MM）。未指定なら取得を行わない
  */
-export function useMonthlyView(month: string | undefined) {
+export function useShiftCalendar(month: string | undefined) {
   return useQuery<ShiftViewResponse>({
-    queryKey: [...SHIFTS_QUERY_KEY, 'monthly-view', month],
+    queryKey: [...SHIFTS_QUERY_KEY, 'calendar', month],
     queryFn: async () => {
-      const res = await client.api.shifts['monthly-view'].$get({
+      const res = await client.api.shifts.calendar.$get({
         query: { month: month ?? '' },
       });
       if (!res.ok) {
         const body = apiErrorSchema.parse(await res.json());
-        throw new Error(body.message ?? '月次ビューの取得に失敗しました');
+        throw new Error(body.message ?? '月次カレンダーの取得に失敗しました');
       }
       return shiftViewResponseSchema.parse(await res.json());
     },
@@ -116,15 +101,61 @@ export function useMonthlyView(month: string | undefined) {
 }
 
 /**
+ * アジェンダを1ページ取得する。
+ * @param params - 起点日・方向・取得する稼働日数・任意の部門コード
+ */
+export async function fetchShiftAgendaPage(
+  params: ShiftAgendaParams,
+): Promise<ShiftAgendaResponse> {
+  const query: Record<string, string> = {
+    cursor: params.cursor,
+    direction: params.direction,
+  };
+  if (params.limit) {
+    query['limit'] = String(params.limit);
+  }
+  if (params.departmentCode) {
+    query['departmentCode'] = params.departmentCode;
+  }
+
+  const res = await client.api.shifts.agenda.$get({ query });
+  if (!res.ok) {
+    const body = apiErrorSchema.parse(await res.json());
+    throw new Error(body.message ?? 'アジェンダの取得に失敗しました');
+  }
+  return shiftAgendaResponseSchema.parse(await res.json());
+}
+
+/**
+ * 未来方向のアジェンダを続読する Infinite Query。
+ * @param cursor - 初回ページの起点日（YYYY-MM-DD）
+ * @param departmentCode - 任意の部門コード。指定時はその部門の稼働日だけを取得する
+ */
+export function useShiftAgendaFuture(cursor: string, departmentCode?: string) {
+  return useInfiniteQuery<ShiftAgendaResponse>({
+    queryKey: [...SHIFTS_QUERY_KEY, 'agenda', 'future', cursor, departmentCode ?? 'all'],
+    queryFn: ({ pageParam }) =>
+      fetchShiftAgendaPage({
+        cursor: typeof pageParam === 'string' ? pageParam : cursor,
+        direction: 'future',
+        limit: 14,
+        ...(departmentCode ? { departmentCode } : {}),
+      }),
+    initialPageParam: cursor,
+    getNextPageParam: (lastPage) => lastPage.pageInfo.nextCursor ?? undefined,
+  });
+}
+
+/**
  * シフト作成フォームの集約データを取得する（部門・シフト種別・統計）。
  */
-export function useShiftFormData() {
+export function useShiftCreationContext() {
   return useQuery<ShiftFormData>({
-    queryKey: [...SHIFTS_QUERY_KEY, 'form-data'],
+    queryKey: [...SHIFTS_QUERY_KEY, 'creation-context'],
     queryFn: async () => {
-      const res = await client.api.shifts['form-data'].$get();
+      const res = await client.api.shifts['creation-context'].$get();
       if (!res.ok) {
-        throw new Error('シフトフォームデータの取得に失敗しました');
+        throw new Error('シフト作成データの取得に失敗しました');
       }
       return shiftFormDataSchema.parse(await res.json());
     },
@@ -133,17 +164,17 @@ export function useShiftFormData() {
 
 /**
  * シフト編集フォームの集約データを取得する（既存シフト・割り当て候補・競合）。
- * @param params - date / departmentId / shiftTypeId（全て揃ったときのみ取得）
+ * @param params - date / departmentCode / shiftTypeId（全て揃ったときのみ取得）
  */
-export function useShiftEditData(params: Partial<ShiftEditDataParams>) {
-  const enabled = !!(params.date && params.departmentId && params.shiftTypeId);
+export function useShiftAssignmentEditor(params: Partial<ShiftEditDataParams>) {
+  const enabled = !!(params.date && params.departmentCode && params.shiftTypeId);
   return useQuery<ShiftEditData>({
-    queryKey: [...SHIFTS_QUERY_KEY, 'edit-data', params],
+    queryKey: [...SHIFTS_QUERY_KEY, 'assignment-editor', params],
     queryFn: async () => {
-      const res = await client.api.shifts['edit-data'].$get({
+      const res = await client.api.shifts['assignment-editor'].$get({
         query: {
           date: params.date ?? '',
-          departmentId: params.departmentId ?? '',
+          departmentCode: params.departmentCode ?? '',
           shiftTypeId: params.shiftTypeId ?? '',
         },
       });
@@ -158,67 +189,24 @@ export function useShiftEditData(params: Partial<ShiftEditDataParams>) {
 }
 
 /**
- * シフトを作成するミューテーション（本体 + 割り当てを原子的に作成）。
- * 成功後はシフト関連キャッシュを無効化する。
+ * (month × 部門) の割り当てを月次まとめて upsert するミューテーション。
+ * cells には変更のあったセルのみを含める。
  */
-export function useCreateShift() {
+export function useUpsertAssignments() {
   const queryClient = useQueryClient();
-  return useMutation<ShiftWithAssignments, Error, CreateShiftInput>({
+  return useMutation<UpsertMonthlyAssignmentsResult, Error, UpsertMonthlyAssignmentsInput>({
     mutationFn: async (input) => {
-      const res = await client.api.shifts.$post({ json: input });
+      const res = await client.api.shifts.assignments.$put({ json: input });
       if (!res.ok) {
         const body = apiErrorSchema.parse(await res.json());
-        throw new Error(body.message ?? 'シフトの作成に失敗しました');
+        throw new Error(body.message ?? '月次割り当ての保存に失敗しました');
       }
-      return shiftWithAssignmentsSchema.parse(await res.json());
+      return upsertMonthlyAssignmentsResultSchema.parse(await res.json());
     },
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: SHIFTS_QUERY_KEY });
-    },
-  });
-}
-
-/**
- * シフトを更新するミューテーション（説明・割り当ての総入れ替え）。
- * 成功後はシフト関連キャッシュを無効化する。
- * @param id - 対象シフトの ID
- */
-export function useUpdateShift(id: string) {
-  const queryClient = useQueryClient();
-  return useMutation<ShiftWithAssignments, Error, UpdateShiftInput>({
-    mutationFn: async (input) => {
-      const res = await client.api.shifts[':id'].$patch({
-        param: { id },
-        json: input,
-      });
-      if (!res.ok) {
-        const body = apiErrorSchema.parse(await res.json());
-        throw new Error(body.message ?? 'シフトの更新に失敗しました');
-      }
-      return shiftWithAssignmentsSchema.parse(await res.json());
-    },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: SHIFTS_QUERY_KEY });
-    },
-  });
-}
-
-/**
- * シフトを削除するミューテーション。
- * 成功後はシフト関連キャッシュを無効化する。
- */
-export function useDeleteShift() {
-  const queryClient = useQueryClient();
-  return useMutation<void, Error, string>({
-    mutationFn: async (id) => {
-      const res = await client.api.shifts[':id'].$delete({ param: { id } });
-      if (!res.ok) {
-        const body = apiErrorSchema.parse(await res.json());
-        throw new Error(body.message ?? 'シフトの削除に失敗しました');
-      }
-    },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: SHIFTS_QUERY_KEY });
+      void queryClient.invalidateQueries({ queryKey: [...SHIFTS_QUERY_KEY, 'calendar'] });
+      void queryClient.invalidateQueries({ queryKey: [...SHIFTS_QUERY_KEY, 'assignment-editor'] });
+      void queryClient.invalidateQueries({ queryKey: [...SHIFTS_QUERY_KEY, 'list'] });
     },
   });
 }

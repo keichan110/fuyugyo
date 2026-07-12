@@ -8,7 +8,7 @@ import {
 import app from '../src/index';
 import { signJwt } from '../src/server/auth/jwt';
 import { createDb } from '../src/server/db/client';
-import { certifications, departments, users } from '../src/server/db/schema';
+import { certifications, users } from '../src/server/db/schema';
 import type { Env } from '../src/server/types';
 
 /**
@@ -85,22 +85,15 @@ async function seedMemberToken(): Promise<string> {
   );
 }
 
-/** seed: Department を1件作成してその ID を返す */
+/** seed: Department コードを返す */
 async function seedDepartment(): Promise<string> {
-  const db = createDb(env.DB);
-  const [dept] = await db
-    .insert(departments)
-    .values({ code: `dept-${crypto.randomUUID()}`, name: 'スキー' })
-    .returning();
-  if (!dept) throw new Error('seedDepartment: insert failed');
-  return dept.id;
+  return 'ski';
 }
 
 beforeEach(async () => {
   // 各テストを独立させるためデータを全削除する（外部キー依存順に削除）
   const db = createDb(env.DB);
   await db.delete(certifications);
-  await db.delete(departments);
   await db.delete(users);
 });
 
@@ -121,16 +114,16 @@ describe('GET /api/certifications', () => {
 
   it('作成済み資格を一覧で返す', async () => {
     const db = createDb(env.DB);
-    const departmentId = await seedDepartment();
+    const departmentCode = await seedDepartment();
     await db.insert(certifications).values({
-      departmentId,
+      departmentCode,
       name: 'スキー指導員',
       shortName: '指導員',
       organization: '全日本スキー連盟',
       isActive: true,
     });
     await db.insert(certifications).values({
-      departmentId,
+      departmentCode,
       name: 'スキー準指導員',
       shortName: '準指導員',
       organization: '全日本スキー連盟',
@@ -147,16 +140,16 @@ describe('GET /api/certifications', () => {
 
   it('active=false でアクティブ・非アクティブ両方を返す', async () => {
     const db = createDb(env.DB);
-    const departmentId = await seedDepartment();
+    const departmentCode = await seedDepartment();
     await db.insert(certifications).values({
-      departmentId,
+      departmentCode,
       name: 'スキー指導員',
       shortName: '指導員',
       organization: '全日本スキー連盟',
       isActive: true,
     });
     await db.insert(certifications).values({
-      departmentId,
+      departmentCode,
       name: '廃止資格',
       shortName: '廃止',
       organization: '旧団体',
@@ -175,23 +168,19 @@ describe('GET /api/certifications', () => {
     expect(body).toHaveLength(2);
   });
 
-  it('departmentId フィルターで特定部門の資格のみ返す', async () => {
+  it('departmentCode フィルターで特定部門の資格のみ返す', async () => {
     const db = createDb(env.DB);
     const deptId1 = await seedDepartment();
-    const [dept2] = await db
-      .insert(departments)
-      .values({ code: `dept2-${crypto.randomUUID()}`, name: 'スノーボード' })
-      .returning();
-    if (!dept2) throw new Error('insert failed');
+    const dept2 = 'snowboard';
 
     await db.insert(certifications).values({
-      departmentId: deptId1,
+      departmentCode: deptId1,
       name: 'スキー指導員',
       shortName: '指導員',
       organization: '全日本スキー連盟',
     });
     await db.insert(certifications).values({
-      departmentId: dept2.id,
+      departmentCode: dept2,
       name: 'スノーボードインストラクター',
       shortName: 'SB-I',
       organization: 'JSF',
@@ -199,7 +188,7 @@ describe('GET /api/certifications', () => {
 
     const token = await seedManagerToken();
     const res = await app.request(
-      `/api/certifications?departmentId=${deptId1}`,
+      `/api/certifications?departmentCode=${deptId1}`,
       authHeader(token),
       envWith({}),
     );
@@ -207,18 +196,18 @@ describe('GET /api/certifications', () => {
     expect(res.status).toBe(200);
     const body = certificationListSchema.parse(await res.json());
     expect(body).toHaveLength(1);
-    expect(body[0]?.departmentId).toBe(deptId1);
+    expect(body[0]?.departmentCode).toBe(deptId1);
   });
 });
 
 describe('GET /api/certifications/:id', () => {
   it('存在する資格を返す', async () => {
     const db = createDb(env.DB);
-    const departmentId = await seedDepartment();
+    const departmentCode = await seedDepartment();
     const [cert] = await db
       .insert(certifications)
       .values({
-        departmentId,
+        departmentCode,
         name: 'スキー指導員',
         shortName: '指導員',
         organization: '全日本スキー連盟',
@@ -234,7 +223,7 @@ describe('GET /api/certifications/:id', () => {
     expect(body.id).toBe(cert.id);
     expect(body.name).toBe('スキー指導員');
     expect(body.shortName).toBe('指導員');
-    expect(body.departmentId).toBe(departmentId);
+    expect(body.departmentCode).toBe(departmentCode);
   });
 
   it('存在しない ID は 404 を返す', async () => {
@@ -250,14 +239,14 @@ describe('GET /api/certifications/:id', () => {
 
 describe('POST /api/certifications', () => {
   it('MEMBER は 403 で拒否される', async () => {
-    const departmentId = await seedDepartment();
+    const departmentCode = await seedDepartment();
     const token = await seedMemberToken();
     const res = await app.request(
       '/api/certifications',
       {
         method: 'POST',
         ...authJsonRequest(token, {
-          departmentId,
+          departmentCode,
           name: 'スキー指導員',
           shortName: '指導員',
           organization: '全日本スキー連盟',
@@ -269,14 +258,14 @@ describe('POST /api/certifications', () => {
   });
 
   it('MANAGER は資格を作成できる', async () => {
-    const departmentId = await seedDepartment();
+    const departmentCode = await seedDepartment();
     const token = await seedManagerToken();
     const res = await app.request(
       '/api/certifications',
       {
         method: 'POST',
         ...authJsonRequest(token, {
-          departmentId,
+          departmentCode,
           name: 'スキー指導員',
           shortName: '指導員',
           organization: '全日本スキー連盟',
@@ -292,18 +281,18 @@ describe('POST /api/certifications', () => {
     expect(body.shortName).toBe('指導員');
     expect(body.organization).toBe('全日本スキー連盟');
     expect(body.description).toBe('スキー部門の指導員資格');
-    expect(body.departmentId).toBe(departmentId);
+    expect(body.departmentCode).toBe(departmentCode);
     expect(body.isActive).toBe(true);
   });
 
-  it('存在しない departmentId は 404 を返す（外部キー整合）', async () => {
+  it('不正な departmentCode は 400 を返す（固定分類語彙）', async () => {
     const token = await seedManagerToken();
     const res = await app.request(
       '/api/certifications',
       {
         method: 'POST',
         ...authJsonRequest(token, {
-          departmentId: 'nonexistent-dept-id',
+          departmentCode: 'nonexistent-dept-id',
           name: 'スキー指導員',
           shortName: '指導員',
           organization: '全日本スキー連盟',
@@ -311,18 +300,18 @@ describe('POST /api/certifications', () => {
       },
       envWith({}),
     );
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(400);
   });
 
   it('バリデーションエラーは 400 を返す', async () => {
-    const departmentId = await seedDepartment();
+    const departmentCode = await seedDepartment();
     const token = await seedManagerToken();
     const res = await app.request(
       '/api/certifications',
       {
         method: 'POST',
         ...authJsonRequest(token, {
-          departmentId,
+          departmentCode,
           name: '',
           shortName: '指導員',
           organization: '全日本スキー連盟',
@@ -337,11 +326,11 @@ describe('POST /api/certifications', () => {
 describe('PATCH /api/certifications/:id', () => {
   it('name・shortName・organization・description を更新できる', async () => {
     const db = createDb(env.DB);
-    const departmentId = await seedDepartment();
+    const departmentCode = await seedDepartment();
     const [cert] = await db
       .insert(certifications)
       .values({
-        departmentId,
+        departmentCode,
         name: 'スキー指導員',
         shortName: '指導員',
         organization: '全日本スキー連盟',
@@ -370,8 +359,8 @@ describe('PATCH /api/certifications/:id', () => {
     expect(body.shortName).toBe('ア指');
     expect(body.organization).toBe('SAJ');
     expect(body.description).toBe('更新済み');
-    // departmentId は変更されない
-    expect(body.departmentId).toBe(departmentId);
+    // departmentCode は変更されない
+    expect(body.departmentCode).toBe(departmentCode);
   });
 
   it('存在しない ID は 404 を返す', async () => {
@@ -386,11 +375,11 @@ describe('PATCH /api/certifications/:id', () => {
 
   it('更新フィールドが1つもない空ボディは 400 を返す', async () => {
     const db = createDb(env.DB);
-    const departmentId = await seedDepartment();
+    const departmentCode = await seedDepartment();
     const [cert] = await db
       .insert(certifications)
       .values({
-        departmentId,
+        departmentCode,
         name: 'スキー指導員',
         shortName: '指導員',
         organization: '全日本スキー連盟',
@@ -409,11 +398,11 @@ describe('PATCH /api/certifications/:id', () => {
 
   it('MEMBER は 403 で拒否される', async () => {
     const db = createDb(env.DB);
-    const departmentId = await seedDepartment();
+    const departmentCode = await seedDepartment();
     const [cert] = await db
       .insert(certifications)
       .values({
-        departmentId,
+        departmentCode,
         name: 'スキー指導員',
         shortName: '指導員',
         organization: '全日本スキー連盟',
@@ -434,11 +423,11 @@ describe('PATCH /api/certifications/:id', () => {
 describe('POST /api/certifications/:id/deactivate', () => {
   it('資格を無効化できる（isActive=false）', async () => {
     const db = createDb(env.DB);
-    const departmentId = await seedDepartment();
+    const departmentCode = await seedDepartment();
     const [cert] = await db
       .insert(certifications)
       .values({
-        departmentId,
+        departmentCode,
         name: 'スキー指導員',
         shortName: '指導員',
         organization: '全日本スキー連盟',
@@ -476,11 +465,11 @@ describe('POST /api/certifications/:id/deactivate', () => {
 
   it('MEMBER は 403 で拒否される', async () => {
     const db = createDb(env.DB);
-    const departmentId = await seedDepartment();
+    const departmentCode = await seedDepartment();
     const [cert] = await db
       .insert(certifications)
       .values({
-        departmentId,
+        departmentCode,
         name: 'スキー指導員',
         shortName: '指導員',
         organization: '全日本スキー連盟',

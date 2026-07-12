@@ -3,8 +3,9 @@ import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { validator } from 'hono/validator';
 
+import { departmentCodeSchema } from '@/features/departments/schema';
 import { createDb } from '@/server/db/client';
-import { certifications, departments } from '@/server/db/schema';
+import { certifications } from '@/server/db/schema';
 import { requireAuth, requireRole, type AuthVariables } from '@/server/middleware/auth';
 import type { Env } from '@/server/types';
 
@@ -20,18 +21,22 @@ export const certificationsRoute = new Hono<{
   Bindings: Env;
   Variables: AuthVariables;
 }>()
-  /** 資格一覧を返す（active=false 指定がない限りアクティブのみ、departmentId で絞り込み可） */
+  /** 資格一覧を返す（active=false 指定がない限りアクティブのみ、departmentCode で絞り込み可） */
   .get('/', requireAuth, async (c) => {
     const db = createDb(c.env.DB);
     const activeOnly = c.req.query('active') !== 'false';
-    const departmentId = c.req.query('departmentId');
+    const departmentCode = c.req.query('departmentCode');
+
+    if (departmentCode && !departmentCodeSchema.safeParse(departmentCode).success) {
+      throw new HTTPException(400, { message: 'departmentCode が不正です' });
+    }
 
     const conditions = [];
     if (activeOnly) {
       conditions.push(eq(certifications.isActive, true));
     }
-    if (departmentId) {
-      conditions.push(eq(certifications.departmentId, departmentId));
+    if (departmentCode) {
+      conditions.push(eq(certifications.departmentCode, departmentCode));
     }
 
     const rows =
@@ -58,7 +63,7 @@ export const certificationsRoute = new Hono<{
     }
     return c.json(row);
   })
-  /** 資格を作成する（MANAGER 以上）。Department が存在しない場合は 404 */
+  /** 資格を作成する（MANAGER 以上） */
   .post(
     '/',
     requireAuth,
@@ -74,22 +79,10 @@ export const certificationsRoute = new Hono<{
       const input = c.req.valid('json');
       const db = createDb(c.env.DB);
 
-      const [dept] = await db
-        .select({ id: departments.id })
-        .from(departments)
-        .where(eq(departments.id, input.departmentId))
-        .limit(1);
-
-      if (!dept) {
-        throw new HTTPException(404, {
-          message: `Department '${input.departmentId}' not found`,
-        });
-      }
-
       const [created] = await db
         .insert(certifications)
         .values({
-          departmentId: input.departmentId,
+          departmentCode: input.departmentCode,
           name: input.name,
           shortName: input.shortName,
           organization: input.organization,

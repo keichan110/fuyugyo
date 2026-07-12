@@ -3,6 +3,7 @@ import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { validator } from 'hono/validator';
 
+import { departmentCodeSchema } from '@/features/departments/schema';
 import { createDb } from '@/server/db/client';
 import { isUniqueViolation } from '@/server/db/errors';
 import { certifications, instructorCertifications, instructors } from '@/server/db/schema';
@@ -31,8 +32,11 @@ export const instructorsRoute = new Hono<{
    * 静的セグメントが `:id` より先に評価されるよう、先頭に登録する。
    * 返す certifications は指定 Department に属するアクティブなもののみ。
    */
-  .get('/by-department/:departmentId/active', requireAuth, async (c) => {
-    const { departmentId } = c.req.param();
+  .get('/by-department/:departmentCode/active', requireAuth, async (c) => {
+    const { departmentCode } = c.req.param();
+    if (!departmentCodeSchema.safeParse(departmentCode).success) {
+      throw new HTTPException(400, { message: 'departmentCode が不正です' });
+    }
     const db = createDb(c.env.DB);
 
     // 1 回の JOIN クエリで全データを取得してから JS 側でグルーピングする（N+1 回避）
@@ -60,7 +64,7 @@ export const instructorsRoute = new Hono<{
       .where(
         and(
           eq(instructors.status, 'ACTIVE'),
-          eq(certifications.departmentId, departmentId),
+          eq(certifications.departmentCode, departmentCode),
           eq(certifications.isActive, true),
         ),
       );
@@ -106,16 +110,94 @@ export const instructorsRoute = new Hono<{
 
     return c.json(Array.from(map.values()));
   })
-  /** インストラクター一覧を返す（status=INACTIVE 指定がない限りアクティブのみ） */
+  /**
+   * インストラクター一覧を返す（status=INACTIVE 指定がない限りアクティブのみ）。
+   * 各インストラクターには保有 Certification（バッジ表示用の最低限情報）を含める。
+   * 資格を持たないインストラクターも返す必要があるため leftJoin を使用する。
+   */
   .get('/', requireAuth, async (c) => {
     const db = createDb(c.env.DB);
     const statusFilter = c.req.query('status');
+    const targetStatus = statusFilter ?? 'ACTIVE';
 
-    const rows = statusFilter
-      ? await db.select().from(instructors).where(eq(instructors.status, statusFilter))
-      : await db.select().from(instructors).where(eq(instructors.status, 'ACTIVE'));
+    const rows = await db
+      .select({
+        id: instructors.id,
+        lastName: instructors.lastName,
+        firstName: instructors.firstName,
+        lastNameKana: instructors.lastNameKana,
+        firstNameKana: instructors.firstNameKana,
+        status: instructors.status,
+        notes: instructors.notes,
+        createdAt: instructors.createdAt,
+        updatedAt: instructors.updatedAt,
+        certId: certifications.id,
+        certName: certifications.name,
+        certShortName: certifications.shortName,
+        certIsActive: certifications.isActive,
+        certDepartmentCode: certifications.departmentCode,
+      })
+      .from(instructors)
+      .leftJoin(instructorCertifications, eq(instructorCertifications.instructorId, instructors.id))
+      .leftJoin(certifications, eq(certifications.id, instructorCertifications.certificationId))
+      .where(eq(instructors.status, targetStatus));
 
-    return c.json(rows);
+    // JS 側で instructor ごとに certifications をグルーピングする（N+1 回避）
+    type InstructorListItem = {
+      id: string;
+      lastName: string;
+      firstName: string;
+      lastNameKana: string | null;
+      firstNameKana: string | null;
+      status: string;
+      notes: string | null;
+      createdAt: Date;
+      updatedAt: Date;
+      certifications: Array<{
+        id: string;
+        name: string;
+        shortName: string;
+        isActive: boolean;
+        departmentCode: string;
+      }>;
+    };
+
+    const map = new Map<string, InstructorListItem>();
+    for (const row of rows) {
+      let existing = map.get(row.id);
+      if (!existing) {
+        existing = {
+          id: row.id,
+          lastName: row.lastName,
+          firstName: row.firstName,
+          lastNameKana: row.lastNameKana,
+          firstNameKana: row.firstNameKana,
+          status: row.status,
+          notes: row.notes,
+          createdAt: row.createdAt,
+          updatedAt: row.updatedAt,
+          certifications: [],
+        };
+        map.set(row.id, existing);
+      }
+      if (
+        row.certId !== null &&
+        row.certName !== null &&
+        row.certShortName !== null &&
+        row.certIsActive !== null &&
+        row.certDepartmentCode !== null
+      ) {
+        existing.certifications.push({
+          id: row.certId,
+          name: row.certName,
+          shortName: row.certShortName,
+          isActive: row.certIsActive,
+          departmentCode: row.certDepartmentCode,
+        });
+      }
+    }
+
+    return c.json(Array.from(map.values()));
   })
   /** インストラクターを1件取得する（Certification 一覧付き） */
   .get('/:id', requireAuth, async (c) => {

@@ -6,7 +6,7 @@ import { meResponseSchema } from '../src/features/auth/schema';
 import app from '../src/index';
 import { signJwt, type UserRole } from '../src/server/auth/jwt';
 import { createDb } from '../src/server/db/client';
-import { users } from '../src/server/db/schema';
+import { instructors, users } from '../src/server/db/schema';
 import { requireAuth, requireRole, type AuthVariables } from '../src/server/middleware/auth';
 import type { Env } from '../src/server/types';
 
@@ -32,9 +32,28 @@ function envWith(overrides: Partial<Env>): Env {
   return { ...(env as unknown as Env), ...overrides };
 }
 
-/** Cookie に JWT を載せたリクエスト init を作る */
+/** Cookie に JWT を載せたリクエスト init を作る（同一オリジンからの正規リクエストを模す） */
 function cookieHeader(token: string): RequestInit {
-  return { headers: { cookie: `auth-token=${token}` } };
+  return { headers: { cookie: `auth-token=${token}`, 'sec-fetch-site': 'same-origin' } };
+}
+
+/** Cookie に JWT を載せた JSON リクエスト init を作る */
+function cookieJsonRequest(token: string, body: unknown): RequestInit {
+  return {
+    headers: { cookie: `auth-token=${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  };
+}
+
+/** seed: Instructor を1件作成して ID を返す */
+async function seedInstructor(lastName = '山田', firstName = '太郎'): Promise<string> {
+  const db = createDb(env.DB);
+  const [inst] = await db
+    .insert(instructors)
+    .values({ lastName, firstName, status: 'ACTIVE' })
+    .returning();
+  if (!inst) throw new Error('seedInstructor: insert failed');
+  return inst.id;
 }
 
 /** seed: User を1件作成して返す */
@@ -76,8 +95,10 @@ async function tokenFor(
 }
 
 beforeEach(async () => {
-  // 各テストを独立させるため User を全削除する
-  await createDb(env.DB).delete(users);
+  // 各テストを独立させるため User・Instructor を全削除する（外部キー依存順）
+  const db = createDb(env.DB);
+  await db.delete(users);
+  await db.delete(instructors);
 });
 
 describe('GET /api/auth/line/login', () => {
@@ -122,6 +143,130 @@ describe('GET /api/auth/me', () => {
     const res = await app.request('/api/auth/me', cookieHeader(token), envWith({}));
 
     expect(res.status).toBe(403);
+  });
+});
+
+describe('POST /api/auth/me/link-instructor', () => {
+  it('未認証は 401 を返す', async () => {
+    const instructorId = await seedInstructor();
+    const res = await app.request(
+      '/api/auth/me/link-instructor',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ instructorId }),
+      },
+      envWith({}),
+    );
+    expect(res.status).toBe(401);
+  });
+
+  it('本人を任意の Instructor にセルフサービスでリンクできる（ロール制限なし）', async () => {
+    const user = await seedUser({ role: 'MEMBER' });
+    const token = await tokenFor(user, 'MEMBER');
+    const instructorId = await seedInstructor();
+
+    const res = await app.request(
+      '/api/auth/me/link-instructor',
+      { method: 'POST', ...cookieJsonRequest(token, { instructorId }) },
+      envWith({}),
+    );
+    expect(res.status).toBe(200);
+
+    const body = meResponseSchema.parse(await res.json());
+    expect(body.instructorId).toBe(instructorId);
+  });
+
+  it('1 Instructor に複数 User をリンクしようとすると 409（UNIQUE 制約違反）', async () => {
+    const user1 = await seedUser({ displayName: 'ユーザーA' });
+    const user2 = await seedUser({ displayName: 'ユーザーB' });
+    const token1 = await tokenFor(user1, 'MEMBER');
+    const token2 = await tokenFor(user2, 'MEMBER');
+    const instructorId = await seedInstructor();
+
+    const res1 = await app.request(
+      '/api/auth/me/link-instructor',
+      { method: 'POST', ...cookieJsonRequest(token1, { instructorId }) },
+      envWith({}),
+    );
+    expect(res1.status).toBe(200);
+
+    const res2 = await app.request(
+      '/api/auth/me/link-instructor',
+      { method: 'POST', ...cookieJsonRequest(token2, { instructorId }) },
+      envWith({}),
+    );
+    expect(res2.status).toBe(409);
+  });
+
+  it('存在しない Instructor へのリンクは 404 を返す', async () => {
+    const user = await seedUser();
+    const token = await tokenFor(user, 'MEMBER');
+
+    const res = await app.request(
+      '/api/auth/me/link-instructor',
+      {
+        method: 'POST',
+        ...cookieJsonRequest(token, { instructorId: 'nonexistent-instructor-id' }),
+      },
+      envWith({}),
+    );
+    expect(res.status).toBe(404);
+  });
+});
+
+describe('DELETE /api/auth/me/link-instructor', () => {
+  it('未認証は 401 を返す', async () => {
+    const res = await app.request(
+      '/api/auth/me/link-instructor',
+      { method: 'DELETE', headers: { 'sec-fetch-site': 'same-origin' } },
+      envWith({}),
+    );
+    expect(res.status).toBe(401);
+  });
+
+  it('リンク済みの本人は解除でき、再度別の Instructor へリンクできる', async () => {
+    const user = await seedUser();
+    const token = await tokenFor(user, 'MEMBER');
+    const instructorId = await seedInstructor('山田', '太郎');
+
+    const linkRes = await app.request(
+      '/api/auth/me/link-instructor',
+      { method: 'POST', ...cookieJsonRequest(token, { instructorId }) },
+      envWith({}),
+    );
+    expect(linkRes.status).toBe(200);
+
+    const unlinkRes = await app.request(
+      '/api/auth/me/link-instructor',
+      { method: 'DELETE', ...cookieHeader(token) },
+      envWith({}),
+    );
+    expect(unlinkRes.status).toBe(200);
+    const unlinkBody = meResponseSchema.parse(await unlinkRes.json());
+    expect(unlinkBody.instructorId).toBeNull();
+
+    const otherInstructorId = await seedInstructor('鈴木', '次郎');
+    const relinkRes = await app.request(
+      '/api/auth/me/link-instructor',
+      { method: 'POST', ...cookieJsonRequest(token, { instructorId: otherInstructorId }) },
+      envWith({}),
+    );
+    expect(relinkRes.status).toBe(200);
+    const relinkBody = meResponseSchema.parse(await relinkRes.json());
+    expect(relinkBody.instructorId).toBe(otherInstructorId);
+  });
+
+  it('未リンクの本人が解除しようとすると 409 を返す', async () => {
+    const user = await seedUser();
+    const token = await tokenFor(user, 'MEMBER');
+
+    const res = await app.request(
+      '/api/auth/me/link-instructor',
+      { method: 'DELETE', ...cookieHeader(token) },
+      envWith({}),
+    );
+    expect(res.status).toBe(409);
   });
 });
 
@@ -182,7 +327,11 @@ describe('Rate Limit（認証系のみ）', () => {
 
 describe('POST /api/auth/logout', () => {
   it('JWT Cookie を破棄してセッションを終了する', async () => {
-    const res = await app.request('/api/auth/logout', { method: 'POST' }, envWith({}));
+    const res = await app.request(
+      '/api/auth/logout',
+      { method: 'POST', headers: { 'sec-fetch-site': 'same-origin' } },
+      envWith({}),
+    );
 
     expect(res.status).toBe(200);
     const setCookie = res.headers.get('set-cookie') ?? '';

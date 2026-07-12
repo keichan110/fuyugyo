@@ -1,51 +1,26 @@
-import { useState } from 'react';
+import { Stack, TextInput } from '@mantine/core';
+import type { UseFormReturnType } from '@mantine/form';
 
-import { Button } from '@/components/ui/button';
-
-import { useCreateShiftType } from '../queries';
+import type { ShiftTypeFormValues } from './useShiftTypeForm';
 
 type Props = {
-  onSuccess?: () => void;
+  form: UseFormReturnType<ShiftTypeFormValues>;
 };
 
 /**
- * シフト種別作成フォーム。name を入力して POST する。
+ * シフト種別名の入力フィールド群。
+ * 送信ボタンは持たず、フォーム全体の送信は呼び出し側に委ねる。
  */
-export function ShiftTypeForm({ onSuccess }: Props) {
-  const [name, setName] = useState('');
-  const create = useCreateShiftType();
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    create.mutate({ name }, onSuccess ? { onSuccess } : undefined);
-  };
-
+export function ShiftTypeFormFields({ form }: Props) {
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="border-border bg-card flex flex-col gap-3 rounded-md border p-4"
-    >
-      <div className="flex flex-col gap-1">
-        <label htmlFor="shift-type-name" className="text-sm font-medium">
-          種別名 <span className="text-red-500">*</span>
-        </label>
-        <input
-          id="shift-type-name"
-          type="text"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          required
-          maxLength={100}
-          placeholder="例: 終日、午前、午後"
-          className="border-input bg-background focus-visible:ring-ring rounded-md border px-3 py-1.5 text-sm focus-visible:ring-1 focus-visible:outline-none"
-        />
-      </div>
-
-      {create.isError && <p className="text-sm text-red-600">{create.error.message}</p>}
-
-      <Button type="submit" disabled={create.isPending}>
-        {create.isPending ? '作成中…' : '作成'}
-      </Button>
-    </form>
+    <Stack gap="sm">
+      <TextInput
+        label="種別名"
+        required
+        maxLength={100}
+        placeholder="例: 終日、午前、午後"
+        {...form.getInputProps('name')}
+      />
+    </Stack>
   );
 }

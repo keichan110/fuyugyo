@@ -1,222 +1,189 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
-import { Button } from '@/components/ui/button';
-import { useDepartments } from '@/features/departments/queries';
+import { Button, Menu, Stack, Table, Text } from '@mantine/core';
+import { notifications } from '@mantine/notifications';
+import { IconCertificate, IconPlus } from '@tabler/icons-react';
 
-import { useCertifications, useDeactivateCertification, useUpdateCertification } from '../queries';
-import { CertificationForm } from './CertificationForm';
+import { ErrorAlert } from '@/components/AppAlert';
+import { AppBadge } from '@/components/AppBadge';
+import { AppTable } from '@/components/AppTable';
+import { ClickableTr } from '@/components/ClickableTr';
+import { ListEmptyState, ListNoResultsState } from '@/components/ListEmptyState';
+import { ListHeader } from '@/components/ListHeader';
+import { ListToolbar } from '@/components/ListToolbar';
+import { RowActionsButton } from '@/components/RowActionsButton';
+import { SearchInput } from '@/components/SearchInput';
+import type { ActiveStatusFilter } from '@/components/status-filter';
+import { StatusFilterControl } from '@/components/StatusFilterControl';
+import { TableRowsSkeleton } from '@/components/TableRowsSkeleton';
+import { DepartmentTag } from '@/features/departments/DepartmentTag';
+
+import { useCertifications, useDeactivateCertification } from '../queries';
+import type { Certification } from '../schema';
+import { CertificationDrawer, type CertificationDrawerState } from './CertificationDrawer';
 
 /**
- * 資格一覧と作成・編集・無効化操作を提供するコンポーネント。
+ * 資格一覧と検索・絞り込み、作成・編集への導線を提供するコンポーネント。
+ * 作成・編集・ステータス変更は CertificationDrawer に集約する。
  */
 export function CertificationList() {
-  const [showForm, setShowForm] = useState(false);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<ActiveStatusFilter>('ALL');
+  const [drawerState, setDrawerState] = useState<CertificationDrawerState | null>(null);
+
   // 管理画面では無効資格も表示するため全件取得する
   const { data, isLoading, isError } = useCertifications(false);
-  const { data: departments } = useDepartments(false);
 
-  /** departmentId → name のマップ */
-  const deptNameMap = new Map(departments?.map((d) => [d.id, d.name]) ?? []);
+  const certifications = useMemo(() => data ?? [], [data]);
+  const activeCount = certifications.filter((c) => c.isActive).length;
+
+  const visibleCertifications = useMemo(() => {
+    const query = search.trim();
+    return certifications.filter((cert) => {
+      if (statusFilter === 'ACTIVE' && !cert.isActive) return false;
+      if (statusFilter === 'INACTIVE' && cert.isActive) return false;
+      if (query.length === 0) return true;
+      const haystack = `${cert.name}${cert.shortName}${cert.organization}`;
+      return haystack.includes(query);
+    });
+  }, [certifications, statusFilter, search]);
 
   return (
-    <section className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold">資格管理</h2>
-        <Button onClick={() => setShowForm((prev) => !prev)}>
-          {showForm ? 'キャンセル' : '資格を追加'}
-        </Button>
-      </div>
+    <Stack gap="md">
+      <ListHeader
+        title="資格管理"
+        total={certifications.length}
+        active={activeCount}
+        unit="件"
+        isLoading={isLoading}
+        action={
+          <Button
+            leftSection={<IconPlus size={16} />}
+            onClick={() => setDrawerState({ mode: 'create' })}
+          >
+            資格を追加
+          </Button>
+        }
+      />
 
-      {showForm && <CertificationForm onSuccess={() => setShowForm(false)} />}
+      <ListToolbar>
+        <SearchInput
+          placeholder="資格名・略称・発行団体で検索"
+          value={search}
+          onChange={(e) => setSearch(e.currentTarget.value)}
+        />
+        <StatusFilterControl value={statusFilter} onChange={setStatusFilter} />
+      </ListToolbar>
 
-      {isLoading && <p className="text-muted-foreground text-sm">読み込み中…</p>}
-      {isError && <p className="text-sm text-red-600">資格一覧の取得に失敗しました</p>}
+      {isError && <ErrorAlert>資格一覧の取得に失敗しました</ErrorAlert>}
 
-      {data && data.length === 0 && (
-        <p className="text-muted-foreground text-sm">資格がありません</p>
+      {isLoading && <TableRowsSkeleton />}
+
+      {!isLoading && certifications.length === 0 && (
+        <ListEmptyState
+          icon={<IconCertificate size={32} stroke={1.5} />}
+          title="資格がありません"
+          description="最初の資格を追加して管理を始めましょう。"
+          action={
+            <Button
+              leftSection={<IconPlus size={16} />}
+              onClick={() => setDrawerState({ mode: 'create' })}
+            >
+              資格を追加
+            </Button>
+          }
+        />
       )}
 
-      {data && data.length > 0 && (
-        <ul className="flex flex-col gap-2">
-          {data.map((cert) => (
-            <CertificationItem
-              key={cert.id}
-              id={cert.id}
-              name={cert.name}
-              shortName={cert.shortName}
-              organization={cert.organization}
-              description={cert.description}
-              isActive={cert.isActive}
-              departmentName={deptNameMap.get(cert.departmentId) ?? cert.departmentId}
-            />
-          ))}
-        </ul>
+      {!isLoading && certifications.length > 0 && visibleCertifications.length === 0 && (
+        <ListNoResultsState title="条件に一致する資格がいません" />
       )}
-    </section>
+
+      {visibleCertifications.length > 0 && (
+        <AppTable minWidth={720}>
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>資格名</Table.Th>
+              <Table.Th>部門</Table.Th>
+              <Table.Th>発行団体</Table.Th>
+              <Table.Th w={100}>状態</Table.Th>
+              <Table.Th w={56} />
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
+            {visibleCertifications.map((cert) => (
+              <CertificationRow
+                key={cert.id}
+                certification={cert}
+                onEdit={() => setDrawerState({ mode: 'edit', certificationId: cert.id })}
+              />
+            ))}
+          </Table.Tbody>
+        </AppTable>
+      )}
+
+      <CertificationDrawer state={drawerState} onClose={() => setDrawerState(null)} />
+    </Stack>
   );
 }
 
-type CertificationItemProps = {
-  id: string;
-  name: string;
-  shortName: string;
-  organization: string;
-  description: string | null;
-  isActive: boolean;
-  departmentName: string;
-};
-
-/**
- * 資格の1行表示。編集モードと表示モードを切り替える。
- */
-function CertificationItem(props: CertificationItemProps) {
-  const [editing, setEditing] = useState(false);
-  return editing ? (
-    <CertificationItemEdit {...props} onCancel={() => setEditing(false)} />
-  ) : (
-    <CertificationItemDisplay {...props} onEdit={() => setEditing(true)} />
-  );
-}
-
-type CertificationItemDisplayProps = CertificationItemProps & {
+type CertificationRowProps = {
+  certification: Certification;
   onEdit: () => void;
 };
 
-/** 資格の表示モード。無効化ボタンを持つ。 */
-function CertificationItemDisplay({
-  id,
-  name,
-  shortName,
-  organization,
-  description,
-  isActive,
-  departmentName,
-  onEdit,
-}: CertificationItemDisplayProps) {
+/** 資格一覧の1行。クリックで編集 Drawer を開く。 */
+function CertificationRow({ certification, onEdit }: CertificationRowProps) {
   const deactivate = useDeactivateCertification();
+  const isActive = certification.isActive;
 
-  return (
-    <li className="border-border bg-card flex flex-col gap-2 rounded-md border p-4">
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex flex-col gap-1">
-          <div className="flex items-center gap-2">
-            <span className="font-medium">{name}</span>
-            <span className="text-muted-foreground font-mono text-sm">({shortName})</span>
-            {!isActive && (
-              <span className="bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-xs">
-                無効
-              </span>
-            )}
-          </div>
-          <p className="text-muted-foreground text-sm">
-            {departmentName} ／ {organization}
-          </p>
-          {description && <p className="text-muted-foreground text-sm">{description}</p>}
-        </div>
-        {isActive && (
-          <div className="flex shrink-0 items-center gap-2">
-            <Button variant="outline" size="sm" onClick={onEdit}>
-              編集
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={deactivate.isPending}
-              onClick={() => deactivate.mutate(id)}
-            >
-              無効化
-            </Button>
-          </div>
-        )}
-      </div>
-      {deactivate.isError && <p className="text-sm text-red-600">{deactivate.error.message}</p>}
-    </li>
-  );
-}
-
-type CertificationItemEditProps = CertificationItemProps & {
-  onCancel: () => void;
-};
-
-/** 資格の編集モード。フォームを送信して PATCH する。 */
-function CertificationItemEdit({
-  id,
-  name,
-  shortName,
-  organization,
-  description,
-  onCancel,
-}: CertificationItemEditProps) {
-  const [editName, setEditName] = useState(name);
-  const [editShortName, setEditShortName] = useState(shortName);
-  const [editOrganization, setEditOrganization] = useState(organization);
-  const [editDescription, setEditDescription] = useState(description ?? '');
-  const update = useUpdateCertification(id);
-
-  const handleUpdate = (e: React.FormEvent) => {
-    e.preventDefault();
-    update.mutate(
-      {
-        name: editName,
-        shortName: editShortName,
-        organization: editOrganization,
-        description: editDescription || null,
+  const handleDeactivate = () => {
+    deactivate.mutate(certification.id, {
+      onSuccess: () => {
+        notifications.show({
+          color: 'green',
+          message: `${certification.name}を無効化しました`,
+        });
       },
-      { onSuccess: onCancel },
-    );
+    });
   };
 
   return (
-    <li className="border-border bg-card flex flex-col gap-2 rounded-md border p-4">
-      <form onSubmit={handleUpdate} className="flex flex-col gap-2">
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={editName}
-            onChange={(e) => setEditName(e.target.value)}
-            required
-            maxLength={100}
-            placeholder="資格名"
-            autoFocus
-            className="border-input bg-background focus-visible:ring-ring flex-1 rounded-md border px-3 py-1.5 text-sm focus-visible:ring-1 focus-visible:outline-none"
-          />
-          <input
-            type="text"
-            value={editShortName}
-            onChange={(e) => setEditShortName(e.target.value)}
-            required
-            maxLength={20}
-            placeholder="省略名"
-            className="border-input bg-background focus-visible:ring-ring w-24 rounded-md border px-3 py-1.5 text-sm focus-visible:ring-1 focus-visible:outline-none"
-          />
-        </div>
-        <input
-          type="text"
-          value={editOrganization}
-          onChange={(e) => setEditOrganization(e.target.value)}
-          required
-          maxLength={100}
-          placeholder="発行団体"
-          className="border-input bg-background focus-visible:ring-ring rounded-md border px-3 py-1.5 text-sm focus-visible:ring-1 focus-visible:outline-none"
-        />
-        <textarea
-          value={editDescription}
-          onChange={(e) => setEditDescription(e.target.value)}
-          maxLength={500}
-          rows={2}
-          placeholder="説明（任意）"
-          className="border-input bg-background focus-visible:ring-ring resize-none rounded-md border px-3 py-1.5 text-sm focus-visible:ring-1 focus-visible:outline-none"
-        />
-        <div className="flex gap-2">
-          <Button type="submit" size="sm" disabled={update.isPending}>
-            {update.isPending ? '保存中…' : '保存'}
-          </Button>
-          <Button type="button" variant="outline" size="sm" onClick={onCancel}>
-            キャンセル
-          </Button>
-        </div>
-      </form>
-      {update.isError && <p className="text-sm text-red-600">{update.error.message}</p>}
-    </li>
+    <ClickableTr onClick={onEdit}>
+      <Table.Td>
+        <Text fw={500} size="sm">
+          {certification.name}
+        </Text>
+        <Text c="dimmed" size="xs">
+          {certification.shortName}
+        </Text>
+      </Table.Td>
+      <Table.Td>
+        <DepartmentTag code={certification.departmentCode} />
+      </Table.Td>
+      <Table.Td>
+        <Text size="sm">{certification.organization}</Text>
+      </Table.Td>
+      <Table.Td>
+        <AppBadge kind={isActive ? 'active' : 'inactive'}>
+          {isActive ? 'アクティブ' : '無効'}
+        </AppBadge>
+      </Table.Td>
+      <Table.Td onClick={(e) => e.stopPropagation()}>
+        <Menu position="bottom-end">
+          <Menu.Target>
+            <RowActionsButton />
+          </Menu.Target>
+          <Menu.Dropdown>
+            <Menu.Item onClick={onEdit}>編集</Menu.Item>
+            {isActive && (
+              <Menu.Item onClick={handleDeactivate} disabled={deactivate.isPending}>
+                無効化
+              </Menu.Item>
+            )}
+          </Menu.Dropdown>
+        </Menu>
+      </Table.Td>
+    </ClickableTr>
   );
 }

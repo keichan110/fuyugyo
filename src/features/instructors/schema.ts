@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { departmentCodeSchema } from '@/features/departments/schema';
+
 /**
  * Instructor feature の境界スキーマ（isomorphic）。
  * サーバー（`api.ts`）の入出力検証とクライアント（`queries.ts`）の表示で共有する。
@@ -24,8 +26,26 @@ export const instructorSchema = z.object({
 
 export type Instructor = z.infer<typeof instructorSchema>;
 
+/** 一覧表示用の Certification バッジ情報（最低限） */
+export const certBadgeSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  shortName: z.string(),
+  isActive: z.boolean(),
+  departmentCode: departmentCodeSchema,
+});
+
+export type CertBadge = z.infer<typeof certBadgeSchema>;
+
+/** Instructor 一覧の単一レコード（保有 Certification バッジ付き） */
+export const instructorListItemSchema = instructorSchema.extend({
+  certifications: z.array(certBadgeSchema),
+});
+
+export type InstructorListItem = z.infer<typeof instructorListItemSchema>;
+
 /** Instructor 一覧レスポンス */
-export const instructorListSchema = z.array(instructorSchema);
+export const instructorListSchema = z.array(instructorListItemSchema);
 
 /** InstructorCertification（中間テーブル）の単一レコード */
 export const instructorCertificationSchema = z.object({

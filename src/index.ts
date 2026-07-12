@@ -1,9 +1,10 @@
 import { Hono } from 'hono';
+import { csrf } from 'hono/csrf';
 import { HTTPException } from 'hono/http-exception';
+import { secureHeaders } from 'hono/secure-headers';
 
 import { authRoute } from '@/features/auth/api';
 import { certificationsRoute } from '@/features/certifications/api';
-import { departmentsRoute } from '@/features/departments/api';
 import { healthRoute } from '@/features/health/api';
 import { instructorsRoute } from '@/features/instructors/api';
 import { invitationsRoute } from '@/features/invitations/api';
@@ -13,6 +14,13 @@ import { usersRoute } from '@/features/users/api';
 import type { Env } from '@/server/types';
 
 const app = new Hono<{ Bindings: Env }>();
+
+// API レスポンスにセキュリティヘッダを付与する（CSP はデフォルトで無効のためここでは付与しない）
+app.use('*', secureHeaders());
+
+// CSRF 多層防御: Origin/Sec-Fetch-Site を検証し、クロスサイトの状態変更リクエストを拒否する
+// （Cookie の SameSite=Lax に加えた保険。同一オリジンの正規リクエストは通過する）
+app.use('*', csrf());
 
 /**
  * 中央エラーハンドラ（ADR 0005）。
@@ -32,7 +40,6 @@ app.onError((err, c) => {
 const routes = app
   .route('/api/health', healthRoute)
   .route('/api/auth', authRoute)
-  .route('/api/departments', departmentsRoute)
   .route('/api/certifications', certificationsRoute)
   .route('/api/shift-types', shiftTypesRoute)
   .route('/api/instructors', instructorsRoute)

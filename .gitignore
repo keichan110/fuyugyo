@@ -37,3 +37,7 @@ tsconfig.tsbuildinfo
 # AI work directory
 .z
 .serena
+
+# Claude Code skills (実体はskills-lock.jsonから再現)
+.agents/
+.claude/skills/

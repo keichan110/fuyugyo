@@ -10,11 +10,11 @@ import {
   instructorSchema,
   instructorWithCertificationsSchema,
   type ActiveInstructorInDepartment,
-  type AssignCertificationInput,
   type ChangeInstructorStatusInput,
   type CreateInstructorInput,
   type Instructor,
   type InstructorCertification,
+  type InstructorListItem,
   type InstructorWithCertifications,
   type UpdateInstructorInput,
 } from './schema';
@@ -26,11 +26,11 @@ const apiErrorSchema = z.object({ message: z.string().optional() });
 export const INSTRUCTORS_QUERY_KEY = ['instructors'] as const;
 
 /**
- * インストラクター一覧を取得する。
+ * インストラクター一覧を取得する（保有 Certification バッジ付き）。
  * @param status - 指定するとそのステータスのみ返す（省略時は ACTIVE のみ）
  */
 export function useInstructors(status?: string) {
-  return useQuery<Instructor[]>({
+  return useQuery<InstructorListItem[]>({
     queryKey: [...INSTRUCTORS_QUERY_KEY, { status }],
     queryFn: async () => {
       const query: Record<string, string> = {};
@@ -59,26 +59,27 @@ export function useInstructor(id: string) {
       }
       return instructorWithCertificationsSchema.parse(await res.json());
     },
+    enabled: !!id,
   });
 }
 
 /**
  * 部門別アクティブ Instructor 一覧を取得する（N+1 なし）。
- * @param departmentId - 対象部門の ID
+ * @param departmentCode - 対象部門のコード
  */
-export function useActiveInstructorsByDepartment(departmentId: string) {
+export function useActiveInstructorsByDepartment(departmentCode: string) {
   return useQuery<ActiveInstructorInDepartment[]>({
-    queryKey: [...INSTRUCTORS_QUERY_KEY, 'by-department', departmentId, 'active'],
+    queryKey: [...INSTRUCTORS_QUERY_KEY, 'by-department', departmentCode, 'active'],
     queryFn: async () => {
-      const res = await client.api.instructors['by-department'][':departmentId'].active.$get({
-        param: { departmentId },
+      const res = await client.api.instructors['by-department'][':departmentCode'].active.$get({
+        param: { departmentCode },
       });
       if (!res.ok) {
         throw new Error('部門別インストラクターの取得に失敗しました');
       }
       return activeInstructorInDepartmentListSchema.parse(await res.json());
     },
-    enabled: !!departmentId,
+    enabled: !!departmentCode,
   });
 }
 
@@ -153,15 +154,20 @@ export function useChangeInstructorStatus(id: string) {
 
 /**
  * Certification を割り当てるミューテーション。
- * 成功後は該当インストラクターのキャッシュを無効化する。
+ * instructorId は変数で受け取るため、作成直後の新規インストラクターにも使用できる。
+ * 成功後は一覧・詳細キャッシュを無効化する。
  */
-export function useAssignCertification(instructorId: string) {
+export function useAssignCertification() {
   const queryClient = useQueryClient();
-  return useMutation<InstructorCertification, Error, AssignCertificationInput>({
-    mutationFn: async (input) => {
+  return useMutation<
+    InstructorCertification,
+    Error,
+    { instructorId: string; certificationId: string }
+  >({
+    mutationFn: async ({ instructorId, certificationId }) => {
       const res = await client.api.instructors[':id'].certifications.$post({
         param: { id: instructorId },
-        json: input,
+        json: { certificationId },
       });
       if (!res.ok) {
         const body = apiErrorSchema.parse(await res.json());
@@ -177,12 +183,12 @@ export function useAssignCertification(instructorId: string) {
 
 /**
  * Certification を解除するミューテーション。
- * 成功後は該当インストラクターのキャッシュを無効化する。
+ * instructorId は変数で受け取る。成功後は一覧・詳細キャッシュを無効化する。
  */
-export function useUnassignCertification(instructorId: string) {
+export function useUnassignCertification() {
   const queryClient = useQueryClient();
-  return useMutation<void, Error, string>({
-    mutationFn: async (certificationId) => {
+  return useMutation<void, Error, { instructorId: string; certificationId: string }>({
+    mutationFn: async ({ instructorId, certificationId }) => {
       const res = await client.api.instructors[':id'].certifications[':certId'].$delete({
         param: { id: instructorId, certId: certificationId },
       });

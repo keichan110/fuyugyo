@@ -1,131 +1,176 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
-import { Button } from '@/components/ui/button';
+import { Button, Menu, Stack, Table, Text } from '@mantine/core';
+import { notifications } from '@mantine/notifications';
+import { IconClock, IconPlus } from '@tabler/icons-react';
 
-import { useDeactivateShiftType, useShiftTypes, useUpdateShiftType } from '../queries';
-import { ShiftTypeForm } from './ShiftTypeForm';
+import { ErrorAlert } from '@/components/AppAlert';
+import { AppBadge } from '@/components/AppBadge';
+import { AppTable } from '@/components/AppTable';
+import { ClickableTr } from '@/components/ClickableTr';
+import { ListEmptyState, ListNoResultsState } from '@/components/ListEmptyState';
+import { ListHeader } from '@/components/ListHeader';
+import { ListToolbar } from '@/components/ListToolbar';
+import { RowActionsButton } from '@/components/RowActionsButton';
+import { SearchInput } from '@/components/SearchInput';
+import type { ActiveStatusFilter } from '@/components/status-filter';
+import { StatusFilterControl } from '@/components/StatusFilterControl';
+import { TableRowsSkeleton } from '@/components/TableRowsSkeleton';
+
+import { useDeactivateShiftType, useShiftTypes } from '../queries';
+import type { ShiftType } from '../schema';
+import { ShiftTypeDrawer, type ShiftTypeDrawerState } from './ShiftTypeDrawer';
 
 /**
- * シフト種別一覧と作成・編集・無効化操作を提供するコンポーネント。
+ * シフト種別一覧と検索・絞り込み、作成・編集への導線を提供するコンポーネント。
+ * 作成・編集・無効化は ShiftTypeDrawer に集約する。
  */
 export function ShiftTypeList() {
-  const [showForm, setShowForm] = useState(false);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<ActiveStatusFilter>('ALL');
+  const [drawerState, setDrawerState] = useState<ShiftTypeDrawerState | null>(null);
+
   // 管理画面では無効種別も表示するため全件取得する
   const { data, isLoading, isError } = useShiftTypes(false);
 
+  const allShiftTypes = useMemo(() => data ?? [], [data]);
+  const activeCount = allShiftTypes.filter((s) => s.isActive).length;
+
+  const visibleShiftTypes = useMemo(() => {
+    const query = search.trim();
+    return allShiftTypes.filter((shiftType) => {
+      if (statusFilter === 'ACTIVE' && !shiftType.isActive) return false;
+      if (statusFilter === 'INACTIVE' && shiftType.isActive) return false;
+      if (query.length === 0) return true;
+      return shiftType.name.includes(query);
+    });
+  }, [allShiftTypes, statusFilter, search]);
+
   return (
-    <section className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold">シフト種別管理</h2>
-        <Button onClick={() => setShowForm((prev) => !prev)}>
-          {showForm ? 'キャンセル' : 'シフト種別を追加'}
-        </Button>
-      </div>
+    <Stack gap="md">
+      <ListHeader
+        title="シフト種別管理"
+        total={allShiftTypes.length}
+        active={activeCount}
+        unit="件"
+        isLoading={isLoading}
+        action={
+          <Button
+            leftSection={<IconPlus size={16} />}
+            onClick={() => setDrawerState({ mode: 'create' })}
+          >
+            シフト種別を追加
+          </Button>
+        }
+      />
 
-      {showForm && <ShiftTypeForm onSuccess={() => setShowForm(false)} />}
+      <ListToolbar>
+        <SearchInput
+          placeholder="種別名で検索"
+          value={search}
+          onChange={(e) => setSearch(e.currentTarget.value)}
+        />
+        <StatusFilterControl value={statusFilter} onChange={setStatusFilter} />
+      </ListToolbar>
 
-      {isLoading && <p className="text-muted-foreground text-sm">読み込み中…</p>}
-      {isError && <p className="text-sm text-red-600">シフト種別一覧の取得に失敗しました</p>}
+      {isError && <ErrorAlert>シフト種別一覧の取得に失敗しました</ErrorAlert>}
 
-      {data && data.length === 0 && (
-        <p className="text-muted-foreground text-sm">シフト種別がありません</p>
+      {isLoading && <TableRowsSkeleton />}
+
+      {!isLoading && allShiftTypes.length === 0 && (
+        <ListEmptyState
+          icon={<IconClock size={32} stroke={1.5} />}
+          title="シフト種別がありません"
+          description="最初のシフト種別を追加しましょう。"
+          action={
+            <Button
+              leftSection={<IconPlus size={16} />}
+              onClick={() => setDrawerState({ mode: 'create' })}
+            >
+              シフト種別を追加
+            </Button>
+          }
+        />
       )}
 
-      {data && data.length > 0 && (
-        <ul className="flex flex-col gap-2">
-          {data.map((shiftType) => (
-            <ShiftTypeItem
-              key={shiftType.id}
-              id={shiftType.id}
-              name={shiftType.name}
-              isActive={shiftType.isActive}
-            />
-          ))}
-        </ul>
+      {!isLoading && allShiftTypes.length > 0 && visibleShiftTypes.length === 0 && (
+        <ListNoResultsState title="条件に一致するシフト種別がありません" />
       )}
-    </section>
+
+      {visibleShiftTypes.length > 0 && (
+        <AppTable minWidth={400}>
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>種別名</Table.Th>
+              <Table.Th w={120}>状態</Table.Th>
+              <Table.Th w={56} />
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
+            {visibleShiftTypes.map((shiftType) => (
+              <ShiftTypeRow
+                key={shiftType.id}
+                shiftType={shiftType}
+                onEdit={() => setDrawerState({ mode: 'edit', shiftTypeId: shiftType.id })}
+              />
+            ))}
+          </Table.Tbody>
+        </AppTable>
+      )}
+
+      <ShiftTypeDrawer state={drawerState} onClose={() => setDrawerState(null)} />
+    </Stack>
   );
 }
 
-type ShiftTypeItemProps = {
-  id: string;
-  name: string;
-  isActive: boolean;
+type ShiftTypeRowProps = {
+  shiftType: ShiftType;
+  onEdit: () => void;
 };
 
-/**
- * シフト種別の1行表示。編集・無効化ボタンを持つ。
- * deactivate フックをアイテム内に持つことで、各行が独立した操作状態を管理する。
- */
-function ShiftTypeItem({ id, name, isActive }: ShiftTypeItemProps) {
-  const [editing, setEditing] = useState(false);
-  const [editName, setEditName] = useState(name);
-  const update = useUpdateShiftType(id);
+/** シフト種別一覧の1行。クリックで編集 Drawer を開く。 */
+function ShiftTypeRow({ shiftType, onEdit }: ShiftTypeRowProps) {
   const deactivate = useDeactivateShiftType();
+  const isActive = shiftType.isActive;
 
-  const handleUpdate = (e: React.FormEvent) => {
-    e.preventDefault();
-    update.mutate({ name: editName }, { onSuccess: () => setEditing(false) });
+  const handleDeactivate = () => {
+    deactivate.mutate(shiftType.id, {
+      onSuccess: () => {
+        notifications.show({
+          color: 'green',
+          message: `${shiftType.name}を無効化しました`,
+        });
+      },
+    });
   };
 
   return (
-    <li className="border-border bg-card flex flex-col gap-2 rounded-md border p-4">
-      {editing ? (
-        <form onSubmit={handleUpdate} className="flex flex-1 items-center gap-2">
-          <input
-            type="text"
-            value={editName}
-            onChange={(e) => setEditName(e.target.value)}
-            required
-            maxLength={100}
-            autoFocus
-            className="border-input bg-background focus-visible:ring-ring flex-1 rounded-md border px-3 py-1.5 text-sm focus-visible:ring-1 focus-visible:outline-none"
-          />
-          <Button type="submit" size="sm" disabled={update.isPending}>
-            {update.isPending ? '保存中…' : '保存'}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setEditName(name);
-              setEditing(false);
-            }}
-          >
-            キャンセル
-          </Button>
-        </form>
-      ) : (
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="font-medium">{name}</span>
-            {!isActive && (
-              <span className="bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-xs">
-                無効
-              </span>
-            )}
-          </div>
-          {isActive && (
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
-                編集
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={deactivate.isPending}
-                onClick={() => deactivate.mutate(id)}
-              >
+    <ClickableTr onClick={onEdit}>
+      <Table.Td>
+        <Text fw={500} size="sm">
+          {shiftType.name}
+        </Text>
+      </Table.Td>
+      <Table.Td>
+        <AppBadge kind={isActive ? 'active' : 'inactive'}>
+          {isActive ? 'アクティブ' : '無効'}
+        </AppBadge>
+      </Table.Td>
+      <Table.Td onClick={(e) => e.stopPropagation()}>
+        <Menu position="bottom-end">
+          <Menu.Target>
+            <RowActionsButton />
+          </Menu.Target>
+          <Menu.Dropdown>
+            <Menu.Item onClick={onEdit}>編集</Menu.Item>
+            {isActive && (
+              <Menu.Item onClick={handleDeactivate} disabled={deactivate.isPending}>
                 無効化
-              </Button>
-            </div>
-          )}
-        </div>
-      )}
-
-      {update.isError && <p className="text-sm text-red-600">{update.error.message}</p>}
-      {deactivate.isError && <p className="text-sm text-red-600">{deactivate.error.message}</p>}
-    </li>
+              </Menu.Item>
+            )}
+          </Menu.Dropdown>
+        </Menu>
+      </Table.Td>
+    </ClickableTr>
   );
 }

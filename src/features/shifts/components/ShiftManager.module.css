@@ -1,0 +1,109 @@
+/* 表示形式は月間だけに固定し、MonthView 標準ヘッダーのビュー切替だけを隠す */
+.calendarHeader > :nth-child(3),
+.calendarHeader > :nth-child(4) {
+  display: none !important;
+}
+
+.calendarScrollArea {
+  scrollbar-width: thin;
+}
+
+.calendarWeekday:nth-child(6) {
+  color: var(--mantine-color-blue-7);
+}
+
+.calendarWeekday:nth-child(7) {
+  color: var(--mantine-color-red-7);
+}
+
+/* 選択中と未保存は人物表示と競合しないよう、セルの面と右上ドットで示す */
+.calendarDay[data-selected] {
+  background-color: var(--mantine-color-blue-0);
+  box-shadow: inset 0 0 0 2px var(--mantine-color-blue-5);
+  z-index: 1;
+}
+
+.calendarDay[data-staged]::after {
+  position: absolute;
+  top: 6px;
+  right: 28px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--mantine-color-orange-6);
+  content: '';
+}
+
+/* MonthView の背景イベント領域を使い、備考アイコンだけを日付セル右上へ重ねる */
+.descriptionLayer {
+  position: absolute;
+  top: -27px;
+  bottom: -21px;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.descriptionIcon {
+  position: absolute;
+  top: 1px;
+  right: 3px;
+  pointer-events: auto;
+}
+
+/* MonthView のイベント配置を利用しつつ、人名は色付きイベントではなく一覧として見せる */
+.instructorEvent {
+  border: 0;
+  background: transparent;
+  color: var(--mantine-color-text);
+  padding: 1px 6px;
+  overflow: hidden;
+  font-size: var(--mantine-font-size-xs);
+  font-weight: 400;
+  line-height: 1.35;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.instructorEvent:hover {
+  background-color: var(--mantine-color-gray-1);
+}
+
+.instructorEvent[data-current-user] {
+  font-weight: 600;
+}
+
+.assignmentDrawerBody {
+  padding-top: var(--mantine-spacing-xs);
+}
+
+.assignmentDrawerTitle {
+  flex: 1;
+  min-width: 0;
+}
+
+.instructorCard {
+  padding: var(--mantine-spacing-sm);
+  border: 1px solid var(--mantine-color-default-border);
+  border-radius: var(--mantine-radius-md);
+}
+
+.instructorCard[data-checked] {
+  border-color: var(--mantine-primary-color-filled);
+  background-color: var(--mantine-primary-color-light);
+}
+
+/* 偏差バーの土台: 人物カード内でも幅を維持する */
+.deviationBarTrack {
+  flex-shrink: 0;
+}
+
+@media (max-width: 48em) {
+  .calendarHeader {
+    align-items: stretch;
+  }
+
+  .instructorEvent {
+    padding-inline: 3px;
+  }
+}

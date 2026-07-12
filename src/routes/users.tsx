@@ -1,3 +1,4 @@
+import { Container } from '@mantine/core';
 import { createFileRoute, redirect } from '@tanstack/react-router';
 
 import { ensureAuthenticated } from '@/features/auth/auth-guard';
@@ -19,8 +20,8 @@ export const Route = createFileRoute('/users')({
 
 function UsersPage() {
   return (
-    <main className="mx-auto max-w-2xl p-6">
+    <Container size="lg" py="md">
       <UserList />
-    </main>
+    </Container>
   );
 }

@@ -1,288 +1,181 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
-import { Button } from '@/components/ui/button';
-import { useInstructors } from '@/features/instructors/queries';
+import { Avatar, Group, Menu, Stack, Table, Text } from '@mantine/core';
+import { notifications } from '@mantine/notifications';
+import { IconUsers } from '@tabler/icons-react';
 
-import {
-  useActivateUser,
-  useChangeRole,
-  useDeactivateUser,
-  useLinkInstructor,
-  useUnlinkInstructor,
-  useUsers,
-} from '../queries';
+import { ErrorAlert } from '@/components/AppAlert';
+import { AppBadge } from '@/components/AppBadge';
+import { AppTable } from '@/components/AppTable';
+import { ClickableTr } from '@/components/ClickableTr';
+import { ListEmptyState, ListNoResultsState } from '@/components/ListEmptyState';
+import { ListHeader } from '@/components/ListHeader';
+import { ListToolbar } from '@/components/ListToolbar';
+import { RowActionsButton } from '@/components/RowActionsButton';
+import { SearchInput } from '@/components/SearchInput';
+import type { ActiveStatusFilter } from '@/components/status-filter';
+import { StatusFilterControl } from '@/components/StatusFilterControl';
+import { TableRowsSkeleton } from '@/components/TableRowsSkeleton';
+
+import { useActivateUser, useDeactivateUser, useUsers } from '../queries';
+import { USER_ROLE_META } from '../role-meta';
 import type { User } from '../schema';
-import { userRoleSchema, type UserRole } from '../schema';
-
-/** ロールの表示名 */
-const ROLE_LABELS: Record<UserRole, string> = {
-  ADMIN: '管理者',
-  MANAGER: 'マネージャー',
-  MEMBER: 'メンバー',
-};
+import { UserDrawer, type UserDrawerState } from './UserDrawer';
 
 /**
- * ユーザー一覧・ロール変更・無効化・Instructor リンク操作を提供するコンポーネント（ADMIN 専用）。
+ * ユーザー一覧と検索・絞り込み、編集への導線を提供するコンポーネント（ADMIN 専用）。
+ * ユーザーは LINE 招待経由で登録されるため作成導線は持たず、ロール変更・
+ * Instructor リンク・ステータス変更は UserDrawer に集約する。
  */
 export function UserList() {
-  const { data: userList, isLoading, isError } = useUsers();
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<ActiveStatusFilter>('ALL');
+  const [drawerState, setDrawerState] = useState<UserDrawerState | null>(null);
+
+  const { data, isLoading, isError } = useUsers();
+  const allUsers = useMemo(() => data ?? [], [data]);
+  const activeCount = allUsers.filter((u) => u.isActive).length;
+
+  const visibleUsers = useMemo(() => {
+    const query = search.trim();
+    return allUsers.filter((user) => {
+      if (statusFilter !== 'ALL' && user.isActive !== (statusFilter === 'ACTIVE')) return false;
+      if (query.length === 0) return true;
+      return user.displayName.includes(query);
+    });
+  }, [allUsers, statusFilter, search]);
 
   return (
-    <section className="flex flex-col gap-4">
-      <h2 className="text-xl font-bold">ユーザー管理</h2>
+    <Stack gap="md">
+      <ListHeader
+        title="ユーザー管理"
+        total={allUsers.length}
+        active={activeCount}
+        unit="名"
+        isLoading={isLoading}
+      />
 
-      {isLoading && <p className="text-muted-foreground text-sm">読み込み中…</p>}
-      {isError && <p className="text-sm text-red-600">ユーザー一覧の取得に失敗しました</p>}
+      <ListToolbar>
+        <SearchInput
+          placeholder="ユーザー名で検索"
+          value={search}
+          onChange={(e) => setSearch(e.currentTarget.value)}
+        />
+        <StatusFilterControl value={statusFilter} onChange={setStatusFilter} />
+      </ListToolbar>
 
-      {!isLoading && userList?.length === 0 && (
-        <p className="text-muted-foreground text-sm">ユーザーがいません</p>
+      {isError && <ErrorAlert>ユーザー一覧の取得に失敗しました</ErrorAlert>}
+
+      {isLoading && <TableRowsSkeleton />}
+
+      {!isLoading && allUsers.length === 0 && (
+        <ListEmptyState icon={<IconUsers size={32} stroke={1.5} />} title="ユーザーがいません" />
       )}
 
-      {userList && userList.length > 0 && (
-        <ul className="flex flex-col gap-2">
-          {userList.map((user) => (
-            <UserItem key={user.id} user={user} />
-          ))}
-        </ul>
+      {!isLoading && allUsers.length > 0 && visibleUsers.length === 0 && (
+        <ListNoResultsState title="条件に一致するユーザーがいません" />
       )}
-    </section>
+
+      {visibleUsers.length > 0 && (
+        <AppTable minWidth={640}>
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>ユーザー名</Table.Th>
+              <Table.Th w={140}>ロール</Table.Th>
+              <Table.Th>Instructor リンク</Table.Th>
+              <Table.Th w={120}>状態</Table.Th>
+              <Table.Th w={56} />
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
+            {visibleUsers.map((user) => (
+              <UserRow
+                key={user.id}
+                user={user}
+                onEdit={() => setDrawerState({ userId: user.id })}
+              />
+            ))}
+          </Table.Tbody>
+        </AppTable>
+      )}
+
+      <UserDrawer state={drawerState} onClose={() => setDrawerState(null)} />
+    </Stack>
   );
 }
 
-type UserItemProps = {
+type UserRowProps = {
   user: User;
+  onEdit: () => void;
 };
 
-/** ユーザーの1行表示。操作モードを切り替える。 */
-function UserItem({ user }: UserItemProps) {
-  const [mode, setMode] = useState<'display' | 'change-role' | 'link-instructor'>('display');
-
-  if (mode === 'change-role') {
-    return <UserRoleChanger user={user} onBack={() => setMode('display')} />;
-  }
-  if (mode === 'link-instructor') {
-    return <UserInstructorLinker user={user} onBack={() => setMode('display')} />;
-  }
-  return (
-    <UserItemDisplay
-      user={user}
-      onChangeRole={() => setMode('change-role')}
-      onLinkInstructor={() => setMode('link-instructor')}
-    />
-  );
-}
-
-type UserItemDisplayProps = {
-  user: User;
-  onChangeRole: () => void;
-  onLinkInstructor: () => void;
-};
-
-/** ユーザーの表示モード。無効化・アクティブ化ボタンを持つ。 */
-function UserItemDisplay({ user, onChangeRole, onLinkInstructor }: UserItemDisplayProps) {
+/** ユーザー一覧の1行。クリックで編集 Drawer を開く。 */
+function UserRow({ user, onEdit }: UserRowProps) {
   const deactivate = useDeactivateUser(user.id);
   const activate = useActivateUser(user.id);
+  const isActive = user.isActive;
+  const roleMeta = USER_ROLE_META[user.role];
+
+  /** 行メニューからのステータス切り替え（無効化⇔アクティブ化）を実行する */
+  const handleToggleStatus = () => {
+    const mutation = isActive ? deactivate : activate;
+    mutation.mutate(undefined, {
+      onSuccess: () => {
+        notifications.show({
+          color: 'green',
+          message: `${user.displayName}を${isActive ? '無効化' : 'アクティブ化'}しました`,
+        });
+      },
+    });
+  };
 
   return (
-    <li className="border-border bg-card flex flex-col gap-2 rounded-md border p-4">
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex flex-col gap-0.5">
-          <div className="flex items-center gap-2">
-            <span className="font-medium">{user.displayName}</span>
-            <span className="bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-xs">
-              {ROLE_LABELS[user.role]}
-            </span>
-            {!user.isActive && (
-              <span className="bg-destructive/10 text-destructive rounded px-1.5 py-0.5 text-xs">
-                無効
-              </span>
-            )}
-            {user.instructorId && (
-              <span className="rounded bg-blue-100 px-1.5 py-0.5 text-xs text-blue-700">
-                Instructor リンク済み
-              </span>
-            )}
-          </div>
-        </div>
-        <div className="flex shrink-0 flex-wrap items-center gap-2">
-          <Button variant="outline" size="sm" onClick={onChangeRole}>
-            ロール変更
-          </Button>
-          <Button variant="outline" size="sm" onClick={onLinkInstructor}>
-            Instructor リンク
-          </Button>
-          {user.isActive ? (
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={deactivate.isPending}
-              onClick={() => deactivate.mutate()}
-            >
-              {deactivate.isPending ? '処理中…' : '無効化'}
-            </Button>
+    <ClickableTr onClick={onEdit}>
+      <Table.Td>
+        <Group gap="sm" wrap="nowrap">
+          {user.pictureUrl ? (
+            <Avatar src={user.pictureUrl} radius="xl" size="sm" />
           ) : (
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={activate.isPending}
-              onClick={() => activate.mutate()}
-            >
-              {activate.isPending ? '処理中…' : 'アクティブ化'}
-            </Button>
+            <Avatar color="initials" name={user.displayName} radius="xl" size="sm" />
           )}
-        </div>
-      </div>
-      {deactivate.isError && <p className="text-sm text-red-600">{deactivate.error.message}</p>}
-      {activate.isError && <p className="text-sm text-red-600">{activate.error.message}</p>}
-    </li>
-  );
-}
-
-type UserRoleChangerProps = {
-  user: User;
-  onBack: () => void;
-};
-
-/** ロール変更パネル。セレクトボックスでロールを選んで PATCH する。 */
-function UserRoleChanger({ user, onBack }: UserRoleChangerProps) {
-  const [role, setRole] = useState<UserRole>(user.role);
-  const changeRole = useChangeRole(user.id);
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    changeRole.mutate({ role }, { onSuccess: onBack });
-  };
-
-  return (
-    <li className="border-border bg-card rounded-md border p-4">
-      <div className="mb-3 flex items-center justify-between">
-        <span className="font-medium">{user.displayName} — ロール変更</span>
-        <Button type="button" variant="outline" size="sm" onClick={onBack}>
-          戻る
-        </Button>
-      </div>
-      <form onSubmit={handleSubmit} className="flex flex-col gap-2">
-        <select
-          value={role}
-          onChange={(e) => setRole(userRoleSchema.parse(e.target.value))}
-          className="border-input bg-background focus-visible:ring-ring rounded-md border px-3 py-1.5 text-sm focus-visible:ring-1 focus-visible:outline-none"
-        >
-          {userRoleSchema.options.map((r) => (
-            <option key={r} value={r}>
-              {ROLE_LABELS[r]}
-            </option>
-          ))}
-        </select>
-        <div className="flex gap-2">
-          <Button type="submit" size="sm" disabled={changeRole.isPending || role === user.role}>
-            {changeRole.isPending ? '保存中…' : '保存'}
-          </Button>
-          <Button type="button" variant="outline" size="sm" onClick={onBack}>
-            キャンセル
-          </Button>
-        </div>
-      </form>
-      {changeRole.isError && (
-        <p className="mt-2 text-sm text-red-600">{changeRole.error.message}</p>
-      )}
-    </li>
-  );
-}
-
-type UserInstructorLinkerProps = {
-  user: User;
-  onBack: () => void;
-};
-
-/**
- * Instructor リンク管理パネル。
- * アクティブ Instructor を一覧表示し、リンク・解除を操作する。
- */
-function UserInstructorLinker({ user, onBack }: UserInstructorLinkerProps) {
-  const [selectedInstructorId, setSelectedInstructorId] = useState('');
-  const { data: activeInstructors } = useInstructors('ACTIVE');
-  const linkInstructor = useLinkInstructor(user.id);
-  const unlinkInstructor = useUnlinkInstructor(user.id);
-
-  const handleLink = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedInstructorId) return;
-    linkInstructor.mutate({ instructorId: selectedInstructorId }, { onSuccess: onBack });
-  };
-
-  const handleUnlink = () => {
-    unlinkInstructor.mutate(undefined, { onSuccess: onBack });
-  };
-
-  const linkedInstructor = activeInstructors?.find((i) => i.id === user.instructorId);
-
-  return (
-    <li className="border-border bg-card flex flex-col gap-3 rounded-md border p-4">
-      <div className="flex items-center justify-between">
-        <span className="font-medium">{user.displayName} — Instructor リンク</span>
-        <Button type="button" variant="outline" size="sm" onClick={onBack}>
-          戻る
-        </Button>
-      </div>
-
-      {/* 現在のリンク状態 */}
-      {user.instructorId ? (
-        <div className="bg-muted flex items-center justify-between gap-2 rounded-md px-3 py-2 text-sm">
-          <span>
-            リンク中:{' '}
-            {linkedInstructor
-              ? `${linkedInstructor.lastName} ${linkedInstructor.firstName}`
-              : 'インストラクター情報を取得できません'}
-          </span>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={unlinkInstructor.isPending}
-            onClick={handleUnlink}
-          >
-            {unlinkInstructor.isPending ? '解除中…' : 'リンク解除'}
-          </Button>
-        </div>
-      ) : (
-        <p className="text-muted-foreground text-sm">Instructor にリンクされていません</p>
-      )}
-
-      {/* リンクフォーム */}
-      {!user.instructorId && activeInstructors && activeInstructors.length > 0 && (
-        <form onSubmit={handleLink} className="flex gap-2">
-          <select
-            value={selectedInstructorId}
-            onChange={(e) => setSelectedInstructorId(e.target.value)}
-            required
-            className="border-input bg-background focus-visible:ring-ring flex-1 rounded-md border px-3 py-1.5 text-sm focus-visible:ring-1 focus-visible:outline-none"
-          >
-            <option value="">インストラクターを選択してください</option>
-            {activeInstructors.map((inst) => (
-              <option key={inst.id} value={inst.id}>
-                {inst.lastName} {inst.firstName}
-                {inst.lastNameKana && inst.firstNameKana
-                  ? `（${inst.lastNameKana} ${inst.firstNameKana}）`
-                  : ''}
-              </option>
-            ))}
-          </select>
-          <Button
-            type="submit"
-            size="sm"
-            disabled={linkInstructor.isPending || !selectedInstructorId}
-          >
-            {linkInstructor.isPending ? 'リンク中…' : 'リンク'}
-          </Button>
-        </form>
-      )}
-
-      {linkInstructor.isError && (
-        <p className="text-sm text-red-600">{linkInstructor.error.message}</p>
-      )}
-      {unlinkInstructor.isError && (
-        <p className="text-sm text-red-600">{unlinkInstructor.error.message}</p>
-      )}
-    </li>
+          <Text fw={500} size="sm">
+            {user.displayName}
+          </Text>
+        </Group>
+      </Table.Td>
+      <Table.Td>
+        <AppBadge kind={roleMeta.badgeKind}>{roleMeta.label}</AppBadge>
+      </Table.Td>
+      <Table.Td>
+        {user.instructorId ? (
+          <AppBadge kind="link">リンク済み</AppBadge>
+        ) : (
+          <Text c="dimmed" size="sm">
+            —
+          </Text>
+        )}
+      </Table.Td>
+      <Table.Td>
+        <AppBadge kind={isActive ? 'active' : 'inactive'}>
+          {isActive ? 'アクティブ' : '無効'}
+        </AppBadge>
+      </Table.Td>
+      <Table.Td onClick={(e) => e.stopPropagation()}>
+        <Menu position="bottom-end">
+          <Menu.Target>
+            <RowActionsButton />
+          </Menu.Target>
+          <Menu.Dropdown>
+            <Menu.Item onClick={onEdit}>編集</Menu.Item>
+            <Menu.Item
+              onClick={handleToggleStatus}
+              disabled={deactivate.isPending || activate.isPending}
+            >
+              {isActive ? '無効化' : 'アクティブ化'}
+            </Menu.Item>
+          </Menu.Dropdown>
+        </Menu>
+      </Table.Td>
+    </ClickableTr>
   );
 }

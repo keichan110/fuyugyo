@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { departmentCodeSchema } from '@/features/departments/schema';
+
 /**
  * Shift / ShiftAssignment feature の境界スキーマ（isomorphic）。
  * サーバー（`api.ts`）の入出力検証とクライアント（`queries.ts`）の表示で共有する。
@@ -25,7 +27,7 @@ export const monthStringSchema = z
 export const shiftSchema = z.object({
   id: z.string(),
   date: z.coerce.date(),
-  departmentId: z.string(),
+  departmentCode: departmentCodeSchema,
   shiftTypeId: z.string(),
   description: z.string().nullable(),
   createdAt: z.coerce.date(),
@@ -51,47 +53,48 @@ export const shiftWithAssignmentsSchema = shiftSchema.extend({
 
 export type ShiftWithAssignments = z.infer<typeof shiftWithAssignmentsSchema>;
 
-/** Shift 一覧レスポンス（各 Shift に割り当て済み Instructor ID を含む） */
-export const shiftListSchema = z.array(shiftWithAssignmentsSchema);
+/** Shift 一覧の1件（部門名・部門コード・シフト種別名を JOIN で同梱） */
+export const shiftListItemSchema = shiftWithAssignmentsSchema.extend({
+  departmentName: z.string(),
+  shiftTypeName: z.string(),
+});
 
-/** Shift 作成リクエスト */
-export const createShiftSchema = z.object({
-  /** 勤務日（YYYY-MM-DD） */
+export type ShiftListItem = z.infer<typeof shiftListItemSchema>;
+
+/** Shift 一覧レスポンス（各 Shift に割り当て済み Instructor ID・部門名・シフト種別名を含む） */
+export const shiftListSchema = z.array(shiftListItemSchema);
+
+/** 月次まとめ upsert の1セル分（日付 × シフト種別の割り当て集合） */
+export const monthlyAssignmentCellSchema = z.object({
   date: dateStringSchema,
-  /** 部門 ID */
-  departmentId: z.string().min(1),
-  /** シフト種別 ID */
   shiftTypeId: z.string().min(1),
-  /** 備考（任意） */
-  description: z.string().max(500).optional(),
-  /** 割り当てる Instructor の ID 群（重複は無視され、空配列も可） */
+  description: z.string().max(500).nullable().optional(),
   instructorIds: z.array(z.string().min(1)).default([]),
 });
 
-export type CreateShiftInput = z.infer<typeof createShiftSchema>;
+export type MonthlyAssignmentCell = z.infer<typeof monthlyAssignmentCellSchema>;
 
-/** Shift 更新リクエスト（少なくとも1フィールド必須） */
-export const updateShiftSchema = z
-  .object({
-    /** 備考（null で消去） */
-    description: z.string().max(500).nullable().optional(),
-    /** 割り当てる Instructor の ID 群（指定時は割り当てを総入れ替えする） */
-    instructorIds: z.array(z.string().min(1)).optional(),
-  })
-  .refine((v) => v.description !== undefined || v.instructorIds !== undefined, {
-    message: '更新するフィールドを1つ以上指定してください',
-  });
+/**
+ * 月単位で (date × 部門 × シフト種別) の割り当て集合をまとめて upsert する。
+ * cells には保存したい変更差分のみを含める（含まれないセルは変更しない）。
+ */
+export const upsertMonthlyAssignmentsSchema = z.object({
+  month: monthStringSchema,
+  departmentCode: departmentCodeSchema,
+  cells: z.array(monthlyAssignmentCellSchema),
+});
 
-export type UpdateShiftInput = z.infer<typeof updateShiftSchema>;
+export type UpsertMonthlyAssignmentsInput = z.infer<typeof upsertMonthlyAssignmentsSchema>;
+
+/** 月次まとめ upsert レスポンス */
+export const upsertMonthlyAssignmentsResultSchema = z.object({
+  upsertedCount: z.number(),
+  deletedCount: z.number(),
+});
+
+export type UpsertMonthlyAssignmentsResult = z.infer<typeof upsertMonthlyAssignmentsResultSchema>;
 
 // ─── 集約（フォーム）データ ─────────────────────────────────────────────────
-
-/** form-data の Department 最小情報 */
-const formDepartmentSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  code: z.string(),
-});
 
 /** form-data の ShiftType 最小情報 */
 const formShiftTypeSchema = z.object({
@@ -101,32 +104,36 @@ const formShiftTypeSchema = z.object({
 
 /**
  * シフト作成フォームの初期表示データ（1リクエスト・N+1 なし）。
- * 部門・シフト種別一覧と、選択肢の規模を示す統計を含む。
+ * シフト種別一覧と、選択肢の規模を示す統計を含む。
  */
 export const shiftFormDataSchema = z.object({
-  departments: z.array(formDepartmentSchema),
   shiftTypes: z.array(formShiftTypeSchema),
   stats: z.object({
     activeInstructorsCount: z.number(),
-    totalDepartments: z.number(),
     totalShiftTypes: z.number(),
   }),
 });
 
 export type ShiftFormData = z.infer<typeof shiftFormDataSchema>;
 
-/** edit-data の割り当て候補 Instructor（割り当て状態・競合状態付き） */
+/** edit-data の割り当て候補 Instructor（割り当て状態・競合状態・負荷の土台付き） */
 const availableInstructorSchema = z.object({
   id: z.string(),
   displayName: z.string(),
   displayNameKana: z.string().nullable(),
   status: z.string(),
-  /** 保有資格の略称をまとめた表示用文字列 */
-  certificationSummary: z.string(),
+  /** 保有資格の略称一覧 */
+  certifications: z.array(z.string()),
   /** この Shift に既に割り当て済みか */
   isAssigned: z.boolean(),
   /** 同日の別 Shift に割り当て済みで競合しているか */
   hasConflict: z.boolean(),
+  /**
+   * 保存済みシーズン勤務日数のうち、対象月を除いた日数（全部門横断）。
+   * 当月分（ステージ中の未保存編集を含む）はクライアント側でライブ計算し、
+   * この値と合算して総勤務日数とする（月をまたぐ負荷もリアルタイム反映するため）。
+   */
+  seasonWorkDaysOutsideMonth: z.number(),
 });
 
 export type AvailableInstructor = z.infer<typeof availableInstructorSchema>;
@@ -153,7 +160,7 @@ export const shiftEditDataSchema = z.object({
     .object({
       id: z.string(),
       date: dateStringSchema,
-      departmentId: z.string(),
+      departmentCode: departmentCodeSchema,
       shiftTypeId: z.string(),
       description: z.string().nullable(),
       assignedInstructorIds: z.array(z.string()),
@@ -183,9 +190,8 @@ export const shiftViewItemSchema = z.object({
   date: dateStringSchema,
   description: z.string().nullable(),
   department: z.object({
-    id: z.string(),
     name: z.string(),
-    code: z.string(),
+    code: departmentCodeSchema,
   }),
   shiftType: z.object({ id: z.string(), name: z.string() }),
   assignedInstructors: z.array(viewInstructorSchema),
@@ -220,3 +226,34 @@ export const shiftViewResponseSchema = z.object({
 });
 
 export type ShiftViewResponse = z.infer<typeof shiftViewResponseSchema>;
+
+// ─── アジェンダ表示 ────────────────────────────────────────────────────────
+
+/** アジェンダのページング方向 */
+export const shiftAgendaDirectionSchema = z.enum(['future', 'past']);
+
+export type ShiftAgendaDirection = z.infer<typeof shiftAgendaDirectionSchema>;
+
+/**
+ * アジェンダの稼働日1日分。
+ * 休校日は要素を生成せず、同じ日付の Shift だけを部門・シフト種別順で保持する。
+ */
+export const shiftAgendaDaySchema = z.object({
+  date: dateStringSchema,
+  shifts: z.array(shiftViewItemSchema),
+});
+
+export type ShiftAgendaDay = z.infer<typeof shiftAgendaDaySchema>;
+
+/** アジェンダ範囲レスポンス */
+export const shiftAgendaResponseSchema = z.object({
+  days: z.array(shiftAgendaDaySchema),
+  pageInfo: z.object({
+    direction: shiftAgendaDirectionSchema,
+    limit: z.number(),
+    nextCursor: dateStringSchema.nullable(),
+    previousCursor: dateStringSchema.nullable(),
+  }),
+});
+
+export type ShiftAgendaResponse = z.infer<typeof shiftAgendaResponseSchema>;

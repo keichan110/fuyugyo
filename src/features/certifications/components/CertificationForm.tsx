@@ -1,134 +1,73 @@
-import { useState } from 'react';
+import { Select, Stack, Textarea, TextInput } from '@mantine/core';
+import type { UseFormReturnType } from '@mantine/form';
 
-import { Button } from '@/components/ui/button';
-import { useDepartments } from '@/features/departments/queries';
+import { DEPARTMENT_APPEARANCE } from '@/features/departments/appearance';
+import { departmentCodeSchema } from '@/features/departments/schema';
 
-import { useCreateCertification } from '../queries';
+import type { CertificationFormValues } from './useCertificationForm';
 
 type Props = {
-  onSuccess?: () => void;
+  form: UseFormReturnType<CertificationFormValues>;
+  /**
+   * 指定した場合、部門は変更不可の読み取り専用表示になる（編集時の部門名）。
+   * 未指定（作成時）は Select による選択式にする。
+   */
+  departmentName?: string | undefined;
 };
 
 /**
- * 資格作成フォーム。departmentId・name・shortName・organization・description を入力して POST する。
+ * 資格の部門・資格名・省略名・発行団体・説明の入力フィールド群。
+ * 送信ボタンは持たず、フォーム全体の送信は呼び出し側に委ねる。
  */
-export function CertificationForm({ onSuccess }: Props) {
-  const [departmentId, setDepartmentId] = useState('');
-  const [name, setName] = useState('');
-  const [shortName, setShortName] = useState('');
-  const [organization, setOrganization] = useState('');
-  const [description, setDescription] = useState('');
-
-  const { data: departments } = useDepartments(true);
-  const create = useCreateCertification();
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    create.mutate(
-      {
-        departmentId,
-        name,
-        shortName,
-        organization,
-        description: description || undefined,
-      },
-      onSuccess ? { onSuccess } : undefined,
-    );
-  };
-
+export function CertificationFormFields({ form, departmentName }: Props) {
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="border-border bg-card flex flex-col gap-3 rounded-md border p-4"
-    >
-      <div className="flex flex-col gap-1">
-        <label htmlFor="cert-department" className="text-sm font-medium">
-          部門 <span className="text-red-500">*</span>
-        </label>
-        <select
-          id="cert-department"
-          value={departmentId}
-          onChange={(e) => setDepartmentId(e.target.value)}
+    <Stack gap="sm">
+      {departmentName !== undefined ? (
+        <TextInput label="部門" value={departmentName} disabled readOnly />
+      ) : (
+        <Select
+          label="部門"
           required
-          className="border-input bg-background focus-visible:ring-ring rounded-md border px-3 py-1.5 text-sm focus-visible:ring-1 focus-visible:outline-none"
-        >
-          <option value="">部門を選択してください</option>
-          {departments?.map((dept) => (
-            <option key={dept.id} value={dept.id}>
-              {dept.name}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div className="flex flex-col gap-1">
-        <label htmlFor="cert-name" className="text-sm font-medium">
-          資格名 <span className="text-red-500">*</span>
-        </label>
-        <input
-          id="cert-name"
-          type="text"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          required
-          maxLength={100}
-          placeholder="例: スキー指導員"
-          className="border-input bg-background focus-visible:ring-ring rounded-md border px-3 py-1.5 text-sm focus-visible:ring-1 focus-visible:outline-none"
+          placeholder="部門を選択してください"
+          data={departmentCodeSchema.options.map((code) => ({
+            value: code,
+            label: DEPARTMENT_APPEARANCE[code].label,
+          }))}
+          {...form.getInputProps('departmentCode')}
         />
-      </div>
+      )}
 
-      <div className="flex flex-col gap-1">
-        <label htmlFor="cert-short-name" className="text-sm font-medium">
-          省略名 <span className="text-red-500">*</span>
-        </label>
-        <input
-          id="cert-short-name"
-          type="text"
-          value={shortName}
-          onChange={(e) => setShortName(e.target.value)}
-          required
-          maxLength={20}
-          placeholder="例: 指導員"
-          className="border-input bg-background focus-visible:ring-ring rounded-md border px-3 py-1.5 text-sm focus-visible:ring-1 focus-visible:outline-none"
-        />
-      </div>
+      <TextInput
+        label="資格名"
+        required
+        maxLength={100}
+        placeholder="例: スキー指導員"
+        {...form.getInputProps('name')}
+      />
 
-      <div className="flex flex-col gap-1">
-        <label htmlFor="cert-organization" className="text-sm font-medium">
-          発行団体 <span className="text-red-500">*</span>
-        </label>
-        <input
-          id="cert-organization"
-          type="text"
-          value={organization}
-          onChange={(e) => setOrganization(e.target.value)}
-          required
-          maxLength={100}
-          placeholder="例: 全日本スキー連盟"
-          className="border-input bg-background focus-visible:ring-ring rounded-md border px-3 py-1.5 text-sm focus-visible:ring-1 focus-visible:outline-none"
-        />
-      </div>
+      <TextInput
+        label="省略名"
+        required
+        maxLength={20}
+        placeholder="例: 指導員"
+        {...form.getInputProps('shortName')}
+      />
 
-      <div className="flex flex-col gap-1">
-        <label htmlFor="cert-desc" className="text-sm font-medium">
-          説明
-        </label>
-        <textarea
-          id="cert-desc"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          maxLength={500}
-          rows={2}
-          placeholder="資格の説明（任意）"
-          className="border-input bg-background focus-visible:ring-ring resize-none rounded-md border px-3 py-1.5 text-sm focus-visible:ring-1 focus-visible:outline-none"
-        />
-      </div>
+      <TextInput
+        label="発行団体"
+        required
+        maxLength={100}
+        placeholder="例: 全日本スキー連盟"
+        {...form.getInputProps('organization')}
+      />
 
-      {create.isError && <p className="text-sm text-red-600">{create.error.message}</p>}
-
-      <Button type="submit" disabled={create.isPending}>
-        {create.isPending ? '作成中…' : '作成'}
-      </Button>
-    </form>
+      <Textarea
+        label="説明"
+        maxLength={500}
+        rows={2}
+        placeholder="資格の説明（任意）"
+        {...form.getInputProps('description')}
+      />
+    </Stack>
   );
 }

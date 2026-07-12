@@ -40,6 +40,7 @@ export function useInvitations() {
 
 /**
  * 招待トークンを作成するミューテーション。
+ * サーバー側で既存のアクティブな招待は自動的に失効し、新しい招待に置き換わる。
  * 成功後は一覧キャッシュを無効化する。
  */
 export function useCreateInvitation() {

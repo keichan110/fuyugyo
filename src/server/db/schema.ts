@@ -21,28 +21,12 @@ const primaryId = () =>
     .primaryKey()
     .$defaultFn(() => crypto.randomUUID());
 
-/** 部門テーブル（スキー・スノーボード等の部門を管理） */
-export const departments = sqliteTable(
-  'departments',
-  {
-    id: primaryId(),
-    code: text('code').notNull().unique(),
-    name: text('name').notNull(),
-    description: text('description'),
-    isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
-    ...timestamps,
-  },
-  (t) => [index('idx_departments_active').on(t.isActive)],
-);
-
 /** 資格テーブル（インストラクター資格を管理） */
 export const certifications = sqliteTable(
   'certifications',
   {
     id: primaryId(),
-    departmentId: text('department_id')
-      .notNull()
-      .references(() => departments.id),
+    departmentCode: text('department_code').notNull(),
     name: text('name').notNull(),
     shortName: text('short_name').notNull(),
     organization: text('organization').notNull(),
@@ -51,7 +35,7 @@ export const certifications = sqliteTable(
     ...timestamps,
   },
   (t) => [
-    index('idx_certifications_department_id').on(t.departmentId),
+    index('idx_certifications_department_code').on(t.departmentCode),
     index('idx_certifications_active').on(t.isActive),
     index('idx_certifications_organization').on(t.organization),
   ],
@@ -117,9 +101,7 @@ export const shifts = sqliteTable(
   {
     id: primaryId(),
     date: integer('date', { mode: 'timestamp' }).notNull(),
-    departmentId: text('department_id')
-      .notNull()
-      .references(() => departments.id),
+    departmentCode: text('department_code').notNull(),
     shiftTypeId: text('shift_type_id')
       .notNull()
       .references(() => shiftTypes.id),
@@ -128,12 +110,12 @@ export const shifts = sqliteTable(
   },
   (t) => [
     // (日付 × 部門 × シフト種別) の重複枠を DB レベルで禁止する
-    uniqueIndex('unique_shift_per_day').on(t.date, t.departmentId, t.shiftTypeId),
-    index('idx_shifts_department_id').on(t.departmentId),
+    uniqueIndex('unique_shift_per_day').on(t.date, t.departmentCode, t.shiftTypeId),
+    index('idx_shifts_department_code').on(t.departmentCode),
     index('idx_shifts_shift_type_id').on(t.shiftTypeId),
     index('idx_shifts_date').on(t.date),
-    index('idx_shifts_date_department').on(t.date, t.departmentId),
-    index('idx_shifts_department_type_date').on(t.departmentId, t.shiftTypeId, t.date),
+    index('idx_shifts_date_department').on(t.date, t.departmentCode),
+    index('idx_shifts_department_type_date').on(t.departmentCode, t.shiftTypeId, t.date),
     index('idx_shifts_date_type').on(t.date, t.shiftTypeId),
   ],
 );

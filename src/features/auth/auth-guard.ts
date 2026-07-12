@@ -8,8 +8,10 @@ import { meResponseSchema, type MeResponse } from './schema';
 /**
  * 現在の認証状態を取得する（未認証なら null）。
  * TanStack Query のキャッシュを共有し、ルートガードとコンポーネント表示で同じ結果を使う。
+ * 親レイアウトルートで `ensureAuthenticated` を通過した後、子ルートでロールなどの追加チェックを
+ * 行うときはこの関数を使うとキャッシュヒットで済み、余分な API 呼び出しが発生しない。
  */
-async function fetchMe(queryClient: QueryClient): Promise<MeResponse | null> {
+export async function fetchMe(queryClient: QueryClient): Promise<MeResponse | null> {
   return await queryClient.fetchQuery({
     queryKey: ME_QUERY_KEY,
     queryFn: async () => {

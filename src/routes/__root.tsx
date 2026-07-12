@@ -8,11 +8,22 @@ import {
   Drawer,
   Group,
   Menu,
+  NavLink,
   Stack,
   Text,
   UnstyledButton,
 } from '@mantine/core';
-import { IconCalendarCog, IconCalendarWeek, IconSettings, type Icon } from '@tabler/icons-react';
+import {
+  IconCalendarCog,
+  IconCalendarWeek,
+  IconCertificate,
+  IconHome,
+  IconSettings,
+  IconTicket,
+  IconUser,
+  IconUsers,
+  type Icon,
+} from '@tabler/icons-react';
 import { useDisclosure } from '@mantine/hooks';
 import type { QueryClient } from '@tanstack/react-query';
 import {
@@ -33,13 +44,14 @@ export type RouterContext = {
   queryClient: QueryClient;
 };
 
-/** ルートルート。ヘッダーのみの AppShell で全ページを包む（ADR 0009） */
+/** ルートルート。レスポンシブなナビゲーションを持つ AppShell で全ページを包む（ADR 0009） */
 export const Route = createRootRouteWithContext<RouterContext>()({
   component: RootLayout,
 });
 
 function RootLayout() {
   const { data: user, isLoading } = useMe();
+  const [desktopNavbarOpened, { toggle: toggleDesktopNavbar }] = useDisclosure(true);
 
   // 未認証（ログイン画面等）は AppShell なしで素通しする
   if (isLoading || !user) {
@@ -47,24 +59,28 @@ function RootLayout() {
   }
 
   return (
-    <AppShell header={{ height: 60 }} padding="md">
+    <AppShell
+      header={{ height: 60 }}
+      navbar={{
+        width: 260,
+        breakpoint: 'sm',
+        collapsed: { mobile: true, desktop: !desktopNavbarOpened },
+      }}
+      padding="md"
+    >
       <AppShell.Header>
         <Group h="100%" px={{ base: 'xs', sm: 'md' }} justify="space-between" wrap="nowrap">
-          <Text component={Link} to="/" fw={700} size="lg" c="blue" td="none">
-            Fuyugyō
-          </Text>
-          <Group gap="xs" justify="center" flex={1} wrap="nowrap" visibleFrom="sm">
-            <HeaderLink to="/shifts" icon={IconCalendarWeek}>
-              シフト表
-            </HeaderLink>
-            {hasMinimumRole(user.role, 'MANAGER') && (
-              <HeaderLink to="/shifts/manage" icon={IconCalendarCog}>
-                シフト管理
-              </HeaderLink>
-            )}
-            {hasMinimumRole(user.role, 'MANAGER') && (
-              <SettingsMenu isAdmin={user.role === 'ADMIN'} />
-            )}
+          <Group gap="xs" wrap="nowrap">
+            <Burger
+              visibleFrom="sm"
+              opened={desktopNavbarOpened}
+              onClick={toggleDesktopNavbar}
+              aria-label={desktopNavbarOpened ? 'サイドバーを閉じる' : 'サイドバーを開く'}
+              size="sm"
+            />
+            <Text component={Link} to="/" fw={700} size="lg" c="blue" td="none">
+              Fuyugyō
+            </Text>
           </Group>
           <Group gap="xs" wrap="nowrap">
             <MobileNavigation user={user} />
@@ -74,6 +90,11 @@ function RootLayout() {
           </Group>
         </Group>
       </AppShell.Header>
+      <AppShell.Navbar p="sm">
+        <AppShell.Section grow>
+          <NavigationMenu user={user} />
+        </AppShell.Section>
+      </AppShell.Navbar>
       <AppShell.Main>
         <MemberInstructorLinkPrompt user={user} />
         <Outlet />
@@ -99,85 +120,93 @@ function MemberInstructorLinkPrompt({ user }: { user: MeResponse }) {
 
 const MEMBER_PATHS = new Set(['/', '/shifts']);
 
-/** ヘッダー中央のよく使う導線用リンク（設定メニューボタンと統一感のあるスタイル） */
-function HeaderLink({ to, icon: Icon, children }: { to: string; icon: Icon; children: string }) {
+type NavigationItem = {
+  to: string;
+  label: string;
+  icon: Icon;
+  minimumRole?: MeResponse['role'];
+};
+
+type NavigationGroup = {
+  id: string;
+  label?: string;
+  items: NavigationItem[];
+};
+
+const NAVIGATION_GROUPS: NavigationGroup[] = [
+  { id: 'dashboard', items: [{ to: '/', label: 'ダッシュボード', icon: IconHome }] },
+  {
+    id: 'shift-operations',
+    label: 'シフト運用',
+    items: [
+      { to: '/shifts', label: 'シフト表', icon: IconCalendarWeek },
+      { to: '/shifts/manage', label: 'シフト管理', icon: IconCalendarCog, minimumRole: 'MANAGER' },
+    ],
+  },
+  {
+    id: 'master-data',
+    label: 'マスタ管理',
+    items: [
+      { to: '/certifications', label: '資格', icon: IconCertificate, minimumRole: 'MANAGER' },
+      { to: '/shift-types', label: 'シフト種別設定', icon: IconSettings, minimumRole: 'ADMIN' },
+      { to: '/instructors', label: 'インストラクター', icon: IconUser, minimumRole: 'MANAGER' },
+    ],
+  },
+  {
+    id: 'user-management',
+    label: 'ユーザー管理',
+    items: [
+      { to: '/users', label: 'ユーザー', icon: IconUsers, minimumRole: 'ADMIN' },
+      { to: '/invitations', label: '招待', icon: IconTicket, minimumRole: 'ADMIN' },
+    ],
+  },
+];
+
+/** ロールに応じた共通ナビゲーション。サイドバーとモバイルドロワーで共有する。 */
+function NavigationMenu({ user, onNavigate }: { user: MeResponse; onNavigate?: () => void }) {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
-  const active = pathname === to;
 
   return (
-    <Button
-      component={Link}
-      to={to}
-      variant={active ? 'light' : 'subtle'}
-      color={active ? 'blue' : 'gray'}
-      size="sm"
-      leftSection={<Icon size={16} stroke={1.75} />}
-      px="sm"
-    >
-      {children}
-    </Button>
-  );
-}
+    <Stack gap="sm">
+      {NAVIGATION_GROUPS.map((group) => {
+        const items = group.items.filter(
+          (item) => !item.minimumRole || hasMinimumRole(user.role, item.minimumRole),
+        );
 
-/**
- * 設定ドロップダウンメニュー（ADR 0009: マスタ管理/ユーザー管理のグループ）。
- * シフト管理はヘッダー中央の独立導線へ移設済みのため、ここにはマスタ管理と
- * ユーザー管理のみを収める。マスタ管理は MANAGER 以上、ユーザー管理は ADMIN
- * のみに表示する（API 側の `requireRole` と揃える）。
- */
-function SettingsMenu({ isAdmin }: { isAdmin: boolean }) {
-  const pathname = useRouterState({ select: (state) => state.location.pathname });
-  const active = SETTINGS_PATHS.has(pathname);
+        if (items.length === 0) {
+          return null;
+        }
 
-  return (
-    <Menu width={200}>
-      <Menu.Target>
-        <Button
-          variant={active ? 'light' : 'subtle'}
-          color={active ? 'blue' : 'gray'}
-          size="sm"
-          leftSection={<IconSettings size={16} stroke={1.75} />}
-          px="sm"
-        >
-          設定
-        </Button>
-      </Menu.Target>
-      <Menu.Dropdown>
-        <Menu.Label>マスタ管理</Menu.Label>
-        <Menu.Item component={Link} to="/certifications">
-          資格
-        </Menu.Item>
-        {isAdmin && (
-          <Menu.Item component={Link} to="/shift-types">
-            シフト種別設定
-          </Menu.Item>
-        )}
-        <Menu.Item component={Link} to="/instructors">
-          インストラクター
-        </Menu.Item>
-
-        {isAdmin && (
-          <>
-            <Menu.Divider />
-            <Menu.Label>ユーザー管理</Menu.Label>
-            <Menu.Item component={Link} to="/users">
-              ユーザー
-            </Menu.Item>
-            <Menu.Item component={Link} to="/invitations">
-              招待
-            </Menu.Item>
-          </>
-        )}
-      </Menu.Dropdown>
-    </Menu>
+        return (
+          <Stack key={group.id} gap={4}>
+            {group.label && (
+              <Text size="xs" fw={700} c="dimmed" px="sm" mt="xs">
+                {group.label}
+              </Text>
+            )}
+            {items.map(({ to, label, icon: Icon }) => (
+              <NavLink
+                key={to}
+                component={Link}
+                to={to}
+                activeOptions={{ exact: true }}
+                label={label}
+                leftSection={<Icon size={18} stroke={1.75} />}
+                active={pathname === to}
+                variant="light"
+                {...(onNavigate ? { onClick: onNavigate } : {})}
+              />
+            ))}
+          </Stack>
+        );
+      })}
+    </Stack>
   );
 }
 
 /** モバイル幅でヘッダー導線をまとめるドロワーナビゲーション。 */
 function MobileNavigation({ user }: { user: MeResponse }) {
   const [opened, { close, toggle }] = useDisclosure(false);
-  const isManager = hasMinimumRole(user.role, 'MANAGER');
-  const isAdmin = user.role === 'ADMIN';
 
   return (
     <>
@@ -190,65 +219,12 @@ function MobileNavigation({ user }: { user: MeResponse }) {
       />
       <Drawer opened={opened} onClose={close} title="メニュー">
         <Stack gap="xs">
-          <MobileNavigationLink to="/shifts" onNavigate={close}>
-            シフト表
-          </MobileNavigationLink>
-          {isManager && (
-            <>
-              <MobileNavigationLink to="/shifts/manage" onNavigate={close}>
-                シフト管理
-              </MobileNavigationLink>
-              <Text size="sm" fw={700} mt="sm">
-                マスタ管理
-              </Text>
-              <MobileNavigationLink to="/certifications" onNavigate={close}>
-                資格
-              </MobileNavigationLink>
-              {isAdmin && (
-                <MobileNavigationLink to="/shift-types" onNavigate={close}>
-                  シフト種別設定
-                </MobileNavigationLink>
-              )}
-              <MobileNavigationLink to="/instructors" onNavigate={close}>
-                インストラクター
-              </MobileNavigationLink>
-            </>
-          )}
-          {isAdmin && (
-            <>
-              <Text size="sm" fw={700} mt="sm">
-                ユーザー管理
-              </Text>
-              <MobileNavigationLink to="/users" onNavigate={close}>
-                ユーザー
-              </MobileNavigationLink>
-              <MobileNavigationLink to="/invitations" onNavigate={close}>
-                招待
-              </MobileNavigationLink>
-            </>
-          )}
+          <NavigationMenu user={user} onNavigate={close} />
           <Divider my="sm" />
           <MobileAccountActions user={user} />
         </Stack>
       </Drawer>
     </>
-  );
-}
-
-/** モバイル用ドロワー内の画面遷移リンク。 */
-function MobileNavigationLink({
-  to,
-  onNavigate,
-  children,
-}: {
-  to: string;
-  onNavigate: () => void;
-  children: string;
-}) {
-  return (
-    <Button component={Link} to={to} variant="subtle" color="gray" justify="flex-start" onClick={onNavigate}>
-      {children}
-    </Button>
   );
 }
 
@@ -328,14 +304,6 @@ function MobileInstructorLinkSection({ instructorId }: { instructorId: string })
     </Stack>
   );
 }
-
-const SETTINGS_PATHS = new Set([
-  '/certifications',
-  '/shift-types',
-  '/instructors',
-  '/users',
-  '/invitations',
-]);
 
 /** アバター + ログアウトメニュー（全ユーザー共通） */
 function UserMenu({ user }: { user: MeResponse }) {

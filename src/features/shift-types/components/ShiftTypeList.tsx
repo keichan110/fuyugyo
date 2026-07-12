@@ -1,34 +1,36 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 
-import { Button, Group, Menu, Stack, Table, Text } from '@mantine/core';
-import { notifications } from '@mantine/notifications';
+import { Button, Stack, Table, Text } from '@mantine/core';
 import { IconClock, IconPlus } from '@tabler/icons-react';
 
 import { ErrorAlert } from '@/components/AppAlert';
 import { AppBadge } from '@/components/AppBadge';
 import { AppTable } from '@/components/AppTable';
 import { ClickableTr } from '@/components/ClickableTr';
+import { InactiveVisibilityToggle } from '@/components/InactiveVisibilityToggle';
 import { ListEmptyState, ListNoResultsState } from '@/components/ListEmptyState';
 import { ListHeader } from '@/components/ListHeader';
 import { ListToolbar } from '@/components/ListToolbar';
-import { RowActionsButton } from '@/components/RowActionsButton';
 import { SearchInput } from '@/components/SearchInput';
-import type { ActiveStatusFilter } from '@/components/status-filter';
-import { StatusFilterControl } from '@/components/StatusFilterControl';
 import { TableRowsSkeleton } from '@/components/TableRowsSkeleton';
-import { DepartmentTag } from '@/features/departments/DepartmentTag';
 
-import { useDeactivateShiftType, useShiftTypes } from '../queries';
+import { useShiftTypes } from '../queries';
 import type { ShiftTypeListItem } from '../schema';
 import { ShiftTypeDrawer, type ShiftTypeDrawerState } from './ShiftTypeDrawer';
 
 /**
- * シフト種別一覧と検索・絞り込み、作成・編集への導線を提供するコンポーネント。
- * 作成・編集・無効化は ShiftTypeDrawer に集約する。
+ * テーブルの各行に表示する任意の操作。
  */
-export function ShiftTypeList() {
+type ShiftTypeListProps = {
+  renderRowAction?: (shiftType: ShiftTypeListItem) => ReactNode;
+  /** 任意の行操作列の見出し。 */
+  rowActionHeader?: ReactNode;
+};
+
+/** シフト種別マスタの検索・絞り込みと新規登録・編集を提供する一覧。 */
+export function ShiftTypeList({ renderRowAction, rowActionHeader }: ShiftTypeListProps) {
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<ActiveStatusFilter>('ALL');
+  const [showInactive, setShowInactive] = useState(false);
   const [drawerState, setDrawerState] = useState<ShiftTypeDrawerState | null>(null);
 
   // 管理画面では無効種別も表示するため全件取得する
@@ -40,27 +42,28 @@ export function ShiftTypeList() {
   const visibleShiftTypes = useMemo(() => {
     const query = search.trim();
     return allShiftTypes.filter((shiftType) => {
-      if (statusFilter === 'ACTIVE' && !shiftType.isActive) return false;
-      if (statusFilter === 'INACTIVE' && shiftType.isActive) return false;
+      if (!showInactive && !shiftType.isActive) return false;
       if (query.length === 0) return true;
       return shiftType.name.includes(query);
     });
-  }, [allShiftTypes, statusFilter, search]);
+  }, [allShiftTypes, showInactive, search]);
 
   return (
     <Stack gap="md">
       <ListHeader
-        title="シフト種別管理"
+        title="シフト種別マスタ"
         total={allShiftTypes.length}
         active={activeCount}
         unit="件"
+        activeLabel="有効"
         isLoading={isLoading}
         action={
           <Button
+            size="sm"
             leftSection={<IconPlus size={16} />}
             onClick={() => setDrawerState({ mode: 'create' })}
           >
-            シフト種別を追加
+            登録
           </Button>
         }
       />
@@ -71,7 +74,7 @@ export function ShiftTypeList() {
           value={search}
           onChange={(e) => setSearch(e.currentTarget.value)}
         />
-        <StatusFilterControl value={statusFilter} onChange={setStatusFilter} />
+        <InactiveVisibilityToggle shown={showInactive} onChange={setShowInactive} />
       </ListToolbar>
 
       {isError && <ErrorAlert>シフト種別一覧の取得に失敗しました</ErrorAlert>}
@@ -82,13 +85,13 @@ export function ShiftTypeList() {
         <ListEmptyState
           icon={<IconClock size={32} stroke={1.5} />}
           title="シフト種別がありません"
-          description="最初のシフト種別を追加しましょう。"
+          description="最初のシフト種別をマスタに登録しましょう。"
           action={
             <Button
               leftSection={<IconPlus size={16} />}
               onClick={() => setDrawerState({ mode: 'create' })}
             >
-              シフト種別を追加
+              シフト種別を新規登録
             </Button>
           }
         />
@@ -103,9 +106,8 @@ export function ShiftTypeList() {
           <Table.Thead>
             <Table.Tr>
               <Table.Th>種別名</Table.Th>
-              <Table.Th>可用部門</Table.Th>
               <Table.Th w={120}>状態</Table.Th>
-              <Table.Th w={56} />
+              {renderRowAction && <Table.Th w={48}>{rowActionHeader}</Table.Th>}
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
@@ -113,6 +115,7 @@ export function ShiftTypeList() {
               <ShiftTypeRow
                 key={shiftType.id}
                 shiftType={shiftType}
+                rowAction={renderRowAction?.(shiftType)}
                 onEdit={() => setDrawerState({ mode: 'edit', shiftTypeId: shiftType.id })}
               />
             ))}
@@ -127,25 +130,13 @@ export function ShiftTypeList() {
 
 type ShiftTypeRowProps = {
   shiftType: ShiftTypeListItem;
+  rowAction?: ReactNode;
   onEdit: () => void;
 };
 
 /** シフト種別一覧の1行。クリックで編集 Drawer を開く。 */
-function ShiftTypeRow({ shiftType, onEdit }: ShiftTypeRowProps) {
-  const deactivate = useDeactivateShiftType();
+function ShiftTypeRow({ shiftType, rowAction, onEdit }: ShiftTypeRowProps) {
   const isActive = shiftType.isActive;
-
-  const handleDeactivate = () => {
-    deactivate.mutate(shiftType.id, {
-      onSuccess: () => {
-        notifications.show({
-          color: 'green',
-          message: `${shiftType.name}を無効化しました`,
-        });
-      },
-    });
-  };
-
   return (
     <ClickableTr onClick={onEdit}>
       <Table.Td>
@@ -154,36 +145,9 @@ function ShiftTypeRow({ shiftType, onEdit }: ShiftTypeRowProps) {
         </Text>
       </Table.Td>
       <Table.Td>
-        {shiftType.availableDepartmentCodes.length === 0 ? (
-          <AppBadge kind="inactive">未使用</AppBadge>
-        ) : (
-          <Group gap="xs">
-            {shiftType.availableDepartmentCodes.map((departmentCode) => (
-              <DepartmentTag key={departmentCode} code={departmentCode} />
-            ))}
-          </Group>
-        )}
+        <AppBadge kind={isActive ? 'active' : 'inactive'}>{isActive ? '有効' : '無効'}</AppBadge>
       </Table.Td>
-      <Table.Td>
-        <AppBadge kind={isActive ? 'active' : 'inactive'}>
-          {isActive ? 'アクティブ' : '無効'}
-        </AppBadge>
-      </Table.Td>
-      <Table.Td onClick={(e) => e.stopPropagation()}>
-        <Menu position="bottom-end">
-          <Menu.Target>
-            <RowActionsButton />
-          </Menu.Target>
-          <Menu.Dropdown>
-            <Menu.Item onClick={onEdit}>編集</Menu.Item>
-            {isActive && (
-              <Menu.Item onClick={handleDeactivate} disabled={deactivate.isPending}>
-                無効化
-              </Menu.Item>
-            )}
-          </Menu.Dropdown>
-        </Menu>
-      </Table.Td>
+      {rowAction && <Table.Td onClick={(event) => event.stopPropagation()}>{rowAction}</Table.Td>}
     </ClickableTr>
   );
 }

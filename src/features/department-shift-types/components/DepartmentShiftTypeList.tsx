@@ -1,57 +1,19 @@
 import { useRef, useState } from 'react';
 
-import { ActionIcon, Button, Group, Menu, Paper, Stack, Tabs, Text } from '@mantine/core';
+import { ActionIcon, Group, Paper, Stack, Text } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconGripVertical, IconListDetails, IconPlus, IconX } from '@tabler/icons-react';
+import { IconGripVertical, IconListDetails, IconX } from '@tabler/icons-react';
 
 import { ErrorAlert } from '@/components/AppAlert';
 import { AppBadge } from '@/components/AppBadge';
 import { ListEmptyState } from '@/components/ListEmptyState';
-import { ListHeader } from '@/components/ListHeader';
-import {
-  DEPARTMENT_LABELS,
-  departmentCodeSchema,
-  type DepartmentCode,
-} from '@/features/departments/schema';
-import { useShiftTypes } from '@/features/shift-types/queries';
+import { DEPARTMENT_LABELS, type DepartmentCode } from '@/features/departments/schema';
 
 import { useDepartmentShiftTypes, useUpdateDepartmentShiftTypes } from '../queries';
 import type { DepartmentShiftType } from '../schema';
 
-const DEPARTMENT_CODES = departmentCodeSchema.options;
-
-/** 部門ごとの利用可能なシフト種別を追加・除外・並べ替えする管理画面。 */
-export function DepartmentShiftTypeList() {
-  const [departmentCode, setDepartmentCode] = useState<DepartmentCode>('ski');
-  const parsedDepartmentCode = departmentCodeSchema.safeParse(departmentCode);
-
-  return (
-    <Stack gap="md">
-      <ListHeader title="部門別シフト種別" unit="件" />
-      <Tabs
-        value={departmentCode}
-        onChange={(value) => {
-          const parsed = departmentCodeSchema.safeParse(value);
-          if (parsed.success) setDepartmentCode(parsed.data);
-        }}
-      >
-        <Tabs.List>
-          {DEPARTMENT_CODES.map((code) => (
-            <Tabs.Tab key={code} value={code}>
-              {DEPARTMENT_LABELS[code]}
-            </Tabs.Tab>
-          ))}
-        </Tabs.List>
-      </Tabs>
-      {parsedDepartmentCode.success && (
-        <DepartmentShiftTypePanel departmentCode={parsedDepartmentCode.data} />
-      )}
-    </Stack>
-  );
-}
-
-/** 選択中の部門について、種別リストとカタログからの追加メニューを表示する。 */
-function DepartmentShiftTypePanel({ departmentCode }: { departmentCode: DepartmentCode }) {
+/** 部門ごとの利用可能なシフト種別を追加・除外・並べ替えする一覧。 */
+export function DepartmentShiftTypeList({ departmentCode }: { departmentCode: DepartmentCode }) {
   const dragSourceId = useRef<string | null>(null);
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const {
@@ -59,13 +21,8 @@ function DepartmentShiftTypePanel({ departmentCode }: { departmentCode: Departme
     isLoading,
     isError,
   } = useDepartmentShiftTypes(departmentCode);
-  const { data: shiftTypes } = useShiftTypes(false);
   const update = useUpdateDepartmentShiftTypes(departmentCode);
   const items = departmentShiftTypes ?? [];
-  const assignedIds = new Set(items.map((item) => item.shiftTypeId));
-  const candidates = (shiftTypes ?? []).filter(
-    (shiftType) => shiftType.isActive && !assignedIds.has(shiftType.id),
-  );
 
   const save = (shiftTypeIds: string[], message: string) => {
     update.mutate(
@@ -74,10 +31,6 @@ function DepartmentShiftTypePanel({ departmentCode }: { departmentCode: Departme
         onSuccess: () => notifications.show({ color: 'green', message }),
       },
     );
-  };
-
-  const add = (shiftTypeId: string, name: string) => {
-    save([...items.map((item) => item.shiftTypeId), shiftTypeId], `${name}を追加しました`);
   };
 
   const remove = (shiftTypeId: string, name: string) => {
@@ -110,29 +63,12 @@ function DepartmentShiftTypePanel({ departmentCode }: { departmentCode: Departme
 
   return (
     <Stack gap="md">
-      <Group justify="space-between">
+      <Stack gap={4}>
+        <Text fw={600}>{DEPARTMENT_LABELS[departmentCode]}部門で利用するシフト種別</Text>
         <Text c="dimmed" size="sm">
-          ドラッグして表示順を変更できます。
+          マスタ一覧の ← で追加し、ドラッグして表示順を変更できます。
         </Text>
-        <Menu position="bottom-end" withinPortal>
-          <Menu.Target>
-            <Button leftSection={<IconPlus size={16} />} loading={update.isPending}>
-              追加
-            </Button>
-          </Menu.Target>
-          <Menu.Dropdown>
-            {candidates.length === 0 ? (
-              <Menu.Item disabled>追加できるシフト種別はありません</Menu.Item>
-            ) : (
-              candidates.map((shiftType) => (
-                <Menu.Item key={shiftType.id} onClick={() => add(shiftType.id, shiftType.name)}>
-                  {shiftType.name}
-                </Menu.Item>
-              ))
-            )}
-          </Menu.Dropdown>
-        </Menu>
-      </Group>
+      </Stack>
 
       {isError && <ErrorAlert>部門別シフト種別の取得に失敗しました</ErrorAlert>}
 
@@ -146,7 +82,7 @@ function DepartmentShiftTypePanel({ departmentCode }: { departmentCode: Departme
         <ListEmptyState
           icon={<IconListDetails size={32} stroke={1.5} />}
           title="シフト種別がありません"
-          description="追加から、この部門で使うシフト種別を登録してください。"
+          description="マスタ一覧の ← から、この部門で利用する種別を追加してください。"
         />
       )}
 

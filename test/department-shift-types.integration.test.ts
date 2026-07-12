@@ -22,7 +22,7 @@ function authRequest(token: string, body?: unknown): RequestInit {
   };
 }
 
-async function seedToken(role: 'MANAGER' | 'MEMBER'): Promise<string> {
+async function seedToken(role: 'ADMIN' | 'MANAGER' | 'MEMBER'): Promise<string> {
   const db = createDb(env.DB);
   const [user] = await db
     .insert(users)
@@ -117,7 +117,7 @@ describe('PUT /api/department-shift-types/:departmentCode', () => {
       { departmentCode: 'ski', shiftTypeId: removed.id, sortOrder: 2 },
     ]);
 
-    const token = await seedToken('MANAGER');
+    const token = await seedToken('ADMIN');
     const input = departmentShiftTypeUpdateSchema.parse({
       shiftTypeIds: [added.id, first.id],
     });
@@ -145,13 +145,60 @@ describe('PUT /api/department-shift-types/:departmentCode', () => {
     expect(res.status).toBe(403);
   });
 
-  it('重複したシフト種別 ID を 400 で拒否する', async () => {
+  it('MANAGER を 403 で拒否する', async () => {
     const token = await seedToken('MANAGER');
+    const res = await app.request(
+      '/api/department-shift-types/ski',
+      { method: 'PUT', ...authRequest(token, { shiftTypeIds: [] }) },
+      envWith({}),
+    );
+    expect(res.status).toBe(403);
+  });
+
+  it('重複したシフト種別 ID を 400 で拒否する', async () => {
+    const token = await seedToken('ADMIN');
     const res = await app.request(
       '/api/department-shift-types/ski',
       { method: 'PUT', ...authRequest(token, { shiftTypeIds: ['same', 'same'] }) },
       envWith({}),
     );
     expect(res.status).toBe(400);
+  });
+});
+
+describe('POST /api/department-shift-types/:departmentCode', () => {
+  it('シフト種別を作成し、選択中の部門の末尾へ割り当てる', async () => {
+    const db = createDb(env.DB);
+    const [existing] = await db.insert(shiftTypes).values({ name: '終日' }).returning();
+    if (!existing) throw new Error('シフト種別の作成に失敗しました');
+    await db.insert(departmentShiftTypes).values({
+      departmentCode: 'ski',
+      shiftTypeId: existing.id,
+      sortOrder: 1,
+    });
+
+    const token = await seedToken('ADMIN');
+    const res = await app.request(
+      '/api/department-shift-types/ski',
+      { method: 'POST', ...authRequest(token, { name: '午後' }) },
+      envWith({}),
+    );
+
+    expect(res.status).toBe(201);
+    const body = departmentShiftTypeListSchema.parse(await res.json());
+    expect(body.map(({ name, sortOrder }) => ({ name, sortOrder }))).toEqual([
+      { name: '終日', sortOrder: 1 },
+      { name: '午後', sortOrder: 2 },
+    ]);
+  });
+
+  it('MANAGER を 403 で拒否する', async () => {
+    const token = await seedToken('MANAGER');
+    const res = await app.request(
+      '/api/department-shift-types/ski',
+      { method: 'POST', ...authRequest(token, { name: '午後' }) },
+      envWith({}),
+    );
+    expect(res.status).toBe(403);
   });
 });

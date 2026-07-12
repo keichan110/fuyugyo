@@ -1,4 +1,4 @@
-import { asc, eq, inArray } from 'drizzle-orm';
+import { asc, eq, inArray, max } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { validator } from 'hono/validator';
@@ -9,7 +9,7 @@ import { departmentShiftTypes, shiftTypes } from '@/server/db/schema';
 import { requireAuth, requireRole, type AuthVariables } from '@/server/middleware/auth';
 import type { Env } from '@/server/types';
 
-import { departmentShiftTypeUpdateSchema } from './schema';
+import { createDepartmentShiftTypeSchema, departmentShiftTypeUpdateSchema } from './schema';
 
 function validateDepartmentCode(value: string): ReturnType<typeof departmentCodeSchema.parse> {
   const parsed = departmentCodeSchema.safeParse(value);
@@ -36,7 +36,7 @@ function selectDepartmentShiftTypes(
     .orderBy(asc(departmentShiftTypes.sortOrder));
 }
 
-/** 部門別シフト種別の取得・一括更新ルート */
+/** 部門別シフト種別の取得・作成と割り当て・一括更新ルート。 */
 export const departmentShiftTypesRoute = new Hono<{
   Bindings: Env;
   Variables: AuthVariables;
@@ -48,10 +48,46 @@ export const departmentShiftTypesRoute = new Hono<{
 
     return c.json(rows);
   })
+  .post(
+    '/:departmentCode',
+    requireAuth,
+    requireRole('ADMIN'),
+    validator('json', (value, c) => {
+      const parsed = createDepartmentShiftTypeSchema.safeParse(value);
+      if (!parsed.success) {
+        return c.json({ message: parsed.error.message }, 400);
+      }
+      return parsed.data;
+    }),
+    async (c) => {
+      const departmentCode = validateDepartmentCode(c.req.param('departmentCode'));
+      const input = c.req.valid('json');
+      const db = createDb(c.env.DB);
+      const shiftTypeId = crypto.randomUUID();
+
+      // 新しい種別を選択部門の末尾へ配置し、作成だけが残らないよう2レコードを一括保存する
+      const [sortOrderRow] = await db
+        .select({ lastSortOrder: max(departmentShiftTypes.sortOrder) })
+        .from(departmentShiftTypes)
+        .where(eq(departmentShiftTypes.departmentCode, departmentCode));
+      const lastSortOrder = sortOrderRow?.lastSortOrder ?? 0;
+
+      await db.batch([
+        db.insert(shiftTypes).values({ id: shiftTypeId, name: input.name }),
+        db.insert(departmentShiftTypes).values({
+          departmentCode,
+          shiftTypeId,
+          sortOrder: lastSortOrder + 1,
+        }),
+      ]);
+
+      return c.json(await selectDepartmentShiftTypes(db, departmentCode), 201);
+    },
+  )
   .put(
     '/:departmentCode',
     requireAuth,
-    requireRole('MANAGER'),
+    requireRole('ADMIN'),
     validator('json', (value, c) => {
       const parsed = departmentShiftTypeUpdateSchema.safeParse(value);
       if (!parsed.success) {

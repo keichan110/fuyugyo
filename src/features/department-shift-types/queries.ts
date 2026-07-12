@@ -6,6 +6,7 @@ import { client } from '@/lib/rpc';
 
 import {
   departmentShiftTypeListSchema,
+  type CreateDepartmentShiftTypeInput,
   type DepartmentShiftType,
   type DepartmentShiftTypeUpdateInput,
 } from './schema';
@@ -53,6 +54,29 @@ export function useUpdateDepartmentShiftTypes(departmentCode: DepartmentCode) {
     },
     onSuccess: (data) => {
       queryClient.setQueryData([...DEPARTMENT_SHIFT_TYPES_QUERY_KEY, departmentCode], data);
+    },
+  });
+}
+
+/** シフト種別を作成し、指定部門の末尾へ割り当てる。 */
+export function useCreateDepartmentShiftType(departmentCode: DepartmentCode) {
+  const queryClient = useQueryClient();
+
+  return useMutation<DepartmentShiftType[], Error, CreateDepartmentShiftTypeInput>({
+    mutationFn: async (input) => {
+      const res = await client.api['department-shift-types'][':departmentCode'].$post({
+        param: { departmentCode },
+        json: input,
+      });
+      if (!res.ok) {
+        const body = apiErrorSchema.parse(await res.json());
+        throw new Error(body.message ?? 'シフト種別の作成と割り当てに失敗しました');
+      }
+      return departmentShiftTypeListSchema.parse(await res.json());
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData([...DEPARTMENT_SHIFT_TYPES_QUERY_KEY, departmentCode], data);
+      void queryClient.invalidateQueries({ queryKey: ['shift-types'] });
     },
   });
 }

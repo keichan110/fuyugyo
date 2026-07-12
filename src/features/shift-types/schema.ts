@@ -40,8 +40,13 @@ export const createShiftTypeSchema = z.object({
 export type CreateShiftTypeInput = z.infer<typeof createShiftTypeSchema>;
 
 /** ShiftType 更新リクエスト */
-export const updateShiftTypeSchema = z.object({
-  name: nameField,
-});
+export const updateShiftTypeSchema = z
+  .object({
+    name: nameField.optional(),
+    isActive: z.boolean().optional(),
+  })
+  .refine(({ name, isActive }) => name !== undefined || isActive !== undefined, {
+    message: 'At least one field is required',
+  });
 
 export type UpdateShiftTypeInput = z.infer<typeof updateShiftTypeSchema>;

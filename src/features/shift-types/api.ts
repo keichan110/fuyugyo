@@ -14,7 +14,7 @@ import { createShiftTypeSchema, updateShiftTypeSchema } from './schema';
  * ShiftType CRUD の Hono ルート（ADR 0005）。
  * レスポンスは生データ + HTTP ステータス（`c.json(data, status)`）。
  * エラーは HTTPException で投げ、中央 `onError` が整形する。
- * 書き込み系（POST/PATCH）は MANAGER 以上を要求する。
+ * 書き込み系（POST/PATCH）は ADMIN を要求する。
  */
 export const shiftTypesRoute = new Hono<{
   Bindings: Env;
@@ -63,11 +63,11 @@ export const shiftTypesRoute = new Hono<{
     }
     return c.json(row);
   })
-  /** シフト種別を作成する（MANAGER 以上） */
+  /** シフト種別を作成する（ADMIN） */
   .post(
     '/',
     requireAuth,
-    requireRole('MANAGER'),
+    requireRole('ADMIN'),
     validator('json', (value, c) => {
       const parsed = createShiftTypeSchema.safeParse(value);
       if (!parsed.success) {
@@ -87,11 +87,11 @@ export const shiftTypesRoute = new Hono<{
       return c.json(created, 201);
     },
   )
-  /** シフト種別名を更新する（MANAGER 以上） */
+  /** シフト種別名または有効状態を更新する（ADMIN） */
   .patch(
     '/:id',
     requireAuth,
-    requireRole('MANAGER'),
+    requireRole('ADMIN'),
     validator('json', (value, c) => {
       const parsed = updateShiftTypeSchema.safeParse(value);
       if (!parsed.success) {
@@ -113,9 +113,13 @@ export const shiftTypesRoute = new Hono<{
         throw new HTTPException(404, { message: 'ShiftType not found' });
       }
 
+      const changes = {
+        ...(input.name === undefined ? {} : { name: input.name }),
+        ...(input.isActive === undefined ? {} : { isActive: input.isActive }),
+      };
       const [updated] = await db
         .update(shiftTypes)
-        .set({ name: input.name })
+        .set(changes)
         .where(eq(shiftTypes.id, c.req.param('id')))
         .returning();
 
@@ -124,32 +128,4 @@ export const shiftTypesRoute = new Hono<{
       }
       return c.json(updated);
     },
-  )
-  /**
-   * シフト種別を無効化する（isActive=false）（MANAGER 以上）。
-   * 物理削除は行わず論理削除とする（Shift テーブルとの参照整合性を保持するため）。
-   */
-  .post('/:id/deactivate', requireAuth, requireRole('MANAGER'), async (c) => {
-    const db = createDb(c.env.DB);
-
-    const [existing] = await db
-      .select()
-      .from(shiftTypes)
-      .where(eq(shiftTypes.id, c.req.param('id')))
-      .limit(1);
-
-    if (!existing) {
-      throw new HTTPException(404, { message: 'ShiftType not found' });
-    }
-
-    const [updated] = await db
-      .update(shiftTypes)
-      .set({ isActive: false })
-      .where(eq(shiftTypes.id, c.req.param('id')))
-      .returning();
-
-    if (!updated) {
-      throw new HTTPException(500, { message: 'Failed to deactivate shift type' });
-    }
-    return c.json(updated);
-  });
+  );

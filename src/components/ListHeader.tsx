@@ -13,6 +13,8 @@ type ListHeaderProps = {
   unit: string;
   /** 件数サマリを読み込み中として隠すかどうか */
   isLoading?: boolean;
+  /** アクティブ件数の表示名 */
+  activeLabel?: string;
   /** 右上に表示する追加ボタンなどの操作 */
   action?: ReactNode;
 };
@@ -26,6 +28,7 @@ export function ListHeader({
   active,
   unit,
   isLoading = false,
+  activeLabel = 'アクティブ',
   action,
 }: ListHeaderProps) {
   return (
@@ -35,7 +38,8 @@ export function ListHeader({
         {!isLoading && total !== undefined && active !== undefined && (
           <Text c="dimmed" size="sm">
             全{total}
-            {unit}（アクティブ{active}
+            {unit}（{activeLabel}
+            {active}
             {unit}）
           </Text>
         )}

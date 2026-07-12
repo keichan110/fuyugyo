@@ -25,18 +25,17 @@ accepted
 - **可用性の唯一の真実は junction**。`POST /shifts` は (departmentCode, shiftTypeId) が junction に無ければ 400 で拒否する（アプリ層 Zod で担保、ADR 0011 踏襲）。
 - 部門コードには DB の FK も CHECK も置かない（ADR 0011 と一貫。`department_code` は固定語彙の text）。
 - **無効化は2階層**:
-  - グローバル `shift_types.is_active`（カタログ無効化）＝ 全部門で一括して新規登録ピッカーおよび新規画面の「追加」候補から隠す。junction 行は保持し可逆。
+  - グローバル `shift_types.is_active`（カタログ無効）＝ 全部門で一括して新規登録ピッカーおよび新規画面の「追加」候補から隠す。junction 行は保持し、Drawer から再度有効にできる。
   - 部門別の除外（junction 行のハード削除）＝ 1部門だけ外す。無条件で許可し、警告・ブロックは設けない。
   - どちらも**既存 Shift の表示・データには影響しない**（シフト閲覧 `fetchShiftView` は junction・`is_active` を見ず種別を innerJoin するため）。
 
 ### 画面ごとの可視性ルール
 
-| 画面                               | 種別の見せ方                                                                                                                                     |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| shifts（閲覧）                     | junction・`is_active` に関わらず全 Shift を表示（既存データ保護）                                                                                |
-| shifts/manage（グリッド）          | 行 = junction 可用 かつ `is_active=true` の種別のみ。可用性から外れた種別の既存 Shift は編集不可（閲覧は shifts で）                             |
-| department-shift-types（新規画面） | 部門タブ＋並べ替えリスト。その部門の junction 行は `is_active` に関わらず全表示・除外/並べ替え可。「＋追加」カタログは `is_active=true` のみ提示 |
-| shift-types（既存カタログ）        | 種別の作成/改名/`is_active` 切替。各行にその種別を可用にしている部門バッジを表示し、`is_active=false` 判断の指標とする                           |
+| 画面                        | 種別の見せ方                                                                                                                                                                                                                                                                                                                                                                |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| shifts（閲覧）              | junction・`is_active` に関わらず全 Shift を表示（既存データ保護）                                                                                                                                                                                                                                                                                                           |
+| shifts/manage（グリッド）   | 行 = junction 可用 かつ `is_active=true` の種別のみ。可用性から外れた種別の既存 Shift は編集不可（閲覧は shifts で）                                                                                                                                                                                                                                                        |
+| shift-types（統合設定画面） | 選択部門の利用設定とシフト種別マスタを2パネルで並べる。左パネルでは junction 行を全表示し、無効な種別も明示したうえで除外・並べ替えを行う。右の共有マスタは有効な種別を初期表示し、無効な種別は切替で表示する。選択部門に割り当て済み・無効な種別の追加操作は disabled 表示にする。マスタの新規登録・編集・有効／無効の切替は Drawer に統一し、一覧には参照部門を表示しない |
 
 ## Considered Options
 
@@ -50,5 +49,5 @@ accepted
 - Drizzle 生成 SQL はバックフィル INSERT を含まないため**手補正**する（部門コードはテーブルが無いため SQL 内に literal 列挙）。本番 remote への適用は、レビュー・build 成功後に GitHub Actions が Worker のデプロイより先に行う。これにより、新コードだけが先に稼働して junction テーブルを参照する過渡状態を作らない。Wrangler が migration ごとに取得する D1 バックアップと失敗時ロールバックを利用する。
 - deploy 前に migration を適用するため、本番 migration は原則として既存コードと新コードの双方に互換な additive migration とする。列・テーブルの削除や意味変更は expand/contract で複数回のデプロイに分割する。
 - **可用性から外れた (部門, 種別) の既存 Shift は shifts/manage で編集できなくなる**（閲覧は shifts で可能）。割り当てを直す場合は一旦その種別を部門へ再追加する。これは意図的な割り切り。
-- 新規画面は feature slice `src/features/department-shift-types/`、ルート `/department-shift-types`、設定メニュー「マスタ管理」に「部門別シフト種別」を追加（MANAGER 以上）。junction テーブルは `src/server/db/schema.ts`。
+- 部門別設定と共有カタログ管理は `/shift-types` に統合し、ADMIN のみ操作可能とする。junction の API と UI 部品は feature slice `src/features/department-shift-types/` にコロケーションする。
 - API 形状は raw JSON + Hono RPC（ADR 0005）、書き込みは Drizzle D1 batch（ADR 0006）、テストは実 D1 統合テスト（ADR 0007）を踏襲する。

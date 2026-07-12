@@ -27,6 +27,13 @@ export const departmentShiftTypeUpdateSchema = z
 
 export type DepartmentShiftTypeUpdateInput = z.infer<typeof departmentShiftTypeUpdateSchema>;
 
+/** 既存シフト種別を部門へ割り当てるリクエスト */
+export const assignDepartmentShiftTypeSchema = z.object({
+  shiftTypeId: z.string().min(1),
+});
+
+export type AssignDepartmentShiftTypeInput = z.infer<typeof assignDepartmentShiftTypeSchema>;
+
 /** シフト種別を新規作成し、部門へ割り当てるリクエスト */
 export const createDepartmentShiftTypeSchema = createShiftTypeSchema;
 

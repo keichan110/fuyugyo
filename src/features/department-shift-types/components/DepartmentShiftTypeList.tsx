@@ -9,7 +9,11 @@ import { AppBadge } from '@/components/AppBadge';
 import { ListEmptyState } from '@/components/ListEmptyState';
 import { DEPARTMENT_LABELS, type DepartmentCode } from '@/features/departments/schema';
 
-import { useDepartmentShiftTypes, useUpdateDepartmentShiftTypes } from '../queries';
+import {
+  useDepartmentShiftTypes,
+  useRemoveDepartmentShiftType,
+  useUpdateDepartmentShiftTypes,
+} from '../queries';
 import type { DepartmentShiftType } from '../schema';
 
 /** 部門ごとの利用可能なシフト種別を追加・除外・並べ替えする一覧。 */
@@ -22,6 +26,7 @@ export function DepartmentShiftTypeList({ departmentCode }: { departmentCode: De
     isError,
   } = useDepartmentShiftTypes(departmentCode);
   const update = useUpdateDepartmentShiftTypes(departmentCode);
+  const removeMutation = useRemoveDepartmentShiftType(departmentCode);
   const items = departmentShiftTypes ?? [];
 
   const save = (shiftTypeIds: string[], message: string) => {
@@ -34,10 +39,9 @@ export function DepartmentShiftTypeList({ departmentCode }: { departmentCode: De
   };
 
   const remove = (shiftTypeId: string, name: string) => {
-    save(
-      items.filter((item) => item.shiftTypeId !== shiftTypeId).map((item) => item.shiftTypeId),
-      `${name}を除外しました`,
-    );
+    removeMutation.mutate(shiftTypeId, {
+      onSuccess: () => notifications.show({ color: 'green', message: `${name}を除外しました` }),
+    });
   };
 
   const reorder = (targetId: string) => {
@@ -93,7 +97,7 @@ export function DepartmentShiftTypeList({ departmentCode }: { departmentCode: De
               key={item.shiftTypeId}
               item={item}
               isDragged={draggedId === item.shiftTypeId}
-              isUpdating={update.isPending}
+              isUpdating={update.isPending || removeMutation.isPending}
               onDragStart={() => {
                 dragSourceId.current = item.shiftTypeId;
                 setDraggedId(item.shiftTypeId);
@@ -110,6 +114,7 @@ export function DepartmentShiftTypeList({ departmentCode }: { departmentCode: De
       )}
 
       {update.isError && <ErrorAlert>{update.error.message}</ErrorAlert>}
+      {removeMutation.isError && <ErrorAlert>{removeMutation.error.message}</ErrorAlert>}
     </Stack>
   );
 }

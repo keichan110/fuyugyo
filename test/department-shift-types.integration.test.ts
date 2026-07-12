@@ -2,6 +2,7 @@ import { env } from 'cloudflare:test';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
+  assignDepartmentShiftTypeSchema,
   departmentShiftTypeListSchema,
   departmentShiftTypeUpdateSchema,
 } from '../src/features/department-shift-types/schema';
@@ -103,23 +104,23 @@ describe('GET /api/department-shift-types/:departmentCode', () => {
 });
 
 describe('PUT /api/department-shift-types/:departmentCode', () => {
-  it('順序付き配列で可用集合の追加・除外・並べ替えを一括反映する', async () => {
+  it('順序付き配列で可用集合を並べ替える', async () => {
     const db = createDb(env.DB);
-    const [first, removed, added] = await db
+    const [first, second] = await db
       .insert(shiftTypes)
-      .values([{ name: '終日' }, { name: '午前' }, { name: '午後' }])
+      .values([{ name: '終日' }, { name: '午前' }])
       .returning();
-    if (!first || !removed || !added) {
+    if (!first || !second) {
       throw new Error('シフト種別の作成に失敗しました');
     }
     await db.insert(departmentShiftTypes).values([
       { departmentCode: 'ski', shiftTypeId: first.id, sortOrder: 1 },
-      { departmentCode: 'ski', shiftTypeId: removed.id, sortOrder: 2 },
+      { departmentCode: 'ski', shiftTypeId: second.id, sortOrder: 2 },
     ]);
 
     const token = await seedToken('ADMIN');
     const input = departmentShiftTypeUpdateSchema.parse({
-      shiftTypeIds: [added.id, first.id],
+      shiftTypeIds: [second.id, first.id],
     });
     const res = await app.request(
       '/api/department-shift-types/ski',
@@ -130,7 +131,7 @@ describe('PUT /api/department-shift-types/:departmentCode', () => {
     expect(res.status).toBe(200);
     const body = departmentShiftTypeListSchema.parse(await res.json());
     expect(body.map(({ shiftTypeId, sortOrder }) => ({ shiftTypeId, sortOrder }))).toEqual([
-      { shiftTypeId: added.id, sortOrder: 1 },
+      { shiftTypeId: second.id, sortOrder: 1 },
       { shiftTypeId: first.id, sortOrder: 2 },
     ]);
   });
@@ -163,6 +164,122 @@ describe('PUT /api/department-shift-types/:departmentCode', () => {
       envWith({}),
     );
     expect(res.status).toBe(400);
+  });
+
+  it('追加または除外を含む配列を 400 で拒否する', async () => {
+    const db = createDb(env.DB);
+    const [assigned, unassigned] = await db
+      .insert(shiftTypes)
+      .values([{ name: '終日' }, { name: '午前' }])
+      .returning();
+    if (!assigned || !unassigned) throw new Error('シフト種別の作成に失敗しました');
+    await db.insert(departmentShiftTypes).values({
+      departmentCode: 'ski',
+      shiftTypeId: assigned.id,
+      sortOrder: 1,
+    });
+    const token = await seedToken('ADMIN');
+
+    const addRes = await app.request(
+      '/api/department-shift-types/ski',
+      { method: 'PUT', ...authRequest(token, { shiftTypeIds: [assigned.id, unassigned.id] }) },
+      envWith({}),
+    );
+    const removeRes = await app.request(
+      '/api/department-shift-types/ski',
+      { method: 'PUT', ...authRequest(token, { shiftTypeIds: [] }) },
+      envWith({}),
+    );
+
+    expect(addRes.status).toBe(400);
+    expect(removeRes.status).toBe(400);
+    const assignmentsRes = await app.request(
+      '/api/department-shift-types/ski',
+      authRequest(token),
+      envWith({}),
+    );
+    expect(departmentShiftTypeListSchema.parse(await assignmentsRes.json())).toMatchObject([
+      { shiftTypeId: assigned.id },
+    ]);
+  });
+});
+
+describe('POST /api/department-shift-types/:departmentCode/assignments', () => {
+  it('指定した種別だけを部門の末尾へ割り当て、既存の割当を保持する', async () => {
+    const db = createDb(env.DB);
+    const [existing, assigned] = await db
+      .insert(shiftTypes)
+      .values([{ name: '終日' }, { name: '午後' }])
+      .returning();
+    if (!existing || !assigned) throw new Error('シフト種別の作成に失敗しました');
+    await db.insert(departmentShiftTypes).values({
+      departmentCode: 'ski',
+      shiftTypeId: existing.id,
+      sortOrder: 1,
+    });
+
+    const token = await seedToken('ADMIN');
+    const input = assignDepartmentShiftTypeSchema.parse({ shiftTypeId: assigned.id });
+    const res = await app.request(
+      '/api/department-shift-types/ski/assignments',
+      { method: 'POST', ...authRequest(token, input) },
+      envWith({}),
+    );
+
+    expect(res.status).toBe(200);
+    const body = departmentShiftTypeListSchema.parse(await res.json());
+    expect(body.map(({ name, sortOrder }) => ({ name, sortOrder }))).toEqual([
+      { name: '終日', sortOrder: 1 },
+      { name: '午後', sortOrder: 2 },
+    ]);
+  });
+
+  it('同じ種別の再割当を冪等に扱う', async () => {
+    const db = createDb(env.DB);
+    const [assigned] = await db.insert(shiftTypes).values({ name: '終日' }).returning();
+    if (!assigned) throw new Error('シフト種別の作成に失敗しました');
+    await db.insert(departmentShiftTypes).values({
+      departmentCode: 'ski',
+      shiftTypeId: assigned.id,
+      sortOrder: 1,
+    });
+
+    const token = await seedToken('ADMIN');
+    const res = await app.request(
+      '/api/department-shift-types/ski/assignments',
+      { method: 'POST', ...authRequest(token, { shiftTypeId: assigned.id }) },
+      envWith({}),
+    );
+
+    expect(res.status).toBe(200);
+    const body = departmentShiftTypeListSchema.parse(await res.json());
+    expect(body).toHaveLength(1);
+  });
+});
+
+describe('DELETE /api/department-shift-types/:departmentCode/assignments/:shiftTypeId', () => {
+  it('指定した種別だけを部門から除外する', async () => {
+    const db = createDb(env.DB);
+    const [remaining, removed] = await db
+      .insert(shiftTypes)
+      .values([{ name: '終日' }, { name: '午前' }])
+      .returning();
+    if (!remaining || !removed) throw new Error('シフト種別の作成に失敗しました');
+    await db.insert(departmentShiftTypes).values([
+      { departmentCode: 'ski', shiftTypeId: remaining.id, sortOrder: 1 },
+      { departmentCode: 'ski', shiftTypeId: removed.id, sortOrder: 2 },
+    ]);
+
+    const token = await seedToken('ADMIN');
+    const res = await app.request(
+      `/api/department-shift-types/ski/assignments/${removed.id}`,
+      { method: 'DELETE', ...authRequest(token) },
+      envWith({}),
+    );
+
+    expect(res.status).toBe(200);
+    const body = departmentShiftTypeListSchema.parse(await res.json());
+    expect(body.map((item) => item.shiftTypeId)).toEqual([remaining.id]);
   });
 });
 

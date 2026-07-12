@@ -7,36 +7,26 @@ import { DEPARTMENT_LABELS, type DepartmentCode } from '@/features/departments/s
 import { ShiftTypeList } from '@/features/shift-types/components/ShiftTypeList';
 import type { ShiftTypeListItem } from '@/features/shift-types/schema';
 
-import { useDepartmentShiftTypes, useUpdateDepartmentShiftTypes } from '../queries';
+import { useAssignDepartmentShiftType, useDepartmentShiftTypes } from '../queries';
 
 /** 共有シフト種別マスタから、指定部門で利用する種別を選ぶパネル。 */
 export function DepartmentShiftTypeCatalog({ departmentCode }: { departmentCode: DepartmentCode }) {
   const { data: departmentShiftTypes } = useDepartmentShiftTypes(departmentCode);
-  const update = useUpdateDepartmentShiftTypes(departmentCode);
+  const assign = useAssignDepartmentShiftType(departmentCode);
   const assignedShiftTypeIds = new Set(
     (departmentShiftTypes ?? []).map((shiftType) => shiftType.shiftTypeId),
   );
 
   const assignShiftType = (shiftType: ShiftTypeListItem) => {
-    if (assignedShiftTypeIds.has(shiftType.id)) return;
-    update.mutate(
-      {
-        shiftTypeIds: [
-          ...(departmentShiftTypes ?? []).map(
-            (departmentShiftType) => departmentShiftType.shiftTypeId,
-          ),
-          shiftType.id,
-        ],
+    if (!departmentShiftTypes || assignedShiftTypeIds.has(shiftType.id)) return;
+    assign.mutate(shiftType.id, {
+      onSuccess: () => {
+        notifications.show({
+          color: 'green',
+          message: `${shiftType.name}を${DEPARTMENT_LABELS[departmentCode]}部門で利用できるようにしました`,
+        });
       },
-      {
-        onSuccess: () => {
-          notifications.show({
-            color: 'green',
-            message: `${shiftType.name}を${DEPARTMENT_LABELS[departmentCode]}部門で利用できるようにしました`,
-          });
-        },
-      },
-    );
+    });
   };
 
   return (
@@ -56,8 +46,8 @@ export function DepartmentShiftTypeCatalog({ departmentCode }: { departmentCode:
                     : `${shiftType.name}を${DEPARTMENT_LABELS[departmentCode]}部門で利用する`
               }
               variant="subtle"
-              disabled={isDisabled || update.isPending}
-              loading={update.isPending}
+              disabled={isDisabled || !departmentShiftTypes || assign.isPending}
+              loading={assign.isPending}
               onClick={() => assignShiftType(shiftType)}
             >
               <IconArrowLeft size={16} />
@@ -65,7 +55,7 @@ export function DepartmentShiftTypeCatalog({ departmentCode }: { departmentCode:
           );
         }}
       />
-      {update.isError && <ErrorAlert>{update.error.message}</ErrorAlert>}
+      {assign.isError && <ErrorAlert>{assign.error.message}</ErrorAlert>}
     </Stack>
   );
 }

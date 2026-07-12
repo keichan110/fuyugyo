@@ -8,13 +8,12 @@ import { ErrorAlert } from '@/components/AppAlert';
 import { AppBadge } from '@/components/AppBadge';
 import { AppTable } from '@/components/AppTable';
 import { ClickableTr } from '@/components/ClickableTr';
+import { InactiveVisibilityToggle } from '@/components/InactiveVisibilityToggle';
 import { ListEmptyState, ListNoResultsState } from '@/components/ListEmptyState';
 import { ListHeader } from '@/components/ListHeader';
 import { ListToolbar } from '@/components/ListToolbar';
 import { RowActionsButton } from '@/components/RowActionsButton';
 import { SearchInput } from '@/components/SearchInput';
-import type { ActiveStatusFilter } from '@/components/status-filter';
-import { StatusFilterControl } from '@/components/StatusFilterControl';
 import { TableRowsSkeleton } from '@/components/TableRowsSkeleton';
 
 import { useActivateUser, useDeactivateUser, useUsers } from '../queries';
@@ -29,7 +28,7 @@ import { UserDrawer, type UserDrawerState } from './UserDrawer';
  */
 export function UserList() {
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<ActiveStatusFilter>('ALL');
+  const [showInactive, setShowInactive] = useState(false);
   const [drawerState, setDrawerState] = useState<UserDrawerState | null>(null);
 
   const { data, isLoading, isError } = useUsers();
@@ -39,11 +38,11 @@ export function UserList() {
   const visibleUsers = useMemo(() => {
     const query = search.trim();
     return allUsers.filter((user) => {
-      if (statusFilter !== 'ALL' && user.isActive !== (statusFilter === 'ACTIVE')) return false;
+      if (!showInactive && !user.isActive) return false;
       if (query.length === 0) return true;
       return user.displayName.includes(query);
     });
-  }, [allUsers, statusFilter, search]);
+  }, [allUsers, showInactive, search]);
 
   return (
     <Stack gap="md">
@@ -52,6 +51,7 @@ export function UserList() {
         total={allUsers.length}
         active={activeCount}
         unit="名"
+        activeLabel="有効"
         isLoading={isLoading}
       />
 
@@ -61,7 +61,7 @@ export function UserList() {
           value={search}
           onChange={(e) => setSearch(e.currentTarget.value)}
         />
-        <StatusFilterControl value={statusFilter} onChange={setStatusFilter} />
+        <InactiveVisibilityToggle shown={showInactive} onChange={setShowInactive} />
       </ListToolbar>
 
       {isError && <ErrorAlert>ユーザー一覧の取得に失敗しました</ErrorAlert>}
@@ -116,14 +116,14 @@ function UserRow({ user, onEdit }: UserRowProps) {
   const isActive = user.isActive;
   const roleMeta = USER_ROLE_META[user.role];
 
-  /** 行メニューからのステータス切り替え（無効化⇔アクティブ化）を実行する */
+  /** 行メニューからのステータス切り替え（無効⇔有効）を実行する */
   const handleToggleStatus = () => {
     const mutation = isActive ? deactivate : activate;
     mutation.mutate(undefined, {
       onSuccess: () => {
         notifications.show({
           color: 'green',
-          message: `${user.displayName}を${isActive ? '無効化' : 'アクティブ化'}しました`,
+          message: `${user.displayName}を${isActive ? '無効' : '有効'}にしました`,
         });
       },
     });
@@ -157,7 +157,7 @@ function UserRow({ user, onEdit }: UserRowProps) {
       </Table.Td>
       <Table.Td>
         <AppBadge kind={isActive ? 'active' : 'inactive'}>
-          {isActive ? 'アクティブ' : '無効'}
+          {isActive ? '有効' : '無効'}
         </AppBadge>
       </Table.Td>
       <Table.Td onClick={(e) => e.stopPropagation()}>
@@ -171,7 +171,7 @@ function UserRow({ user, onEdit }: UserRowProps) {
               onClick={handleToggleStatus}
               disabled={deactivate.isPending || activate.isPending}
             >
-              {isActive ? '無効化' : 'アクティブ化'}
+              {isActive ? '無効にする' : '有効にする'}
             </Menu.Item>
           </Menu.Dropdown>
         </Menu>

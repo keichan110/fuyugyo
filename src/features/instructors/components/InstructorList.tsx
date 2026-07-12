@@ -8,13 +8,12 @@ import { ErrorAlert } from '@/components/AppAlert';
 import { AppBadge } from '@/components/AppBadge';
 import { AppTable } from '@/components/AppTable';
 import { ClickableTr } from '@/components/ClickableTr';
+import { InactiveVisibilityToggle } from '@/components/InactiveVisibilityToggle';
 import { ListEmptyState, ListNoResultsState } from '@/components/ListEmptyState';
 import { ListHeader } from '@/components/ListHeader';
 import { ListToolbar } from '@/components/ListToolbar';
 import { RowActionsButton } from '@/components/RowActionsButton';
 import { SearchInput } from '@/components/SearchInput';
-import type { ActiveStatusFilter } from '@/components/status-filter';
-import { StatusFilterControl } from '@/components/StatusFilterControl';
 import { TableRowsSkeleton } from '@/components/TableRowsSkeleton';
 
 import { useChangeInstructorStatus, useInstructors } from '../queries';
@@ -42,7 +41,7 @@ function fullNameKanaOf(instructor: InstructorListItem): string | null {
  */
 export function InstructorList() {
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<ActiveStatusFilter>('ALL');
+  const [showInactive, setShowInactive] = useState(false);
   const [drawerState, setDrawerState] = useState<InstructorDrawerState | null>(null);
 
   // 管理画面では全ステータスを表示するため ACTIVE / INACTIVE を両方取得する
@@ -60,12 +59,12 @@ export function InstructorList() {
   const visibleInstructors = useMemo(() => {
     const query = search.trim();
     return allInstructors.filter((instructor) => {
-      if (statusFilter !== 'ALL' && instructor.status !== statusFilter) return false;
+      if (!showInactive && instructor.status !== 'ACTIVE') return false;
       if (query.length === 0) return true;
       const haystack = `${fullNameOf(instructor)}${fullNameKanaOf(instructor) ?? ''}`;
       return haystack.includes(query);
     });
-  }, [allInstructors, statusFilter, search]);
+  }, [allInstructors, showInactive, search]);
 
   return (
     <Stack gap="md">
@@ -74,13 +73,15 @@ export function InstructorList() {
         total={allInstructors.length}
         active={activeCount}
         unit="名"
+        activeLabel="有効"
         isLoading={isLoading}
         action={
           <Button
+            size="sm"
             leftSection={<IconPlus size={16} />}
             onClick={() => setDrawerState({ mode: 'create' })}
           >
-            インストラクターを追加
+            登録
           </Button>
         }
       />
@@ -91,7 +92,7 @@ export function InstructorList() {
           value={search}
           onChange={(e) => setSearch(e.currentTarget.value)}
         />
-        <StatusFilterControl value={statusFilter} onChange={setStatusFilter} />
+        <InactiveVisibilityToggle shown={showInactive} onChange={setShowInactive} />
       </ListToolbar>
 
       {isError && <ErrorAlert>インストラクター一覧の取得に失敗しました</ErrorAlert>}
@@ -108,7 +109,7 @@ export function InstructorList() {
               leftSection={<IconPlus size={16} />}
               onClick={() => setDrawerState({ mode: 'create' })}
             >
-              インストラクターを追加
+              登録
             </Button>
           }
         />
@@ -169,7 +170,7 @@ function InstructorRow({ instructor, onEdit }: InstructorRowProps) {
         onSuccess: () => {
           notifications.show({
             color: 'green',
-            message: `${fullName}を${nextStatus === 'ACTIVE' ? 'アクティブ' : '非アクティブ'}にしました`,
+            message: `${fullName}を${nextStatus === 'ACTIVE' ? '有効' : '無効'}にしました`,
           });
         },
       },
@@ -223,7 +224,7 @@ function InstructorRow({ instructor, onEdit }: InstructorRowProps) {
       </Table.Td>
       <Table.Td>
         <AppBadge kind={isActive ? 'active' : 'inactive'}>
-          {isActive ? 'アクティブ' : '非アクティブ'}
+          {isActive ? '有効' : '無効'}
         </AppBadge>
       </Table.Td>
       <Table.Td>
@@ -241,7 +242,7 @@ function InstructorRow({ instructor, onEdit }: InstructorRowProps) {
           <Menu.Dropdown>
             <Menu.Item onClick={onEdit}>編集</Menu.Item>
             <Menu.Item onClick={handleToggleStatus} disabled={changeStatus.isPending}>
-              {isActive ? '非アクティブ化' : 'アクティブ化'}
+              {isActive ? '無効にする' : '有効にする'}
             </Menu.Item>
           </Menu.Dropdown>
         </Menu>

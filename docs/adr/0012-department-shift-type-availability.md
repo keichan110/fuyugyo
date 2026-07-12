@@ -47,7 +47,8 @@ accepted
 ## Consequences
 
 - **移行は完全に追加的（additive）**。既存テーブル・列を一切変更/削除せず、`department_shift_types` を新規作成し **{ski, snowboard} × 全 `shift_types`** のクロス積でバックフィルする（`sort_order` は部門ごとに `name` 順で採番）。これにより移行直後は現行挙動（全部門が全種別を選べる）を完全に保持し、既存 Shift の孤児化も起きない。移行後に管理者が不要な組を間引く。
-- Drizzle 生成 SQL はバックフィル INSERT を含まないため**手補正**する（部門コードはテーブルが無いため SQL 内に literal 列挙）。本番 remote への適用はレビュー後に手動で行う（Claude は実行しない）。ADR 0011 と同じ運用。
+- Drizzle 生成 SQL はバックフィル INSERT を含まないため**手補正**する（部門コードはテーブルが無いため SQL 内に literal 列挙）。本番 remote への適用は、レビュー・build 成功後に GitHub Actions が Worker のデプロイより先に行う。これにより、新コードだけが先に稼働して junction テーブルを参照する過渡状態を作らない。Wrangler が migration ごとに取得する D1 バックアップと失敗時ロールバックを利用する。
+- deploy 前に migration を適用するため、本番 migration は原則として既存コードと新コードの双方に互換な additive migration とする。列・テーブルの削除や意味変更は expand/contract で複数回のデプロイに分割する。
 - **可用性から外れた (部門, 種別) の既存 Shift は shifts/manage で編集できなくなる**（閲覧は shifts で可能）。割り当てを直す場合は一旦その種別を部門へ再追加する。これは意図的な割り切り。
 - 新規画面は feature slice `src/features/department-shift-types/`、ルート `/department-shift-types`、設定メニュー「マスタ管理」に「部門別シフト種別」を追加（MANAGER 以上）。junction テーブルは `src/server/db/schema.ts`。
 - API 形状は raw JSON + Hono RPC（ADR 0005）、書き込みは Drizzle D1 batch（ADR 0006）、テストは実 D1 統合テスト（ADR 0007）を踏襲する。

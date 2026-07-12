@@ -3,12 +3,17 @@ import {
   Avatar,
   Button,
   Container,
+  Burger,
+  Divider,
+  Drawer,
   Group,
   Menu,
+  Stack,
   Text,
   UnstyledButton,
 } from '@mantine/core';
 import { IconCalendarCog, IconCalendarWeek, IconSettings, type Icon } from '@tabler/icons-react';
+import { useDisclosure } from '@mantine/hooks';
 import type { QueryClient } from '@tanstack/react-query';
 import {
   createRootRouteWithContext,
@@ -44,11 +49,11 @@ function RootLayout() {
   return (
     <AppShell header={{ height: 60 }} padding="md">
       <AppShell.Header>
-        <Group h="100%" px="md" justify="space-between" wrap="nowrap">
+        <Group h="100%" px={{ base: 'xs', sm: 'md' }} justify="space-between" wrap="nowrap">
           <Text component={Link} to="/" fw={700} size="lg" c="blue" td="none">
             Fuyugyō
           </Text>
-          <Group gap="xs" justify="center" flex={1} wrap="nowrap">
+          <Group gap="xs" justify="center" flex={1} wrap="nowrap" visibleFrom="sm">
             <HeaderLink to="/shifts" icon={IconCalendarWeek}>
               シフト表
             </HeaderLink>
@@ -61,7 +66,12 @@ function RootLayout() {
               <SettingsMenu isAdmin={user.role === 'ADMIN'} />
             )}
           </Group>
-          <UserMenu user={user} />
+          <Group gap="xs" wrap="nowrap">
+            <MobileNavigation user={user} />
+            <Group visibleFrom="sm" gap={0} wrap="nowrap">
+              <UserMenu user={user} />
+            </Group>
+          </Group>
         </Group>
       </AppShell.Header>
       <AppShell.Main>
@@ -160,6 +170,162 @@ function SettingsMenu({ isAdmin }: { isAdmin: boolean }) {
         )}
       </Menu.Dropdown>
     </Menu>
+  );
+}
+
+/** モバイル幅でヘッダー導線をまとめるドロワーナビゲーション。 */
+function MobileNavigation({ user }: { user: MeResponse }) {
+  const [opened, { close, toggle }] = useDisclosure(false);
+  const isManager = hasMinimumRole(user.role, 'MANAGER');
+  const isAdmin = user.role === 'ADMIN';
+
+  return (
+    <>
+      <Burger
+        hiddenFrom="sm"
+        opened={opened}
+        onClick={toggle}
+        aria-label={opened ? 'ナビゲーションを閉じる' : 'ナビゲーションを開く'}
+        size="sm"
+      />
+      <Drawer opened={opened} onClose={close} title="メニュー">
+        <Stack gap="xs">
+          <MobileNavigationLink to="/shifts" onNavigate={close}>
+            シフト表
+          </MobileNavigationLink>
+          {isManager && (
+            <>
+              <MobileNavigationLink to="/shifts/manage" onNavigate={close}>
+                シフト管理
+              </MobileNavigationLink>
+              <Text size="sm" fw={700} mt="sm">
+                マスタ管理
+              </Text>
+              <MobileNavigationLink to="/certifications" onNavigate={close}>
+                資格
+              </MobileNavigationLink>
+              {isAdmin && (
+                <MobileNavigationLink to="/shift-types" onNavigate={close}>
+                  シフト種別設定
+                </MobileNavigationLink>
+              )}
+              <MobileNavigationLink to="/instructors" onNavigate={close}>
+                インストラクター
+              </MobileNavigationLink>
+            </>
+          )}
+          {isAdmin && (
+            <>
+              <Text size="sm" fw={700} mt="sm">
+                ユーザー管理
+              </Text>
+              <MobileNavigationLink to="/users" onNavigate={close}>
+                ユーザー
+              </MobileNavigationLink>
+              <MobileNavigationLink to="/invitations" onNavigate={close}>
+                招待
+              </MobileNavigationLink>
+            </>
+          )}
+          <Divider my="sm" />
+          <MobileAccountActions user={user} />
+        </Stack>
+      </Drawer>
+    </>
+  );
+}
+
+/** モバイル用ドロワー内の画面遷移リンク。 */
+function MobileNavigationLink({
+  to,
+  onNavigate,
+  children,
+}: {
+  to: string;
+  onNavigate: () => void;
+  children: string;
+}) {
+  return (
+    <Button component={Link} to={to} variant="subtle" color="gray" justify="flex-start" onClick={onNavigate}>
+      {children}
+    </Button>
+  );
+}
+
+/** モバイル用ドロワー内のアカウント操作。入れ子のメニューにせず直接操作できるようにする。 */
+function MobileAccountActions({ user }: { user: MeResponse }) {
+  const logout = useLogout();
+  const navigate = useNavigate();
+
+  return (
+    <Stack gap="xs">
+      <Text size="sm" fw={700}>
+        アカウント
+      </Text>
+      <Group gap="sm" wrap="nowrap">
+        <Avatar
+          src={user.pictureUrl}
+          name={user.displayName}
+          color="initials"
+          radius="xl"
+          size="md"
+        />
+        <Text size="sm" truncate>
+          {user.displayName}
+        </Text>
+      </Group>
+      {user.instructorId && (
+        <>
+          <Text size="sm" fw={700} mt="xs">
+            インストラクター連携
+          </Text>
+          <MobileInstructorLinkSection instructorId={user.instructorId} />
+        </>
+      )}
+      <Button
+        color="red"
+        variant="subtle"
+        justify="flex-start"
+        loading={logout.isPending}
+        onClick={() => {
+          // ログアウト後は保護ルート上に取り残されないようルートへ遷移する
+          logout.mutate(undefined, { onSuccess: () => void navigate({ to: '/' }) });
+        }}
+      >
+        ログアウト
+      </Button>
+    </Stack>
+  );
+}
+
+/** モバイル用ドロワー内でインストラクター連携を表示・解除する。 */
+function MobileInstructorLinkSection({ instructorId }: { instructorId: string }) {
+  const { data: instructor } = useInstructor(instructorId);
+  const unlinkInstructor = useUnlinkInstructor();
+
+  return (
+    <Stack gap={0}>
+      <Group gap="xs" wrap="nowrap">
+        <Text size="sm" truncate flex={1}>
+          {instructor ? `${instructor.lastName} ${instructor.firstName}` : '連携情報を読み込み中'}
+        </Text>
+        <Button
+          type="button"
+          variant="subtle"
+          color="red"
+          size="compact-xs"
+          loading={unlinkInstructor.isPending}
+          onClick={() => unlinkInstructor.mutate()}
+        >
+          連携解除
+        </Button>
+      </Group>
+      {unlinkInstructor.isError && (
+        <Text c="red" size="xs">
+          {unlinkInstructor.error.message}
+        </Text>
+      )}
+    </Stack>
   );
 }
 

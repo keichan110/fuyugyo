@@ -623,7 +623,7 @@ function ShiftCalendar({
         onChange={(value) => value && onChangeShiftType(value)}
         mb="sm"
       >
-        <Tabs.List>
+        <Tabs.List className={classes.shiftTypeTabsList}>
           {shiftTypes.map((shiftType) => (
             <Tabs.Tab
               key={shiftType.id}

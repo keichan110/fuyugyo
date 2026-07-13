@@ -1,0 +1,11 @@
+@media (max-width: 48em) {
+  .departmentTabsList {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: thin;
+  }
+
+  .departmentTabsList > * {
+    flex-shrink: 0;
+  }
+}

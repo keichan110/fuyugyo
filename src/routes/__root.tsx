@@ -1,9 +1,9 @@
 import {
   AppShell,
   Avatar,
+  Burger,
   Button,
   Container,
-  Burger,
   Divider,
   Drawer,
   Group,
@@ -13,6 +13,7 @@ import {
   Text,
   UnstyledButton,
 } from '@mantine/core';
+import { useDisclosure } from '@mantine/hooks';
 import {
   IconCalendarCog,
   IconCalendarWeek,
@@ -24,7 +25,6 @@ import {
   IconUsers,
   type Icon,
 } from '@tabler/icons-react';
-import { useDisclosure } from '@mantine/hooks';
 import type { QueryClient } from '@tanstack/react-query';
 import {
   createRootRouteWithContext,

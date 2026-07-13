@@ -99,6 +99,16 @@
 }
 
 @media (max-width: 48em) {
+  .shiftTypeTabsList {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: thin;
+  }
+
+  .shiftTypeTabsList > * {
+    flex-shrink: 0;
+  }
+
   .calendarHeader {
     align-items: stretch;
   }

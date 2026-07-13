@@ -11,6 +11,8 @@ import {
   type DepartmentCode,
 } from '@/features/departments/schema';
 
+import classes from './ShiftTypeSettings.module.css';
+
 /** 選択部門の利用設定と共有シフト種別マスタを並べて管理する画面。 */
 export function ShiftTypeSettings() {
   const [departmentCode, setDepartmentCode] = useState<DepartmentCode>('ski');
@@ -31,7 +33,7 @@ export function ShiftTypeSettings() {
                     if (parsed.success) setDepartmentCode(parsed.data);
                   }}
                 >
-                  <Tabs.List>
+                  <Tabs.List className={classes.departmentTabsList}>
                     {departmentCodeSchema.options.map((code) => (
                       <Tabs.Tab key={code} value={code}>
                         {DEPARTMENT_LABELS[code]}

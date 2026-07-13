@@ -119,6 +119,7 @@ function MemberInstructorLinkPrompt({ user }: { user: MeResponse }) {
 }
 
 const MEMBER_PATHS = new Set(['/', '/shifts']);
+const NOOP = () => {};
 
 type NavigationItem = {
   to: string;
@@ -163,17 +164,31 @@ const NAVIGATION_GROUPS: NavigationGroup[] = [
 ];
 
 /** ロールに応じた共通ナビゲーション。サイドバーとモバイルドロワーで共有する。 */
-function NavigationMenu({ user, onNavigate }: { user: MeResponse; onNavigate?: () => void }) {
+function NavigationMenu({
+  user,
+  onNavigate = NOOP,
+}: {
+  user: MeResponse;
+  onNavigate?: () => void;
+}) {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const navigationGroups = NAVIGATION_GROUPS.map((group) => ({
+    ...group,
+    items: group.items.filter(
+      (item) => !item.minimumRole || hasMinimumRole(user.role, item.minimumRole),
+    ),
+  }));
+  // 現在地に一致する項目のうち、最も深いパスだけをアクティブにする
+  const activePath = navigationGroups
+    .flatMap((group) => group.items)
+    .filter((item) => pathname === item.to || pathname.startsWith(`${item.to}/`))
+    .sort((a, b) => b.to.length - a.to.length)
+    .at(0)?.to;
 
   return (
     <Stack gap="sm">
-      {NAVIGATION_GROUPS.map((group) => {
-        const items = group.items.filter(
-          (item) => !item.minimumRole || hasMinimumRole(user.role, item.minimumRole),
-        );
-
-        if (items.length === 0) {
+      {navigationGroups.map((group) => {
+        if (group.items.length === 0) {
           return null;
         }
 
@@ -184,7 +199,7 @@ function NavigationMenu({ user, onNavigate }: { user: MeResponse; onNavigate?: (
                 {group.label}
               </Text>
             )}
-            {items.map(({ to, label, icon: Icon }) => (
+            {group.items.map(({ to, label, icon: Icon }) => (
               <NavLink
                 key={to}
                 component={Link}
@@ -192,9 +207,9 @@ function NavigationMenu({ user, onNavigate }: { user: MeResponse; onNavigate?: (
                 activeOptions={{ exact: true }}
                 label={label}
                 leftSection={<Icon size={18} stroke={1.75} />}
-                active={pathname === to}
+                active={activePath === to}
                 variant="light"
-                {...(onNavigate ? { onClick: onNavigate } : {})}
+                onClick={onNavigate}
               />
             ))}
           </Stack>

@@ -156,14 +156,20 @@ describe('PUT /api/availabilities/me', () => {
 
     const past = await app.request(
       '/api/availabilities/me',
-      { method: 'PUT', ...authJsonRequest(token, { changes: [{ date: dateOffset(-1), type: 'AVOID' }] }) },
+      {
+        method: 'PUT',
+        ...authJsonRequest(token, { changes: [{ date: dateOffset(-1), type: 'AVOID' }] }),
+      },
       envWith({}),
     );
     expect(past.status).toBe(400);
 
     const locked = await app.request(
       '/api/availabilities/me',
-      { method: 'PUT', ...authJsonRequest(token, { changes: [{ date: lockedDate, type: 'UNAVAILABLE' }] }) },
+      {
+        method: 'PUT',
+        ...authJsonRequest(token, { changes: [{ date: lockedDate, type: 'UNAVAILABLE' }] }),
+      },
       envWith({}),
     );
     expect(locked.status).toBe(409);
@@ -205,18 +211,22 @@ describe('GET /api/availabilities', () => {
     const managerToken = await seedToken('MANAGER');
     const date = dateOffset(3);
     const lockedDate = dateOffset(4);
-    await createDb(env.DB).insert(instructorAvailabilities).values({
-      instructorId,
-      date: new Date(`${date}T00:00:00.000Z`),
-      type: 'UNAVAILABLE',
-      note: null,
-    });
-    await createDb(env.DB).insert(instructorAvailabilities).values({
-      instructorId: otherInstructorId,
-      date: new Date(`${date}T00:00:00.000Z`),
-      type: 'AVOID',
-      note: '別の人',
-    });
+    await createDb(env.DB)
+      .insert(instructorAvailabilities)
+      .values({
+        instructorId,
+        date: new Date(`${date}T00:00:00.000Z`),
+        type: 'UNAVAILABLE',
+        note: null,
+      });
+    await createDb(env.DB)
+      .insert(instructorAvailabilities)
+      .values({
+        instructorId: otherInstructorId,
+        date: new Date(`${date}T00:00:00.000Z`),
+        type: 'AVOID',
+        note: '別の人',
+      });
     await assignInstructor(instructorId, lockedDate);
 
     const me = await app.request(
@@ -226,9 +236,7 @@ describe('GET /api/availabilities', () => {
     );
     expect(me.status).toBe(200);
     const mine = availabilityListResponseSchema.parse(await me.json());
-    expect(mine.availabilities).toEqual([
-      { instructorId, date, type: 'UNAVAILABLE', note: null },
-    ]);
+    expect(mine.availabilities).toEqual([{ instructorId, date, type: 'UNAVAILABLE', note: null }]);
     expect(mine.lockedDates).toEqual([lockedDate]);
 
     const all = await app.request(

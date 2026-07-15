@@ -6,12 +6,7 @@ import { validator } from 'hono/validator';
 
 import { dateStringSchema } from '@/features/shifts/schema';
 import { createDb } from '@/server/db/client';
-import {
-  instructorAvailabilities,
-  shiftAssignments,
-  shifts,
-  users,
-} from '@/server/db/schema';
+import { instructorAvailabilities, shiftAssignments, shifts, users } from '@/server/db/schema';
 import { requireAuth, requireRole, type AuthVariables } from '@/server/middleware/auth';
 import type { Env } from '@/server/types';
 
@@ -49,7 +44,9 @@ function parseRange(from: string | undefined, to: string | undefined): { from: D
     !isValidCalendarDate(from) ||
     !isValidCalendarDate(to)
   ) {
-    throw new HTTPException(400, { message: 'from と to は実在する YYYY-MM-DD で指定してください' });
+    throw new HTTPException(400, {
+      message: 'from と to は実在する YYYY-MM-DD で指定してください',
+    });
   }
   const range = { from: parseDate(from), to: parseDate(to) };
   if (range.from > range.to) {
@@ -59,7 +56,10 @@ function parseRange(from: string | undefined, to: string | undefined): { from: D
 }
 
 /** JWT のユーザーにリンクした instructorId を解決する。未連携なら本人入力は許可しない。 */
-async function resolveInstructorId(db: ReturnType<typeof createDb>, userId: string): Promise<string> {
+async function resolveInstructorId(
+  db: ReturnType<typeof createDb>,
+  userId: string,
+): Promise<string> {
   const [user] = await db
     .select({ instructorId: users.instructorId })
     .from(users)

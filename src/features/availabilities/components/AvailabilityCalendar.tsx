@@ -62,6 +62,7 @@ export function AvailabilityCalendar() {
     [availabilityQuery.data],
   );
   const changes = useMemo(() => buildAvailabilityChanges(saved, staged), [saved, staged]);
+  const changedDates = useMemo(() => new Set(changes.map((change) => change.date)), [changes]);
   const hasChanges = changes.length > 0;
   const blocker = useBlocker({
     shouldBlockFn: () => hasChanges,
@@ -147,6 +148,7 @@ export function AvailabilityCalendar() {
           <CalendarGrid
             month={month}
             getValue={getValue}
+            changedDates={changedDates}
             lockedDates={lockedDates}
             onTypeChange={changeType}
             onNote={openNote}
@@ -155,14 +157,21 @@ export function AvailabilityCalendar() {
       </Stack>
 
       <Box pos="sticky" bottom={0} py="md" bg="var(--mantine-color-body)">
-        <Button
-          fullWidth
-          disabled={!hasChanges}
-          loading={updateMutation.isPending}
-          onClick={() => void save()}
-        >
-          {hasChanges ? `${changes.length}件の変更を保存` : '変更はありません'}
-        </Button>
+        <Stack gap="xs">
+          {hasChanges && (
+            <Text size="sm" c="orange" ta="center">
+              未保存の変更 {changes.length} 件
+            </Text>
+          )}
+          <Button
+            fullWidth
+            disabled={!hasChanges}
+            loading={updateMutation.isPending}
+            onClick={() => void save()}
+          >
+            保存
+          </Button>
+        </Stack>
       </Box>
 
       <Modal opened={noteDate !== null} onClose={() => setNoteDate(null)} title="メモを編集">
@@ -227,12 +236,14 @@ export function AvailabilityCalendar() {
 function CalendarGrid({
   month,
   getValue,
+  changedDates,
   lockedDates,
   onTypeChange,
   onNote,
 }: {
   month: string;
   getValue: (date: string) => StagedAvailability | undefined;
+  changedDates: ReadonlySet<string>;
   lockedDates: ReadonlySet<string>;
   onTypeChange: (date: string, type: Availability['type'] | null) => void;
   onNote: (date: string) => void;
@@ -254,6 +265,7 @@ function CalendarGrid({
             {dates.slice(week * 7, week * 7 + 7).map((date) => {
               const editability = getDateEditability(date, today, lockedDates);
               const value = getValue(date);
+              const hasUnsavedChange = changedDates.has(date);
               const outsideMonth = !date.startsWith(month);
               const disabled = outsideMonth || editability !== 'editable';
               const reason = outsideMonth
@@ -262,7 +274,11 @@ function CalendarGrid({
                   ? '管理者が割当を外せば再び編集できます'
                   : '過去日は編集できません';
               const cell = (
-                <UnstyledButton className={classes.calendarButton} disabled={disabled}>
+                <UnstyledButton
+                  className={classes.calendarButton}
+                  data-staged={hasUnsavedChange || undefined}
+                  disabled={disabled}
+                >
                   <Stack gap={4}>
                     <Text size="sm">{Number(date.slice(8))}</Text>
                     {value && (

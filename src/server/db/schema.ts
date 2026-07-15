@@ -113,6 +113,30 @@ export const departmentShiftTypes = sqliteTable(
   ],
 );
 
+/** 部門別シフト種別で有効な資格と、その枠内での序列を管理する中間テーブル */
+export const departmentShiftTypeCertifications = sqliteTable(
+  'department_shift_type_certifications',
+  {
+    id: primaryId(),
+    departmentShiftTypeId: text('department_shift_type_id')
+      .notNull()
+      .references(() => departmentShiftTypes.id, { onDelete: 'cascade' }),
+    certificationId: text('certification_id')
+      .notNull()
+      .references(() => certifications.id, { onDelete: 'cascade' }),
+    level: integer('level').notNull(),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('idx_department_shift_type_cert_unique').on(
+      t.departmentShiftTypeId,
+      t.certificationId,
+    ),
+    index('idx_department_shift_type_cert_frame').on(t.departmentShiftTypeId),
+    index('idx_department_shift_type_cert_certification').on(t.certificationId),
+  ],
+);
+
 /** シフトテーブル（シフト枠を管理） */
 export const shifts = sqliteTable(
   'shifts',

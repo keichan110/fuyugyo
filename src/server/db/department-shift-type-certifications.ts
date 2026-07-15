@@ -1,11 +1,7 @@
 import { and, eq, inArray } from 'drizzle-orm';
 
 import type { Database } from './client';
-import {
-  departmentShiftTypeCertifications,
-  instructorCertifications,
-  instructors,
-} from './schema';
+import { departmentShiftTypeCertifications, instructorCertifications, instructors } from './schema';
 
 /**
  * 指定枠に紐づく資格を持つインストラクターの ID を取得する。

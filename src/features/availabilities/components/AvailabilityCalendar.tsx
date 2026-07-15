@@ -13,7 +13,7 @@ import {
   Tooltip,
   UnstyledButton,
 } from '@mantine/core';
-import { IconChevronLeft, IconChevronRight, IconNote } from '@tabler/icons-react';
+import { IconChevronLeft, IconChevronRight, IconLock, IconNote } from '@tabler/icons-react';
 import { useBlocker } from '@tanstack/react-router';
 
 import { ErrorAlert, InfoAlert } from '@/components/AppAlert';
@@ -280,7 +280,10 @@ function CalendarGrid({
                   disabled={disabled}
                 >
                   <Stack gap={4}>
-                    <Text size="sm">{Number(date.slice(8))}</Text>
+                    <Group justify="space-between" gap={4} wrap="nowrap">
+                      <Text size="sm">{Number(date.slice(8))}</Text>
+                      {editability === 'locked' && <IconLock size={15} aria-label="割当済み" />}
+                    </Group>
                     {value && (
                       <Badge size="sm" color={value.type === 'UNAVAILABLE' ? 'red' : 'yellow'}>
                         {value.type === 'UNAVAILABLE' ? '勤務不可' : 'できれば回避'}

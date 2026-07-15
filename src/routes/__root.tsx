@@ -16,6 +16,7 @@ import {
 import { useDisclosure } from '@mantine/hooks';
 import {
   IconCalendarCog,
+  IconCalendarOff,
   IconCalendarWeek,
   IconCertificate,
   IconHome,
@@ -118,7 +119,7 @@ function MemberInstructorLinkPrompt({ user }: { user: MeResponse }) {
   );
 }
 
-const MEMBER_PATHS = new Set(['/', '/shifts']);
+const MEMBER_PATHS = new Set(['/', '/shifts', '/availabilities']);
 const NOOP = () => {};
 
 type NavigationItem = {
@@ -141,6 +142,7 @@ const NAVIGATION_GROUPS: NavigationGroup[] = [
     label: 'シフト運用',
     items: [
       { to: '/shifts', label: 'シフト表', icon: IconCalendarWeek },
+      { to: '/availabilities', label: '勤務可否', icon: IconCalendarOff },
       { to: '/shifts/manage', label: 'シフト管理', icon: IconCalendarCog, minimumRole: 'MANAGER' },
     ],
   },

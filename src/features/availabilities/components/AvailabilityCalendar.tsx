@@ -291,7 +291,7 @@ function CalendarGrid({
                 </UnstyledButton>
               );
               return (
-                <td key={date}>
+                <td key={date} data-disabled={disabled || undefined}>
                   {disabled ? (
                     <Tooltip label={reason} withArrow>
                       <Box component="span" display="block">

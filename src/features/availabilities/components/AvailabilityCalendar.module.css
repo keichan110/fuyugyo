@@ -18,6 +18,10 @@
   vertical-align: top;
 }
 
+.calendar td[data-disabled] {
+  background-color: var(--mantine-color-gray-1);
+}
+
 .calendarButton {
   position: relative;
   width: 100%;

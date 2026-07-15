@@ -23,11 +23,15 @@ function validateDepartmentCode(value: string): ReturnType<typeof departmentCode
   return parsed.data;
 }
 
-function normalizeLevels<T extends { level: number }>(certifications: T[]): Array<T & { level: number }> {
+function normalizeLevels<T extends { level: number }>(
+  certifications: T[],
+): Array<T & { level: number }> {
   const levels = [...new Set(certifications.map((certification) => certification.level))].sort(
     (first, second) => first - second,
   );
-  const normalizedLevelByOriginal = new Map(levels.map((level, index) => [level, (index + 1) * 10]));
+  const normalizedLevelByOriginal = new Map(
+    levels.map((level, index) => [level, (index + 1) * 10]),
+  );
 
   return certifications.map((certification) => ({
     ...certification,
@@ -56,7 +60,10 @@ async function findFrame(
   return frame;
 }
 
-async function selectCertifications(db: ReturnType<typeof createDb>, departmentShiftTypeId: string) {
+async function selectCertifications(
+  db: ReturnType<typeof createDb>,
+  departmentShiftTypeId: string,
+) {
   return db
     .select({
       certificationId: departmentShiftTypeCertifications.certificationId,
@@ -114,7 +121,9 @@ export const departmentShiftTypeCertificationsRoute = new Hono<{
             ),
           );
         if (existing.length !== certificationIds.length) {
-          throw new HTTPException(400, { message: 'Unknown or foreign department certification ID' });
+          throw new HTTPException(400, {
+            message: 'Unknown or foreign department certification ID',
+          });
         }
       }
 

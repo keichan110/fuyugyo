@@ -5,9 +5,9 @@ import { HTTPException } from 'hono/http-exception';
 import { validator } from 'hono/validator';
 
 import { DEPARTMENT_LABELS, departmentCodeSchema } from '@/features/departments/schema';
-import { selectInstructorIdsWithFrameCertification } from '@/features/department-shift-type-certifications/active-instructors';
 import { createDb } from '@/server/db/client';
 import type { Database } from '@/server/db/client';
+import { selectInstructorIdsWithFrameCertification } from '@/server/db/department-shift-type-certifications';
 import { isUniqueViolation } from '@/server/db/errors';
 import {
   certifications,
@@ -487,7 +487,11 @@ export const shiftsRoute = new Hono<{
       assignedInstructorIds = assignRows.map((r) => r.instructorId);
     }
 
-    const frameRequirement = await findFrameQualificationRequirement(db, departmentCode, shiftTypeId);
+    const frameRequirement = await findFrameQualificationRequirement(
+      db,
+      departmentCode,
+      shiftTypeId,
+    );
     const qualifiedCandidateIds = frameRequirement.isRequired
       ? await selectInstructorIdsWithFrameCertification(db, frameRequirement.frameId)
       : [];
@@ -517,7 +521,10 @@ export const shiftsRoute = new Hono<{
             instructorCertifications,
             eq(instructorCertifications.instructorId, instructors.id),
           )
-          .innerJoin(certifications, eq(certifications.id, instructorCertifications.certificationId))
+          .innerJoin(
+            certifications,
+            eq(certifications.id, instructorCertifications.certificationId),
+          )
           .where(
             and(
               eq(instructors.status, 'ACTIVE'),
@@ -986,7 +993,10 @@ export const shiftsRoute = new Hono<{
       const existingInstructorIdsByShiftId = new Map<string, Set<string>>();
       for (const chunk of chunkArray(existingRows.map((row) => row.id))) {
         const assignmentRows = await db
-          .select({ shiftId: shiftAssignments.shiftId, instructorId: shiftAssignments.instructorId })
+          .select({
+            shiftId: shiftAssignments.shiftId,
+            instructorId: shiftAssignments.instructorId,
+          })
           .from(shiftAssignments)
           .where(inArray(shiftAssignments.shiftId, chunk));
         for (const row of assignmentRows) {
@@ -1000,14 +1010,20 @@ export const shiftsRoute = new Hono<{
       for (const row of await db
         .select({ frameId: departmentShiftTypeCertifications.departmentShiftTypeId })
         .from(departmentShiftTypeCertifications)
-        .where(inArray(departmentShiftTypeCertifications.departmentShiftTypeId, [...new Set(availableRows.map((row) => row.frameId))]))) {
+        .where(
+          inArray(departmentShiftTypeCertifications.departmentShiftTypeId, [
+            ...new Set(availableRows.map((row) => row.frameId)),
+          ]),
+        )) {
         requiredFrameIds.add(row.frameId);
       }
       const qualifiedInstructorIdsByFrameId = new Map<string, Set<string>>();
       for (const frameId of requiredFrameIds) {
         qualifiedInstructorIdsByFrameId.set(
           frameId,
-          new Set(await selectInstructorIdsWithFrameCertification(db, frameId, { activeOnly: false })),
+          new Set(
+            await selectInstructorIdsWithFrameCertification(db, frameId, { activeOnly: false }),
+          ),
         );
       }
 
@@ -1020,7 +1036,8 @@ export const shiftsRoute = new Hono<{
         const existingInstructorIds = existingId
           ? (existingInstructorIdsByShiftId.get(existingId) ?? new Set<string>())
           : new Set<string>();
-        const qualifiedInstructorIds = qualifiedInstructorIdsByFrameId.get(frameId) ?? new Set<string>();
+        const qualifiedInstructorIds =
+          qualifiedInstructorIdsByFrameId.get(frameId) ?? new Set<string>();
         const hasUnqualifiedNewAssignment = [...new Set(cell.instructorIds)].some(
           (instructorId) =>
             !existingInstructorIds.has(instructorId) && !qualifiedInstructorIds.has(instructorId),

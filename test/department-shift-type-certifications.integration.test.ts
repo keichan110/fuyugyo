@@ -8,6 +8,7 @@ import {
 import app from '../src/index';
 import { signJwt } from '../src/server/auth/jwt';
 import { createDb } from '../src/server/db/client';
+import { selectInstructorIdsWithFrameCertification } from '../src/server/db/department-shift-type-certifications';
 import {
   certifications,
   departmentShiftTypeCertifications,
@@ -18,7 +19,6 @@ import {
   users,
 } from '../src/server/db/schema';
 import type { Env } from '../src/server/types';
-import { selectInstructorIdsWithFrameCertification } from '../src/features/department-shift-type-certifications/active-instructors';
 
 function envWith(overrides: Partial<Env>): Env {
   // cloudflare:test の env はテスト用の Binding 型であり、アプリの Env と構造的に一致しない
@@ -46,7 +46,13 @@ async function seedToken(role: 'ADMIN' | 'MEMBER'): Promise<string> {
   if (!user) throw new Error('ユーザーの作成に失敗しました');
 
   return signJwt(
-    { userId: user.id, lineUserId: user.lineUserId, displayName: user.displayName, role, isActive: true },
+    {
+      userId: user.id,
+      lineUserId: user.lineUserId,
+      displayName: user.displayName,
+      role,
+      isActive: true,
+    },
     env.JWT_SECRET,
     env.JWT_EXPIRES_IN,
   );
@@ -182,7 +188,11 @@ describe('PUT /api/department-shift-type-certifications/:departmentCode/:shiftTy
     const path = `/api/department-shift-type-certifications/ski/${shiftType.id}`;
 
     const [unauthenticatedRes, memberRes] = await Promise.all([
-      app.request(path, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: '{}' }, envWith({})),
+      app.request(
+        path,
+        { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: '{}' },
+        envWith({}),
+      ),
       app.request(
         path,
         { method: 'PUT', ...authRequest(memberToken, { certifications: [] }) },

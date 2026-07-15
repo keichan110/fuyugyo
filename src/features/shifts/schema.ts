@@ -128,6 +128,8 @@ const availableInstructorSchema = z.object({
   isAssigned: z.boolean(),
   /** 同日の別 Shift に割り当て済みで競合しているか */
   hasConflict: z.boolean(),
+  /** 資格要件がある枠で、既存割り当てだけが候補条件を満たさないか */
+  hasQualificationWarning: z.boolean(),
   /**
    * 保存済みシーズン勤務日数のうち、対象月を除いた日数（全部門横断）。
    * 当月分（ステージ中の未保存編集を含む）はクライアント側でライブ計算し、

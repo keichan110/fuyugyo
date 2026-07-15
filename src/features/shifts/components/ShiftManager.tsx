@@ -977,6 +977,11 @@ function InstructorCard({
                       {instructor.displayNameKana}
                     </Text>
                   )}
+                  {instructor.hasQualificationWarning && (
+                    <AppBadge kind="warning" size="xs">
+                      資格要件外の既存割当
+                    </AppBadge>
+                  )}
                 </Group>
                 {instructor.certifications.length > 0 && (
                   <Group gap={4} wrap="wrap">

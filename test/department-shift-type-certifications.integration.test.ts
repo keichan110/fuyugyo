@@ -18,7 +18,7 @@ import {
   users,
 } from '../src/server/db/schema';
 import type { Env } from '../src/server/types';
-import { selectActiveInstructorIdsWithFrameCertification } from '../src/features/department-shift-type-certifications/active-instructors';
+import { selectInstructorIdsWithFrameCertification } from '../src/features/department-shift-type-certifications/active-instructors';
 
 function envWith(overrides: Partial<Env>): Env {
   // cloudflare:test の env はテスト用の Binding 型であり、アプリの Env と構造的に一致しない
@@ -195,7 +195,7 @@ describe('PUT /api/department-shift-type-certifications/:departmentCode/:shiftTy
   });
 });
 
-describe('selectActiveInstructorIdsWithFrameCertification', () => {
+describe('selectInstructorIdsWithFrameCertification', () => {
   it('ACTIVE かつ対象資格の保持者だけを重複なく返す', async () => {
     const { db, frame } = await seedFrame();
     const [target, other] = await Promise.all([
@@ -225,11 +225,11 @@ describe('selectActiveInstructorIdsWithFrameCertification', () => {
       { instructorId: inactiveTarget.id, certificationId: target.id },
     ]);
 
-    await expect(selectActiveInstructorIdsWithFrameCertification(db, frame.id)).resolves.toEqual([
+    await expect(selectInstructorIdsWithFrameCertification(db, frame.id)).resolves.toEqual([
       activeTarget.id,
     ]);
     await expect(
-      selectActiveInstructorIdsWithFrameCertification(db, crypto.randomUUID()),
+      selectInstructorIdsWithFrameCertification(db, crypto.randomUUID()),
     ).resolves.toEqual([]);
   });
 });

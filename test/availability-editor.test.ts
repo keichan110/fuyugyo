@@ -42,7 +42,7 @@ describe('buildAvailabilityChanges', () => {
 
 describe('getDateEditability', () => {
   it.each([
-    ['2025-11-30', '2025-12-01', [], 'season-outside'],
+    ['2026-05-10', '2026-05-01', [], 'editable'],
     ['2025-12-01', '2025-12-02', [], 'past'],
     ['2025-12-03', '2025-12-02', ['2025-12-03'], 'locked'],
     ['2025-12-03', '2025-12-02', [], 'editable'],

@@ -1,7 +1,7 @@
 import type { Availability, UpdateMyAvailabilitiesInput } from './schema';
 
 export type StagedAvailability = Pick<Availability, 'type' | 'note'> | null;
-export type DateEditability = 'editable' | 'past' | 'season-outside' | 'locked';
+export type DateEditability = 'editable' | 'past' | 'locked';
 
 /** 指定日の編集内容をステージ状態へ反映する。`null` は保存済み申告の解除を表す。 */
 export function stageAvailability(
@@ -39,8 +39,6 @@ export function getDateEditability(
   today: string,
   lockedDates: ReadonlySet<string>,
 ): DateEditability {
-  const month = Number(date.slice(5, 7));
-  if (month < 1 || (month > 4 && month < 12)) return 'season-outside';
   if (date < today) return 'past';
   if (lockedDates.has(date)) return 'locked';
   return 'editable';

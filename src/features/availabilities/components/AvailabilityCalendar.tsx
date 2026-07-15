@@ -260,9 +260,7 @@ function CalendarGrid({
                 ? '表示中の月の日付だけ編集できます'
                 : editability === 'locked'
                   ? '管理者が割当を外せば再び編集できます'
-                  : editability === 'past'
-                    ? '過去日は編集できません'
-                    : 'シーズン外の日は編集できません';
+                  : '過去日は編集できません';
               const cell = (
                 <UnstyledButton className={classes.calendarButton} disabled={disabled}>
                   <Stack gap={4}>

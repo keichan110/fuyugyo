@@ -163,6 +163,24 @@ export const shiftAssignments = sqliteTable(
   ],
 );
 
+/** インストラクター本人が申告する日別の勤務可否（部門・シフト種別には紐づけない） */
+export const instructorAvailabilities = sqliteTable(
+  'instructor_availabilities',
+  {
+    id: primaryId(),
+    instructorId: text('instructor_id')
+      .notNull()
+      .references(() => instructors.id, { onDelete: 'cascade' }),
+    date: integer('date', { mode: 'timestamp' }).notNull(),
+    type: text('type', { enum: ['UNAVAILABLE', 'AVOID'] }).notNull(),
+    note: text('note'),
+  },
+  (t) => [
+    uniqueIndex('idx_instructor_availabilities_unique').on(t.instructorId, t.date),
+    index('idx_instructor_availabilities_date').on(t.date),
+  ],
+);
+
 /** ユーザー認証・権限管理テーブル */
 export const users = sqliteTable(
   'users',

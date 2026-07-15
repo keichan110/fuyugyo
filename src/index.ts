@@ -4,6 +4,7 @@ import { HTTPException } from 'hono/http-exception';
 import { secureHeaders } from 'hono/secure-headers';
 
 import { authRoute } from '@/features/auth/api';
+import { availabilitiesRoute } from '@/features/availabilities/api';
 import { certificationsRoute } from '@/features/certifications/api';
 import { departmentShiftTypesRoute } from '@/features/department-shift-types/api';
 import { healthRoute } from '@/features/health/api';
@@ -41,6 +42,7 @@ app.onError((err, c) => {
 const routes = app
   .route('/api/health', healthRoute)
   .route('/api/auth', authRoute)
+  .route('/api/availabilities', availabilitiesRoute)
   .route('/api/certifications', certificationsRoute)
   .route('/api/department-shift-types', departmentShiftTypesRoute)
   .route('/api/shift-types', shiftTypesRoute)

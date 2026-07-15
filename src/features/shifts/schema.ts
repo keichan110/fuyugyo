@@ -152,6 +152,7 @@ export const autoAssignExecutionParamsSchema = z.object({
   weekdayRequiredCount: z.number().int().min(0),
   weekendHolidayRequiredCount: z.number().int().min(0),
   targetDates: z.array(dateStringSchema).min(1),
+  holidayDates: z.array(dateStringSchema).default([]),
 });
 
 export type AutoAssignExecutionParams = z.infer<typeof autoAssignExecutionParamsSchema>;

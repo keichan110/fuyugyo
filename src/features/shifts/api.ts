@@ -13,8 +13,8 @@ import {
   certifications,
   departmentShiftTypeCertifications,
   departmentShiftTypes,
-  instructorCertifications,
   instructorAvailabilities,
+  instructorCertifications,
   instructors,
   shiftAssignments,
   shifts,
@@ -433,7 +433,10 @@ export const shiftsRoute = new Hono<{
           linkedUserId: users.id,
         })
         .from(instructors)
-        .innerJoin(instructorCertifications, eq(instructorCertifications.instructorId, instructors.id))
+        .innerJoin(
+          instructorCertifications,
+          eq(instructorCertifications.instructorId, instructors.id),
+        )
         .innerJoin(certifications, eq(certifications.id, instructorCertifications.certificationId))
         .leftJoin(users, eq(users.instructorId, instructors.id))
         .where(
@@ -457,7 +460,10 @@ export const shiftsRoute = new Hono<{
           eq(departmentShiftTypeCertifications.departmentShiftTypeId, departmentShiftTypes.id),
         )
         .where(eq(departmentShiftTypes.departmentCode, departmentCode))
-        .orderBy(asc(departmentShiftTypes.sortOrder), desc(departmentShiftTypeCertifications.level)),
+        .orderBy(
+          asc(departmentShiftTypes.sortOrder),
+          desc(departmentShiftTypeCertifications.level),
+        ),
     ]);
 
     const instructorById = new Map<

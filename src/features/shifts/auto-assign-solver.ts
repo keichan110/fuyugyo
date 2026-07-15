@@ -1,8 +1,4 @@
-import type {
-  AutoAssignContext,
-  AutoAssignExecutionParams,
-  AutoAssignProposal,
-} from './schema';
+import type { AutoAssignContext, AutoAssignExecutionParams, AutoAssignProposal } from './schema';
 
 /** 自動割当の実行結果。提案は対象外の枠を含まない。 */
 export type AutoAssignSolveResult = {
@@ -187,9 +183,11 @@ function shortageReasons(
   unavailable: Set<string>,
   occupied: Set<string>,
 ): string[] {
-  const unavailableCount = [...qualifiedIds].filter((id) => unavailable.has(dateInstructorKey(date, id))).length;
-  const occupiedCount = [...qualifiedIds].filter(
-    (id) => occupied.has(dateInstructorKey(date, id)),
+  const unavailableCount = [...qualifiedIds].filter((id) =>
+    unavailable.has(dateInstructorKey(date, id)),
+  ).length;
+  const occupiedCount = [...qualifiedIds].filter((id) =>
+    occupied.has(dateInstructorKey(date, id)),
   ).length;
   const reasons: string[] = [];
   if (unavailableCount > 0) reasons.push(`UNAVAILABLE: ${unavailableCount}名`);
@@ -211,7 +209,9 @@ function calculateCapacity(
   );
 }
 
-function countAssignedDays(assignments: AutoAssignContext['existingAssignments']): Map<string, number> {
+function countAssignedDays(
+  assignments: AutoAssignContext['existingAssignments'],
+): Map<string, number> {
   const datesByInstructor = new Map<string, Set<string>>();
   for (const assignment of assignments) {
     for (const instructorId of assignment.instructorIds) {
@@ -226,7 +226,9 @@ function countAssignedDays(assignments: AutoAssignContext['existingAssignments']
 function occupiedDateInstructorKeys(context: AutoAssignContext): Set<string> {
   return new Set(
     context.existingAssignments.flatMap((assignment) =>
-      assignment.instructorIds.map((instructorId) => dateInstructorKey(assignment.date, instructorId)),
+      assignment.instructorIds.map((instructorId) =>
+        dateInstructorKey(assignment.date, instructorId),
+      ),
     ),
   );
 }
@@ -253,7 +255,10 @@ function fairnessCost(counts: Map<string, number>, capacity: Map<string, number>
   }, 0);
 }
 
-function qualificationCost(proposals: AutoAssignProposal[], normalizedLevels: Map<string, number>): number {
+function qualificationCost(
+  proposals: AutoAssignProposal[],
+  normalizedLevels: Map<string, number>,
+): number {
   return proposals.reduce((sum, proposal) => {
     const levels = proposal.instructorIds.map((id) => normalizedLevels.get(id) ?? 0);
     if (levels.length === 0) return sum;
@@ -266,16 +271,16 @@ function normalizedLevelByInstructor(
   context: AutoAssignContext,
   certificationLevels: { certificationId: string; level: number }[],
 ): Map<string, number> {
-  const levels = [...new Set(certificationLevels.map((item) => item.level))].sort((left, right) => left - right);
+  const levels = [...new Set(certificationLevels.map((item) => item.level))].sort(
+    (left, right) => left - right,
+  );
   const normalizedByCertification = new Map(
     certificationLevels.map((item) => [item.certificationId, levels.indexOf(item.level)]),
   );
   return new Map(
     context.instructors.map((instructor) => [
       instructor.id,
-      Math.max(
-        ...instructor.certificationIds.map((id) => normalizedByCertification.get(id) ?? -1),
-      ),
+      Math.max(...instructor.certificationIds.map((id) => normalizedByCertification.get(id) ?? -1)),
     ]),
   );
 }

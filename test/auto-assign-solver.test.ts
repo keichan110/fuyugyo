@@ -21,7 +21,12 @@ function createAutoAssignContext(overrides: Partial<AutoAssignContext> = {}): Au
     instructors: [
       { id: 'a', displayName: 'A', certificationIds: ['basic'], availabilityStatus: 'SUBMITTED' },
       { id: 'b', displayName: 'B', certificationIds: ['basic'], availabilityStatus: 'SUBMITTED' },
-      { id: 'c', displayName: 'C', certificationIds: ['advanced'], availabilityStatus: 'SUBMITTED' },
+      {
+        id: 'c',
+        displayName: 'C',
+        certificationIds: ['advanced'],
+        availabilityStatus: 'SUBMITTED',
+      },
     ],
     frames: [
       {
@@ -43,7 +48,9 @@ describe('solveAutoAssignments', () => {
   it('UNAVAILABLE・資格不足・同日既存割当を絶対に割り当てない', () => {
     const result = solveAutoAssignments(
       createAutoAssignContext({
-        availabilities: [{ instructorId: 'a', date: '2026-01-05', type: 'UNAVAILABLE', note: null }],
+        availabilities: [
+          { instructorId: 'a', date: '2026-01-05', type: 'UNAVAILABLE', note: null },
+        ],
         existingAssignments: [
           {
             date: '2026-01-05',
@@ -58,7 +65,10 @@ describe('solveAutoAssignments', () => {
     );
 
     expect(result.proposals).toEqual([
-      expect.objectContaining({ instructorIds: ['c'], shortage: expect.objectContaining({ count: 2 }) }),
+      expect.objectContaining({
+        instructorIds: ['c'],
+        shortage: expect.objectContaining({ count: 2 }),
+      }),
     ]);
     expect(result.proposals[0]?.shortage.reasons).toEqual(
       expect.arrayContaining(['UNAVAILABLE: 1名', '同日割当済み: 1名']),
@@ -66,9 +76,16 @@ describe('solveAutoAssignments', () => {
   });
 
   it('必要人数を上限として守り、足りなければ不足人数を返す', () => {
-    const result = solveAutoAssignments(createAutoAssignContext(), createExecutionParams({ weekdayRequiredCount: 5 }), 2);
+    const result = solveAutoAssignments(
+      createAutoAssignContext(),
+      createExecutionParams({ weekdayRequiredCount: 5 }),
+      2,
+    );
 
-    expect(result.proposals[0]).toMatchObject({ instructorIds: expect.any(Array), shortage: { count: 2 } });
+    expect(result.proposals[0]).toMatchObject({
+      instructorIds: expect.any(Array),
+      shortage: { count: 2 },
+    });
     expect(result.proposals[0]?.instructorIds).toHaveLength(3);
   });
 
@@ -101,7 +118,11 @@ describe('solveAutoAssignments', () => {
   });
 
   it('資格 level の飛び番号を正規化しても同じ提案を返す', () => {
-    const first = solveAutoAssignments(createAutoAssignContext(), createExecutionParams({ weekdayRequiredCount: 2 }), 8);
+    const first = solveAutoAssignments(
+      createAutoAssignContext(),
+      createExecutionParams({ weekdayRequiredCount: 2 }),
+      8,
+    );
     const normalized = solveAutoAssignments(
       createAutoAssignContext({
         frames: [
@@ -124,8 +145,11 @@ describe('solveAutoAssignments', () => {
 
   it('level 順に候補者を選ばず、同じ条件ならシードにより候補を変える', () => {
     const result = new Set(
-      Array.from({ length: 12 }, (_, seed) =>
-        solveAutoAssignments(createAutoAssignContext(), createExecutionParams(), seed).proposals[0]?.instructorIds[0],
+      Array.from(
+        { length: 12 },
+        (_, seed) =>
+          solveAutoAssignments(createAutoAssignContext(), createExecutionParams(), seed)
+            .proposals[0]?.instructorIds[0],
       ),
     );
 
@@ -134,7 +158,9 @@ describe('solveAutoAssignments', () => {
 
   it('資格序列がない枠を提案対象から除外する', () => {
     const result = solveAutoAssignments(
-      createAutoAssignContext({ frames: [{ shiftTypeId: 'morning', certificationLevels: [], eligibleInstructorIds: ['a'] }] }),
+      createAutoAssignContext({
+        frames: [{ shiftTypeId: 'morning', certificationLevels: [], eligibleInstructorIds: ['a'] }],
+      }),
       createExecutionParams(),
       1,
     );

@@ -222,7 +222,11 @@ describe('GET /api/shifts/auto-assign-context', () => {
 
     expect(res.status).toBe(200);
     const context = autoAssignContextSchema.parse(await res.json());
-    expect(new Map(context.instructors.map((instructor) => [instructor.id, instructor.availabilityStatus]))).toEqual(
+    expect(
+      new Map(
+        context.instructors.map((instructor) => [instructor.id, instructor.availabilityStatus]),
+      ),
+    ).toEqual(
       new Map([
         [linked!.id, 'NOT_SUBMITTED'],
         [unlinked!.id, 'NOT_LINKED'],

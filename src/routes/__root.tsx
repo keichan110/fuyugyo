@@ -142,7 +142,7 @@ const NAVIGATION_GROUPS: NavigationGroup[] = [
     label: 'シフト運用',
     items: [
       { to: '/shifts', label: 'シフト表', icon: IconCalendarWeek },
-      { to: '/availabilities', label: '勤務可否', icon: IconCalendarOff },
+      { to: '/availabilities', label: 'シフト希望', icon: IconCalendarOff },
       { to: '/shifts/manage', label: 'シフト管理', icon: IconCalendarCog, minimumRole: 'MANAGER' },
     ],
   },

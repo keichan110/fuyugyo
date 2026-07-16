@@ -23,7 +23,7 @@ import { useBlocker } from '@tanstack/react-router';
 
 import 'dayjs/locale/ja';
 
-import { ErrorAlert, InfoAlert } from '@/components/AppAlert';
+import { ErrorAlert } from '@/components/AppAlert';
 import { addDays, todayString, toMonth, weekdayIndex } from '@/features/shifts/view-utils';
 
 import {
@@ -129,9 +129,9 @@ export function AvailabilityCalendar() {
   return (
     <>
       <Stack gap="md">
-        <InfoAlert>
-          勤務できる日は指定不要です。勤務不可または要調整の日だけを選んでください。
-        </InfoAlert>
+        <Text size="sm" c="dimmed">
+          勤務できない日があれば選択してください。
+        </Text>
         {availabilityQuery.isError && <ErrorAlert>{availabilityQuery.error.message}</ErrorAlert>}
         {updateMutation.isError && <ErrorAlert>{updateMutation.error.message}</ErrorAlert>}
         {availabilityQuery.isLoading ? (

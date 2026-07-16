@@ -17,7 +17,7 @@ function AvailabilitiesPage() {
   return (
     <Container size="sm" py="md">
       <Stack gap="md">
-        <Title order={2}>勤務可否</Title>
+        <Title order={2}>シフト希望</Title>
         <AvailabilityCalendar />
       </Stack>
     </Container>

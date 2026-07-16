@@ -113,9 +113,9 @@ export const departmentShiftTypes = sqliteTable(
   ],
 );
 
-/** 部門別シフト種別で有効な資格と、その枠内での序列を管理する中間テーブル */
-export const departmentShiftTypeCertifications = sqliteTable(
-  'department_shift_type_certifications',
+/** 部門別シフト種別ごとの必要資格と、枠内での優先段を管理する中間テーブル */
+export const certificationRequirements = sqliteTable(
+  'certification_requirements',
   {
     id: primaryId(),
     departmentShiftTypeId: text('department_shift_type_id')
@@ -128,12 +128,12 @@ export const departmentShiftTypeCertifications = sqliteTable(
     ...timestamps,
   },
   (t) => [
-    uniqueIndex('idx_department_shift_type_cert_unique').on(
+    uniqueIndex('idx_certification_requirements_unique').on(
       t.departmentShiftTypeId,
       t.certificationId,
     ),
-    index('idx_department_shift_type_cert_frame').on(t.departmentShiftTypeId),
-    index('idx_department_shift_type_cert_certification').on(t.certificationId),
+    index('idx_certification_requirements_frame').on(t.departmentShiftTypeId),
+    index('idx_certification_requirements_certification').on(t.certificationId),
   ],
 );
 

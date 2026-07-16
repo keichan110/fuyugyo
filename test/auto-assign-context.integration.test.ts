@@ -6,8 +6,8 @@ import app from '../src/index';
 import { signJwt } from '../src/server/auth/jwt';
 import { createDb } from '../src/server/db/client';
 import {
+  certificationRequirements,
   certifications,
-  departmentShiftTypeCertifications,
   departmentShiftTypes,
   instructorAvailabilities,
   instructorCertifications,
@@ -61,7 +61,7 @@ beforeEach(async () => {
   await db.delete(shifts);
   await db.delete(instructorAvailabilities);
   await db.delete(instructorCertifications);
-  await db.delete(departmentShiftTypeCertifications);
+  await db.delete(certificationRequirements);
   await db.delete(departmentShiftTypes);
   await db.delete(certifications);
   await db.delete(instructors);
@@ -70,7 +70,7 @@ beforeEach(async () => {
 });
 
 describe('GET /api/shifts/auto-assign-context', () => {
-  it('候補・資格・序列・可用性と月外を含む既存割当を集約する', async () => {
+  it('候補・資格・優先段・可用性と月外を含む既存割当を集約する', async () => {
     const db = createDb(env.DB);
     const [shiftType] = await db.insert(shiftTypes).values({ name: '午前' }).returning();
     const [frame] = await db
@@ -89,7 +89,7 @@ describe('GET /api/shifts/auto-assign-context', () => {
       .insert(instructors)
       .values({ lastName: '休止', firstName: '次郎', status: 'INACTIVE' })
       .returning();
-    await db.insert(departmentShiftTypeCertifications).values({
+    await db.insert(certificationRequirements).values({
       departmentShiftTypeId: frame!.id,
       certificationId: certification!.id,
       level: 20,

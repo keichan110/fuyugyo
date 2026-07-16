@@ -15,14 +15,11 @@ import {
   type DepartmentCode,
 } from '@/features/departments/schema';
 
-import {
-  useDepartmentShiftTypeCertifications,
-  useUpdateDepartmentShiftTypeCertifications,
-} from '../queries';
-import type { DepartmentShiftTypeCertification } from '../schema';
+import { useCertificationRequirements, useUpdateCertificationRequirements } from '../queries';
+import type { CertificationRequirement } from '../schema';
 
-/** 部門・シフト種別枠ごとに資格序列を設定する画面。 */
-export function ShiftTypeCertificationSettings() {
+/** 部門・シフト種別枠ごとに必要資格を設定する画面。 */
+export function CertificationRequirementSettings() {
   const [departmentCode, setDepartmentCode] = useState<DepartmentCode>('ski');
   const { data: shiftTypes, isLoading, isError } = useDepartmentShiftTypes(departmentCode);
   const [shiftTypeId, setShiftTypeId] = useState<string | null>(null);
@@ -109,11 +106,9 @@ function CertificationRankEditor({
     data: savedCertifications,
     isLoading: isRanksLoading,
     isError,
-  } = useDepartmentShiftTypeCertifications(departmentCode, shiftTypeId);
-  const [editedCertifications, setEditedCertifications] = useState<
-    DepartmentShiftTypeCertification[]
-  >([]);
-  const update = useUpdateDepartmentShiftTypeCertifications(departmentCode, shiftTypeId ?? '');
+  } = useCertificationRequirements(departmentCode, shiftTypeId);
+  const [editedCertifications, setEditedCertifications] = useState<CertificationRequirement[]>([]);
+  const update = useUpdateCertificationRequirements(departmentCode, shiftTypeId ?? '');
 
   useEffect(() => {
     if (savedCertifications) setEditedCertifications(savedCertifications);

@@ -3,22 +3,22 @@ import { createFileRoute, redirect } from '@tanstack/react-router';
 
 import { fetchMe } from '@/features/auth/auth-guard';
 import { hasMinimumRole } from '@/features/auth/schema';
-import { ShiftTypeCertificationSettings } from '@/features/department-shift-type-certifications/components/ShiftTypeCertificationSettings';
+import { CertificationRequirementSettings } from '@/features/certification-requirements/components/CertificationRequirementSettings';
 
-export const Route = createFileRoute('/shift-type-certifications')({
+export const Route = createFileRoute('/certification-requirements')({
   beforeLoad: async ({ context }) => {
     const user = await fetchMe(context.queryClient);
     if (!user || !hasMinimumRole(user.role, 'ADMIN')) {
       throw redirect({ to: '/' });
     }
   },
-  component: ShiftTypeCertificationsPage,
+  component: CertificationRequirementsPage,
 });
 
-function ShiftTypeCertificationsPage() {
+function CertificationRequirementsPage() {
   return (
     <Container size="lg" py="md">
-      <ShiftTypeCertificationSettings />
+      <CertificationRequirementSettings />
     </Container>
   );
 }

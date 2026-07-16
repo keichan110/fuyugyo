@@ -640,15 +640,15 @@ export function ShiftManager() {
             />
           </Group>
           <Text size="xs" c="dimmed">
-            資格序列は表示・判定に使用します。変更は資格設定画面で行ってください。
+            必要資格は表示・判定に使用します。変更は必要資格設定画面で行ってください。
           </Text>
-          <Button component="a" href="/shift-type-certifications" variant="subtle" size="xs">
-            資格設定を開く
+          <Button component="a" href="/certification-requirements" variant="subtle" size="xs">
+            必要資格設定を開く
           </Button>
           {autoAssignContext.data?.frames.find(
             (frame) => frame.shiftTypeId === autoAssignShiftTypeId,
           )?.certificationLevels.length === 0 && (
-            <ErrorAlert>この種別には資格序列が設定されていないため、提案できません。</ErrorAlert>
+            <ErrorAlert>この種別には必要資格が設定されていないため、提案できません。</ErrorAlert>
           )}
           <Button
             leftSection={<IconWand size={16} />}

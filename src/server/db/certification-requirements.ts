@@ -1,7 +1,7 @@
 import { and, eq, inArray } from 'drizzle-orm';
 
 import type { Database } from './client';
-import { departmentShiftTypeCertifications, instructorCertifications, instructors } from './schema';
+import { certificationRequirements, instructorCertifications, instructors } from './schema';
 
 /**
  * 指定枠に紐づく資格を持つインストラクターの ID を取得する。
@@ -17,9 +17,9 @@ export async function selectInstructorIdsWithFrameCertification(
   options: { activeOnly?: boolean } = {},
 ): Promise<string[]> {
   const certificationRows = await db
-    .select({ certificationId: departmentShiftTypeCertifications.certificationId })
-    .from(departmentShiftTypeCertifications)
-    .where(eq(departmentShiftTypeCertifications.departmentShiftTypeId, departmentShiftTypeId));
+    .select({ certificationId: certificationRequirements.certificationId })
+    .from(certificationRequirements)
+    .where(eq(certificationRequirements.departmentShiftTypeId, departmentShiftTypeId));
   const certificationIds = certificationRows.map((row) => row.certificationId);
 
   if (certificationIds.length === 0) {

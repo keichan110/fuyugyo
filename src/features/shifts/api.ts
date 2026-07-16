@@ -5,13 +5,13 @@ import { HTTPException } from 'hono/http-exception';
 import { validator } from 'hono/validator';
 
 import { DEPARTMENT_LABELS, departmentCodeSchema } from '@/features/departments/schema';
+import { selectInstructorIdsWithFrameCertification } from '@/server/db/certification-requirements';
 import { createDb } from '@/server/db/client';
 import type { Database } from '@/server/db/client';
-import { selectInstructorIdsWithFrameCertification } from '@/server/db/department-shift-type-certifications';
 import { isUniqueViolation } from '@/server/db/errors';
 import {
+  certificationRequirements,
   certifications,
-  departmentShiftTypeCertifications,
   departmentShiftTypes,
   instructorAvailabilities,
   instructorCertifications,
@@ -160,9 +160,9 @@ async function findFrameQualificationRequirement(
   }
 
   const [requirement] = await db
-    .select({ id: departmentShiftTypeCertifications.id })
-    .from(departmentShiftTypeCertifications)
-    .where(eq(departmentShiftTypeCertifications.departmentShiftTypeId, frame.id))
+    .select({ id: certificationRequirements.id })
+    .from(certificationRequirements)
+    .where(eq(certificationRequirements.departmentShiftTypeId, frame.id))
     .limit(1);
 
   return { frameId: frame.id, isRequired: requirement !== undefined };
@@ -451,19 +451,16 @@ export const shiftsRoute = new Hono<{
         .select({
           frameId: departmentShiftTypes.id,
           shiftTypeId: departmentShiftTypes.shiftTypeId,
-          certificationId: departmentShiftTypeCertifications.certificationId,
-          level: departmentShiftTypeCertifications.level,
+          certificationId: certificationRequirements.certificationId,
+          level: certificationRequirements.level,
         })
         .from(departmentShiftTypes)
         .leftJoin(
-          departmentShiftTypeCertifications,
-          eq(departmentShiftTypeCertifications.departmentShiftTypeId, departmentShiftTypes.id),
+          certificationRequirements,
+          eq(certificationRequirements.departmentShiftTypeId, departmentShiftTypes.id),
         )
         .where(eq(departmentShiftTypes.departmentCode, departmentCode))
-        .orderBy(
-          asc(departmentShiftTypes.sortOrder),
-          desc(departmentShiftTypeCertifications.level),
-        ),
+        .orderBy(asc(departmentShiftTypes.sortOrder), desc(certificationRequirements.level)),
     ]);
 
     const instructorById = new Map<
@@ -1215,10 +1212,10 @@ export const shiftsRoute = new Hono<{
 
       const requiredFrameIds = new Set<string>();
       for (const row of await db
-        .select({ frameId: departmentShiftTypeCertifications.departmentShiftTypeId })
-        .from(departmentShiftTypeCertifications)
+        .select({ frameId: certificationRequirements.departmentShiftTypeId })
+        .from(certificationRequirements)
         .where(
-          inArray(departmentShiftTypeCertifications.departmentShiftTypeId, [
+          inArray(certificationRequirements.departmentShiftTypeId, [
             ...new Set(availableRows.map((row) => row.frameId)),
           ]),
         )) {

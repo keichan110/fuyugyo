@@ -21,7 +21,7 @@ export function solveAutoAssignments(
   seed: number,
 ): AutoAssignSolveResult {
   const frame = context.frames.find((item) => item.shiftTypeId === params.shiftTypeId);
-  // 資格序列が未設定の枠は、資格を満たすことを判定できないため提案しない。
+  // 必要資格が未設定の枠は、資格を満たすことを判定できないため提案しない。
   if (!frame || frame.certificationLevels.length === 0) {
     return { proposals: [] };
   }

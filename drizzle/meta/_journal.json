@@ -43,6 +43,13 @@
       "when": 1784124476915,
       "tag": "0005_furry_surge",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1784212954893,
+      "tag": "0006_sleepy_bruce_banner",
+      "breakpoints": true
     }
   ]
 }

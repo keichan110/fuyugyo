@@ -156,7 +156,7 @@ describe('solveAutoAssignments', () => {
     expect(result.size).toBeGreaterThan(1);
   });
 
-  it('資格序列がない枠を提案対象から除外する', () => {
+  it('必要資格がない枠を提案対象から除外する', () => {
     const result = solveAutoAssignments(
       createAutoAssignContext({
         frames: [{ shiftTypeId: 'morning', certificationLevels: [], eligibleInstructorIds: ['a'] }],

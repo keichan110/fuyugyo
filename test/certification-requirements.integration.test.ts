@@ -2,16 +2,16 @@ import { env } from 'cloudflare:test';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
-  departmentShiftTypeCertificationListSchema,
-  departmentShiftTypeCertificationUpdateSchema,
-} from '../src/features/department-shift-type-certifications/schema';
+  certificationRequirementListSchema,
+  certificationRequirementUpdateSchema,
+} from '../src/features/certification-requirements/schema';
 import app from '../src/index';
 import { signJwt } from '../src/server/auth/jwt';
+import { selectInstructorIdsWithFrameCertification } from '../src/server/db/certification-requirements';
 import { createDb } from '../src/server/db/client';
-import { selectInstructorIdsWithFrameCertification } from '../src/server/db/department-shift-type-certifications';
 import {
+  certificationRequirements,
   certifications,
-  departmentShiftTypeCertifications,
   departmentShiftTypes,
   instructorCertifications,
   instructors,
@@ -83,7 +83,7 @@ async function seedCertification(name: string, departmentCode = 'ski') {
 beforeEach(async () => {
   const db = createDb(env.DB);
   await db.delete(instructorCertifications);
-  await db.delete(departmentShiftTypeCertifications);
+  await db.delete(certificationRequirements);
   await db.delete(departmentShiftTypes);
   await db.delete(certifications);
   await db.delete(instructors);
@@ -91,19 +91,19 @@ beforeEach(async () => {
   await db.delete(users);
 });
 
-describe('GET /api/department-shift-type-certifications/:departmentCode/:shiftTypeId', () => {
+describe('GET /api/certification-requirements/:departmentCode/:shiftTypeId', () => {
   it('未設定の枠を空配列として返す', async () => {
     const { shiftType } = await seedFrame();
     const token = await seedToken('ADMIN');
 
     const res = await app.request(
-      `/api/department-shift-type-certifications/ski/${shiftType.id}`,
+      `/api/certification-requirements/ski/${shiftType.id}`,
       authRequest(token),
       envWith({}),
     );
 
     expect(res.status).toBe(200);
-    expect(departmentShiftTypeCertificationListSchema.parse(await res.json())).toEqual([]);
+    expect(certificationRequirementListSchema.parse(await res.json())).toEqual([]);
   });
 
   it('MEMBER を 403 で拒否する', async () => {
@@ -111,7 +111,7 @@ describe('GET /api/department-shift-type-certifications/:departmentCode/:shiftTy
     const token = await seedToken('MEMBER');
 
     const res = await app.request(
-      `/api/department-shift-type-certifications/ski/${shiftType.id}`,
+      `/api/certification-requirements/ski/${shiftType.id}`,
       authRequest(token),
       envWith({}),
     );
@@ -120,7 +120,7 @@ describe('GET /api/department-shift-type-certifications/:departmentCode/:shiftTy
   });
 });
 
-describe('PUT /api/department-shift-type-certifications/:departmentCode/:shiftTypeId', () => {
+describe('PUT /api/certification-requirements/:departmentCode/:shiftTypeId', () => {
   it('全置換し、相対的な段を 10/20/30 に正規化して同着を保存する', async () => {
     const { shiftType } = await seedFrame();
     const [first, second, third] = await Promise.all([
@@ -129,7 +129,7 @@ describe('PUT /api/department-shift-type-certifications/:departmentCode/:shiftTy
       seedCertification('認定指導員'),
     ]);
     const token = await seedToken('ADMIN');
-    const input = departmentShiftTypeCertificationUpdateSchema.parse({
+    const input = certificationRequirementUpdateSchema.parse({
       certifications: [
         { certificationId: first.id, level: 100 },
         { certificationId: second.id, level: 50 },
@@ -138,13 +138,13 @@ describe('PUT /api/department-shift-type-certifications/:departmentCode/:shiftTy
     });
 
     const res = await app.request(
-      `/api/department-shift-type-certifications/ski/${shiftType.id}`,
+      `/api/certification-requirements/ski/${shiftType.id}`,
       { method: 'PUT', ...authRequest(token, input) },
       envWith({}),
     );
 
     expect(res.status).toBe(200);
-    expect(departmentShiftTypeCertificationListSchema.parse(await res.json())).toEqual([
+    expect(certificationRequirementListSchema.parse(await res.json())).toEqual([
       { certificationId: first.id, level: 20 },
       ...[second, third]
         .sort((left, right) => left.id.localeCompare(right.id))
@@ -152,12 +152,12 @@ describe('PUT /api/department-shift-type-certifications/:departmentCode/:shiftTy
     ]);
 
     const emptyRes = await app.request(
-      `/api/department-shift-type-certifications/ski/${shiftType.id}`,
+      `/api/certification-requirements/ski/${shiftType.id}`,
       { method: 'PUT', ...authRequest(token, { certifications: [] }) },
       envWith({}),
     );
     expect(emptyRes.status).toBe(200);
-    expect(departmentShiftTypeCertificationListSchema.parse(await emptyRes.json())).toEqual([]);
+    expect(certificationRequirementListSchema.parse(await emptyRes.json())).toEqual([]);
   });
 
   it('別部門または未知の資格を 400 で拒否する', async () => {
@@ -166,7 +166,7 @@ describe('PUT /api/department-shift-type-certifications/:departmentCode/:shiftTy
     const token = await seedToken('ADMIN');
 
     const res = await app.request(
-      `/api/department-shift-type-certifications/ski/${shiftType.id}`,
+      `/api/certification-requirements/ski/${shiftType.id}`,
       {
         method: 'PUT',
         ...authRequest(token, {
@@ -185,7 +185,7 @@ describe('PUT /api/department-shift-type-certifications/:departmentCode/:shiftTy
   it('未認証と MEMBER を拒否する', async () => {
     const { shiftType } = await seedFrame();
     const memberToken = await seedToken('MEMBER');
-    const path = `/api/department-shift-type-certifications/ski/${shiftType.id}`;
+    const path = `/api/certification-requirements/ski/${shiftType.id}`;
 
     const [unauthenticatedRes, memberRes] = await Promise.all([
       app.request(
@@ -223,7 +223,7 @@ describe('selectInstructorIdsWithFrameCertification', () => {
     if (!activeTarget || !activeOther || !inactiveTarget) {
       throw new Error('インストラクターの作成に失敗しました');
     }
-    await db.insert(departmentShiftTypeCertifications).values({
+    await db.insert(certificationRequirements).values({
       departmentShiftTypeId: frame.id,
       certificationId: target.id,
       level: 10,

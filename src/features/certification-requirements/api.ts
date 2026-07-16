@@ -6,14 +6,14 @@ import { validator } from 'hono/validator';
 import { departmentCodeSchema } from '@/features/departments/schema';
 import { createDb } from '@/server/db/client';
 import {
+  certificationRequirements,
   certifications,
-  departmentShiftTypeCertifications,
   departmentShiftTypes,
 } from '@/server/db/schema';
 import { requireAuth, requireRole, type AuthVariables } from '@/server/middleware/auth';
 import type { Env } from '@/server/types';
 
-import { departmentShiftTypeCertificationUpdateSchema } from './schema';
+import { certificationRequirementUpdateSchema } from './schema';
 
 function validateDepartmentCode(value: string): ReturnType<typeof departmentCodeSchema.parse> {
   const parsed = departmentCodeSchema.safeParse(value);
@@ -66,19 +66,16 @@ async function selectCertifications(
 ) {
   return db
     .select({
-      certificationId: departmentShiftTypeCertifications.certificationId,
-      level: departmentShiftTypeCertifications.level,
+      certificationId: certificationRequirements.certificationId,
+      level: certificationRequirements.level,
     })
-    .from(departmentShiftTypeCertifications)
-    .where(eq(departmentShiftTypeCertifications.departmentShiftTypeId, departmentShiftTypeId))
-    .orderBy(
-      desc(departmentShiftTypeCertifications.level),
-      asc(departmentShiftTypeCertifications.certificationId),
-    );
+    .from(certificationRequirements)
+    .where(eq(certificationRequirements.departmentShiftTypeId, departmentShiftTypeId))
+    .orderBy(desc(certificationRequirements.level), asc(certificationRequirements.certificationId));
 }
 
-/** 部門別シフト種別ごとの資格序列を取得・全置換する ADMIN 専用ルート。 */
-export const departmentShiftTypeCertificationsRoute = new Hono<{
+/** 部門別シフト種別ごとの必要資格を取得・全置換する ADMIN 専用ルート。 */
+export const certificationRequirementsRoute = new Hono<{
   Bindings: Env;
   Variables: AuthVariables;
 }>()
@@ -94,7 +91,7 @@ export const departmentShiftTypeCertificationsRoute = new Hono<{
     requireAuth,
     requireRole('ADMIN'),
     validator('json', (value, c) => {
-      const parsed = departmentShiftTypeCertificationUpdateSchema.safeParse(value);
+      const parsed = certificationRequirementUpdateSchema.safeParse(value);
       if (!parsed.success) {
         return c.json({ message: parsed.error.message }, 400);
       }
@@ -129,10 +126,10 @@ export const departmentShiftTypeCertificationsRoute = new Hono<{
 
       await db.batch([
         db
-          .delete(departmentShiftTypeCertifications)
-          .where(eq(departmentShiftTypeCertifications.departmentShiftTypeId, frame.id)),
+          .delete(certificationRequirements)
+          .where(eq(certificationRequirements.departmentShiftTypeId, frame.id)),
         ...normalizedCertifications.map((certification) =>
-          db.insert(departmentShiftTypeCertifications).values({
+          db.insert(certificationRequirements).values({
             departmentShiftTypeId: frame.id,
             certificationId: certification.certificationId,
             level: certification.level,

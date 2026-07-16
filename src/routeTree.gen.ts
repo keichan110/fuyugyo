@@ -11,11 +11,11 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as UsersRouteImport } from './routes/users'
 import { Route as ShiftTypesRouteImport } from './routes/shift-types'
-import { Route as ShiftTypeCertificationsRouteImport } from './routes/shift-type-certifications'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as InvitationsRouteImport } from './routes/invitations'
 import { Route as InstructorsRouteImport } from './routes/instructors'
 import { Route as CertificationsRouteImport } from './routes/certifications'
+import { Route as CertificationRequirementsRouteImport } from './routes/certification-requirements'
 import { Route as AvailabilitiesRouteImport } from './routes/availabilities'
 import { Route as ShiftsRouteRouteImport } from './routes/shifts/route'
 import { Route as IndexRouteImport } from './routes/index'
@@ -30,11 +30,6 @@ const UsersRoute = UsersRouteImport.update({
 const ShiftTypesRoute = ShiftTypesRouteImport.update({
   id: '/shift-types',
   path: '/shift-types',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ShiftTypeCertificationsRoute = ShiftTypeCertificationsRouteImport.update({
-  id: '/shift-type-certifications',
-  path: '/shift-type-certifications',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -57,6 +52,12 @@ const CertificationsRoute = CertificationsRouteImport.update({
   path: '/certifications',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CertificationRequirementsRoute =
+  CertificationRequirementsRouteImport.update({
+    id: '/certification-requirements',
+    path: '/certification-requirements',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const AvailabilitiesRoute = AvailabilitiesRouteImport.update({
   id: '/availabilities',
   path: '/availabilities',
@@ -87,11 +88,11 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/shifts': typeof ShiftsRouteRouteWithChildren
   '/availabilities': typeof AvailabilitiesRoute
+  '/certification-requirements': typeof CertificationRequirementsRoute
   '/certifications': typeof CertificationsRoute
   '/instructors': typeof InstructorsRoute
   '/invitations': typeof InvitationsRoute
   '/login': typeof LoginRoute
-  '/shift-type-certifications': typeof ShiftTypeCertificationsRoute
   '/shift-types': typeof ShiftTypesRoute
   '/users': typeof UsersRoute
   '/shifts/manage': typeof ShiftsManageRoute
@@ -100,11 +101,11 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/availabilities': typeof AvailabilitiesRoute
+  '/certification-requirements': typeof CertificationRequirementsRoute
   '/certifications': typeof CertificationsRoute
   '/instructors': typeof InstructorsRoute
   '/invitations': typeof InvitationsRoute
   '/login': typeof LoginRoute
-  '/shift-type-certifications': typeof ShiftTypeCertificationsRoute
   '/shift-types': typeof ShiftTypesRoute
   '/users': typeof UsersRoute
   '/shifts/manage': typeof ShiftsManageRoute
@@ -115,11 +116,11 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/shifts': typeof ShiftsRouteRouteWithChildren
   '/availabilities': typeof AvailabilitiesRoute
+  '/certification-requirements': typeof CertificationRequirementsRoute
   '/certifications': typeof CertificationsRoute
   '/instructors': typeof InstructorsRoute
   '/invitations': typeof InvitationsRoute
   '/login': typeof LoginRoute
-  '/shift-type-certifications': typeof ShiftTypeCertificationsRoute
   '/shift-types': typeof ShiftTypesRoute
   '/users': typeof UsersRoute
   '/shifts/manage': typeof ShiftsManageRoute
@@ -131,11 +132,11 @@ export interface FileRouteTypes {
     | '/'
     | '/shifts'
     | '/availabilities'
+    | '/certification-requirements'
     | '/certifications'
     | '/instructors'
     | '/invitations'
     | '/login'
-    | '/shift-type-certifications'
     | '/shift-types'
     | '/users'
     | '/shifts/manage'
@@ -144,11 +145,11 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/availabilities'
+    | '/certification-requirements'
     | '/certifications'
     | '/instructors'
     | '/invitations'
     | '/login'
-    | '/shift-type-certifications'
     | '/shift-types'
     | '/users'
     | '/shifts/manage'
@@ -158,11 +159,11 @@ export interface FileRouteTypes {
     | '/'
     | '/shifts'
     | '/availabilities'
+    | '/certification-requirements'
     | '/certifications'
     | '/instructors'
     | '/invitations'
     | '/login'
-    | '/shift-type-certifications'
     | '/shift-types'
     | '/users'
     | '/shifts/manage'
@@ -173,11 +174,11 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ShiftsRouteRoute: typeof ShiftsRouteRouteWithChildren
   AvailabilitiesRoute: typeof AvailabilitiesRoute
+  CertificationRequirementsRoute: typeof CertificationRequirementsRoute
   CertificationsRoute: typeof CertificationsRoute
   InstructorsRoute: typeof InstructorsRoute
   InvitationsRoute: typeof InvitationsRoute
   LoginRoute: typeof LoginRoute
-  ShiftTypeCertificationsRoute: typeof ShiftTypeCertificationsRoute
   ShiftTypesRoute: typeof ShiftTypesRoute
   UsersRoute: typeof UsersRoute
 }
@@ -196,13 +197,6 @@ declare module '@tanstack/react-router' {
       path: '/shift-types'
       fullPath: '/shift-types'
       preLoaderRoute: typeof ShiftTypesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/shift-type-certifications': {
-      id: '/shift-type-certifications'
-      path: '/shift-type-certifications'
-      fullPath: '/shift-type-certifications'
-      preLoaderRoute: typeof ShiftTypeCertificationsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -231,6 +225,13 @@ declare module '@tanstack/react-router' {
       path: '/certifications'
       fullPath: '/certifications'
       preLoaderRoute: typeof CertificationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/certification-requirements': {
+      id: '/certification-requirements'
+      path: '/certification-requirements'
+      fullPath: '/certification-requirements'
+      preLoaderRoute: typeof CertificationRequirementsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/availabilities': {
@@ -289,11 +290,11 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ShiftsRouteRoute: ShiftsRouteRouteWithChildren,
   AvailabilitiesRoute: AvailabilitiesRoute,
+  CertificationRequirementsRoute: CertificationRequirementsRoute,
   CertificationsRoute: CertificationsRoute,
   InstructorsRoute: InstructorsRoute,
   InvitationsRoute: InvitationsRoute,
   LoginRoute: LoginRoute,
-  ShiftTypeCertificationsRoute: ShiftTypeCertificationsRoute,
   ShiftTypesRoute: ShiftTypesRoute,
   UsersRoute: UsersRoute,
 }

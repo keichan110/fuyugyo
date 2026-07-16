@@ -12,8 +12,8 @@ import app from '../src/index';
 import { signJwt } from '../src/server/auth/jwt';
 import { createDb } from '../src/server/db/client';
 import {
+  certificationRequirements,
   certifications,
-  departmentShiftTypeCertifications,
   departmentShiftTypes,
   instructorCertifications,
   instructors,
@@ -150,7 +150,7 @@ async function requireFrameCertification(
   if (!frame) {
     throw new Error('requireFrameCertification: frame not found');
   }
-  await db.insert(departmentShiftTypeCertifications).values({
+  await db.insert(certificationRequirements).values({
     departmentShiftTypeId: frame.id,
     certificationId,
     level: 10,
@@ -211,7 +211,7 @@ beforeEach(async () => {
   // 外部キー依存順に削除する
   await db.delete(shiftAssignments);
   await db.delete(shifts);
-  await db.delete(departmentShiftTypeCertifications);
+  await db.delete(certificationRequirements);
   await db.delete(departmentShiftTypes);
   await db.delete(instructorCertifications);
   await db.delete(certifications);

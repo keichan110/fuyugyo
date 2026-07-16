@@ -107,7 +107,7 @@ export const autoAssignInstructorSchema = z.object({
   availabilityStatus: availabilityStatusSchema,
 });
 
-/** 部門内のシフト枠に設定された資格序列と、その資格を満たす候補。 */
+/** 部門内のシフト枠に設定された必要資格と、その資格を満たす候補。 */
 export const autoAssignFrameSchema = z.object({
   shiftTypeId: z.string(),
   certificationLevels: z.array(z.object({ certificationId: z.string(), level: z.number().int() })),

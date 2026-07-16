@@ -279,11 +279,12 @@ function AvailabilityMonthView({
   onOpenMenu: (date: string, target: HTMLElement) => void;
 }) {
   const today = todayString();
+  // 可否表示と、割当済み日の日付見出しへ重ねるロック表示を同じ MonthView のイベントとして合成する。
   const events = useMemo<ScheduleEventData<AvailabilityEventPayload>[]>(
     () => [
       ...Array.from(availabilityDates)
         .filter((date) => date.startsWith(month))
-        .flatMap((date) => {
+        .flatMap((date): ScheduleEventData<AvailabilityEventPayload>[] => {
           const value = getValue(date);
           if (!value) return [];
           return [
@@ -294,7 +295,7 @@ function AvailabilityMonthView({
               end: `${addDays(date, 1)} 00:00:00`,
               color: value.type === 'UNAVAILABLE' ? 'red' : 'yellow',
               payload: {
-                kind: 'availability' as const,
+                kind: 'availability',
                 date,
                 type: value.type,
                 note: value.note,
@@ -304,14 +305,14 @@ function AvailabilityMonthView({
         }),
       ...Array.from(lockedDates)
         .filter((date) => date.startsWith(month))
-        .map((date) => ({
+        .map((date): ScheduleEventData<AvailabilityEventPayload> => ({
           id: `lock:${date}`,
           title: '割当済み',
           start: `${date} 00:00:00`,
           end: `${addDays(date, 1)} 00:00:00`,
           color: 'gray',
-          display: 'background' as const,
-          payload: { kind: 'locked' as const, date },
+          display: 'background',
+          payload: { kind: 'locked', date },
         })),
     ],
     [availabilityDates, getValue, lockedDates, month],

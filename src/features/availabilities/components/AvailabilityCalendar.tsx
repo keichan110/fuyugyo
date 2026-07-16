@@ -9,10 +9,16 @@ import {
   Stack,
   Text,
   Textarea,
+  Tooltip,
   UnstyledButton,
 } from '@mantine/core';
 import { MonthView, type ScheduleEventData } from '@mantine/schedule';
-import { IconLock, IconNote } from '@tabler/icons-react';
+import {
+  IconAlertTriangleFilled,
+  IconCircleXFilled,
+  IconLock,
+  IconNote,
+} from '@tabler/icons-react';
 import { useBlocker } from '@tanstack/react-router';
 
 import 'dayjs/locale/ja';
@@ -124,7 +130,7 @@ export function AvailabilityCalendar() {
     <>
       <Stack gap="md">
         <InfoAlert>
-          勤務できる日は指定不要です。勤務不可または、できれば避けたい日だけを選んでください。
+          勤務できる日は指定不要です。勤務不可または要調整の日だけを選んでください。
         </InfoAlert>
         {availabilityQuery.isError && <ErrorAlert>{availabilityQuery.error.message}</ErrorAlert>}
         {updateMutation.isError && <ErrorAlert>{updateMutation.error.message}</ErrorAlert>}
@@ -167,11 +173,25 @@ export function AvailabilityCalendar() {
             <Box pos="fixed" left={menu.left} top={menu.top} w={1} h={1} />
           </Menu.Target>
           <Menu.Dropdown>
-            <Menu.Item onClick={() => changeTypeAndCloseMenu(menu.date, 'UNAVAILABLE')}>
+            <Menu.Item
+              leftSection={
+                <IconCircleXFilled size={16} color="var(--mantine-color-red-6)" aria-hidden />
+              }
+              onClick={() => changeTypeAndCloseMenu(menu.date, 'UNAVAILABLE')}
+            >
               勤務不可にする
             </Menu.Item>
-            <Menu.Item onClick={() => changeTypeAndCloseMenu(menu.date, 'AVOID')}>
-              できれば避けたい日にする
+            <Menu.Item
+              leftSection={
+                <IconAlertTriangleFilled
+                  size={16}
+                  color="var(--mantine-color-yellow-8)"
+                  aria-hidden
+                />
+              }
+              onClick={() => changeTypeAndCloseMenu(menu.date, 'AVOID')}
+            >
+              要調整にする
             </Menu.Item>
             {getValue(menu.date) && (
               <>
@@ -290,7 +310,7 @@ function AvailabilityMonthView({
           return [
             {
               id: date,
-              title: value.type === 'UNAVAILABLE' ? '勤務不可' : 'できれば回避',
+              title: value.type === 'UNAVAILABLE' ? '勤務不可' : '要調整',
               start: `${date} 00:00:00`,
               end: `${addDays(date, 1)} 00:00:00`,
               color: value.type === 'UNAVAILABLE' ? 'red' : 'yellow',
@@ -328,7 +348,7 @@ function AvailabilityMonthView({
       weekdayFormat="dd"
       withOutsideDays={false}
       consistentWeeks
-      maxEventsPerDay={2}
+      maxEventsPerDay={1}
       labels={{
         today: '今日',
         next: '翌月',
@@ -355,6 +375,7 @@ function AvailabilityMonthView({
               ? '過去日は編集できません'
               : undefined;
         return {
+          'data-availability': getValue(date)?.type,
           'data-disabled': disabled || undefined,
           'data-locked': editability === 'locked' || undefined,
           'data-staged': changedDates.has(date) || undefined,
@@ -390,17 +411,23 @@ function AvailabilityMonthView({
             <IconLock size={15} className={classes.lockIcon} aria-label="割当済み" />
           </Box>
         ) : (
-          <UnstyledButton {...props} className={classes.availabilityEvent}>
-            <Group gap={4} wrap="nowrap">
-              <Text
-                size="xs"
-                fw={600}
-                c={event.payload?.type === 'UNAVAILABLE' ? 'red' : 'yellow.8'}
-              >
-                {event.title}
-              </Text>
-              {event.payload?.note && <IconNote size={14} />}
-            </Group>
+          <UnstyledButton {...props} className={classes.availabilityEvent} aria-label={event.title}>
+            <Stack gap={0} align="center">
+              {event.payload?.type === 'UNAVAILABLE' ? (
+                <IconCircleXFilled size={28} color="var(--mantine-color-red-6)" aria-hidden />
+              ) : (
+                <IconAlertTriangleFilled
+                  size={28}
+                  color="var(--mantine-color-yellow-8)"
+                  aria-hidden
+                />
+              )}
+              {event.payload?.note && (
+                <Tooltip label={event.payload.note} multiline maw={320} withArrow>
+                  <IconNote size={14} className={classes.noteIcon} aria-label="メモあり" />
+                </Tooltip>
+              )}
+            </Stack>
           </UnstyledButton>
         )
       }

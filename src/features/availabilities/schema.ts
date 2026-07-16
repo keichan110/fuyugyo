@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import { dateStringSchema } from '@/features/shifts/schema';
 
-/** 勤務可否の種別。勤務不可と、できれば避けたい日の二段階で申告する。 */
+/** 勤務可否の種別。勤務不可と要調整の二段階で申告する。 */
 export const availabilityTypeSchema = z.enum(['UNAVAILABLE', 'AVOID']);
 
 /** インストラクター1名・1日分の勤務可否申告。 */

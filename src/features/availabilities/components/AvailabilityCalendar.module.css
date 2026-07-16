@@ -1,40 +1,25 @@
-.calendar {
-  width: 100%;
-  border-collapse: collapse;
-  table-layout: fixed;
+/* shifts/manage と同じく MonthView の表示形式切替を隠し、月間表示に固定する。 */
+.calendarHeader > :nth-child(3),
+.calendarHeader > :nth-child(4) {
+  display: none !important;
 }
 
-.calendar th {
-  padding: var(--mantine-spacing-xs);
-  color: var(--mantine-color-dimmed);
-  font-size: var(--mantine-font-size-sm);
-  font-weight: 600;
+.calendarWeekday:nth-child(6) {
+  color: var(--mantine-color-blue-7);
 }
 
-.calendar td {
-  height: 86px;
-  padding: 2px;
-  border: 1px solid var(--mantine-color-gray-3);
-  vertical-align: top;
+.calendarWeekday:nth-child(7) {
+  color: var(--mantine-color-red-7);
 }
 
-.calendar td[data-disabled] {
+.calendarDay[data-disabled] {
   background-color: var(--mantine-color-gray-1);
 }
 
-.calendarButton {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  min-height: 80px;
-  padding: var(--mantine-spacing-xs);
-  text-align: left;
-}
-
-.calendarButton[data-staged]::after {
+.calendarDay[data-staged]::after {
   position: absolute;
   top: 6px;
-  right: 6px;
+  right: 28px;
   width: 8px;
   height: 8px;
   border-radius: 50%;
@@ -42,7 +27,18 @@
   content: '';
 }
 
-.calendarButton:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
+.calendarDayLabel {
+  position: relative;
+}
+
+.calendarDay[data-locked] .calendarDayLabel::after {
+  margin-left: 4px;
+  font-size: var(--mantine-font-size-xs);
+  content: '🔒';
+}
+
+.availabilityEvent {
+  width: 100%;
+  padding: 2px 6px;
+  text-align: left;
 }

@@ -28,11 +28,18 @@
 }
 
 .lockLayer {
-  /* MonthView の背景イベント領域を使い、鍵を日付見出し右側へ重ねる。 */
+  /* MonthView の背景イベント領域をセル幅のレイヤーとして使う。 */
   position: absolute;
   top: -27px;
-  right: 3px;
+  bottom: -21px;
+  overflow: visible;
   pointer-events: none;
+}
+
+.lockIcon {
+  position: absolute;
+  top: 1px;
+  right: 3px;
 }
 
 .availabilityEvent {

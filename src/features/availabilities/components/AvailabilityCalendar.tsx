@@ -350,7 +350,7 @@ function AvailabilityMonthView({
         const disabled = editability !== 'editable';
         const disabledReason =
           editability === 'locked'
-            ? '管理者が割当を外せば再び編集できます'
+            ? '割り当て済みのため変更できません'
             : editability === 'past'
               ? '過去日は編集できません'
               : undefined;
@@ -387,7 +387,7 @@ function AvailabilityMonthView({
       renderEvent={(event, props) =>
         event.payload?.kind === 'locked' ? (
           <Box style={props.style} className={classes.lockLayer}>
-            <IconLock size={15} aria-label="割当済み" />
+            <IconLock size={15} className={classes.lockIcon} aria-label="割当済み" />
           </Box>
         ) : (
           <UnstyledButton {...props} className={classes.availabilityEvent}>

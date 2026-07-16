@@ -12,7 +12,7 @@ import {
   UnstyledButton,
 } from '@mantine/core';
 import { MonthView, type ScheduleEventData } from '@mantine/schedule';
-import { IconNote } from '@tabler/icons-react';
+import { IconLock, IconNote } from '@tabler/icons-react';
 import { useBlocker } from '@tanstack/react-router';
 
 import 'dayjs/locale/ja';
@@ -131,7 +131,7 @@ export function AvailabilityCalendar() {
         {availabilityQuery.isLoading ? (
           <Text c="dimmed">読み込み中...</Text>
         ) : (
-          <CalendarGrid
+          <AvailabilityMonthView
             month={month}
             availabilityDates={availabilityDates}
             getValue={getValue}
@@ -256,10 +256,12 @@ function formatDateLabel(date: string): string {
   return `${date.slice(0, 4)}年${Number(date.slice(5, 7))}月${Number(date.slice(8, 10))}日`;
 }
 
-type AvailabilityEventPayload = { date: string; type: Availability['type']; note: string | null };
+type AvailabilityEventPayload =
+  | { kind: 'availability'; date: string; type: Availability['type']; note: string | null }
+  | { kind: 'locked'; date: string };
 
 /** シフト管理と同じ月間カレンダー上で、勤務可否の入力状態を表示・操作する。 */
-function CalendarGrid({
+function AvailabilityMonthView({
   month,
   availabilityDates,
   getValue,
@@ -278,8 +280,8 @@ function CalendarGrid({
 }) {
   const today = todayString();
   const events = useMemo<ScheduleEventData<AvailabilityEventPayload>[]>(
-    () =>
-      Array.from(availabilityDates)
+    () => [
+      ...Array.from(availabilityDates)
         .filter((date) => date.startsWith(month))
         .flatMap((date) => {
           const value = getValue(date);
@@ -291,11 +293,28 @@ function CalendarGrid({
               start: `${date} 00:00:00`,
               end: `${addDays(date, 1)} 00:00:00`,
               color: value.type === 'UNAVAILABLE' ? 'red' : 'yellow',
-              payload: { date, type: value.type, note: value.note },
+              payload: {
+                kind: 'availability' as const,
+                date,
+                type: value.type,
+                note: value.note,
+              },
             },
           ];
         }),
-    [availabilityDates, getValue, month],
+      ...Array.from(lockedDates)
+        .filter((date) => date.startsWith(month))
+        .map((date) => ({
+          id: `lock:${date}`,
+          title: '割当済み',
+          start: `${date} 00:00:00`,
+          end: `${addDays(date, 1)} 00:00:00`,
+          color: 'gray',
+          display: 'background' as const,
+          payload: { kind: 'locked' as const, date },
+        })),
+    ],
+    [availabilityDates, getValue, lockedDates, month],
   );
 
   return (
@@ -328,6 +347,12 @@ function CalendarGrid({
       getDayProps={(date) => {
         const editability = getDateEditability(date, today, lockedDates);
         const disabled = editability !== 'editable';
+        const disabledReason =
+          editability === 'locked'
+            ? '管理者が割当を外せば再び編集できます'
+            : editability === 'past'
+              ? '過去日は編集できません'
+              : undefined;
         return {
           'data-disabled': disabled || undefined,
           'data-locked': editability === 'locked' || undefined,
@@ -335,6 +360,7 @@ function CalendarGrid({
           'aria-label': `${formatDateLabel(date)}${
             editability === 'locked' ? '（割当済みのため編集不可）' : disabled ? '（編集不可）' : ''
           }`,
+          title: disabledReason,
           disabled,
           style: {
             color:
@@ -351,25 +377,35 @@ function CalendarGrid({
         const date = event.payload?.date;
         if (
           typeof date === 'string' &&
+          event.payload?.kind === 'availability' &&
           getDateEditability(date, today, lockedDates) === 'editable'
         ) {
           onOpenMenu(date, clickEvent.currentTarget);
         }
       }}
-      renderEvent={(event, props) => (
-        <UnstyledButton {...props} className={classes.availabilityEvent}>
-          <Group gap={4} wrap="nowrap">
-            <Text size="xs" fw={600} c={event.payload?.type === 'UNAVAILABLE' ? 'red' : 'yellow.8'}>
-              {event.title}
-            </Text>
-            {event.payload?.note && <IconNote size={14} />}
-          </Group>
-        </UnstyledButton>
-      )}
+      renderEvent={(event, props) =>
+        event.payload?.kind === 'locked' ? (
+          <Box style={props.style} className={classes.lockLayer}>
+            <IconLock size={15} aria-label="割当済み" />
+          </Box>
+        ) : (
+          <UnstyledButton {...props} className={classes.availabilityEvent}>
+            <Group gap={4} wrap="nowrap">
+              <Text
+                size="xs"
+                fw={600}
+                c={event.payload?.type === 'UNAVAILABLE' ? 'red' : 'yellow.8'}
+              >
+                {event.title}
+              </Text>
+              {event.payload?.note && <IconNote size={14} />}
+            </Group>
+          </UnstyledButton>
+        )
+      }
       classNames={{
         header: classes.calendarHeader,
         monthViewDay: classes.calendarDay,
-        monthViewDayLabel: classes.calendarDayLabel,
         monthViewWeekday: classes.calendarWeekday,
       }}
     />

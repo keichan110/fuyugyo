@@ -27,14 +27,11 @@
   content: '';
 }
 
-.calendarDayLabel {
-  position: relative;
-}
-
-.calendarDay[data-locked] .calendarDayLabel::after {
-  margin-left: 4px;
-  font-size: var(--mantine-font-size-xs);
-  content: '🔒';
+.lockLayer {
+  position: absolute;
+  top: -27px;
+  right: 3px;
+  pointer-events: none;
 }
 
 .availabilityEvent {

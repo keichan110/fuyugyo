@@ -154,7 +154,7 @@ const NAVIGATION_GROUPS: NavigationGroup[] = [
       { to: '/shift-types', label: 'シフト種別設定', icon: IconSettings, minimumRole: 'ADMIN' },
       {
         to: '/shift-type-certifications',
-        label: '資格序列設定',
+        label: '必要資格設定',
         icon: IconCertificate,
         minimumRole: 'ADMIN',
       },

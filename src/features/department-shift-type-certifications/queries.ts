@@ -30,7 +30,7 @@ export function useDepartmentShiftTypeCertifications(
       const res = await client.api['department-shift-type-certifications'][':departmentCode'][
         ':shiftTypeId'
       ].$get({ param: { departmentCode, shiftTypeId } });
-      if (!res.ok) throw new Error('資格序列の取得に失敗しました');
+      if (!res.ok) throw new Error('必要資格の取得に失敗しました');
       return departmentShiftTypeCertificationListSchema.parse(await res.json());
     },
   });
@@ -54,7 +54,7 @@ export function useUpdateDepartmentShiftTypeCertifications(
       ].$put({ param: { departmentCode, shiftTypeId }, json: input });
       if (!res.ok) {
         const body = apiErrorSchema.parse(await res.json());
-        throw new Error(body.message ?? '資格序列の保存に失敗しました');
+        throw new Error(body.message ?? '必要資格の保存に失敗しました');
       }
       return departmentShiftTypeCertificationListSchema.parse(await res.json());
     },

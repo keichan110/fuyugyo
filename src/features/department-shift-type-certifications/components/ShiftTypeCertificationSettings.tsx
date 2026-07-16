@@ -38,7 +38,7 @@ export function ShiftTypeCertificationSettings() {
 
   return (
     <Stack gap="lg">
-      <ListHeader title="資格序列設定" />
+      <ListHeader title="必要資格設定" />
       <Tabs
         value={departmentCode}
         onChange={(value) => {
@@ -176,7 +176,7 @@ function CertificationRankEditor({
             対象資格にチェックを入れ、上から何段目かを設定します。同じ段の資格は同着です。
           </Text>
         </Stack>
-        {isError && <ErrorAlert>資格序列の取得に失敗しました</ErrorAlert>}
+        {isError && <ErrorAlert>必要資格の取得に失敗しました</ErrorAlert>}
         {(isCertificationsLoading || isRanksLoading) && <Text c="dimmed">読み込み中...</Text>}
         {!isCertificationsLoading && !isRanksLoading && certifications?.length === 0 && (
           <ListEmptyState
@@ -192,7 +192,7 @@ function CertificationRankEditor({
             <Stack gap="sm">
               {editedCertifications.length === 0 && (
                 <Alert color="yellow" variant="light">
-                  この枠の資格序列は未設定です。
+                  この枠の必要資格は未設定です。
                 </Alert>
               )}
               {certifications.map((certification) => {
@@ -237,7 +237,7 @@ function CertificationRankEditor({
                     { certifications: editedCertifications },
                     {
                       onSuccess: () =>
-                        notifications.show({ color: 'green', message: '資格序列を保存しました' }),
+                        notifications.show({ color: 'green', message: '必要資格を保存しました' }),
                     },
                   );
                 }}

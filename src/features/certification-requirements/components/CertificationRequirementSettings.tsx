@@ -177,8 +177,8 @@ function CertificationRankEditor({
         <Stack gap={2}>
           <Text fw={600}>対象資格と資格レベル</Text>
           <Text c="dimmed" size="sm">
-            レベル1が最上位です。資格をドラッグして並び替えたり、別のレベルへ移動できます。
-            同じレベルの資格は、自動割当で同等として扱います。
+            資格をドラッグして並び替えたり、別のレベルへ移動できます。同じレベルの資格は、
+            自動割当で同等として扱います。
           </Text>
         </Stack>
         {isError && <ErrorAlert>必要資格の取得に失敗しました</ErrorAlert>}
@@ -214,43 +214,36 @@ function CertificationRankEditor({
                 }}
               />
               <Divider />
+              {tierBlocks.length > 0 && (
+                <Text c="dimmed" size="xs" fw={600}>
+                  高
+                </Text>
+              )}
               {tierBlocks.map((block, tierIndex) => (
                 <Paper
                   key={block.id}
                   withBorder
                   p="md"
-                  {...(tierIndex === 0 ? { bg: 'blue.0' } : {})}
                   onDragOver={(event) => event.preventDefault()}
                   onDrop={() => dropAt(block.id, block.certificationIds.length)}
                 >
                   <Stack gap="sm">
-                    <Group justify="space-between">
-                      <Text fw={700}>
-                        レベル{tierIndex + 1}
-                        {tierIndex === 0 ? '（最上位）' : ''}
-                      </Text>
-                      <Group gap="xs">
-                        <Text c="dimmed" size="xs">
-                          このレベルの資格は同等
-                        </Text>
-                        {block.certificationIds.length === 0 && (
-                          <ActionIcon
-                            color="red"
-                            variant="subtle"
-                            aria-label={`レベル${tierIndex + 1}を削除`}
-                            onClick={() =>
-                              setTierBlocks((current) => removeEmptyTier(current, block.id))
-                            }
-                          >
-                            <IconX size={16} />
-                          </ActionIcon>
-                        )}
-                      </Group>
-                    </Group>
                     {block.certificationIds.length === 0 && (
-                      <Text c="dimmed" size="sm" ta="center" py="sm">
-                        ここへ資格をドロップ
-                      </Text>
+                      <Group justify="space-between">
+                        <Text c="dimmed" size="sm" ta="center" py="sm">
+                          ここへ資格をドロップ
+                        </Text>
+                        <ActionIcon
+                          color="red"
+                          variant="subtle"
+                          aria-label={`上から${tierIndex + 1}番目の空レベルを削除`}
+                          onClick={() =>
+                            setTierBlocks((current) => removeEmptyTier(current, block.id))
+                          }
+                        >
+                          <IconX size={16} />
+                        </ActionIcon>
+                      </Group>
                     )}
                     {block.certificationIds.map((certificationId, itemIndex) => (
                       <Paper
@@ -310,8 +303,13 @@ function CertificationRankEditor({
                   </Stack>
                 </Paper>
               ))}
+              {tierBlocks.length > 0 && (
+                <Text c="dimmed" size="xs" fw={600}>
+                  低
+                </Text>
+              )}
               <Button
-                variant="light"
+                variant="outline"
                 leftSection={<IconPlus size={16} />}
                 onClick={() => setTierBlocks((current) => addEmptyTier(current, createBlockId()))}
               >

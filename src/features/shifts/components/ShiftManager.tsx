@@ -36,6 +36,8 @@ import { getDepartmentAppearance } from '@/features/departments/appearance';
 import { DepartmentTag } from '@/features/departments/DepartmentTag';
 import { departmentCodeSchema, type DepartmentCode } from '@/features/departments/schema';
 
+import type { AutoAssignSolver } from '../auto-assign-solver-port';
+import { createWorkerSolver } from '../auto-assign-worker-solver';
 import {
   useAutoAssignContext,
   useShiftAssignmentEditor,
@@ -55,6 +57,12 @@ import classes from './ShiftManager.module.css';
 
 const DEPARTMENT_STORAGE_KEY = 'fuyugyo.shiftManage.departmentCode';
 const ASSIGNMENT_DRAWER_HEIGHT = '55vh';
+
+/**
+ * 自動割当の生成器。呼び出し口はポート（{@link AutoAssignSolver}）越しに固定してあるため、
+ * 将来 AI 割当へ移行する際はこの1行を別実装（例: サーバー AI ソルバー）へ差し替えるだけで済む。
+ */
+const autoAssignSolver: AutoAssignSolver = createWorkerSolver();
 
 type CandidateSortMode = 'kana' | 'workload';
 
@@ -85,6 +93,8 @@ export function ShiftManager() {
   const [weekdayRequiredCount, setWeekdayRequiredCount] = useState(2);
   const [weekendHolidayRequiredCount, setWeekendHolidayRequiredCount] = useState(5);
   const [isAutoAssigning, setIsAutoAssigning] = useState(false);
+  // 「別の案を出す」で異なる提案を得るための連番。実行のたびに増やす。
+  const [autoAssignVariant, setAutoAssignVariant] = useState(0);
   const [shortageByCell, setShortageByCell] = useState<Map<string, AutoAssignProposal['shortage']>>(
     new Map(),
   );
@@ -227,46 +237,39 @@ export function ShiftManager() {
     setAutoAssignMode(true);
   };
 
-  const runAutoAssign = () => {
+  const runAutoAssign = async () => {
     if (!autoAssignContext.data || !autoAssignShiftTypeId || autoAssignDates.size === 0) return;
     setIsAutoAssigning(true);
-    const worker = new Worker(new URL('../auto-assign.worker.ts', import.meta.url), {
-      type: 'module',
-    });
-    worker.addEventListener(
-      'message',
-      (event: MessageEvent<{ proposals: AutoAssignProposal[] }>) => {
-        const proposals = event.data.proposals;
-        setStagedCells((current) => applyAutoAssignProposals({ stagedCells: current, proposals }));
-        setShortageByCell(
-          new Map(
-            proposals.map((proposal) => [
-              cellKey(proposal.date, proposal.shiftTypeId),
-              proposal.shortage,
-            ]),
-          ),
-        );
-        setIsAutoAssigning(false);
-        setAutoAssignModalOpened(false);
-        setAutoAssignMode(false);
-        worker.terminate();
-      },
-    );
-    worker.addEventListener('error', () => {
+    const variant = autoAssignVariant;
+    setAutoAssignVariant((current) => current + 1);
+    try {
+      const { proposals } = await autoAssignSolver({
+        context: autoAssignContext.data,
+        params: {
+          shiftTypeId: autoAssignShiftTypeId,
+          weekdayRequiredCount,
+          weekendHolidayRequiredCount,
+          targetDates: [...autoAssignDates],
+          holidayDates: [],
+        },
+        variant,
+      });
+      setStagedCells((current) => applyAutoAssignProposals({ stagedCells: current, proposals }));
+      setShortageByCell(
+        new Map(
+          proposals.map((proposal) => [
+            cellKey(proposal.date, proposal.shiftTypeId),
+            proposal.shortage,
+          ]),
+        ),
+      );
+      setAutoAssignModalOpened(false);
+      setAutoAssignMode(false);
+    } catch {
+      // 失敗時はステージを変更せず、モーダルを開いたまま再試行を許す。
+    } finally {
       setIsAutoAssigning(false);
-      worker.terminate();
-    });
-    worker.postMessage({
-      context: autoAssignContext.data,
-      params: {
-        shiftTypeId: autoAssignShiftTypeId,
-        weekdayRequiredCount,
-        weekendHolidayRequiredCount,
-        targetDates: [...autoAssignDates],
-        holidayDates: [],
-      },
-      seed: Date.now(),
-    });
+    }
   };
 
   // タブ切替: 選択中の日付は維持したままシフト種別だけを切り替える

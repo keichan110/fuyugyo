@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { normalizeTierRanks } from '../src/features/certification-requirements/tier-ranks';
 
 describe('normalizeTierRanks', () => {
-  it('同着を維持しながら欠番を1始まりの連番へ詰める', () => {
+  it('同等資格を維持しながら欠番を1始まりの連番へ詰める', () => {
     expect(
       normalizeTierRanks([
         { certificationId: 'top', tierRank: 10 },

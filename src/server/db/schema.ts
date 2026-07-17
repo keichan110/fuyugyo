@@ -113,7 +113,7 @@ export const departmentShiftTypes = sqliteTable(
   ],
 );
 
-/** 部門別シフト種別ごとの必要資格と、枠内での資格段位を管理する中間テーブル */
+/** 部門別シフト種別ごとの必要資格と、枠内での資格レベルを管理する中間テーブル */
 export const certificationRequirements = sqliteTable(
   'certification_requirements',
   {

@@ -121,7 +121,7 @@ describe('GET /api/certification-requirements/:departmentCode/:shiftTypeId', () 
 });
 
 describe('PUT /api/certification-requirements/:departmentCode/:shiftTypeId', () => {
-  it('全置換し、相対的な段を昇順の tierRank に正規化して同着を保存する', async () => {
+  it('全置換し、相対的なレベルを昇順の tierRank に正規化して同等資格を保存する', async () => {
     const { shiftType } = await seedFrame();
     const [first, second, third] = await Promise.all([
       seedCertification('指導員'),

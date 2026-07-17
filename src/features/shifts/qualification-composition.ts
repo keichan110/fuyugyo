@@ -4,7 +4,7 @@ export type QualificationCompositionScore = {
 };
 
 /**
- * 配置済みメンバーの実効資格段から、安全性と段の多様性を評価する。
+ * 配置済みメンバーの実効資格レベルから、安全性とレベルの多様性を評価する。
  * tierRank は 1 が最上位で、値が大きいほど下位を表す。
  */
 export function scoreQualificationComposition(

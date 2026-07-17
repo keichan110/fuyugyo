@@ -1,6 +1,6 @@
 /**
- * 資格段を上位から欠番のない1始まりの連番へ正規化する。
- * 同じ段に属する要素は同着のまま維持する。
+ * 資格レベルを上位から欠番のない1始まりの連番へ正規化する。
+ * 同じレベルに属する要素は同等のまま維持する。
  */
 export function normalizeTierRanks<T extends { tierRank: number }>(items: T[]): T[] {
   const tierRanks = [...new Set(items.map(({ tierRank }) => tierRank))].sort((a, b) => a - b);

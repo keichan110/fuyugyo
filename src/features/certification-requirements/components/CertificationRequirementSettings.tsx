@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   ActionIcon,
-  Alert,
   Button,
   Divider,
   Grid,
@@ -117,7 +116,7 @@ export function CertificationRequirementSettings() {
   );
 }
 
-/** 選択枠の対象資格と段を編集し、枠単位で保存する。 */
+/** 選択枠の対象資格と資格レベルを編集し、枠単位で保存する。 */
 function CertificationRankEditor({
   departmentCode,
   shiftTypeId,
@@ -176,9 +175,10 @@ function CertificationRankEditor({
     <Paper withBorder p="md">
       <Stack gap="md">
         <Stack gap={2}>
-          <Text fw={600}>対象資格と資格段</Text>
+          <Text fw={600}>対象資格と資格レベル</Text>
           <Text c="dimmed" size="sm">
-            上の段ほど上位の資格です。同じ段にまとめた資格は、自動割当で同等として扱います。
+            レベル1が最上位です。資格をドラッグして並び替えたり、別のレベルへ移動できます。
+            同じレベルの資格は、自動割当で同等として扱います。
           </Text>
         </Stack>
         {isError && <ErrorAlert>必要資格の取得に失敗しました</ErrorAlert>}
@@ -196,7 +196,7 @@ function CertificationRankEditor({
           certifications.length > 0 && (
             <Stack gap="sm">
               <Select
-                label="対象へ追加"
+                label="対象資格を追加"
                 placeholder="資格を選択"
                 searchable
                 clearable
@@ -214,11 +214,6 @@ function CertificationRankEditor({
                 }}
               />
               <Divider />
-              {selectedCertificationIds.size === 0 && (
-                <Alert color="yellow" variant="light">
-                  この枠の必要資格は未設定です。
-                </Alert>
-              )}
               {tierBlocks.map((block, tierIndex) => (
                 <Paper
                   key={block.id}
@@ -230,16 +225,19 @@ function CertificationRankEditor({
                 >
                   <Stack gap="sm">
                     <Group justify="space-between">
-                      <Text fw={700}>上から{tierIndex + 1}段目</Text>
+                      <Text fw={700}>
+                        レベル{tierIndex + 1}
+                        {tierIndex === 0 ? '（最上位）' : ''}
+                      </Text>
                       <Group gap="xs">
                         <Text c="dimmed" size="xs">
-                          この段の資格は同等
+                          このレベルの資格は同等
                         </Text>
                         {block.certificationIds.length === 0 && (
                           <ActionIcon
                             color="red"
                             variant="subtle"
-                            aria-label={`上から${tierIndex + 1}段目を削除`}
+                            aria-label={`レベル${tierIndex + 1}を削除`}
                             onClick={() =>
                               setTierBlocks((current) => removeEmptyTier(current, block.id))
                             }
@@ -317,7 +315,7 @@ function CertificationRankEditor({
                 leftSection={<IconPlus size={16} />}
                 onClick={() => setTierBlocks((current) => addEmptyTier(current, createBlockId()))}
               >
-                段を追加
+                レベルを追加
               </Button>
               <Button
                 loading={update.isPending}

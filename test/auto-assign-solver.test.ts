@@ -289,7 +289,7 @@ describe('solveAutoAssignments', () => {
     expect(result.proposals[0]?.instructorIds).toEqual(['top']);
   });
 
-  it('安全性が同じなら公平性を段の多様性より優先する', () => {
+  it('安全性が同じなら公平性をレベルの多様性より優先する', () => {
     const result = solveAutoAssignments(
       createAutoAssignContext({
         instructors: [
@@ -391,7 +391,7 @@ describe('solveAutoAssignments', () => {
     expect(result.proposals[0]?.instructorIds).toContain('t2');
   });
 
-  it('5段構成でも配置人数まで異なる段を揃える', () => {
+  it('5レベル構成でも配置人数まで異なるレベルを揃える', () => {
     const tierRanks = [1, 2, 3, 4, 5];
     const result = solveAutoAssignments(
       createAutoAssignContext({

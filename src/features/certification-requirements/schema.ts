@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-/** 枠に紐づく必要資格と、1を最上位とする枠内での相対的な資格段位 */
+/** 枠に紐づく必要資格と、1を最上位とする枠内での相対的な資格レベル */
 export const certificationRequirementSchema = z.object({
   certificationId: z.string().min(1),
   tierRank: z.number().int().positive(),

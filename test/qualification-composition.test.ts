@@ -9,18 +9,18 @@ describe('scoreQualificationComposition', () => {
     { tiers: [1, 3, 3], expected: { safetyRisk: 0, diversityDeficit: 1 } },
     { tiers: [2, 3, 3], expected: { safetyRisk: 1, diversityDeficit: 1 } },
     { tiers: [3, 3, 3], expected: { safetyRisk: 2, diversityDeficit: 2 } },
-  ])('3段構成の $tiers を安全性と多様性で評価する', ({ tiers, expected }) => {
+  ])('3レベル構成の $tiers を安全性と多様性で評価する', ({ tiers, expected }) => {
     expect(scoreQualificationComposition(tiers, 3)).toEqual(expected);
   });
 
-  it('2段構成では配置人数を超える多様性を求めない', () => {
+  it('2レベル構成では配置人数を超える多様性を求めない', () => {
     expect(scoreQualificationComposition([1, 1], 2)).toEqual({
       safetyRisk: 0,
       diversityDeficit: 1,
     });
   });
 
-  it('5段構成でも配置人数と同数の異なる段があれば理想とする', () => {
+  it('5レベル構成でも配置人数と同数の異なるレベルがあれば理想とする', () => {
     expect(scoreQualificationComposition([1, 3, 5], 5)).toEqual({
       safetyRisk: 0,
       diversityDeficit: 0,

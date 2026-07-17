@@ -6,7 +6,7 @@ export type TierBlock = {
   preserveWhenEmpty: boolean;
 };
 
-/** 保存済みの資格要件を、画面編集用の段ブロックへ変換する。 */
+/** 保存済みの資格要件を、画面編集用のレベルブロックへ変換する。 */
 export function createTierBlocks(requirements: CertificationRequirement[]): TierBlock[] {
   const sortedRanks = [...new Set(requirements.map(({ tierRank }) => tierRank))].sort(
     (left, right) => left - right,
@@ -20,7 +20,7 @@ export function createTierBlocks(requirements: CertificationRequirement[]): Tier
   }));
 }
 
-/** 資格を最下段へ追加する。段がなければ最初の段を作成する。 */
+/** 資格を最下位レベルへ追加する。レベルがなければ最初のレベルを作成する。 */
 export function addCertification(
   blocks: TierBlock[],
   certificationId: string,
@@ -41,19 +41,19 @@ export function addCertification(
   );
 }
 
-/** 資格をドロップできる空の最下段を追加する。 */
+/** 資格をドロップできる空の最下位レベルを追加する。 */
 export function addEmptyTier(blocks: TierBlock[], blockId: string): TierBlock[] {
   return [...blocks, { id: blockId, certificationIds: [], preserveWhenEmpty: true }];
 }
 
-/** ユーザーが追加した空段を取り消す。資格を含む段は削除しない。 */
+/** ユーザーが追加した空レベルを取り消す。資格を含むレベルは削除しない。 */
 export function removeEmptyTier(blocks: TierBlock[], blockId: string): TierBlock[] {
   const target = blocks.find((block) => block.id === blockId);
   if (!target || target.certificationIds.length > 0) return blocks;
   return blocks.filter((block) => block.id !== blockId);
 }
 
-/** 資格を対象から除外し、通常の空段を取り除く。 */
+/** 資格を対象から除外し、通常の空レベルを取り除く。 */
 export function removeCertification(blocks: TierBlock[], certificationId: string): TierBlock[] {
   return cleanEmptyTiers(
     blocks.map((block) => ({
@@ -63,7 +63,7 @@ export function removeCertification(blocks: TierBlock[], certificationId: string
   );
 }
 
-/** 資格を指定した段・位置へ挿入し、移動元に残った通常の空段を取り除く。 */
+/** 資格を指定したレベル・位置へ挿入し、移動元に残った通常の空レベルを取り除く。 */
 export function moveCertification(
   blocks: TierBlock[],
   certificationId: string,
@@ -88,7 +88,7 @@ export function moveCertification(
   return cleanEmptyTiers(moved);
 }
 
-/** 画面上の順序を、欠番のない資格要件として保存形式へ変換する。 */
+/** 画面上のレベル順を、欠番のない資格要件として保存形式へ変換する。 */
 export function serializeTierBlocks(blocks: TierBlock[]): CertificationRequirement[] {
   return blocks
     .filter((block) => block.certificationIds.length > 0)

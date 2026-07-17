@@ -157,7 +157,7 @@ function createSolution(input: SolutionInput): CandidateSolution {
   );
   return {
     proposals,
-    // 充足と AVOID を優先し、資格構成の安全性、公平性、段の多様性の順に評価する。
+    // 充足と AVOID を優先し、資格構成の安全性、公平性、レベルの多様性の順に評価する。
     cost: {
       shortage,
       avoid: avoidCount,

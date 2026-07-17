@@ -117,6 +117,30 @@ describe('solveAutoAssignments', () => {
     expect(result.proposals.flatMap((proposal) => proposal.instructorIds)).not.toContain('a');
   });
 
+  it('既存割当日を capacity から除外して公平性を評価する', () => {
+    const result = solveAutoAssignments(
+      createAutoAssignContext({
+        existingAssignments: [
+          {
+            date: '2026-01-05',
+            departmentCode: 'snowboard',
+            shiftTypeId: 'afternoon',
+            instructorIds: ['a'],
+          },
+        ],
+      }),
+      createExecutionParams({
+        targetDates: ['2026-01-05', '2026-01-06'],
+      }),
+      1,
+    );
+
+    expect(result.proposals).toEqual([
+      expect.objectContaining({ date: '2026-01-05', instructorIds: ['b'] }),
+      expect.objectContaining({ date: '2026-01-06', instructorIds: ['b'] }),
+    ]);
+  });
+
   it('複数資格保有者は最上位の tier として構成を評価する', () => {
     const result = solveAutoAssignments(
       createAutoAssignContext({

@@ -1,5 +1,5 @@
 import { env } from 'cloudflare:test';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   availabilityListResponseSchema,
@@ -99,6 +99,10 @@ beforeEach(async () => {
   await db.delete(instructors);
 });
 
+afterEach(() => {
+  vi.useRealTimers();
+});
+
 describe('PUT /api/availabilities/me', () => {
   it('本人の申告を差分で原子的に作成・更新・削除する', async () => {
     const instructorId = await seedInstructor();
@@ -176,6 +180,38 @@ describe('PUT /api/availabilities/me', () => {
 
     const rows = await createDb(env.DB).select().from(instructorAvailabilities);
     expect(rows).toHaveLength(0);
+  });
+
+  it('UTC 15時を境に日本時間の前日を過去日として拒否する', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-17T14:59:59.999Z'));
+    const instructorId = await seedInstructor();
+    const token = await seedToken('MEMBER', instructorId);
+
+    const beforeMidnight = await app.request(
+      '/api/availabilities/me',
+      {
+        method: 'PUT',
+        ...authJsonRequest(token, {
+          changes: [{ date: '2026-07-17', type: 'AVOID' }],
+        }),
+      },
+      envWith({}),
+    );
+    expect(beforeMidnight.status).toBe(200);
+
+    vi.setSystemTime(new Date('2026-07-17T15:00:00.000Z'));
+    const atMidnight = await app.request(
+      '/api/availabilities/me',
+      {
+        method: 'PUT',
+        ...authJsonRequest(token, {
+          changes: [{ date: '2026-07-17', type: 'UNAVAILABLE' }],
+        }),
+      },
+      envWith({}),
+    );
+    expect(atMidnight.status).toBe(400);
   });
 
   it('ボディの instructorId を無視し、JWT に紐づく本人だけを更新する', async () => {

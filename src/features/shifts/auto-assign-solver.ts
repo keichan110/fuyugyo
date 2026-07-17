@@ -51,9 +51,10 @@ export function solveAutoAssignments(
       .map((item) => dateInstructorKey(item.date, item.instructorId)),
   );
   const occupied = occupiedDateInstructorKeys(context);
-  const capacity = calculateCapacity(context, targetDates, unavailable);
+  const capacity = calculateCapacity(context, targetDates, unavailable, occupied);
   const tierRanks = effectiveTierRankByInstructor(context, frame.certificationTiers);
   const configuredTierCount = new Set(frame.certificationTiers.map((tier) => tier.tierRank)).size;
+  const fallbackTierRank = Math.max(...frame.certificationTiers.map((tier) => tier.tierRank)) + 1;
   const initialCounts = countAssignedDays(context.existingAssignments);
   let best: CandidateSolution | undefined;
 
@@ -69,6 +70,7 @@ export function solveAutoAssignments(
       initialCounts,
       tierRanks,
       configuredTierCount,
+      fallbackTierRank,
       random: createRandom(seed + restart),
     });
     if (!best || compareCost(candidate.cost, best.cost) < 0) {
@@ -98,6 +100,7 @@ type SolutionInput = {
   initialCounts: Map<string, number>;
   tierRanks: Map<string, number>;
   configuredTierCount: number;
+  fallbackTierRank: number;
   random: () => number;
 };
 
@@ -126,6 +129,7 @@ function createSolution(input: SolutionInput): CandidateSolution {
         selected,
         tierRanks: input.tierRanks,
         configuredTierCount: input.configuredTierCount,
+        fallbackTierRank: input.fallbackTierRank,
         random: input.random,
       });
       if (!instructorId) break;
@@ -154,6 +158,7 @@ function createSolution(input: SolutionInput): CandidateSolution {
     proposals,
     input.tierRanks,
     input.configuredTierCount,
+    input.fallbackTierRank,
   );
   return {
     proposals,
@@ -177,15 +182,25 @@ type CandidateSelectionInput = {
   selected: string[];
   tierRanks: Map<string, number>;
   configuredTierCount: number;
+  fallbackTierRank: number;
   random: () => number;
 };
 
 function chooseCandidate(input: CandidateSelectionInput): string | undefined {
-  const { candidates, date, counts, capacity, avoid, selected, tierRanks, configuredTierCount } =
-    input;
+  const {
+    candidates,
+    date,
+    counts,
+    capacity,
+    avoid,
+    selected,
+    tierRanks,
+    configuredTierCount,
+    fallbackTierRank,
+  } = input;
   const scored = candidates.map((id) => {
     const composition = scoreQualificationComposition(
-      [...selected, id].map((instructorId) => tierRanks.get(instructorId) ?? 1),
+      [...selected, id].map((instructorId) => tierRanks.get(instructorId) ?? fallbackTierRank),
       configuredTierCount,
     );
     return {
@@ -232,11 +247,15 @@ function calculateCapacity(
   context: AutoAssignContext,
   targetDates: string[],
   unavailable: Set<string>,
+  occupied: Set<string>,
 ): Map<string, number> {
   return new Map(
     context.instructors.map((instructor) => [
       instructor.id,
-      targetDates.filter((date) => !unavailable.has(dateInstructorKey(date, instructor.id))).length,
+      targetDates.filter((date) => {
+        const key = dateInstructorKey(date, instructor.id);
+        return !unavailable.has(key) && !occupied.has(key);
+      }).length,
     ]),
   );
 }
@@ -291,11 +310,12 @@ function qualificationCompositionCost(
   proposals: AutoAssignProposal[],
   tierRanks: Map<string, number>,
   configuredTierCount: number,
+  fallbackTierRank: number,
 ): { safetyRisk: number; diversityDeficit: number } {
   return proposals.reduce(
     (total, proposal) => {
       const score = scoreQualificationComposition(
-        proposal.instructorIds.map((id) => tierRanks.get(id) ?? 1),
+        proposal.instructorIds.map((id) => tierRanks.get(id) ?? fallbackTierRank),
         configuredTierCount,
       );
       return {

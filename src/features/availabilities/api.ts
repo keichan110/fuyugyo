@@ -71,10 +71,11 @@ async function resolveInstructorId(
   return user.instructorId;
 }
 
-/** 当日（UTC）の開始時刻を返す。 */
+/** 日本時間の当日を、DBの日付表現に合わせたUTC 0時のDateとして返す。 */
 function today(): Date {
   const now = new Date();
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const jstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+  return new Date(Date.UTC(jstNow.getUTCFullYear(), jstNow.getUTCMonth(), jstNow.getUTCDate()));
 }
 
 /**

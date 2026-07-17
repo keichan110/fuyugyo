@@ -121,6 +121,13 @@ export function ShiftManager() {
     enableBeforeUnload: () => isDirty,
     withResolver: true,
   });
+
+  useEffect(() => {
+    if (blocker.status === 'blocked') {
+      setPendingNav(null);
+    }
+  }, [blocker.status]);
+
   const activeShiftTypeId = selectedCell?.shiftTypeId ?? formData.data?.shiftTypes[0]?.id ?? '';
   // シフト種別タブに「未保存の編集あり」のドットを出すため、ステージ済みセルの種別IDを集計する
   const stagedShiftTypeIds = useMemo(() => {
@@ -217,10 +224,10 @@ export function ShiftManager() {
   );
 
   const confirmNavigation = () => {
-    if (pendingNav) {
-      applyNavigation(pendingNav);
-    } else {
+    if (blocker.status === 'blocked') {
       blocker.proceed?.();
+    } else if (pendingNav) {
+      applyNavigation(pendingNav);
     }
     setPendingNav(null);
   };

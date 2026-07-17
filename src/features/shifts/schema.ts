@@ -110,7 +110,9 @@ export const autoAssignInstructorSchema = z.object({
 /** 部門内のシフト枠に設定された必要資格と、その資格を満たす候補。 */
 export const autoAssignFrameSchema = z.object({
   shiftTypeId: z.string(),
-  certificationLevels: z.array(z.object({ certificationId: z.string(), level: z.number().int() })),
+  certificationTiers: z.array(
+    z.object({ certificationId: z.string(), tierRank: z.number().int().positive() }),
+  ),
   eligibleInstructorIds: z.array(z.string()),
 });
 

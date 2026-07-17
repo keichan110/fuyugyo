@@ -452,7 +452,7 @@ export const shiftsRoute = new Hono<{
           frameId: departmentShiftTypes.id,
           shiftTypeId: departmentShiftTypes.shiftTypeId,
           certificationId: certificationRequirements.certificationId,
-          level: certificationRequirements.level,
+          tierRank: certificationRequirements.tierRank,
         })
         .from(departmentShiftTypes)
         .leftJoin(
@@ -460,7 +460,7 @@ export const shiftsRoute = new Hono<{
           eq(certificationRequirements.departmentShiftTypeId, departmentShiftTypes.id),
         )
         .where(eq(departmentShiftTypes.departmentCode, departmentCode))
-        .orderBy(asc(departmentShiftTypes.sortOrder), desc(certificationRequirements.level)),
+        .orderBy(asc(departmentShiftTypes.sortOrder), asc(certificationRequirements.tierRank)),
     ]);
 
     const instructorById = new Map<
@@ -511,15 +511,21 @@ export const shiftsRoute = new Hono<{
 
     const framesById = new Map<
       string,
-      { shiftTypeId: string; certificationLevels: { certificationId: string; level: number }[] }
+      {
+        shiftTypeId: string;
+        certificationTiers: { certificationId: string; tierRank: number }[];
+      }
     >();
     for (const row of frameRows) {
       const frame = framesById.get(row.frameId) ?? {
         shiftTypeId: row.shiftTypeId,
-        certificationLevels: [],
+        certificationTiers: [],
       };
-      if (row.certificationId !== null && row.level !== null) {
-        frame.certificationLevels.push({ certificationId: row.certificationId, level: row.level });
+      if (row.certificationId !== null && row.tierRank !== null) {
+        frame.certificationTiers.push({
+          certificationId: row.certificationId,
+          tierRank: row.tierRank,
+        });
       }
       framesById.set(row.frameId, frame);
     }

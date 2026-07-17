@@ -121,7 +121,7 @@ describe('GET /api/certification-requirements/:departmentCode/:shiftTypeId', () 
 });
 
 describe('PUT /api/certification-requirements/:departmentCode/:shiftTypeId', () => {
-  it('全置換し、相対的な段を 10/20/30 に正規化して同着を保存する', async () => {
+  it('全置換し、相対的な段を昇順の tierRank に正規化して同着を保存する', async () => {
     const { shiftType } = await seedFrame();
     const [first, second, third] = await Promise.all([
       seedCertification('指導員'),
@@ -131,9 +131,9 @@ describe('PUT /api/certification-requirements/:departmentCode/:shiftTypeId', () 
     const token = await seedToken('ADMIN');
     const input = certificationRequirementUpdateSchema.parse({
       certifications: [
-        { certificationId: first.id, level: 100 },
-        { certificationId: second.id, level: 50 },
-        { certificationId: third.id, level: 50 },
+        { certificationId: first.id, tierRank: 100 },
+        { certificationId: second.id, tierRank: 50 },
+        { certificationId: third.id, tierRank: 50 },
       ],
     });
 
@@ -145,10 +145,10 @@ describe('PUT /api/certification-requirements/:departmentCode/:shiftTypeId', () 
 
     expect(res.status).toBe(200);
     expect(certificationRequirementListSchema.parse(await res.json())).toEqual([
-      { certificationId: first.id, level: 20 },
       ...[second, third]
         .sort((left, right) => left.id.localeCompare(right.id))
-        .map(({ id }) => ({ certificationId: id, level: 10 })),
+        .map(({ id }) => ({ certificationId: id, tierRank: 1 })),
+      { certificationId: first.id, tierRank: 2 },
     ]);
 
     const emptyRes = await app.request(
@@ -171,8 +171,8 @@ describe('PUT /api/certification-requirements/:departmentCode/:shiftTypeId', () 
         method: 'PUT',
         ...authRequest(token, {
           certifications: [
-            { certificationId: otherDepartmentCertification.id, level: 1 },
-            { certificationId: 'unknown', level: 2 },
+            { certificationId: otherDepartmentCertification.id, tierRank: 1 },
+            { certificationId: 'unknown', tierRank: 2 },
           ],
         }),
       },
@@ -226,7 +226,7 @@ describe('selectInstructorIdsWithFrameCertification', () => {
     await db.insert(certificationRequirements).values({
       departmentShiftTypeId: frame.id,
       certificationId: target.id,
-      level: 10,
+      tierRank: 1,
     });
     await db.insert(instructorCertifications).values([
       { instructorId: activeTarget.id, certificationId: target.id },

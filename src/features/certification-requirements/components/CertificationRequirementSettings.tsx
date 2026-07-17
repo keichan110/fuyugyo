@@ -1,6 +1,19 @@
 import { useEffect, useMemo, useState } from 'react';
 
-import { Alert, Button, Checkbox, Grid, Paper, Slider, Stack, Tabs, Text } from '@mantine/core';
+import {
+  Alert,
+  Badge,
+  Button,
+  Checkbox,
+  Divider,
+  Grid,
+  Group,
+  Paper,
+  Select,
+  Stack,
+  Tabs,
+  Text,
+} from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { IconCertificate, IconListDetails } from '@tabler/icons-react';
 
@@ -17,6 +30,7 @@ import {
 
 import { useCertificationRequirements, useUpdateCertificationRequirements } from '../queries';
 import type { CertificationRequirement } from '../schema';
+import { normalizeTierRanks } from '../tier-ranks';
 
 /** 部門・シフト種別枠ごとに必要資格を設定する画面。 */
 export function CertificationRequirementSettings() {
@@ -111,27 +125,24 @@ function CertificationRankEditor({
   const update = useUpdateCertificationRequirements(departmentCode, shiftTypeId ?? '');
 
   useEffect(() => {
-    if (savedCertifications) setEditedCertifications(savedCertifications);
+    if (savedCertifications) setEditedCertifications(normalizeTierRanks(savedCertifications));
   }, [savedCertifications]);
 
-  const rankByCertificationId = useMemo(
+  const requirementByCertificationId = useMemo(
     () =>
       new Map(
-        editedCertifications.map((certification) => [
-          certification.certificationId,
-          certification.level,
-        ]),
+        editedCertifications.map((certification) => [certification.certificationId, certification]),
       ),
     [editedCertifications],
   );
-  const levels = useMemo(
-    () =>
-      [...new Set(editedCertifications.map((certification) => certification.level))].sort(
-        (a, b) => b - a,
-      ),
+  const tierRanks = useMemo(
+    () => [...new Set(editedCertifications.map(({ tierRank }) => tierRank))].sort((a, b) => a - b),
     [editedCertifications],
   );
-  const maximumRank = Math.max(levels.length, 1);
+  const certificationNameById = useMemo(
+    () => new Map(certifications?.map((certification) => [certification.id, certification.name])),
+    [certifications],
+  );
 
   if (!shiftTypeId) {
     return (
@@ -141,13 +152,16 @@ function CertificationRankEditor({
     );
   }
 
-  const updateRank = (certificationId: string, rank: number) => {
-    const level = levels[rank - 1] ?? (levels.at(-1) ?? 0) - 10;
+  const moveCertification = (certificationId: string, destination: string | null) => {
+    if (!destination) return;
+    const tierRank = destination === 'new' ? tierRanks.length + 1 : Number(destination);
     setEditedCertifications((current) =>
-      current.map((certification) =>
-        certification.certificationId === certificationId
-          ? { ...certification, level }
-          : certification,
+      normalizeTierRanks(
+        current.map((certification) =>
+          certification.certificationId === certificationId
+            ? { ...certification, tierRank }
+            : certification,
+        ),
       ),
     );
   };
@@ -155,20 +169,32 @@ function CertificationRankEditor({
   const toggleCertification = (certificationId: string, checked: boolean) => {
     setEditedCertifications((current) => {
       if (!checked)
-        return current.filter((certification) => certification.certificationId !== certificationId);
-      const lowestLevel =
-        current.length === 0 ? 10 : Math.min(...current.map((item) => item.level)) - 10;
-      return [...current, { certificationId, level: lowestLevel }];
+        return normalizeTierRanks(
+          current.filter((certification) => certification.certificationId !== certificationId),
+        );
+      const lowestTierRank = Math.max(0, ...current.map(({ tierRank }) => tierRank)) + 1;
+      return [...current, { certificationId, tierRank: lowestTierRank }];
     });
+  };
+
+  const swapTier = (tierRank: number, adjacentTierRank: number) => {
+    setEditedCertifications((current) =>
+      current.map((requirement) => {
+        if (requirement.tierRank === tierRank)
+          return { ...requirement, tierRank: adjacentTierRank };
+        if (requirement.tierRank === adjacentTierRank) return { ...requirement, tierRank };
+        return requirement;
+      }),
+    );
   };
 
   return (
     <Paper withBorder p="md">
       <Stack gap="md">
         <Stack gap={2}>
-          <Text fw={600}>対象資格と優先段</Text>
+          <Text fw={600}>対象資格と資格段</Text>
           <Text c="dimmed" size="sm">
-            対象資格にチェックを入れ、上から何段目かを設定します。同じ段の資格は同着です。
+            上の段ほど上位の資格です。同じ段にまとめた資格は、自動割当で同等として扱います。
           </Text>
         </Stack>
         {isError && <ErrorAlert>必要資格の取得に失敗しました</ErrorAlert>}
@@ -185,42 +211,117 @@ function CertificationRankEditor({
           certifications &&
           certifications.length > 0 && (
             <Stack gap="sm">
+              <Stack gap="xs">
+                <Text fw={600} size="sm">
+                  対象へ追加
+                </Text>
+                {certifications
+                  .filter((certification) => !requirementByCertificationId.has(certification.id))
+                  .map((certification) => (
+                    <Checkbox
+                      key={certification.id}
+                      checked={false}
+                      label={certification.name}
+                      onChange={(event) =>
+                        toggleCertification(certification.id, event.currentTarget.checked)
+                      }
+                    />
+                  ))}
+                {certifications.every((certification) =>
+                  requirementByCertificationId.has(certification.id),
+                ) && (
+                  <Text c="dimmed" size="sm">
+                    すべての資格が対象に追加されています。
+                  </Text>
+                )}
+              </Stack>
+              <Divider />
               {editedCertifications.length === 0 && (
                 <Alert color="yellow" variant="light">
                   この枠の必要資格は未設定です。
                 </Alert>
               )}
-              {certifications.map((certification) => {
-                const level = rankByCertificationId.get(certification.id);
-                const rank = level === undefined ? maximumRank : levels.indexOf(level) + 1;
-                const isSelected = level !== undefined;
+              {tierRanks.map((tierRank) => {
+                const requirements = editedCertifications.filter(
+                  (certification) => certification.tierRank === tierRank,
+                );
                 return (
-                  <Paper key={certification.id} withBorder p="sm">
-                    <Stack gap="xs">
-                      <Checkbox
-                        checked={isSelected}
-                        label={certification.name}
-                        onChange={(event) =>
-                          toggleCertification(certification.id, event.currentTarget.checked)
-                        }
-                      />
-                      {isSelected && (
-                        <Stack gap={2} pl={28}>
-                          <Text size="sm">上から{rank}段目</Text>
-                          <Slider
-                            min={1}
-                            max={maximumRank}
-                            step={1}
-                            value={rank}
-                            marks={Array.from({ length: maximumRank }, (_, index) => ({
-                              value: index + 1,
-                              label: `上から${index + 1}段目`,
-                            }))}
-                            label={null}
-                            onChange={(value) => updateRank(certification.id, value)}
-                          />
+                  <Paper
+                    key={tierRank}
+                    withBorder
+                    p="md"
+                    {...(tierRank === 1 ? { bg: 'blue.0' } : {})}
+                  >
+                    <Stack gap="sm">
+                      <Group justify="space-between" align="flex-start">
+                        <Group gap="xs">
+                          <Text fw={700}>上から{tierRank}段目</Text>
+                          {tierRank === 1 && <Badge variant="light">最上位</Badge>}
+                        </Group>
+                        <Stack gap={4} align="flex-end">
+                          <Text c="dimmed" size="xs">
+                            この段の資格は同等
+                          </Text>
+                          <Group gap="xs">
+                            <Button
+                              size="compact-xs"
+                              variant="subtle"
+                              disabled={tierRank === 1}
+                              onClick={() => swapTier(tierRank, tierRank - 1)}
+                            >
+                              1段上へ
+                            </Button>
+                            <Button
+                              size="compact-xs"
+                              variant="subtle"
+                              disabled={tierRank === tierRanks.length}
+                              onClick={() => swapTier(tierRank, tierRank + 1)}
+                            >
+                              1段下へ
+                            </Button>
+                          </Group>
                         </Stack>
-                      )}
+                      </Group>
+                      {requirements.map((requirement) => (
+                        <Paper key={requirement.certificationId} withBorder p="sm" bg="white">
+                          <Group justify="space-between" align="flex-end" wrap="wrap">
+                            <Checkbox
+                              checked
+                              label={
+                                certificationNameById.get(requirement.certificationId) ??
+                                requirement.certificationId
+                              }
+                              onChange={(event) =>
+                                toggleCertification(
+                                  requirement.certificationId,
+                                  event.currentTarget.checked,
+                                )
+                              }
+                            />
+                            <Select
+                              aria-label={`${certificationNameById.get(requirement.certificationId) ?? '資格'}の段`}
+                              label="移動先"
+                              size="xs"
+                              w={190}
+                              value={String(requirement.tierRank)}
+                              data={[
+                                ...tierRanks.map((rank) => ({
+                                  value: String(rank),
+                                  label: `上から${rank}段目${rank === requirement.tierRank ? '（現在）' : ''}`,
+                                })),
+                                {
+                                  value: 'new',
+                                  label: `新しい最下段（${tierRanks.length + 1}段目）`,
+                                },
+                              ]}
+                              allowDeselect={false}
+                              onChange={(value) =>
+                                moveCertification(requirement.certificationId, value)
+                              }
+                            />
+                          </Group>
+                        </Paper>
+                      ))}
                     </Stack>
                   </Paper>
                 );

@@ -647,7 +647,7 @@ export function ShiftManager() {
           </Button>
           {autoAssignContext.data?.frames.find(
             (frame) => frame.shiftTypeId === autoAssignShiftTypeId,
-          )?.certificationLevels.length === 0 && (
+          )?.certificationTiers.length === 0 && (
             <ErrorAlert>この種別には必要資格が設定されていないため、提案できません。</ErrorAlert>
           )}
           <Button

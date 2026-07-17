@@ -50,6 +50,20 @@
       "when": 1784212954893,
       "tag": "0006_sleepy_bruce_banner",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1784242576816,
+      "tag": "0007_jazzy_sprite",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1784242926489,
+      "tag": "0008_perpetual_brother_voodoo",
+      "breakpoints": true
     }
   ]
 }

@@ -153,7 +153,7 @@ async function requireFrameCertification(
   await db.insert(certificationRequirements).values({
     departmentShiftTypeId: frame.id,
     certificationId,
-    level: 10,
+    tierRank: 1,
   });
 }
 

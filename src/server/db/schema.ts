@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import { check, index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
 
 /**
  * 全テーブル共通の作成・更新タイムスタンプ列。
@@ -113,7 +113,7 @@ export const departmentShiftTypes = sqliteTable(
   ],
 );
 
-/** 部門別シフト種別ごとの必要資格と、枠内での優先段を管理する中間テーブル */
+/** 部門別シフト種別ごとの必要資格と、枠内での資格段位を管理する中間テーブル */
 export const certificationRequirements = sqliteTable(
   'certification_requirements',
   {
@@ -124,10 +124,11 @@ export const certificationRequirements = sqliteTable(
     certificationId: text('certification_id')
       .notNull()
       .references(() => certifications.id, { onDelete: 'cascade' }),
-    level: integer('level').notNull(),
+    tierRank: integer('tier_rank').notNull(),
     ...timestamps,
   },
   (t) => [
+    check('certification_requirements_tier_rank_positive', sql`${t.tierRank} > 0`),
     uniqueIndex('idx_certification_requirements_unique').on(
       t.departmentShiftTypeId,
       t.certificationId,

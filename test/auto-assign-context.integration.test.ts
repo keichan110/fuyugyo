@@ -92,7 +92,7 @@ describe('GET /api/shifts/auto-assign-context', () => {
     await db.insert(certificationRequirements).values({
       departmentShiftTypeId: frame!.id,
       certificationId: certification!.id,
-      level: 20,
+      tierRank: 1,
     });
     await db.insert(instructorCertifications).values([
       { instructorId: candidate!.id, certificationId: certification!.id },
@@ -145,7 +145,7 @@ describe('GET /api/shifts/auto-assign-context', () => {
       frames: [
         {
           shiftTypeId: shiftType!.id,
-          certificationLevels: [{ certificationId: certification!.id, level: 20 }],
+          certificationTiers: [{ certificationId: certification!.id, tierRank: 1 }],
           eligibleInstructorIds: [candidate!.id],
         },
       ],

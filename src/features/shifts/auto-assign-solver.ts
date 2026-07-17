@@ -1,3 +1,4 @@
+import { scoreQualificationComposition } from './qualification-composition';
 import type { AutoAssignContext, AutoAssignExecutionParams, AutoAssignProposal } from './schema';
 
 /** 自動割当の実行結果。提案は対象外の枠を含まない。 */
@@ -22,7 +23,7 @@ export function solveAutoAssignments(
 ): AutoAssignSolveResult {
   const frame = context.frames.find((item) => item.shiftTypeId === params.shiftTypeId);
   // 必要資格が未設定の枠は、資格を満たすことを判定できないため提案しない。
-  if (!frame || frame.certificationLevels.length === 0) {
+  if (!frame || frame.certificationTiers.length === 0) {
     return { proposals: [] };
   }
 
@@ -33,7 +34,7 @@ export function solveAutoAssignments(
         (instructor) =>
           eligibleIds.has(instructor.id) &&
           instructor.certificationIds.some((id) =>
-            frame.certificationLevels.some((level) => level.certificationId === id),
+            frame.certificationTiers.some((tier) => tier.certificationId === id),
           ),
       )
       .map((instructor) => instructor.id),
@@ -51,7 +52,8 @@ export function solveAutoAssignments(
   );
   const occupied = occupiedDateInstructorKeys(context);
   const capacity = calculateCapacity(context, targetDates, unavailable);
-  const normalizedLevels = normalizedLevelByInstructor(context, frame.certificationLevels);
+  const tierRanks = effectiveTierRankByInstructor(context, frame.certificationTiers);
+  const configuredTierCount = new Set(frame.certificationTiers.map((tier) => tier.tierRank)).size;
   const initialCounts = countAssignedDays(context.existingAssignments);
   let best: CandidateSolution | undefined;
 
@@ -65,7 +67,8 @@ export function solveAutoAssignments(
       occupied,
       capacity,
       initialCounts,
-      normalizedLevels,
+      tierRanks,
+      configuredTierCount,
       random: createRandom(seed + restart),
     });
     if (!best || compareCost(candidate.cost, best.cost) < 0) {
@@ -77,7 +80,13 @@ export function solveAutoAssignments(
 }
 
 type CandidateSolution = { proposals: AutoAssignProposal[]; cost: SolutionCost };
-type SolutionCost = { shortage: number; avoid: number; fairness: number; qualification: number };
+type SolutionCost = {
+  shortage: number;
+  avoid: number;
+  qualificationSafety: number;
+  fairness: number;
+  qualificationDiversity: number;
+};
 type SolutionInput = {
   params: AutoAssignExecutionParams;
   targetDates: string[];
@@ -87,7 +96,8 @@ type SolutionInput = {
   occupied: Set<string>;
   capacity: Map<string, number>;
   initialCounts: Map<string, number>;
-  normalizedLevels: Map<string, number>;
+  tierRanks: Map<string, number>;
+  configuredTierCount: number;
   random: () => number;
 };
 
@@ -107,15 +117,17 @@ function createSolution(input: SolutionInput): CandidateSolution {
     );
     const selected: string[] = [];
     while (selected.length < required && candidates.length > 0) {
-      const instructorId = chooseCandidate(
+      const instructorId = chooseCandidate({
         candidates,
         date,
         counts,
-        input.capacity,
-        input.avoid,
-        input.normalizedLevels,
-        input.random,
-      );
+        capacity: input.capacity,
+        avoid: input.avoid,
+        selected,
+        tierRanks: input.tierRanks,
+        configuredTierCount: input.configuredTierCount,
+        random: input.random,
+      });
       if (!instructorId) break;
       candidates.splice(candidates.indexOf(instructorId), 1);
       selected.push(instructorId);
@@ -138,40 +150,60 @@ function createSolution(input: SolutionInput): CandidateSolution {
   }
 
   const shortage = proposals.reduce((sum, proposal) => sum + proposal.shortage.count, 0);
+  const qualificationComposition = qualificationCompositionCost(
+    proposals,
+    input.tierRanks,
+    input.configuredTierCount,
+  );
   return {
     proposals,
-    // 充足を最優先し、次に AVOID、公平性、最後に資格構成を評価する。
+    // 充足と AVOID を優先し、資格構成の安全性、公平性、段の多様性の順に評価する。
     cost: {
       shortage,
       avoid: avoidCount,
+      qualificationSafety: qualificationComposition.safetyRisk,
       fairness: fairnessCost(counts, input.capacity),
-      qualification: qualificationCost(proposals, input.normalizedLevels),
+      qualificationDiversity: qualificationComposition.diversityDeficit,
     },
   };
 }
 
-function chooseCandidate(
-  candidates: string[],
-  date: string,
-  counts: Map<string, number>,
-  capacity: Map<string, number>,
-  avoid: Set<string>,
-  normalizedLevels: Map<string, number>,
-  random: () => number,
-): string | undefined {
-  const scored = candidates.map((id) => ({
-    id,
-    // AVOID は公平性より強く回避する。乱数は同点を解消するだけで制約・重みを覆さない。
-    avoid: avoid.has(dateInstructorKey(date, id)) ? 1 : 0,
-    fairness: incrementalFairnessCost(id, counts, capacity),
-    qualification: (normalizedLevels.get(id) ?? 0) * 0.1,
-    tieBreaker: random(),
-  }));
+type CandidateSelectionInput = {
+  candidates: string[];
+  date: string;
+  counts: Map<string, number>;
+  capacity: Map<string, number>;
+  avoid: Set<string>;
+  selected: string[];
+  tierRanks: Map<string, number>;
+  configuredTierCount: number;
+  random: () => number;
+};
+
+function chooseCandidate(input: CandidateSelectionInput): string | undefined {
+  const { candidates, date, counts, capacity, avoid, selected, tierRanks, configuredTierCount } =
+    input;
+  const scored = candidates.map((id) => {
+    const composition = scoreQualificationComposition(
+      [...selected, id].map((instructorId) => tierRanks.get(instructorId) ?? 1),
+      configuredTierCount,
+    );
+    return {
+      id,
+      // 乱数は同点を解消するだけで、AVOID・資格構成・公平性を覆さない。
+      avoid: avoid.has(dateInstructorKey(date, id)) ? 1 : 0,
+      qualificationSafety: composition.safetyRisk,
+      fairness: incrementalFairnessCost(id, counts, capacity),
+      qualificationDiversity: composition.diversityDeficit,
+      tieBreaker: input.random(),
+    };
+  });
   scored.sort(
     (left, right) =>
       left.avoid - right.avoid ||
+      left.qualificationSafety - right.qualificationSafety ||
       left.fairness - right.fairness ||
-      left.qualification - right.qualification ||
+      left.qualificationDiversity - right.qualificationDiversity ||
       left.tieBreaker - right.tieBreaker,
   );
   return scored[0]?.id ?? candidates[0];
@@ -255,32 +287,41 @@ function fairnessCost(counts: Map<string, number>, capacity: Map<string, number>
   }, 0);
 }
 
-function qualificationCost(
+function qualificationCompositionCost(
   proposals: AutoAssignProposal[],
-  normalizedLevels: Map<string, number>,
-): number {
-  return proposals.reduce((sum, proposal) => {
-    const levels = proposal.instructorIds.map((id) => normalizedLevels.get(id) ?? 0);
-    if (levels.length === 0) return sum;
-    // 段数ではなく 0..n-1 に正規化した天井と散らばりを、低い優先度で評価する。
-    return sum + (Math.max(...levels) * 2 + Math.max(...levels) - Math.min(...levels)) * 0.1;
-  }, 0);
+  tierRanks: Map<string, number>,
+  configuredTierCount: number,
+): { safetyRisk: number; diversityDeficit: number } {
+  return proposals.reduce(
+    (total, proposal) => {
+      const score = scoreQualificationComposition(
+        proposal.instructorIds.map((id) => tierRanks.get(id) ?? 1),
+        configuredTierCount,
+      );
+      return {
+        safetyRisk: total.safetyRisk + score.safetyRisk,
+        diversityDeficit: total.diversityDeficit + score.diversityDeficit,
+      };
+    },
+    { safetyRisk: 0, diversityDeficit: 0 },
+  );
 }
 
-function normalizedLevelByInstructor(
+function effectiveTierRankByInstructor(
   context: AutoAssignContext,
-  certificationLevels: { certificationId: string; level: number }[],
+  certificationTiers: { certificationId: string; tierRank: number }[],
 ): Map<string, number> {
-  const levels = [...new Set(certificationLevels.map((item) => item.level))].sort(
-    (left, right) => left - right,
-  );
-  const normalizedByCertification = new Map(
-    certificationLevels.map((item) => [item.certificationId, levels.indexOf(item.level)]),
+  const tierRankByCertification = new Map(
+    certificationTiers.map((item) => [item.certificationId, item.tierRank]),
   );
   return new Map(
     context.instructors.map((instructor) => [
       instructor.id,
-      Math.max(...instructor.certificationIds.map((id) => normalizedByCertification.get(id) ?? -1)),
+      Math.min(
+        ...instructor.certificationIds
+          .map((id) => tierRankByCertification.get(id))
+          .filter((tierRank): tierRank is number => tierRank !== undefined),
+      ),
     ]),
   );
 }
@@ -323,7 +364,8 @@ function compareCost(left: SolutionCost, right: SolutionCost): number {
   return (
     left.shortage - right.shortage ||
     left.avoid - right.avoid ||
+    left.qualificationSafety - right.qualificationSafety ||
     left.fairness - right.fairness ||
-    left.qualification - right.qualification
+    left.qualificationDiversity - right.qualificationDiversity
   );
 }

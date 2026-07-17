@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray } from 'drizzle-orm';
+import { and, asc, eq, inArray } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { validator } from 'hono/validator';
@@ -14,6 +14,7 @@ import { requireAuth, requireRole, type AuthVariables } from '@/server/middlewar
 import type { Env } from '@/server/types';
 
 import { certificationRequirementUpdateSchema } from './schema';
+import { normalizeTierRanks } from './tier-ranks';
 
 function validateDepartmentCode(value: string): ReturnType<typeof departmentCodeSchema.parse> {
   const parsed = departmentCodeSchema.safeParse(value);
@@ -21,22 +22,6 @@ function validateDepartmentCode(value: string): ReturnType<typeof departmentCode
     throw new HTTPException(400, { message: 'Invalid department code' });
   }
   return parsed.data;
-}
-
-function normalizeLevels<T extends { level: number }>(
-  certifications: T[],
-): Array<T & { level: number }> {
-  const levels = [...new Set(certifications.map((certification) => certification.level))].sort(
-    (first, second) => first - second,
-  );
-  const normalizedLevelByOriginal = new Map(
-    levels.map((level, index) => [level, (index + 1) * 10]),
-  );
-
-  return certifications.map((certification) => ({
-    ...certification,
-    level: normalizedLevelByOriginal.get(certification.level) ?? certification.level,
-  }));
 }
 
 async function findFrame(
@@ -67,11 +52,14 @@ async function selectCertifications(
   return db
     .select({
       certificationId: certificationRequirements.certificationId,
-      level: certificationRequirements.level,
+      tierRank: certificationRequirements.tierRank,
     })
     .from(certificationRequirements)
     .where(eq(certificationRequirements.departmentShiftTypeId, departmentShiftTypeId))
-    .orderBy(desc(certificationRequirements.level), asc(certificationRequirements.certificationId));
+    .orderBy(
+      asc(certificationRequirements.tierRank),
+      asc(certificationRequirements.certificationId),
+    );
 }
 
 /** 部門別シフト種別ごとの必要資格を取得・全置換する ADMIN 専用ルート。 */
@@ -102,7 +90,7 @@ export const certificationRequirementsRoute = new Hono<{
       const input = c.req.valid('json');
       const db = createDb(c.env.DB);
       const frame = await findFrame(db, departmentCode, c.req.param('shiftTypeId'));
-      const normalizedCertifications = normalizeLevels(input.certifications);
+      const normalizedCertifications = normalizeTierRanks(input.certifications);
       const certificationIds = normalizedCertifications.map(
         (certification) => certification.certificationId,
       );
@@ -132,7 +120,7 @@ export const certificationRequirementsRoute = new Hono<{
           db.insert(certificationRequirements).values({
             departmentShiftTypeId: frame.id,
             certificationId: certification.certificationId,
-            level: certification.level,
+            tierRank: certification.tierRank,
           }),
         ),
       ]);

@@ -1,9 +1,9 @@
 import { z } from 'zod';
 
-/** 枠に紐づく必要資格と、枠内での相対的な優先段 */
+/** 枠に紐づく必要資格と、1を最上位とする枠内での相対的な資格段位 */
 export const certificationRequirementSchema = z.object({
   certificationId: z.string().min(1),
-  level: z.number().int(),
+  tierRank: z.number().int().positive(),
 });
 
 export type CertificationRequirement = z.infer<typeof certificationRequirementSchema>;

@@ -1,0 +1,26 @@
+.bar {
+  position: fixed;
+  z-index: 200;
+  inset-inline-end: 20px;
+  bottom: 20px;
+  width: min(680px, calc(100vw - var(--app-shell-navbar-offset, 0rem) - 40px));
+  background: color-mix(in srgb, var(--mantine-color-body) 94%, transparent);
+  backdrop-filter: blur(8px);
+}
+
+@media (max-width: 48em) {
+  .bar {
+    inset-inline-end: 10px;
+    bottom: 10px;
+    width: calc(100vw - 20px);
+  }
+
+  .content {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .actions {
+    justify-content: flex-end;
+  }
+}

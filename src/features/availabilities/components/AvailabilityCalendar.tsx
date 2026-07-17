@@ -24,6 +24,7 @@ import { useBlocker } from '@tanstack/react-router';
 import 'dayjs/locale/ja';
 
 import { ErrorAlert } from '@/components/AppAlert';
+import { UnsavedChangesBar } from '@/components/UnsavedChangesBar';
 import { addDays, todayString, toMonth, weekdayIndex } from '@/features/shifts/view-utils';
 
 import {
@@ -149,23 +150,15 @@ export function AvailabilityCalendar() {
         )}
       </Stack>
 
-      <Box pos="sticky" bottom={0} py="md" bg="var(--mantine-color-body)">
-        <Stack gap="xs">
-          {hasChanges && (
-            <Text size="sm" c="orange" ta="center">
-              未保存の変更 {changes.length} 件
-            </Text>
-          )}
-          <Button
-            fullWidth
-            disabled={!hasChanges}
-            loading={updateMutation.isPending}
-            onClick={() => void save()}
-          >
-            保存
-          </Button>
-        </Stack>
-      </Box>
+      {hasChanges && (
+        <UnsavedChangesBar
+          count={changes.length}
+          description="表示中の月の変更をまとめて保存します"
+          loading={updateMutation.isPending}
+          onCancel={() => setStaged(new Map())}
+          onSave={() => void save()}
+        />
+      )}
 
       {menu && (
         <Menu opened onChange={(opened) => !opened && setMenu(null)} position="bottom-start">

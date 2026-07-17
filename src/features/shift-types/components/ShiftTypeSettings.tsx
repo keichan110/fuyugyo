@@ -99,16 +99,9 @@ export function ShiftTypeSettings() {
         <Grid.Col span={{ base: 12, md: 8 }}>
           <Stack gap="xs">
             {selectedShiftTypeId && (
-              <Group justify="space-between">
-                <Text fw={600}>
-                  {shiftTypes?.find((item) => item.shiftTypeId === selectedShiftTypeId)?.name}
-                </Text>
-                {isEditorDirty && (
-                  <Text c="orange" size="sm">
-                    未保存の変更があります
-                  </Text>
-                )}
-              </Group>
+              <Text fw={600}>
+                {shiftTypes?.find((item) => item.shiftTypeId === selectedShiftTypeId)?.name}
+              </Text>
             )}
             <CertificationRankEditor
               key={`${departmentCode}:${selectedShiftTypeId ?? 'none'}`}

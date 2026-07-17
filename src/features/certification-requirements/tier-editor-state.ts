@@ -100,6 +100,29 @@ export function serializeTierBlocks(blocks: TierBlock[]): CertificationRequireme
     );
 }
 
+/** 保存済み要件と編集中要件を比較し、追加・除外・レベル変更された資格数を返す。 */
+export function countChangedRequirements(
+  saved: CertificationRequirement[],
+  current: CertificationRequirement[],
+): number {
+  const savedRankByCertificationId = new Map(
+    saved.map(({ certificationId, tierRank }) => [certificationId, tierRank]),
+  );
+  const currentRankByCertificationId = new Map(
+    current.map(({ certificationId, tierRank }) => [certificationId, tierRank]),
+  );
+  const certificationIds = new Set([
+    ...savedRankByCertificationId.keys(),
+    ...currentRankByCertificationId.keys(),
+  ]);
+
+  return [...certificationIds].filter(
+    (certificationId) =>
+      savedRankByCertificationId.get(certificationId) !==
+      currentRankByCertificationId.get(certificationId),
+  ).length;
+}
+
 function cleanEmptyTiers(blocks: TierBlock[]): TierBlock[] {
   return blocks.filter((block) => block.certificationIds.length > 0 || block.preserveWhenEmpty);
 }

@@ -24,6 +24,7 @@ import {
 import { ErrorAlert } from '@/components/AppAlert';
 import { ListEmptyState } from '@/components/ListEmptyState';
 import { ListHeader } from '@/components/ListHeader';
+import { UnsavedChangesBar } from '@/components/UnsavedChangesBar';
 import { useCertifications } from '@/features/certifications/queries';
 import { useDepartmentShiftTypes } from '@/features/department-shift-types/queries';
 import {
@@ -36,6 +37,7 @@ import { useCertificationRequirements, useUpdateCertificationRequirements } from
 import {
   addCertification,
   addEmptyTier,
+  countChangedRequirements,
   createTierBlocks,
   moveCertification,
   removeCertification,
@@ -147,6 +149,12 @@ export function CertificationRankEditor({
     () => createTierBlocks(savedCertifications ?? []),
     [savedCertifications],
   );
+  const savedRequirements = useMemo(() => serializeTierBlocks(savedTierBlocks), [savedTierBlocks]);
+  const currentRequirements = useMemo(() => serializeTierBlocks(tierBlocks), [tierBlocks]);
+  const isDirty =
+    savedCertifications !== undefined &&
+    JSON.stringify(currentRequirements) !== JSON.stringify(savedRequirements);
+  const changedRequirementCount = countChangedRequirements(savedRequirements, currentRequirements);
 
   useEffect(() => {
     if (savedCertifications) {
@@ -162,11 +170,8 @@ export function CertificationRankEditor({
       isHydratingRef.current = false;
       return;
     }
-    onDirtyChange?.(
-      JSON.stringify(serializeTierBlocks(tierBlocks)) !==
-        JSON.stringify(serializeTierBlocks(savedTierBlocks)),
-    );
-  }, [onDirtyChange, savedCertifications, savedTierBlocks, tierBlocks]);
+    onDirtyChange?.(isDirty);
+  }, [isDirty, onDirtyChange, savedCertifications]);
 
   const selectedCertificationIds = useMemo(
     () => new Set(tierBlocks.flatMap((block) => block.certificationIds)),
@@ -339,22 +344,28 @@ export function CertificationRankEditor({
               >
                 レベルを追加
               </Button>
-              <Button
-                loading={update.isPending}
-                onClick={() => {
-                  update.mutate(
-                    { certifications: serializeTierBlocks(tierBlocks) },
-                    {
-                      onSuccess: () => {
-                        onDirtyChange?.(false);
-                        notifications.show({ color: 'green', message: '必要資格を保存しました' });
+              {isDirty && (
+                <UnsavedChangesBar
+                  count={changedRequirementCount}
+                  description="選択中のシフト種別に必要な資格を保存します"
+                  loading={update.isPending}
+                  onCancel={() => setTierBlocks(savedTierBlocks)}
+                  onSave={() => {
+                    update.mutate(
+                      { certifications: currentRequirements },
+                      {
+                        onSuccess: () => {
+                          onDirtyChange?.(false);
+                          notifications.show({
+                            color: 'green',
+                            message: '必要資格を保存しました',
+                          });
+                        },
                       },
-                    },
-                  );
-                }}
-              >
-                保存
-              </Button>
+                    );
+                  }}
+                />
+              )}
               {update.isError && <ErrorAlert>{update.error.message}</ErrorAlert>}
             </Stack>
           )}

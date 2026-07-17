@@ -29,6 +29,7 @@ import 'dayjs/locale/ja';
 
 import { ErrorAlert } from '@/components/AppAlert';
 import { AppBadge } from '@/components/AppBadge';
+import { UnsavedChangesBar } from '@/components/UnsavedChangesBar';
 import { useMe } from '@/features/auth/queries';
 import { useAvailabilities } from '@/features/availabilities/queries';
 import type { Availability } from '@/features/availabilities/schema';
@@ -451,33 +452,16 @@ export function ShiftManager() {
 
       {formData.data && (
         <>
-          <Group justify="flex-end" align="center" wrap="wrap">
-            <Group gap="xs">
-              {isDirty && (
-                <Text size="sm" c="orange">
-                  未保存の変更 {stagedCells.size} 件
-                </Text>
-              )}
-              <Button
-                type="button"
-                variant="default"
-                size="sm"
-                onClick={resetStage}
-                disabled={!isDirty || upsertMonthly.isPending}
-              >
-                クリア
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                onClick={saveMonthly}
-                loading={upsertMonthly.isPending}
-                disabled={!isDirty}
-              >
-                一括保存
-              </Button>
-            </Group>
-          </Group>
+          {isDirty && (
+            <UnsavedChangesBar
+              count={stagedCells.size}
+              description="表示中の月のシフト割当をまとめて保存します"
+              loading={upsertMonthly.isPending}
+              saveLabel="一括保存"
+              onCancel={resetStage}
+              onSave={saveMonthly}
+            />
+          )}
 
           {upsertMonthly.isError && (
             <ErrorAlert>{upsertMonthly.error?.message ?? '保存に失敗しました'}</ErrorAlert>

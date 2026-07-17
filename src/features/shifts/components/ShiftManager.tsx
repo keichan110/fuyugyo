@@ -640,9 +640,9 @@ export function ShiftManager() {
             />
           </Group>
           <Text size="xs" c="dimmed">
-            必要資格は表示・判定に使用します。変更は必要資格設定画面で行ってください。
+            必要資格は表示・判定に使用します。変更はシフト種別設定画面で行ってください。
           </Text>
-          <Button component="a" href="/certification-requirements" variant="subtle" size="xs">
+          <Button component="a" href="/shift-types" variant="subtle" size="xs">
             必要資格設定を開く
           </Button>
           {autoAssignContext.data?.frames.find(

@@ -117,12 +117,14 @@ export function CertificationRequirementSettings() {
 }
 
 /** 選択枠の対象資格と資格レベルを編集し、枠単位で保存する。 */
-function CertificationRankEditor({
+export function CertificationRankEditor({
   departmentCode,
   shiftTypeId,
+  onDirtyChange,
 }: {
   departmentCode: DepartmentCode;
   shiftTypeId: string | null;
+  onDirtyChange?: (dirty: boolean) => void;
 }) {
   const { data: certifications, isLoading: isCertificationsLoading } = useCertifications(
     true,
@@ -138,11 +140,33 @@ function CertificationRankEditor({
   const [draggedCertificationId, setDraggedCertificationId] = useState<string | null>(null);
   const dragSourceId = useRef<string | null>(null);
   const nextBlockId = useRef(0);
+  const isHydratingRef = useRef(false);
   const update = useUpdateCertificationRequirements(departmentCode, shiftTypeId ?? '');
 
+  const savedTierBlocks = useMemo(
+    () => createTierBlocks(savedCertifications ?? []),
+    [savedCertifications],
+  );
+
   useEffect(() => {
-    if (savedCertifications) setTierBlocks(createTierBlocks(savedCertifications));
-  }, [savedCertifications]);
+    if (savedCertifications) {
+      isHydratingRef.current = true;
+      setTierBlocks(createTierBlocks(savedCertifications));
+      onDirtyChange?.(false);
+    }
+  }, [onDirtyChange, savedCertifications]);
+
+  useEffect(() => {
+    if (savedCertifications === undefined) return;
+    if (isHydratingRef.current) {
+      isHydratingRef.current = false;
+      return;
+    }
+    onDirtyChange?.(
+      JSON.stringify(serializeTierBlocks(tierBlocks)) !==
+        JSON.stringify(serializeTierBlocks(savedTierBlocks)),
+    );
+  }, [onDirtyChange, savedCertifications, savedTierBlocks, tierBlocks]);
 
   const selectedCertificationIds = useMemo(
     () => new Set(tierBlocks.flatMap((block) => block.certificationIds)),
@@ -321,8 +345,10 @@ function CertificationRankEditor({
                   update.mutate(
                     { certifications: serializeTierBlocks(tierBlocks) },
                     {
-                      onSuccess: () =>
-                        notifications.show({ color: 'green', message: '必要資格を保存しました' }),
+                      onSuccess: () => {
+                        onDirtyChange?.(false);
+                        notifications.show({ color: 'green', message: '必要資格を保存しました' });
+                      },
                     },
                   );
                 }}

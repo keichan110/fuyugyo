@@ -53,6 +53,21 @@ export function ShiftTypeDrawer({ state, onClose }: Props) {
   );
 }
 
+/** 親Drawer内で一覧から遷移して表示するシフト種別フォーム。 */
+export function ShiftTypeDrawerContent({
+  state,
+  onDone,
+}: {
+  state: ShiftTypeDrawerState;
+  onDone: () => void;
+}) {
+  return state.mode === 'edit' ? (
+    <EditPanel shiftTypeId={state.shiftTypeId} onClose={onDone} />
+  ) : (
+    <CreatePanel onClose={onDone} />
+  );
+}
+
 /**
  * 作成モードのパネル。種別名を入力し、保存でシフト種別を作成する。
  */

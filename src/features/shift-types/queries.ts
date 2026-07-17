@@ -71,6 +71,7 @@ export function useCreateShiftType() {
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: SHIFT_TYPES_QUERY_KEY });
+      void queryClient.invalidateQueries({ queryKey: ['department-shift-types'] });
     },
   });
 }
@@ -95,6 +96,7 @@ export function useUpdateShiftType(id: string) {
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: SHIFT_TYPES_QUERY_KEY });
+      void queryClient.invalidateQueries({ queryKey: ['department-shift-types'] });
     },
   });
 }

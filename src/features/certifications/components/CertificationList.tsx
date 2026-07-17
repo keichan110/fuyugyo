@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react';
 
-import { Button, Menu, Stack, Table, Text } from '@mantine/core';
+import { Menu, Stack, Table, Text } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { IconCertificate, IconPlus } from '@tabler/icons-react';
 
 import { ErrorAlert } from '@/components/AppAlert';
 import { AppBadge } from '@/components/AppBadge';
+import { AppButton } from '@/components/AppButton';
 import { AppTable } from '@/components/AppTable';
 import { ClickableTr } from '@/components/ClickableTr';
 import { InactiveVisibilityToggle } from '@/components/InactiveVisibilityToggle';
@@ -52,13 +53,14 @@ export function CertificationList() {
         summary={{ count: visibleCertifications.length, unit: '件' }}
         isLoading={isLoading}
         action={
-          <Button
+          <AppButton
+            intent="secondary"
             size="sm"
             leftSection={<IconPlus size={16} />}
             onClick={() => setDrawerState({ mode: 'create' })}
           >
             登録
-          </Button>
+          </AppButton>
         }
       />
 
@@ -81,12 +83,13 @@ export function CertificationList() {
           title="資格がありません"
           description="最初の資格を追加して管理を始めましょう。"
           action={
-            <Button
+            <AppButton
+              intent="primary"
               leftSection={<IconPlus size={16} />}
               onClick={() => setDrawerState({ mode: 'create' })}
             >
               登録
-            </Button>
+            </AppButton>
           }
         />
       )}

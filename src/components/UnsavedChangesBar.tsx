@@ -1,6 +1,7 @@
-import { Button, Group, Paper, Stack, Text } from '@mantine/core';
+import { Group, Paper, Stack, Text } from '@mantine/core';
 import { IconDeviceFloppy } from '@tabler/icons-react';
 
+import { AppButton } from './AppButton';
 import classes from './UnsavedChangesBar.module.css';
 
 type UnsavedChangesBarProps = {
@@ -33,12 +34,17 @@ export function UnsavedChangesBar({
           </Text>
         </Stack>
         <Group className={classes.actions} gap="xs" wrap="nowrap">
-          <Button variant="default" onClick={onCancel} disabled={loading}>
+          <AppButton intent="secondary" onClick={onCancel} disabled={loading}>
             キャンセル
-          </Button>
-          <Button leftSection={<IconDeviceFloppy size={18} />} onClick={onSave} loading={loading}>
+          </AppButton>
+          <AppButton
+            intent="primary"
+            leftSection={<IconDeviceFloppy size={18} />}
+            onClick={onSave}
+            loading={loading}
+          >
             {saveLabel}
-          </Button>
+          </AppButton>
         </Group>
       </Group>
     </Paper>

@@ -2,7 +2,6 @@ import {
   AppShell,
   Avatar,
   Burger,
-  Button,
   Container,
   Divider,
   Drawer,
@@ -34,6 +33,7 @@ import {
   useRouterState,
 } from '@tanstack/react-router';
 
+import { AppButton } from '@/components/AppButton';
 import { useLogout, useMe, useUnlinkInstructor } from '@/features/auth/queries';
 import { hasMinimumRole, type MeResponse } from '@/features/auth/schema';
 import { InstructorLinkPrompt } from '@/features/dashboard/components/InstructorLinkPrompt';
@@ -273,9 +273,8 @@ function MobileAccountActions({ user }: { user: MeResponse }) {
           <MobileInstructorLinkSection instructorId={user.instructorId} />
         </>
       )}
-      <Button
-        color="red"
-        variant="subtle"
+      <AppButton
+        intent="tertiary"
         justify="flex-start"
         loading={logout.isPending}
         onClick={() => {
@@ -284,7 +283,7 @@ function MobileAccountActions({ user }: { user: MeResponse }) {
         }}
       >
         ログアウト
-      </Button>
+      </AppButton>
     </Stack>
   );
 }
@@ -300,16 +299,16 @@ function MobileInstructorLinkSection({ instructorId }: { instructorId: string })
         <Text size="sm" truncate flex={1}>
           {instructor ? `${instructor.lastName} ${instructor.firstName}` : '連携情報を読み込み中'}
         </Text>
-        <Button
+        <AppButton
+          intent="danger"
+          compact
           type="button"
-          variant="subtle"
-          color="red"
           size="compact-xs"
           loading={unlinkInstructor.isPending}
           onClick={() => unlinkInstructor.mutate()}
         >
           連携解除
-        </Button>
+        </AppButton>
       </Group>
       {unlinkInstructor.isError && (
         <Text c="red" size="xs">
@@ -368,16 +367,16 @@ function InstructorLinkMenuSection({ instructorId }: { instructorId: string }) {
         <Text size="sm" truncate flex={1}>
           {instructor ? `${instructor.lastName} ${instructor.firstName}` : '連携情報を読み込み中'}
         </Text>
-        <Button
+        <AppButton
+          intent="danger"
+          compact
           type="button"
-          variant="subtle"
-          color="red"
           size="compact-xs"
           loading={unlinkInstructor.isPending}
           onClick={() => unlinkInstructor.mutate()}
         >
           解除
-        </Button>
+        </AppButton>
       </Group>
       {unlinkInstructor.isError && (
         <Text c="red" size="xs" px="sm" pt="xs">

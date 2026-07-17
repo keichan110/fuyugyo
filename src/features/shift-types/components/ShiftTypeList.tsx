@@ -1,10 +1,11 @@
 import { useMemo, useState, type ReactNode } from 'react';
 
-import { Button, Stack, Table, Text } from '@mantine/core';
+import { Stack, Table, Text } from '@mantine/core';
 import { IconClock, IconPlus } from '@tabler/icons-react';
 
 import { ErrorAlert } from '@/components/AppAlert';
 import { AppBadge } from '@/components/AppBadge';
+import { AppButton } from '@/components/AppButton';
 import { AppTable } from '@/components/AppTable';
 import { ClickableTr } from '@/components/ClickableTr';
 import { InactiveVisibilityToggle } from '@/components/InactiveVisibilityToggle';
@@ -60,7 +61,8 @@ export function ShiftTypeList({
         summary={{ count: visibleShiftTypes.length, unit: '件' }}
         isLoading={isLoading}
         action={
-          <Button
+          <AppButton
+            intent="secondary"
             size="sm"
             leftSection={<IconPlus size={16} />}
             onClick={() =>
@@ -68,7 +70,7 @@ export function ShiftTypeList({
             }
           >
             登録
-          </Button>
+          </AppButton>
         }
       />
 
@@ -91,14 +93,15 @@ export function ShiftTypeList({
           title="シフト種別がありません"
           description="最初のシフト種別をマスタに登録しましょう。"
           action={
-            <Button
+            <AppButton
+              intent="primary"
               leftSection={<IconPlus size={16} />}
               onClick={() =>
                 onOpenForm ? onOpenForm({ mode: 'create' }) : setDrawerState({ mode: 'create' })
               }
             >
               シフト種別を新規登録
-            </Button>
+            </AppButton>
           }
         />
       )}

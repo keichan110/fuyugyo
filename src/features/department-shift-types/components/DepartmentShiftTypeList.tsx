@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 
-import { ActionIcon, Button, Group, Paper, Stack, Text } from '@mantine/core';
+import { ActionIcon, Group, Paper, Stack, Text } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import {
   IconArrowDown,
@@ -13,6 +13,7 @@ import {
 
 import { ErrorAlert } from '@/components/AppAlert';
 import { AppBadge } from '@/components/AppBadge';
+import { AppButton } from '@/components/AppButton';
 import { ListEmptyState } from '@/components/ListEmptyState';
 import { DEPARTMENT_LABELS, type DepartmentCode } from '@/features/departments/schema';
 
@@ -157,9 +158,9 @@ export function DepartmentShiftTypeList({
       )}
 
       {onAdd && (
-        <Button variant="light" leftSection={<IconPlus size={16} />} onClick={onAdd}>
+        <AppButton intent="tertiary" leftSection={<IconPlus size={16} />} onClick={onAdd}>
           シフト種別を追加
-        </Button>
+        </AppButton>
       )}
 
       {update.isError && <ErrorAlert>{update.error.message}</ErrorAlert>}

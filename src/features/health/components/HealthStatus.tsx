@@ -1,6 +1,7 @@
-import { Button, Card, Stack, Table, Text, Title } from '@mantine/core';
+import { Card, Stack, Table, Text, Title } from '@mantine/core';
 
 import { ErrorAlert } from '@/components/AppAlert';
+import { AppButton } from '@/components/AppButton';
 
 import { useHealth } from '../queries';
 
@@ -40,9 +41,9 @@ export function HealthStatus() {
           </Table>
         )}
 
-        <Button loading={isRefetching} onClick={() => refetch()}>
+        <AppButton intent="secondary" loading={isRefetching} onClick={() => refetch()}>
           再取得
-        </Button>
+        </AppButton>
       </Stack>
     </Card>
   );

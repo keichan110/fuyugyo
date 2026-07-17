@@ -1,4 +1,6 @@
-import { Button, Group } from '@mantine/core';
+import { Group } from '@mantine/core';
+
+import { AppButton } from './AppButton';
 
 type FormFooterButtonsProps = {
   saving: boolean;
@@ -12,12 +14,12 @@ type FormFooterButtonsProps = {
 export function FormFooterButtons({ saving, onCancel }: FormFooterButtonsProps) {
   return (
     <Group justify="flex-end">
-      <Button variant="default" type="button" onClick={onCancel} disabled={saving}>
+      <AppButton intent="secondary" type="button" onClick={onCancel} disabled={saving}>
         キャンセル
-      </Button>
-      <Button type="submit" loading={saving}>
+      </AppButton>
+      <AppButton intent="primary" type="submit" loading={saving}>
         保存
-      </Button>
+      </AppButton>
     </Group>
   );
 }

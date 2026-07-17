@@ -1,9 +1,10 @@
 import { useState } from 'react';
 
-import { Button, EmptyState, Group, Skeleton, Stack, Text, Title } from '@mantine/core';
+import { EmptyState, Group, Skeleton, Stack, Text, Title } from '@mantine/core';
 import { IconLink } from '@tabler/icons-react';
 
 import { ErrorAlert } from '@/components/AppAlert';
+import { AppButton } from '@/components/AppButton';
 
 import { findActiveInvitation } from '../lib';
 import { useInvitations } from '../queries';
@@ -34,12 +35,13 @@ export function InvitationManager() {
             有効な招待リンクは常に1件のみです。新しく発行すると既存のリンクは自動的に置き換わります。
           </Text>
         </div>
-        <Button
+        <AppButton
+          intent="secondary"
           leftSection={<IconLink size={16} stroke={1.5} />}
           onClick={() => setModalOpened(true)}
         >
           招待リンクを発行
-        </Button>
+        </AppButton>
       </Group>
 
       {isLoading && (
@@ -60,12 +62,13 @@ export function InvitationManager() {
           description="招待リンクを発行してメンバーを招待しましょう。"
         >
           <EmptyState.Actions>
-            <Button
+            <AppButton
+              intent="primary"
               leftSection={<IconLink size={16} stroke={1.5} />}
               onClick={() => setModalOpened(true)}
             >
               招待リンクを発行
-            </Button>
+            </AppButton>
           </EmptyState.Actions>
         </EmptyState>
       )}

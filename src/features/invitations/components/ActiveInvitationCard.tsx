@@ -13,6 +13,7 @@ import { notifications } from '@mantine/notifications';
 import { IconBan, IconCheck, IconClock, IconCopy, IconUsers } from '@tabler/icons-react';
 
 import { AppBadge } from '@/components/AppBadge';
+import { AppButton } from '@/components/AppButton';
 
 import { buildInviteUrl, formatDateTime, remainingLabel } from '../lib';
 import { useDeactivateInvitation } from '../queries';
@@ -57,23 +58,28 @@ export function ActiveInvitationCard({ invitation }: ActiveInvitationCardProps) 
 
           <Popover width={260} position="bottom-end" withArrow>
             <Popover.Target>
-              <Button variant="light" color="red" leftSection={<IconBan size={16} stroke={1.5} />}>
+              <AppButton
+                intent="danger"
+                emphasis="low"
+                leftSection={<IconBan size={16} stroke={1.5} />}
+              >
                 停止
-              </Button>
+              </AppButton>
             </Popover.Target>
             <Popover.Dropdown>
               <Stack gap="sm">
                 <Text size="sm">
                   この招待リンクを停止します。停止すると誰も使用できなくなり、元に戻せません。
                 </Text>
-                <Button
-                  color="red"
+                <AppButton
+                  intent="danger"
+                  emphasis="high"
                   fullWidth
                   loading={deactivate.isPending}
                   onClick={handleDeactivate}
                 >
                   停止する
-                </Button>
+                </AppButton>
               </Stack>
             </Popover.Dropdown>
           </Popover>

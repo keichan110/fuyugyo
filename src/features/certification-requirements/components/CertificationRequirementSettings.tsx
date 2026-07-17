@@ -22,6 +22,7 @@ import {
 } from '@tabler/icons-react';
 
 import { ErrorAlert } from '@/components/AppAlert';
+import { AppButton } from '@/components/AppButton';
 import { ListEmptyState } from '@/components/ListEmptyState';
 import { ListHeader } from '@/components/ListHeader';
 import { UnsavedChangesBar } from '@/components/UnsavedChangesBar';
@@ -337,13 +338,13 @@ export function CertificationRankEditor({
                   低
                 </Text>
               )}
-              <Button
-                variant="outline"
+              <AppButton
+                intent="tertiary"
                 leftSection={<IconPlus size={16} />}
                 onClick={() => setTierBlocks((current) => addEmptyTier(current, createBlockId()))}
               >
                 レベルを追加
-              </Button>
+              </AppButton>
               {isDirty && (
                 <UnsavedChangesBar
                   count={changedRequirementCount}

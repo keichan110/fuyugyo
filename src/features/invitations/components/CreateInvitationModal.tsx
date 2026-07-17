@@ -1,10 +1,11 @@
 import { useState } from 'react';
 
-import { Button, Group, Input, Modal, SegmentedControl, Stack, TextInput } from '@mantine/core';
+import { Group, Input, Modal, SegmentedControl, Stack, TextInput } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { IconAlertTriangle } from '@tabler/icons-react';
 
 import { ErrorAlert, WarningAlert } from '@/components/AppAlert';
+import { AppButton } from '@/components/AppButton';
 
 import { DEFAULT_EXPIRY_HOURS, EXPIRY_PRESETS } from '../lib';
 import { useCreateInvitation } from '../queries';
@@ -97,12 +98,12 @@ function CreateInvitationForm({ onClose, hasActiveInvitation }: CreateInvitation
         {create.isError && <ErrorAlert>{create.error.message}</ErrorAlert>}
 
         <Group justify="flex-end">
-          <Button variant="default" onClick={onClose}>
+          <AppButton intent="secondary" onClick={onClose}>
             キャンセル
-          </Button>
-          <Button type="submit" loading={create.isPending}>
+          </AppButton>
+          <AppButton intent="primary" type="submit" loading={create.isPending}>
             発行する
-          </Button>
+          </AppButton>
         </Group>
       </Stack>
     </form>

@@ -3,7 +3,6 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import {
   ActionIcon,
   Box,
-  Button,
   Card,
   Checkbox,
   Drawer,
@@ -30,6 +29,7 @@ import 'dayjs/locale/ja';
 
 import { ErrorAlert } from '@/components/AppAlert';
 import { AppBadge } from '@/components/AppBadge';
+import { AppButton } from '@/components/AppButton';
 import { UnsavedChangesBar } from '@/components/UnsavedChangesBar';
 import { useMe } from '@/features/auth/queries';
 import { useAvailabilities } from '@/features/availabilities/queries';
@@ -603,12 +603,12 @@ export function ShiftManager() {
             と、これらの変更は破棄されます。
           </Text>
           <Group justify="flex-end" gap="xs">
-            <Button variant="default" onClick={cancelNavigation}>
+            <AppButton intent="secondary" onClick={cancelNavigation}>
               キャンセル
-            </Button>
-            <Button color="red" onClick={confirmNavigation}>
+            </AppButton>
+            <AppButton intent="danger" emphasis="high" onClick={confirmNavigation}>
               破棄して移動
-            </Button>
+            </AppButton>
           </Group>
         </Stack>
       </Modal>
@@ -656,22 +656,23 @@ export function ShiftManager() {
           <Text size="xs" c="dimmed">
             必要資格は表示・判定に使用します。変更はシフト種別設定画面で行ってください。
           </Text>
-          <Button component="a" href="/shift-types" variant="subtle" size="xs">
+          <AppButton intent="tertiary" component="a" href="/shift-types" size="xs">
             必要資格設定を開く
-          </Button>
+          </AppButton>
           {autoAssignContext.data?.frames.find(
             (frame) => frame.shiftTypeId === autoAssignShiftTypeId,
           )?.certificationTiers.length === 0 && (
             <ErrorAlert>この種別には必要資格が設定されていないため、提案できません。</ErrorAlert>
           )}
-          <Button
+          <AppButton
+            intent={shortageByCell.size > 0 ? 'secondary' : 'primary'}
             leftSection={<IconWand size={16} />}
             onClick={runAutoAssign}
             loading={isAutoAssigning}
             disabled={!autoAssignContext.data || autoAssignDates.size === 0}
           >
             {shortageByCell.size > 0 ? '別の案を出す' : '提案をステージへ反映'}
-          </Button>
+          </AppButton>
         </Stack>
       </Modal>
     </Stack>
@@ -858,27 +859,28 @@ function ShiftCalendar({
               自動割当する日を選択（{autoAssignDates.size}日）
             </Text>
             <Group gap="xs">
-              <Button size="xs" variant="default" onClick={onCancelAutoAssign}>
+              <AppButton intent="secondary" size="xs" onClick={onCancelAutoAssign}>
                 キャンセル
-              </Button>
-              <Button
+              </AppButton>
+              <AppButton
+                intent="primary"
                 size="xs"
                 disabled={autoAssignDates.size === 0}
                 onClick={onOpenAutoAssignModal}
               >
                 条件設定
-              </Button>
+              </AppButton>
             </Group>
           </>
         ) : (
-          <Button
+          <AppButton
+            intent="secondary"
             size="xs"
-            variant="light"
             leftSection={<IconWand size={14} />}
             onClick={onStartAutoAssign}
           >
             自動割当
-          </Button>
+          </AppButton>
         )}
       </Group>
 

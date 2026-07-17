@@ -1,10 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import {
+  ActionIcon,
   Alert,
-  Badge,
   Button,
-  Checkbox,
   Divider,
   Grid,
   Group,
@@ -15,7 +14,13 @@ import {
   Text,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconCertificate, IconListDetails } from '@tabler/icons-react';
+import {
+  IconCertificate,
+  IconGripVertical,
+  IconListDetails,
+  IconPlus,
+  IconX,
+} from '@tabler/icons-react';
 
 import { ErrorAlert } from '@/components/AppAlert';
 import { ListEmptyState } from '@/components/ListEmptyState';
@@ -29,8 +34,16 @@ import {
 } from '@/features/departments/schema';
 
 import { useCertificationRequirements, useUpdateCertificationRequirements } from '../queries';
-import type { CertificationRequirement } from '../schema';
-import { normalizeTierRanks } from '../tier-ranks';
+import {
+  addCertification,
+  addEmptyTier,
+  createTierBlocks,
+  moveCertification,
+  removeCertification,
+  removeEmptyTier,
+  serializeTierBlocks,
+  type TierBlock,
+} from '../tier-editor-state';
 
 /** 部門・シフト種別枠ごとに必要資格を設定する画面。 */
 export function CertificationRequirementSettings() {
@@ -121,23 +134,20 @@ function CertificationRankEditor({
     isLoading: isRanksLoading,
     isError,
   } = useCertificationRequirements(departmentCode, shiftTypeId);
-  const [editedCertifications, setEditedCertifications] = useState<CertificationRequirement[]>([]);
+  const [tierBlocks, setTierBlocks] = useState<TierBlock[]>([]);
+  const [certificationToAdd, setCertificationToAdd] = useState<string | null>(null);
+  const [draggedCertificationId, setDraggedCertificationId] = useState<string | null>(null);
+  const dragSourceId = useRef<string | null>(null);
+  const nextBlockId = useRef(0);
   const update = useUpdateCertificationRequirements(departmentCode, shiftTypeId ?? '');
 
   useEffect(() => {
-    if (savedCertifications) setEditedCertifications(normalizeTierRanks(savedCertifications));
+    if (savedCertifications) setTierBlocks(createTierBlocks(savedCertifications));
   }, [savedCertifications]);
 
-  const requirementByCertificationId = useMemo(
-    () =>
-      new Map(
-        editedCertifications.map((certification) => [certification.certificationId, certification]),
-      ),
-    [editedCertifications],
-  );
-  const tierRanks = useMemo(
-    () => [...new Set(editedCertifications.map(({ tierRank }) => tierRank))].sort((a, b) => a - b),
-    [editedCertifications],
+  const selectedCertificationIds = useMemo(
+    () => new Set(tierBlocks.flatMap((block) => block.certificationIds)),
+    [tierBlocks],
   );
   const certificationNameById = useMemo(
     () => new Map(certifications?.map((certification) => [certification.id, certification.name])),
@@ -152,40 +162,14 @@ function CertificationRankEditor({
     );
   }
 
-  const moveCertification = (certificationId: string, destination: string | null) => {
-    if (!destination) return;
-    const tierRank = destination === 'new' ? tierRanks.length + 1 : Number(destination);
-    setEditedCertifications((current) =>
-      normalizeTierRanks(
-        current.map((certification) =>
-          certification.certificationId === certificationId
-            ? { ...certification, tierRank }
-            : certification,
-        ),
-      ),
-    );
-  };
+  const createBlockId = () => `new-tier-${nextBlockId.current++}`;
 
-  const toggleCertification = (certificationId: string, checked: boolean) => {
-    setEditedCertifications((current) => {
-      if (!checked)
-        return normalizeTierRanks(
-          current.filter((certification) => certification.certificationId !== certificationId),
-        );
-      const lowestTierRank = Math.max(0, ...current.map(({ tierRank }) => tierRank)) + 1;
-      return [...current, { certificationId, tierRank: lowestTierRank }];
-    });
-  };
-
-  const swapTier = (tierRank: number, adjacentTierRank: number) => {
-    setEditedCertifications((current) =>
-      current.map((requirement) => {
-        if (requirement.tierRank === tierRank)
-          return { ...requirement, tierRank: adjacentTierRank };
-        if (requirement.tierRank === adjacentTierRank) return { ...requirement, tierRank };
-        return requirement;
-      }),
-    );
+  const dropAt = (tierId: string, index: number) => {
+    const certificationId = dragSourceId.current;
+    dragSourceId.current = null;
+    setDraggedCertificationId(null);
+    if (certificationId)
+      setTierBlocks((current) => moveCertification(current, certificationId, tierId, index));
   };
 
   return (
@@ -211,126 +195,135 @@ function CertificationRankEditor({
           certifications &&
           certifications.length > 0 && (
             <Stack gap="sm">
-              <Stack gap="xs">
-                <Text fw={600} size="sm">
-                  対象へ追加
-                </Text>
-                {certifications
-                  .filter((certification) => !requirementByCertificationId.has(certification.id))
-                  .map((certification) => (
-                    <Checkbox
-                      key={certification.id}
-                      checked={false}
-                      label={certification.name}
-                      onChange={(event) =>
-                        toggleCertification(certification.id, event.currentTarget.checked)
-                      }
-                    />
-                  ))}
-                {certifications.every((certification) =>
-                  requirementByCertificationId.has(certification.id),
-                ) && (
-                  <Text c="dimmed" size="sm">
-                    すべての資格が対象に追加されています。
-                  </Text>
-                )}
-              </Stack>
+              <Select
+                label="対象へ追加"
+                placeholder="資格を選択"
+                searchable
+                clearable
+                value={certificationToAdd}
+                data={certifications
+                  .filter((certification) => !selectedCertificationIds.has(certification.id))
+                  .map((certification) => ({ value: certification.id, label: certification.name }))}
+                nothingFoundMessage="追加できる資格がありません"
+                onChange={(certificationId) => {
+                  setCertificationToAdd(null);
+                  if (certificationId)
+                    setTierBlocks((current) =>
+                      addCertification(current, certificationId, createBlockId()),
+                    );
+                }}
+              />
               <Divider />
-              {editedCertifications.length === 0 && (
+              {selectedCertificationIds.size === 0 && (
                 <Alert color="yellow" variant="light">
                   この枠の必要資格は未設定です。
                 </Alert>
               )}
-              {tierRanks.map((tierRank) => {
-                const requirements = editedCertifications.filter(
-                  (certification) => certification.tierRank === tierRank,
-                );
-                return (
-                  <Paper
-                    key={tierRank}
-                    withBorder
-                    p="md"
-                    {...(tierRank === 1 ? { bg: 'blue.0' } : {})}
-                  >
-                    <Stack gap="sm">
-                      <Group justify="space-between" align="flex-start">
-                        <Group gap="xs">
-                          <Text fw={700}>上から{tierRank}段目</Text>
-                          {tierRank === 1 && <Badge variant="light">最上位</Badge>}
-                        </Group>
-                        <Stack gap={4} align="flex-end">
-                          <Text c="dimmed" size="xs">
-                            この段の資格は同等
-                          </Text>
-                          <Group gap="xs">
-                            <Button
-                              size="compact-xs"
-                              variant="subtle"
-                              disabled={tierRank === 1}
-                              onClick={() => swapTier(tierRank, tierRank - 1)}
-                            >
-                              1段上へ
-                            </Button>
-                            <Button
-                              size="compact-xs"
-                              variant="subtle"
-                              disabled={tierRank === tierRanks.length}
-                              onClick={() => swapTier(tierRank, tierRank + 1)}
-                            >
-                              1段下へ
-                            </Button>
-                          </Group>
-                        </Stack>
+              {tierBlocks.map((block, tierIndex) => (
+                <Paper
+                  key={block.id}
+                  withBorder
+                  p="md"
+                  {...(tierIndex === 0 ? { bg: 'blue.0' } : {})}
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={() => dropAt(block.id, block.certificationIds.length)}
+                >
+                  <Stack gap="sm">
+                    <Group justify="space-between">
+                      <Text fw={700}>上から{tierIndex + 1}段目</Text>
+                      <Group gap="xs">
+                        <Text c="dimmed" size="xs">
+                          この段の資格は同等
+                        </Text>
+                        {block.certificationIds.length === 0 && (
+                          <ActionIcon
+                            color="red"
+                            variant="subtle"
+                            aria-label={`上から${tierIndex + 1}段目を削除`}
+                            onClick={() =>
+                              setTierBlocks((current) => removeEmptyTier(current, block.id))
+                            }
+                          >
+                            <IconX size={16} />
+                          </ActionIcon>
+                        )}
                       </Group>
-                      {requirements.map((requirement) => (
-                        <Paper key={requirement.certificationId} withBorder p="sm" bg="white">
-                          <Group justify="space-between" align="flex-end" wrap="wrap">
-                            <Checkbox
-                              checked
-                              label={
-                                certificationNameById.get(requirement.certificationId) ??
-                                requirement.certificationId
-                              }
-                              onChange={(event) =>
-                                toggleCertification(
-                                  requirement.certificationId,
-                                  event.currentTarget.checked,
+                    </Group>
+                    {block.certificationIds.length === 0 && (
+                      <Text c="dimmed" size="sm" ta="center" py="sm">
+                        ここへ資格をドロップ
+                      </Text>
+                    )}
+                    {block.certificationIds.map((certificationId, itemIndex) => (
+                      <Paper
+                        key={certificationId}
+                        withBorder
+                        p="sm"
+                        bg="white"
+                        draggable
+                        opacity={draggedCertificationId === certificationId ? 0.5 : 1}
+                        style={{ cursor: 'grab' }}
+                        onDragStart={(event) => {
+                          event.stopPropagation();
+                          dragSourceId.current = certificationId;
+                          setDraggedCertificationId(certificationId);
+                        }}
+                        onDragEnd={() => {
+                          dragSourceId.current = null;
+                          setDraggedCertificationId(null);
+                        }}
+                        onDragOver={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                        }}
+                        onDrop={(event) => {
+                          event.stopPropagation();
+                          dropAt(block.id, itemIndex);
+                        }}
+                      >
+                        <Group justify="space-between" wrap="nowrap">
+                          <Group gap="xs" wrap="nowrap">
+                            <IconGripVertical
+                              aria-hidden
+                              size={18}
+                              color="var(--mantine-color-dimmed)"
+                            />
+                            <Text size="sm" fw={500}>
+                              {certificationNameById.get(certificationId) ?? certificationId}
+                            </Text>
+                          </Group>
+                          <Group gap={4} wrap="nowrap">
+                            <ActionIcon
+                              color="red"
+                              variant="subtle"
+                              aria-label={`${certificationNameById.get(certificationId) ?? '資格'}を除外`}
+                              onClick={() =>
+                                setTierBlocks((current) =>
+                                  removeCertification(current, certificationId),
                                 )
                               }
-                            />
-                            <Select
-                              aria-label={`${certificationNameById.get(requirement.certificationId) ?? '資格'}の段`}
-                              label="移動先"
-                              size="xs"
-                              w={190}
-                              value={String(requirement.tierRank)}
-                              data={[
-                                ...tierRanks.map((rank) => ({
-                                  value: String(rank),
-                                  label: `上から${rank}段目${rank === requirement.tierRank ? '（現在）' : ''}`,
-                                })),
-                                {
-                                  value: 'new',
-                                  label: `新しい最下段（${tierRanks.length + 1}段目）`,
-                                },
-                              ]}
-                              allowDeselect={false}
-                              onChange={(value) =>
-                                moveCertification(requirement.certificationId, value)
-                              }
-                            />
+                            >
+                              <IconX size={16} />
+                            </ActionIcon>
                           </Group>
-                        </Paper>
-                      ))}
-                    </Stack>
-                  </Paper>
-                );
-              })}
+                        </Group>
+                      </Paper>
+                    ))}
+                  </Stack>
+                </Paper>
+              ))}
+              <Button
+                variant="light"
+                leftSection={<IconPlus size={16} />}
+                onClick={() => setTierBlocks((current) => addEmptyTier(current, createBlockId()))}
+              >
+                段を追加
+              </Button>
               <Button
                 loading={update.isPending}
                 onClick={() => {
                   update.mutate(
-                    { certifications: editedCertifications },
+                    { certifications: serializeTierBlocks(tierBlocks) },
                     {
                       onSuccess: () =>
                         notifications.show({ color: 'green', message: '必要資格を保存しました' }),

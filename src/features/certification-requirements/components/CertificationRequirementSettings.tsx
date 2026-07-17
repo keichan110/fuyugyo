@@ -18,7 +18,7 @@ import {
   IconGripVertical,
   IconListDetails,
   IconPlus,
-  IconX,
+  IconTrash,
 } from '@tabler/icons-react';
 
 import { ErrorAlert } from '@/components/AppAlert';
@@ -271,7 +271,7 @@ export function CertificationRankEditor({
                             setTierBlocks((current) => removeEmptyTier(current, block.id))
                           }
                         >
-                          <IconX size={16} />
+                          <IconTrash size={16} />
                         </ActionIcon>
                       </Group>
                     )}
@@ -324,7 +324,7 @@ export function CertificationRankEditor({
                                 )
                               }
                             >
-                              <IconX size={16} />
+                              <IconTrash size={16} />
                             </ActionIcon>
                           </Group>
                         </Group>

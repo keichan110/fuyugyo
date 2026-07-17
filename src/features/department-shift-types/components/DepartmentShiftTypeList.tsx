@@ -8,7 +8,7 @@ import {
   IconGripVertical,
   IconListDetails,
   IconPlus,
-  IconX,
+  IconTrash,
 } from '@tabler/icons-react';
 
 import { ErrorAlert } from '@/components/AppAlert';
@@ -261,7 +261,7 @@ function ShiftTypeRow({
             loading={isUpdating}
             onClick={onRemove}
           >
-            <IconX size={16} />
+            <IconTrash size={16} />
           </ActionIcon>
         </Group>
       </Group>

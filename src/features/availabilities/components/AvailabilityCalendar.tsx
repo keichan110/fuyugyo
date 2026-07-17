@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 
 import {
   Box,
-  Button,
   Group,
   Menu,
   Modal,
@@ -24,6 +23,8 @@ import { useBlocker } from '@tanstack/react-router';
 import 'dayjs/locale/ja';
 
 import { ErrorAlert } from '@/components/AppAlert';
+import { AppButton } from '@/components/AppButton';
+import { UnsavedChangesBar } from '@/components/UnsavedChangesBar';
 import { addDays, todayString, toMonth, weekdayIndex } from '@/features/shifts/view-utils';
 
 import {
@@ -149,23 +150,15 @@ export function AvailabilityCalendar() {
         )}
       </Stack>
 
-      <Box pos="sticky" bottom={0} py="md" bg="var(--mantine-color-body)">
-        <Stack gap="xs">
-          {hasChanges && (
-            <Text size="sm" c="orange" ta="center">
-              未保存の変更 {changes.length} 件
-            </Text>
-          )}
-          <Button
-            fullWidth
-            disabled={!hasChanges}
-            loading={updateMutation.isPending}
-            onClick={() => void save()}
-          >
-            保存
-          </Button>
-        </Stack>
-      </Box>
+      {hasChanges && (
+        <UnsavedChangesBar
+          count={changes.length}
+          description="表示中の月の変更をまとめて保存します"
+          loading={updateMutation.isPending}
+          onCancel={() => setStaged(new Map())}
+          onSave={() => void save()}
+        />
+      )}
 
       {menu && (
         <Menu opened onChange={(opened) => !opened && setMenu(null)} position="bottom-start">
@@ -224,10 +217,12 @@ export function AvailabilityCalendar() {
             minRows={3}
           />
           <Group justify="flex-end">
-            <Button variant="default" onClick={() => setNoteDate(null)}>
+            <AppButton intent="secondary" onClick={() => setNoteDate(null)}>
               キャンセル
-            </Button>
-            <Button onClick={saveNote}>反映</Button>
+            </AppButton>
+            <AppButton intent="primary" onClick={saveNote}>
+              反映
+            </AppButton>
           </Group>
         </Stack>
       </Modal>
@@ -240,12 +235,12 @@ export function AvailabilityCalendar() {
         <Stack>
           <Text>このページを離れると、保存していない変更は失われます。</Text>
           <Group justify="flex-end">
-            <Button variant="default" onClick={() => blocker.reset?.()}>
+            <AppButton intent="secondary" onClick={() => blocker.reset?.()}>
               このページに残る
-            </Button>
-            <Button color="red" onClick={() => blocker.proceed?.()}>
+            </AppButton>
+            <AppButton intent="danger" emphasis="high" onClick={() => blocker.proceed?.()}>
               破棄して移動
-            </Button>
+            </AppButton>
           </Group>
         </Stack>
       </Modal>
@@ -258,12 +253,12 @@ export function AvailabilityCalendar() {
         <Stack>
           <Text>月を移動すると、保存していない変更は失われます。</Text>
           <Group justify="flex-end">
-            <Button variant="default" onClick={() => setPendingMonth(null)}>
+            <AppButton intent="secondary" onClick={() => setPendingMonth(null)}>
               この月に残る
-            </Button>
-            <Button color="red" onClick={discardChangesAndChangeMonth}>
+            </AppButton>
+            <AppButton intent="danger" emphasis="high" onClick={discardChangesAndChangeMonth}>
               破棄して移動
-            </Button>
+            </AppButton>
           </Group>
         </Stack>
       </Modal>

@@ -1,18 +1,16 @@
-import { useRef, useState } from 'react';
-
-import { ActionIcon, Button, Group, Paper, Stack, Text } from '@mantine/core';
+import { ActionIcon, Group, Paper, Stack, Text } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import {
   IconArrowDown,
   IconArrowUp,
-  IconGripVertical,
   IconListDetails,
   IconPlus,
-  IconX,
+  IconTrash,
 } from '@tabler/icons-react';
 
 import { ErrorAlert } from '@/components/AppAlert';
 import { AppBadge } from '@/components/AppBadge';
+import { AppButton } from '@/components/AppButton';
 import { ListEmptyState } from '@/components/ListEmptyState';
 import { DEPARTMENT_LABELS, type DepartmentCode } from '@/features/departments/schema';
 
@@ -37,8 +35,6 @@ export function DepartmentShiftTypeList({
   onAdd?: () => void;
   canRemove?: (shiftTypeId: string) => boolean;
 }) {
-  const dragSourceId = useRef<string | null>(null);
-  const [draggedId, setDraggedId] = useState<string | null>(null);
   const {
     data: departmentShiftTypes,
     isLoading,
@@ -63,27 +59,6 @@ export function DepartmentShiftTypeList({
     });
   };
 
-  const reorder = (targetId: string) => {
-    const sourceId = dragSourceId.current;
-    dragSourceId.current = null;
-    setDraggedId(null);
-    if (!sourceId || sourceId === targetId) return;
-
-    // ドロップ先の位置へ挿入した順序付き ID 配列を API に渡し、部門内の sort_order を一括更新する
-    const sourceIndex = items.findIndex((item) => item.shiftTypeId === sourceId);
-    const targetIndex = items.findIndex((item) => item.shiftTypeId === targetId);
-    if (sourceIndex < 0 || targetIndex < 0) return;
-
-    const reordered = [...items];
-    const [source] = reordered.splice(sourceIndex, 1);
-    if (!source) return;
-    reordered.splice(targetIndex, 0, source);
-    save(
-      reordered.map((item) => item.shiftTypeId),
-      '並び順を更新しました',
-    );
-  };
-
   const move = (shiftTypeId: string, offset: -1 | 1) => {
     const sourceIndex = items.findIndex((item) => item.shiftTypeId === shiftTypeId);
     const targetIndex = sourceIndex + offset;
@@ -104,7 +79,7 @@ export function DepartmentShiftTypeList({
       <Stack gap={4}>
         <Text fw={600}>{DEPARTMENT_LABELS[departmentCode]}部門で利用するシフト種別</Text>
         <Text c="dimmed" size="sm">
-          マスタから追加し、ドラッグまたは上下ボタンで表示順を変更できます。
+          マスタから追加し、上下ボタンで表示順を変更できます。
         </Text>
       </Stack>
 
@@ -130,17 +105,7 @@ export function DepartmentShiftTypeList({
             <ShiftTypeRow
               key={item.shiftTypeId}
               item={item}
-              isDragged={draggedId === item.shiftTypeId}
               isUpdating={update.isPending || removeMutation.isPending}
-              onDragStart={() => {
-                dragSourceId.current = item.shiftTypeId;
-                setDraggedId(item.shiftTypeId);
-              }}
-              onDragEnd={() => {
-                dragSourceId.current = null;
-                setDraggedId(null);
-              }}
-              onDrop={() => reorder(item.shiftTypeId)}
               onRemove={() => {
                 if (canRemove?.(item.shiftTypeId) === false) return;
                 remove(item.shiftTypeId, item.name);
@@ -157,9 +122,9 @@ export function DepartmentShiftTypeList({
       )}
 
       {onAdd && (
-        <Button variant="light" leftSection={<IconPlus size={16} />} onClick={onAdd}>
+        <AppButton intent="tertiary" leftSection={<IconPlus size={16} />} onClick={onAdd}>
           シフト種別を追加
-        </Button>
+        </AppButton>
       )}
 
       {update.isError && <ErrorAlert>{update.error.message}</ErrorAlert>}
@@ -170,11 +135,7 @@ export function DepartmentShiftTypeList({
 
 type ShiftTypeRowProps = {
   item: DepartmentShiftType;
-  isDragged: boolean;
   isUpdating: boolean;
-  onDragStart: () => void;
-  onDragEnd: () => void;
-  onDrop: () => void;
   onRemove: () => void;
   selected: boolean;
   onSelect: () => void;
@@ -184,14 +145,10 @@ type ShiftTypeRowProps = {
   onMoveDown: () => void;
 };
 
-/** ドラッグ操作と即時除外を提供する部門別シフト種別の1行。 */
+/** 上下移動と即時除外を提供する部門別シフト種別の1行。 */
 function ShiftTypeRow({
   item,
-  isDragged,
   isUpdating,
-  onDragStart,
-  onDragEnd,
-  onDrop,
   onRemove,
   selected,
   onSelect,
@@ -204,33 +161,14 @@ function ShiftTypeRow({
     <Paper
       withBorder
       p="sm"
-      opacity={isDragged ? 0.5 : 1}
       style={{
         cursor: isUpdating ? 'wait' : 'pointer',
         background: selected ? 'var(--mantine-color-blue-light)' : undefined,
       }}
-      onDragOver={(event) => event.preventDefault()}
-      onDrop={onDrop}
       onClick={onSelect}
     >
       <Group justify="space-between" wrap="nowrap">
         <Group gap="xs" wrap="nowrap">
-          <span
-            draggable={!isUpdating}
-            style={{ display: 'flex', cursor: 'grab' }}
-            onDragStart={(event) => {
-              event.stopPropagation();
-              onDragStart();
-            }}
-            onDragEnd={onDragEnd}
-            onClick={(event) => event.stopPropagation()}
-          >
-            <IconGripVertical
-              aria-label={`${item.name}を並び替え`}
-              size={18}
-              color="var(--mantine-color-dimmed)"
-            />
-          </span>
           <Text fw={500} size="sm">
             {item.name}
           </Text>
@@ -260,7 +198,7 @@ function ShiftTypeRow({
             loading={isUpdating}
             onClick={onRemove}
           >
-            <IconX size={16} />
+            <IconTrash size={16} />
           </ActionIcon>
         </Group>
       </Group>

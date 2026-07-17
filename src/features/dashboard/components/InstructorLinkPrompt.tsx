@@ -1,8 +1,9 @@
 import { useState } from 'react';
 
-import { Button, Group, Modal, Select, Stack, Text } from '@mantine/core';
+import { Group, Modal, Select, Stack, Text } from '@mantine/core';
 
 import { WarningAlert } from '@/components/AppAlert';
+import { AppButton } from '@/components/AppButton';
 import { useLinkInstructor } from '@/features/auth/queries';
 import { useInstructors } from '@/features/instructors/queries';
 
@@ -33,9 +34,9 @@ export function InstructorLinkPrompt() {
         >
           <Group justify="space-between" align="center">
             <Text size="sm">連携すると、すべての機能が使えるようになります。</Text>
-            <Button type="button" variant="light" color="yellow" onClick={() => setOpened(true)}>
+            <AppButton intent="secondary" type="button" onClick={() => setOpened(true)}>
               連携する
-            </Button>
+            </AppButton>
           </Group>
         </WarningAlert>
       )}
@@ -60,7 +61,8 @@ export function InstructorLinkPrompt() {
               onChange={setSelectedId}
               flex={1}
             />
-            <Button
+            <AppButton
+              intent="primary"
               type="button"
               disabled={!selectedId}
               loading={linkInstructor.isPending}
@@ -71,7 +73,7 @@ export function InstructorLinkPrompt() {
               }}
             >
               連携する
-            </Button>
+            </AppButton>
           </Group>
           {linkInstructor.isError && (
             <Text c="red" size="sm">

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   addCertification,
   addEmptyTier,
+  countChangedRequirements,
   createTierBlocks,
   moveCertification,
   removeCertification,
@@ -84,5 +85,20 @@ describe('tier editor state', () => {
       { certificationId: 'b', tierRank: 2 },
       { certificationId: 'c', tierRank: 2 },
     ]);
+  });
+
+  it('追加・除外・レベル変更された資格の件数を数える', () => {
+    const saved = [
+      { certificationId: 'a', tierRank: 1 },
+      { certificationId: 'b', tierRank: 1 },
+      { certificationId: 'c', tierRank: 2 },
+    ];
+    const current = [
+      { certificationId: 'a', tierRank: 2 },
+      { certificationId: 'b', tierRank: 1 },
+      { certificationId: 'd', tierRank: 2 },
+    ];
+
+    expect(countChangedRequirements(saved, current)).toBe(3);
   });
 });

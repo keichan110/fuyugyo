@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react';
 
-import { Avatar, Button, Group, Menu, Stack, Table, Text, Tooltip } from '@mantine/core';
+import { Avatar, Group, Menu, Stack, Table, Text, Tooltip } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { IconPlus, IconUsers } from '@tabler/icons-react';
 
 import { ErrorAlert } from '@/components/AppAlert';
 import { AppBadge } from '@/components/AppBadge';
+import { AppButton } from '@/components/AppButton';
 import { AppTable } from '@/components/AppTable';
 import { ClickableTr } from '@/components/ClickableTr';
 import { InactiveVisibilityToggle } from '@/components/InactiveVisibilityToggle';
@@ -72,13 +73,14 @@ export function InstructorList() {
         summary={{ count: visibleInstructors.length, unit: '名' }}
         isLoading={isLoading}
         action={
-          <Button
+          <AppButton
+            intent="secondary"
             size="sm"
             leftSection={<IconPlus size={16} />}
             onClick={() => setDrawerState({ mode: 'create' })}
           >
             登録
-          </Button>
+          </AppButton>
         }
       />
 
@@ -101,12 +103,13 @@ export function InstructorList() {
           title="インストラクターがいません"
           description="最初のインストラクターを追加して名簿を作成しましょう。"
           action={
-            <Button
+            <AppButton
+              intent="primary"
               leftSection={<IconPlus size={16} />}
               onClick={() => setDrawerState({ mode: 'create' })}
             >
               登録
-            </Button>
+            </AppButton>
           }
         />
       )}

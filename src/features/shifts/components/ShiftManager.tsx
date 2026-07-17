@@ -3,7 +3,6 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import {
   ActionIcon,
   Box,
-  Button,
   Card,
   Checkbox,
   Drawer,
@@ -24,11 +23,14 @@ import {
 } from '@mantine/core';
 import { MonthView, type ScheduleEventData } from '@mantine/schedule';
 import { IconMessage, IconWand } from '@tabler/icons-react';
+import { useBlocker } from '@tanstack/react-router';
 
 import 'dayjs/locale/ja';
 
 import { ErrorAlert } from '@/components/AppAlert';
 import { AppBadge } from '@/components/AppBadge';
+import { AppButton } from '@/components/AppButton';
+import { UnsavedChangesBar } from '@/components/UnsavedChangesBar';
 import { useMe } from '@/features/auth/queries';
 import { useAvailabilities } from '@/features/availabilities/queries';
 import type { Availability } from '@/features/availabilities/schema';
@@ -76,7 +78,9 @@ type StagedCell = {
 
 /** 部門・対象月変更をユーザー承認で確定するための保留アクション */
 type PendingNavigation =
-  { type: 'department'; nextDepartmentCode: DepartmentCode } | { type: 'month'; nextMonth: string };
+  | { type: 'department'; nextDepartmentCode: DepartmentCode }
+  | { type: 'month'; nextMonth: string }
+  | { type: 'shiftType'; nextShiftTypeId: string };
 
 /** シフト枠（日付 × 部門 × シフト種別）を月間シフト表で編集する管理コンポーネント。 */
 export function ShiftManager() {
@@ -112,6 +116,11 @@ export function ShiftManager() {
   const me = useMe();
   const days = useMemo(() => monthDays(month), [month]);
   const isDirty = stagedCells.size > 0;
+  const blocker = useBlocker({
+    shouldBlockFn: () => isDirty,
+    enableBeforeUnload: () => isDirty,
+    withResolver: true,
+  });
   const activeShiftTypeId = selectedCell?.shiftTypeId ?? formData.data?.shiftTypes[0]?.id ?? '';
   // シフト種別タブに「未保存の編集あり」のドットを出すため、ステージ済みセルの種別IDを集計する
   const stagedShiftTypeIds = useMemo(() => {
@@ -177,7 +186,25 @@ export function ShiftManager() {
     });
   }, [days, formData.data]);
 
-  /** 部門・対象月の遷移を要求する。dirty ならモーダルで確認、そうでなければ即時適用。 */
+  const applyNavigation = useCallback(
+    (nav: PendingNavigation) => {
+      if (nav.type === 'department') {
+        setDepartmentCode(nav.nextDepartmentCode);
+      } else if (nav.type === 'month') {
+        setMonth(nav.nextMonth);
+      } else {
+        setSelectedCell((current) => ({
+          date: current?.date ?? days[0] ?? todayString(),
+          shiftTypeId: nav.nextShiftTypeId,
+        }));
+      }
+      setStagedCells(new Map());
+      setDrawerOpened(false);
+    },
+    [days],
+  );
+
+  /** 画面内の表示切り替えを要求する。dirty ならモーダルで確認、そうでなければ即時適用する。 */
   const requestNavigation = useCallback(
     (nav: PendingNavigation) => {
       if (!isDirty) {
@@ -186,27 +213,22 @@ export function ShiftManager() {
       }
       setPendingNav(nav);
     },
-    [isDirty],
+    [applyNavigation, isDirty],
   );
-
-  const applyNavigation = (nav: PendingNavigation) => {
-    if (nav.type === 'department') {
-      setDepartmentCode(nav.nextDepartmentCode);
-    } else {
-      setMonth(nav.nextMonth);
-    }
-    setStagedCells(new Map());
-    setDrawerOpened(false);
-  };
 
   const confirmNavigation = () => {
     if (pendingNav) {
       applyNavigation(pendingNav);
+    } else {
+      blocker.proceed?.();
     }
     setPendingNav(null);
   };
 
-  const cancelNavigation = () => setPendingNav(null);
+  const cancelNavigation = () => {
+    setPendingNav(null);
+    blocker.reset?.();
+  };
 
   const stageCell = useCallback((cellKey: string, next: StagedCell) => {
     setStagedCells((prev) => {
@@ -275,10 +297,10 @@ export function ShiftManager() {
   // タブ切替: 選択中の日付は維持したままシフト種別だけを切り替える
   const changeActiveShiftType = useCallback(
     (shiftTypeId: string) => {
-      setSelectedCell((prev) => ({ date: prev?.date ?? days[0] ?? todayString(), shiftTypeId }));
-      setDrawerOpened(false);
+      if (shiftTypeId === activeShiftTypeId) return;
+      requestNavigation({ type: 'shiftType', nextShiftTypeId: shiftTypeId });
     },
-    [days],
+    [activeShiftTypeId, requestNavigation],
   );
 
   const openAssignmentDrawer = useCallback((cell: SelectedCell) => {
@@ -451,33 +473,16 @@ export function ShiftManager() {
 
       {formData.data && (
         <>
-          <Group justify="flex-end" align="center" wrap="wrap">
-            <Group gap="xs">
-              {isDirty && (
-                <Text size="sm" c="orange">
-                  未保存の変更 {stagedCells.size} 件
-                </Text>
-              )}
-              <Button
-                type="button"
-                variant="default"
-                size="sm"
-                onClick={resetStage}
-                disabled={!isDirty || upsertMonthly.isPending}
-              >
-                クリア
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                onClick={saveMonthly}
-                loading={upsertMonthly.isPending}
-                disabled={!isDirty}
-              >
-                一括保存
-              </Button>
-            </Group>
-          </Group>
+          {isDirty && (
+            <UnsavedChangesBar
+              count={stagedCells.size}
+              description="表示中の月のシフト割当をまとめて保存します"
+              loading={upsertMonthly.isPending}
+              saveLabel="一括保存"
+              onCancel={resetStage}
+              onSave={saveMonthly}
+            />
+          )}
 
           {upsertMonthly.isError && (
             <ErrorAlert>{upsertMonthly.error?.message ?? '保存に失敗しました'}</ErrorAlert>
@@ -580,24 +585,30 @@ export function ShiftManager() {
       )}
 
       <Modal
-        opened={pendingNav !== null}
+        opened={pendingNav !== null || blocker.status === 'blocked'}
         onClose={cancelNavigation}
-        title="編集中の内容を破棄しますか？"
+        title="未保存の変更があります"
         centered
       >
         <Stack gap="md">
           <Text size="sm">
             未保存の変更が {stagedCells.size} 件あります。 このまま
-            {pendingNav?.type === 'department' ? '部門を切り替える' : '対象月を変更する'}
+            {pendingNav?.type === 'department'
+              ? '部門を切り替える'
+              : pendingNav?.type === 'month'
+                ? '対象月を変更する'
+                : pendingNav?.type === 'shiftType'
+                  ? 'シフト種別を切り替える'
+                  : '別のページへ移動する'}
             と、これらの変更は破棄されます。
           </Text>
           <Group justify="flex-end" gap="xs">
-            <Button variant="default" onClick={cancelNavigation}>
+            <AppButton intent="secondary" onClick={cancelNavigation}>
               キャンセル
-            </Button>
-            <Button color="red" onClick={confirmNavigation}>
-              破棄して切り替え
-            </Button>
+            </AppButton>
+            <AppButton intent="danger" emphasis="high" onClick={confirmNavigation}>
+              破棄して移動
+            </AppButton>
           </Group>
         </Stack>
       </Modal>
@@ -645,22 +656,23 @@ export function ShiftManager() {
           <Text size="xs" c="dimmed">
             必要資格は表示・判定に使用します。変更はシフト種別設定画面で行ってください。
           </Text>
-          <Button component="a" href="/shift-types" variant="subtle" size="xs">
+          <AppButton intent="tertiary" component="a" href="/shift-types" size="xs">
             必要資格設定を開く
-          </Button>
+          </AppButton>
           {autoAssignContext.data?.frames.find(
             (frame) => frame.shiftTypeId === autoAssignShiftTypeId,
           )?.certificationTiers.length === 0 && (
             <ErrorAlert>この種別には必要資格が設定されていないため、提案できません。</ErrorAlert>
           )}
-          <Button
+          <AppButton
+            intent={shortageByCell.size > 0 ? 'secondary' : 'primary'}
             leftSection={<IconWand size={16} />}
             onClick={runAutoAssign}
             loading={isAutoAssigning}
             disabled={!autoAssignContext.data || autoAssignDates.size === 0}
           >
             {shortageByCell.size > 0 ? '別の案を出す' : '提案をステージへ反映'}
-          </Button>
+          </AppButton>
         </Stack>
       </Modal>
     </Stack>
@@ -847,27 +859,28 @@ function ShiftCalendar({
               自動割当する日を選択（{autoAssignDates.size}日）
             </Text>
             <Group gap="xs">
-              <Button size="xs" variant="default" onClick={onCancelAutoAssign}>
+              <AppButton intent="secondary" size="xs" onClick={onCancelAutoAssign}>
                 キャンセル
-              </Button>
-              <Button
+              </AppButton>
+              <AppButton
+                intent="primary"
                 size="xs"
                 disabled={autoAssignDates.size === 0}
                 onClick={onOpenAutoAssignModal}
               >
                 条件設定
-              </Button>
+              </AppButton>
             </Group>
           </>
         ) : (
-          <Button
+          <AppButton
+            intent="secondary"
             size="xs"
-            variant="light"
             leftSection={<IconWand size={14} />}
             onClick={onStartAutoAssign}
           >
             自動割当
-          </Button>
+          </AppButton>
         )}
       </Group>
 

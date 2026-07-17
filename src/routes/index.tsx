@@ -1,6 +1,7 @@
-import { Button, Card, Container, Group, Stack, Text, Title } from '@mantine/core';
+import { Card, Container, Group, Stack, Text, Title } from '@mantine/core';
 import { createFileRoute, Link, redirect } from '@tanstack/react-router';
 
+import { AppButton } from '@/components/AppButton';
 import { ensureAuthenticated } from '@/features/auth/auth-guard';
 import { useMe } from '@/features/auth/queries';
 import { UpcomingShifts } from '@/features/dashboard/components/UpcomingShifts';
@@ -39,9 +40,9 @@ function DashboardPage() {
                     勤務できない日や調整が必要な日を登録します。
                   </Text>
                 </Stack>
-                <Button component={Link} to="/availabilities" variant="outline">
+                <AppButton intent="secondary" component={Link} to="/availabilities">
                   シフト希望を入力
-                </Button>
+                </AppButton>
               </Group>
             </Card>
           </>

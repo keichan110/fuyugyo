@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 
-import { Button, Drawer, Grid, Group, Modal, Paper, Stack, Tabs, Text } from '@mantine/core';
+import { Drawer, Grid, Group, Modal, Paper, Stack, Tabs, Text } from '@mantine/core';
 import { IconArrowLeft, IconDatabase } from '@tabler/icons-react';
 import { useBlocker } from '@tanstack/react-router';
 
+import { AppButton } from '@/components/AppButton';
 import { ListHeader } from '@/components/ListHeader';
 import { CertificationRankEditor } from '@/features/certification-requirements';
 import {
@@ -65,13 +66,13 @@ export function ShiftTypeSettings() {
       <ListHeader
         title="シフト種別設定"
         action={
-          <Button
-            variant="default"
+          <AppButton
+            intent="secondary"
             leftSection={<IconDatabase size={16} />}
             onClick={() => setCatalogOpened(true)}
           >
             シフト種別マスタを管理
-          </Button>
+          </AppButton>
         }
       />
       <Tabs value={departmentCode} onChange={changeDepartment}>
@@ -99,16 +100,9 @@ export function ShiftTypeSettings() {
         <Grid.Col span={{ base: 12, md: 8 }}>
           <Stack gap="xs">
             {selectedShiftTypeId && (
-              <Group justify="space-between">
-                <Text fw={600}>
-                  {shiftTypes?.find((item) => item.shiftTypeId === selectedShiftTypeId)?.name}
-                </Text>
-                {isEditorDirty && (
-                  <Text c="orange" size="sm">
-                    未保存の変更があります
-                  </Text>
-                )}
-              </Group>
+              <Text fw={600}>
+                {shiftTypes?.find((item) => item.shiftTypeId === selectedShiftTypeId)?.name}
+              </Text>
             )}
             <CertificationRankEditor
               key={`${departmentCode}:${selectedShiftTypeId ?? 'none'}`}
@@ -131,14 +125,14 @@ export function ShiftTypeSettings() {
       >
         {masterView ? (
           <Stack gap="md">
-            <Button
-              variant="subtle"
+            <AppButton
+              intent="tertiary"
               leftSection={<IconArrowLeft size={16} />}
               onClick={() => setMasterView(null)}
               style={{ alignSelf: 'flex-start' }}
             >
               一覧へ戻る
-            </Button>
+            </AppButton>
             <ShiftTypeDrawerContent state={masterView} onDone={() => setMasterView(null)} />
           </Stack>
         ) : (
@@ -155,12 +149,12 @@ export function ShiftTypeSettings() {
         <Stack>
           <Text>このページを離れると、保存していない必要資格の変更は失われます。</Text>
           <Group justify="flex-end">
-            <Button variant="default" onClick={() => blocker.reset?.()}>
+            <AppButton intent="secondary" onClick={() => blocker.reset?.()}>
               このページに残る
-            </Button>
-            <Button color="red" onClick={() => blocker.proceed?.()}>
+            </AppButton>
+            <AppButton intent="danger" emphasis="high" onClick={() => blocker.proceed?.()}>
               破棄して移動
-            </Button>
+            </AppButton>
           </Group>
         </Stack>
       </Modal>

@@ -20,6 +20,7 @@ import type { ScheduleEventData } from '@mantine/schedule';
 import { IconMessage, IconUserFilled } from '@tabler/icons-react';
 
 import { ErrorAlert, InfoAlert } from '@/components/AppAlert';
+import { AppButton } from '@/components/AppButton';
 import { useMe } from '@/features/auth/queries';
 import { getDepartmentAppearance } from '@/features/departments/appearance';
 import { departmentCodeSchema, type DepartmentCode } from '@/features/departments/schema';
@@ -168,17 +169,16 @@ export function ShiftAgendaViewer({ date, onVisibleDateChange }: ShiftAgendaView
           />
         </Group>
 
-        <Button
+        <AppButton
+          intent="tertiary"
           type="button"
-          variant="outline"
-          color="gray"
           size="sm"
           onClick={() => void loadPast()}
           loading={isLoadingPast}
           disabled={hasReachedPastEnd}
         >
           以前を表示
-        </Button>
+        </AppButton>
 
         {pastError && <ErrorAlert>{pastError}</ErrorAlert>}
         {hasReachedPastEnd && <InfoAlert>これ以上遡れるシフトはありません。</InfoAlert>}

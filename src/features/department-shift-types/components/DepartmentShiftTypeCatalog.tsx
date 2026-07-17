@@ -4,13 +4,22 @@ import { IconArrowLeft } from '@tabler/icons-react';
 
 import { ErrorAlert } from '@/components/AppAlert';
 import { DEPARTMENT_LABELS, type DepartmentCode } from '@/features/departments/schema';
-import { ShiftTypeList } from '@/features/shift-types/components/ShiftTypeList';
-import type { ShiftTypeListItem } from '@/features/shift-types/schema';
+import {
+  ShiftTypeList,
+  type ShiftTypeDrawerState,
+  type ShiftTypeListItem,
+} from '@/features/shift-types';
 
 import { useAssignDepartmentShiftType, useDepartmentShiftTypes } from '../queries';
 
 /** 共有シフト種別マスタから、指定部門で利用する種別を選ぶパネル。 */
-export function DepartmentShiftTypeCatalog({ departmentCode }: { departmentCode: DepartmentCode }) {
+export function DepartmentShiftTypeCatalog({
+  departmentCode,
+  onOpenForm,
+}: {
+  departmentCode: DepartmentCode;
+  onOpenForm?: (state: ShiftTypeDrawerState) => void;
+}) {
   const { data: departmentShiftTypes } = useDepartmentShiftTypes(departmentCode);
   const assign = useAssignDepartmentShiftType(departmentCode);
   const assignedShiftTypeIds = new Set(
@@ -32,6 +41,7 @@ export function DepartmentShiftTypeCatalog({ departmentCode }: { departmentCode:
   return (
     <Stack gap="md">
       <ShiftTypeList
+        {...(onOpenForm ? { onOpenForm } : {})}
         rowActionHeader=""
         renderRowAction={(shiftType) => {
           const isAssigned = assignedShiftTypeIds.has(shiftType.id);

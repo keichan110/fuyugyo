@@ -1,4 +1,5 @@
 import { env } from 'cloudflare:test';
+import { and, eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
@@ -11,6 +12,7 @@ import app from '../src/index';
 import { signJwt } from '../src/server/auth/jwt';
 import { createDb } from '../src/server/db/client';
 import {
+  certificationRequirements,
   certifications,
   departmentShiftTypes,
   instructorCertifications,
@@ -128,6 +130,33 @@ async function linkCertification(instructorId: string, certificationId: string):
   await db.insert(instructorCertifications).values({ instructorId, certificationId });
 }
 
+/** 部門別シフト種別の資格要件を設定する。 */
+async function requireFrameCertification(
+  departmentCode: string,
+  shiftTypeId: string,
+  certificationId: string,
+): Promise<void> {
+  const db = createDb(env.DB);
+  const [frame] = await db
+    .select({ id: departmentShiftTypes.id })
+    .from(departmentShiftTypes)
+    .where(
+      and(
+        eq(departmentShiftTypes.departmentCode, departmentCode),
+        eq(departmentShiftTypes.shiftTypeId, shiftTypeId),
+      ),
+    )
+    .limit(1);
+  if (!frame) {
+    throw new Error('requireFrameCertification: frame not found');
+  }
+  await db.insert(certificationRequirements).values({
+    departmentShiftTypeId: frame.id,
+    certificationId,
+    tierRank: 1,
+  });
+}
+
 /** 全 shift_assignments の件数を数える（原子性検証用） */
 async function countAssignments(): Promise<number> {
   const db = createDb(env.DB);
@@ -182,6 +211,7 @@ beforeEach(async () => {
   // 外部キー依存順に削除する
   await db.delete(shiftAssignments);
   await db.delete(shifts);
+  await db.delete(certificationRequirements);
   await db.delete(departmentShiftTypes);
   await db.delete(instructorCertifications);
   await db.delete(certifications);
@@ -550,6 +580,78 @@ describe('PUT /api/shifts/assignments', () => {
     expect(await countAssignments()).toBe(0);
   });
 
+  it('資格要件のある枠では無資格者の新規割り当てを 400 で拒否する', async () => {
+    const departmentCode = await seedDepartment();
+    const shiftTypeId = await seedShiftType();
+    const requiredCertificationId = await seedCertification(departmentCode);
+    const unqualifiedInstructorId = await seedInstructor();
+    const token = await seedToken('MANAGER');
+    await requireFrameCertification(departmentCode, shiftTypeId, requiredCertificationId);
+
+    const res = await app.request(
+      '/api/shifts/assignments',
+      {
+        method: 'PUT',
+        ...authJsonRequest(token, {
+          month: '2026-02',
+          departmentCode,
+          cells: [{ date: '2026-02-01', shiftTypeId, instructorIds: [unqualifiedInstructorId] }],
+        }),
+      },
+      envWith({}),
+    );
+
+    expect(res.status).toBe(400);
+    expect(await countAssignments()).toBe(0);
+  });
+
+  it('資格要件の設定前からある無資格の既存割り当ては再保存できる', async () => {
+    const departmentCode = await seedDepartment();
+    const shiftTypeId = await seedShiftType();
+    const requiredCertificationId = await seedCertification(departmentCode);
+    const unqualifiedInstructorId = await seedInstructor();
+    const token = await seedToken('MANAGER');
+    await upsertShift(token, '2026-02-01', departmentCode, shiftTypeId, [unqualifiedInstructorId]);
+    await requireFrameCertification(departmentCode, shiftTypeId, requiredCertificationId);
+
+    const res = await app.request(
+      '/api/shifts/assignments',
+      {
+        method: 'PUT',
+        ...authJsonRequest(token, {
+          month: '2026-02',
+          departmentCode,
+          cells: [{ date: '2026-02-01', shiftTypeId, instructorIds: [unqualifiedInstructorId] }],
+        }),
+      },
+      envWith({}),
+    );
+
+    expect(res.status).toBe(200);
+  });
+
+  it('資格要件がない枠は従来どおり無資格者を割り当てられる', async () => {
+    const departmentCode = await seedDepartment();
+    const shiftTypeId = await seedShiftType();
+    const instructorId = await seedInstructor();
+    const token = await seedToken('MANAGER');
+
+    const res = await app.request(
+      '/api/shifts/assignments',
+      {
+        method: 'PUT',
+        ...authJsonRequest(token, {
+          month: '2026-02',
+          departmentCode,
+          cells: [{ date: '2026-02-01', shiftTypeId, instructorIds: [instructorId] }],
+        }),
+      },
+      envWith({}),
+    );
+
+    expect(res.status).toBe(200);
+  });
+
   it('MEMBER は 403 で拒否される', async () => {
     const deptId = await seedDepartment();
     const token = await seedToken('MEMBER');
@@ -819,6 +921,54 @@ describe('GET /api/shifts/assignment-editor', () => {
     expect(body.mode).toBe('edit');
     expect(body.shift?.assignedInstructorIds).toEqual([inst]);
     expect(body.availableInstructors[0]?.isAssigned).toBe(true);
+  });
+
+  it('資格要件がある枠では該当資格の保有者だけを候補に返す', async () => {
+    const departmentCode = await seedDepartment();
+    const shiftTypeId = await seedShiftType();
+    const requiredCertificationId = await seedCertification(departmentCode, '必要資格');
+    const otherCertificationId = await seedCertification(departmentCode, '別資格');
+    const qualifiedInstructorId = await seedInstructor('山田', '太郎');
+    const otherInstructorId = await seedInstructor('鈴木', '花子');
+    const token = await seedToken('MANAGER');
+    await linkCertification(qualifiedInstructorId, requiredCertificationId);
+    await linkCertification(otherInstructorId, otherCertificationId);
+    await requireFrameCertification(departmentCode, shiftTypeId, requiredCertificationId);
+
+    const res = await app.request(
+      `/api/shifts/assignment-editor?date=2026-01-15&departmentCode=${departmentCode}&shiftTypeId=${shiftTypeId}`,
+      authHeader(token),
+      envWith({}),
+    );
+
+    const body = shiftEditDataSchema.parse(await res.json());
+    expect(body.availableInstructors.map((instructor) => instructor.id)).toEqual([
+      qualifiedInstructorId,
+    ]);
+  });
+
+  it('資格要件外の既存割り当てを警告付きで返す', async () => {
+    const departmentCode = await seedDepartment();
+    const shiftTypeId = await seedShiftType();
+    const requiredCertificationId = await seedCertification(departmentCode);
+    const unqualifiedInstructorId = await seedInstructor();
+    const token = await seedToken('MANAGER');
+    await upsertShift(token, '2026-01-15', departmentCode, shiftTypeId, [unqualifiedInstructorId]);
+    await requireFrameCertification(departmentCode, shiftTypeId, requiredCertificationId);
+
+    const res = await app.request(
+      `/api/shifts/assignment-editor?date=2026-01-15&departmentCode=${departmentCode}&shiftTypeId=${shiftTypeId}`,
+      authHeader(token),
+      envWith({}),
+    );
+
+    const body = shiftEditDataSchema.parse(await res.json());
+    expect(body.availableInstructors).toHaveLength(1);
+    expect(body.availableInstructors[0]).toMatchObject({
+      id: unqualifiedInstructorId,
+      isAssigned: true,
+      hasQualificationWarning: true,
+    });
   });
 
   it('別部門の資格しか持たないインストラクターは候補に含まれない', async () => {

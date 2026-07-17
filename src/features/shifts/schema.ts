@@ -94,6 +94,79 @@ export const upsertMonthlyAssignmentsResultSchema = z.object({
 
 export type UpsertMonthlyAssignmentsResult = z.infer<typeof upsertMonthlyAssignmentsResultSchema>;
 
+// ─── 自動割当 ───────────────────────────────────────────────────────────────
+
+/** 可用性申告の入力状況。連携済みだが申告がない状態と、連携先がない状態を区別する。 */
+export const availabilityStatusSchema = z.enum(['SUBMITTED', 'NOT_SUBMITTED', 'NOT_LINKED']);
+
+/** 自動割当で評価する候補 Instructor。資格と可用性入力状況を同梱する。 */
+export const autoAssignInstructorSchema = z.object({
+  id: z.string(),
+  displayName: z.string(),
+  certificationIds: z.array(z.string()),
+  availabilityStatus: availabilityStatusSchema,
+});
+
+/** 部門内のシフト枠に設定された必要資格と、その資格を満たす候補。 */
+export const autoAssignFrameSchema = z.object({
+  shiftTypeId: z.string(),
+  certificationTiers: z.array(
+    z.object({ certificationId: z.string(), tierRank: z.number().int().positive() }),
+  ),
+  eligibleInstructorIds: z.array(z.string()),
+});
+
+/** 公平性と同日重複の判定に使う、保存済み Shift の割当集合。 */
+export const autoAssignExistingAssignmentSchema = z.object({
+  date: dateStringSchema,
+  departmentCode: departmentCodeSchema,
+  shiftTypeId: z.string(),
+  instructorIds: z.array(z.string()),
+});
+
+/**
+ * ブラウザ側の自動割当ソルバーが必要とする集約コンテキスト。
+ * API と Web Worker から共有する isomorphic な入出力境界である。
+ */
+export const autoAssignContextSchema = z.object({
+  departmentCode: departmentCodeSchema,
+  period: z.object({ from: dateStringSchema, to: dateStringSchema }),
+  instructors: z.array(autoAssignInstructorSchema),
+  frames: z.array(autoAssignFrameSchema),
+  availabilities: z.array(
+    z.object({
+      instructorId: z.string(),
+      date: dateStringSchema,
+      type: z.enum(['UNAVAILABLE', 'AVOID']),
+      note: z.string().nullable(),
+    }),
+  ),
+  existingAssignments: z.array(autoAssignExistingAssignmentSchema),
+});
+
+export type AutoAssignContext = z.infer<typeof autoAssignContextSchema>;
+
+/** 自動割当を実行する対象種別・必要人数・対象日。DB には保存しない一時パラメータ。 */
+export const autoAssignExecutionParamsSchema = z.object({
+  shiftTypeId: z.string().min(1),
+  weekdayRequiredCount: z.number().int().min(0),
+  weekendHolidayRequiredCount: z.number().int().min(0),
+  targetDates: z.array(dateStringSchema).min(1),
+  holidayDates: z.array(dateStringSchema).default([]),
+});
+
+export type AutoAssignExecutionParams = z.infer<typeof autoAssignExecutionParamsSchema>;
+
+/** 自動割当の1枠に対する提案結果。 */
+export const autoAssignProposalSchema = z.object({
+  date: dateStringSchema,
+  shiftTypeId: z.string(),
+  instructorIds: z.array(z.string()),
+  shortage: z.object({ count: z.number().int().min(0), reasons: z.array(z.string()) }),
+});
+
+export type AutoAssignProposal = z.infer<typeof autoAssignProposalSchema>;
+
 // ─── 集約（フォーム）データ ─────────────────────────────────────────────────
 
 /** form-data の ShiftType 最小情報 */
@@ -128,6 +201,8 @@ const availableInstructorSchema = z.object({
   isAssigned: z.boolean(),
   /** 同日の別 Shift に割り当て済みで競合しているか */
   hasConflict: z.boolean(),
+  /** 資格要件がある枠で、既存割り当てだけが候補条件を満たさないか */
+  hasQualificationWarning: z.boolean(),
   /**
    * 保存済みシーズン勤務日数のうち、対象月を除いた日数（全部門横断）。
    * 当月分（ステージ中の未保存編集を含む）はクライアント側でライブ計算し、

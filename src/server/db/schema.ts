@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import { check, index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
 
 /**
  * 全テーブル共通の作成・更新タイムスタンプ列。
@@ -113,6 +113,31 @@ export const departmentShiftTypes = sqliteTable(
   ],
 );
 
+/** 部門別シフト種別ごとの必要資格と、枠内での資格レベルを管理する中間テーブル */
+export const certificationRequirements = sqliteTable(
+  'certification_requirements',
+  {
+    id: primaryId(),
+    departmentShiftTypeId: text('department_shift_type_id')
+      .notNull()
+      .references(() => departmentShiftTypes.id, { onDelete: 'cascade' }),
+    certificationId: text('certification_id')
+      .notNull()
+      .references(() => certifications.id, { onDelete: 'cascade' }),
+    tierRank: integer('tier_rank').notNull(),
+    ...timestamps,
+  },
+  (t) => [
+    check('certification_requirements_tier_rank_positive', sql`${t.tierRank} > 0`),
+    uniqueIndex('idx_certification_requirements_unique').on(
+      t.departmentShiftTypeId,
+      t.certificationId,
+    ),
+    index('idx_certification_requirements_frame').on(t.departmentShiftTypeId),
+    index('idx_certification_requirements_certification').on(t.certificationId),
+  ],
+);
+
 /** シフトテーブル（シフト枠を管理） */
 export const shifts = sqliteTable(
   'shifts',
@@ -160,6 +185,24 @@ export const shiftAssignments = sqliteTable(
     index('idx_shift_assignments_assigned_at').on(t.assignedAt),
     index('idx_assignments_instructor_date').on(t.instructorId, t.assignedAt),
     index('idx_assignments_date_instructor').on(t.assignedAt, t.instructorId),
+  ],
+);
+
+/** インストラクター本人が申告する日別の勤務可否（部門・シフト種別には紐づけない） */
+export const instructorAvailabilities = sqliteTable(
+  'instructor_availabilities',
+  {
+    id: primaryId(),
+    instructorId: text('instructor_id')
+      .notNull()
+      .references(() => instructors.id, { onDelete: 'cascade' }),
+    date: integer('date', { mode: 'timestamp' }).notNull(),
+    type: text('type', { enum: ['UNAVAILABLE', 'AVOID'] }).notNull(),
+    note: text('note'),
+  },
+  (t) => [
+    uniqueIndex('idx_instructor_availabilities_unique').on(t.instructorId, t.date),
+    index('idx_instructor_availabilities_date').on(t.date),
   ],
 );
 

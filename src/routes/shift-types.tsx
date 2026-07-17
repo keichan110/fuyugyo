@@ -3,7 +3,7 @@ import { createFileRoute, redirect } from '@tanstack/react-router';
 
 import { fetchMe } from '@/features/auth/auth-guard';
 import { hasMinimumRole } from '@/features/auth/schema';
-import { ShiftTypeSettings } from '@/features/shift-types/components/ShiftTypeSettings';
+import { ShiftTypeSettings } from '@/features/shift-types';
 
 export const Route = createFileRoute('/shift-types')({
   beforeLoad: async ({ context }) => {

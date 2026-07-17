@@ -1,0 +1,1147 @@
+{
+  "version": "6",
+  "dialect": "sqlite",
+  "id": "42d298aa-0918-4d03-a99b-478bbfd4c0a0",
+  "prevId": "b1dbd6ae-be82-4c9a-8fb1-52820918208f",
+  "tables": {
+    "certification_requirements": {
+      "name": "certification_requirements",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "department_shift_type_id": {
+          "name": "department_shift_type_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "certification_id": {
+          "name": "certification_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "tier_rank": {
+          "name": "tier_rank",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch())"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch())"
+        }
+      },
+      "indexes": {
+        "idx_certification_requirements_unique": {
+          "name": "idx_certification_requirements_unique",
+          "columns": [
+            "department_shift_type_id",
+            "certification_id"
+          ],
+          "isUnique": true
+        },
+        "idx_certification_requirements_frame": {
+          "name": "idx_certification_requirements_frame",
+          "columns": [
+            "department_shift_type_id"
+          ],
+          "isUnique": false
+        },
+        "idx_certification_requirements_certification": {
+          "name": "idx_certification_requirements_certification",
+          "columns": [
+            "certification_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "certification_requirements_department_shift_type_id_department_shift_types_id_fk": {
+          "name": "certification_requirements_department_shift_type_id_department_shift_types_id_fk",
+          "tableFrom": "certification_requirements",
+          "tableTo": "department_shift_types",
+          "columnsFrom": [
+            "department_shift_type_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "certification_requirements_certification_id_certifications_id_fk": {
+          "name": "certification_requirements_certification_id_certifications_id_fk",
+          "tableFrom": "certification_requirements",
+          "tableTo": "certifications",
+          "columnsFrom": [
+            "certification_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "certification_requirements_tier_rank_positive": {
+          "name": "certification_requirements_tier_rank_positive",
+          "value": "\"certification_requirements\".\"tier_rank\" > 0"
+        }
+      }
+    },
+    "certifications": {
+      "name": "certifications",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "department_code": {
+          "name": "department_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "short_name": {
+          "name": "short_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "organization": {
+          "name": "organization",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch())"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch())"
+        }
+      },
+      "indexes": {
+        "idx_certifications_department_code": {
+          "name": "idx_certifications_department_code",
+          "columns": [
+            "department_code"
+          ],
+          "isUnique": false
+        },
+        "idx_certifications_active": {
+          "name": "idx_certifications_active",
+          "columns": [
+            "is_active"
+          ],
+          "isUnique": false
+        },
+        "idx_certifications_organization": {
+          "name": "idx_certifications_organization",
+          "columns": [
+            "organization"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "department_shift_types": {
+      "name": "department_shift_types",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "department_code": {
+          "name": "department_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "shift_type_id": {
+          "name": "shift_type_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "sort_order": {
+          "name": "sort_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch())"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch())"
+        }
+      },
+      "indexes": {
+        "idx_department_shift_types_unique": {
+          "name": "idx_department_shift_types_unique",
+          "columns": [
+            "department_code",
+            "shift_type_id"
+          ],
+          "isUnique": true
+        },
+        "idx_department_shift_types_department_code": {
+          "name": "idx_department_shift_types_department_code",
+          "columns": [
+            "department_code"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "department_shift_types_shift_type_id_shift_types_id_fk": {
+          "name": "department_shift_types_shift_type_id_shift_types_id_fk",
+          "tableFrom": "department_shift_types",
+          "tableTo": "shift_types",
+          "columnsFrom": [
+            "shift_type_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "instructor_availabilities": {
+      "name": "instructor_availabilities",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "instructor_id": {
+          "name": "instructor_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "date": {
+          "name": "date",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "note": {
+          "name": "note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "idx_instructor_availabilities_unique": {
+          "name": "idx_instructor_availabilities_unique",
+          "columns": [
+            "instructor_id",
+            "date"
+          ],
+          "isUnique": true
+        },
+        "idx_instructor_availabilities_date": {
+          "name": "idx_instructor_availabilities_date",
+          "columns": [
+            "date"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "instructor_availabilities_instructor_id_instructors_id_fk": {
+          "name": "instructor_availabilities_instructor_id_instructors_id_fk",
+          "tableFrom": "instructor_availabilities",
+          "tableTo": "instructors",
+          "columnsFrom": [
+            "instructor_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "instructor_certifications": {
+      "name": "instructor_certifications",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "instructor_id": {
+          "name": "instructor_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "certification_id": {
+          "name": "certification_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch())"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch())"
+        }
+      },
+      "indexes": {
+        "idx_instructor_cert_unique": {
+          "name": "idx_instructor_cert_unique",
+          "columns": [
+            "instructor_id",
+            "certification_id"
+          ],
+          "isUnique": true
+        },
+        "idx_instructor_cert_instructor_id": {
+          "name": "idx_instructor_cert_instructor_id",
+          "columns": [
+            "instructor_id"
+          ],
+          "isUnique": false
+        },
+        "idx_instructor_cert_certification_id": {
+          "name": "idx_instructor_cert_certification_id",
+          "columns": [
+            "certification_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "instructor_certifications_instructor_id_instructors_id_fk": {
+          "name": "instructor_certifications_instructor_id_instructors_id_fk",
+          "tableFrom": "instructor_certifications",
+          "tableTo": "instructors",
+          "columnsFrom": [
+            "instructor_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "instructor_certifications_certification_id_certifications_id_fk": {
+          "name": "instructor_certifications_certification_id_certifications_id_fk",
+          "tableFrom": "instructor_certifications",
+          "tableTo": "certifications",
+          "columnsFrom": [
+            "certification_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "instructors": {
+      "name": "instructors",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "last_name": {
+          "name": "last_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "first_name": {
+          "name": "first_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "last_name_kana": {
+          "name": "last_name_kana",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "first_name_kana": {
+          "name": "first_name_kana",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'ACTIVE'"
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch())"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch())"
+        }
+      },
+      "indexes": {
+        "idx_instructors_status": {
+          "name": "idx_instructors_status",
+          "columns": [
+            "status"
+          ],
+          "isUnique": false
+        },
+        "idx_instructors_name": {
+          "name": "idx_instructors_name",
+          "columns": [
+            "last_name",
+            "first_name"
+          ],
+          "isUnique": false
+        },
+        "idx_instructors_kana": {
+          "name": "idx_instructors_kana",
+          "columns": [
+            "last_name_kana",
+            "first_name_kana"
+          ],
+          "isUnique": false
+        },
+        "idx_instructors_status_name": {
+          "name": "idx_instructors_status_name",
+          "columns": [
+            "status",
+            "last_name",
+            "first_name"
+          ],
+          "isUnique": false
+        },
+        "idx_instructors_status_kana": {
+          "name": "idx_instructors_status_kana",
+          "columns": [
+            "status",
+            "last_name_kana",
+            "first_name_kana"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "invitation_tokens": {
+      "name": "invitation_tokens",
+      "columns": {
+        "token": {
+          "name": "token",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": true
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "max_uses": {
+          "name": "max_uses",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "used_count": {
+          "name": "used_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch())"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch())"
+        }
+      },
+      "indexes": {
+        "idx_invitation_tokens_expires_at": {
+          "name": "idx_invitation_tokens_expires_at",
+          "columns": [
+            "expires_at"
+          ],
+          "isUnique": false
+        },
+        "idx_invitation_tokens_active": {
+          "name": "idx_invitation_tokens_active",
+          "columns": [
+            "is_active"
+          ],
+          "isUnique": false
+        },
+        "idx_invitation_tokens_created_by": {
+          "name": "idx_invitation_tokens_created_by",
+          "columns": [
+            "created_by"
+          ],
+          "isUnique": false
+        },
+        "idx_invitation_tokens_active_expires": {
+          "name": "idx_invitation_tokens_active_expires",
+          "columns": [
+            "is_active",
+            "expires_at"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "invitation_tokens_created_by_users_id_fk": {
+          "name": "invitation_tokens_created_by_users_id_fk",
+          "tableFrom": "invitation_tokens",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "shift_assignments": {
+      "name": "shift_assignments",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "shift_id": {
+          "name": "shift_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "instructor_id": {
+          "name": "instructor_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "assigned_at": {
+          "name": "assigned_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch())"
+        }
+      },
+      "indexes": {
+        "idx_shift_assignment_unique": {
+          "name": "idx_shift_assignment_unique",
+          "columns": [
+            "shift_id",
+            "instructor_id"
+          ],
+          "isUnique": true
+        },
+        "idx_shift_assignments_shift_id": {
+          "name": "idx_shift_assignments_shift_id",
+          "columns": [
+            "shift_id"
+          ],
+          "isUnique": false
+        },
+        "idx_shift_assignments_instructor_id": {
+          "name": "idx_shift_assignments_instructor_id",
+          "columns": [
+            "instructor_id"
+          ],
+          "isUnique": false
+        },
+        "idx_shift_assignments_assigned_at": {
+          "name": "idx_shift_assignments_assigned_at",
+          "columns": [
+            "assigned_at"
+          ],
+          "isUnique": false
+        },
+        "idx_assignments_instructor_date": {
+          "name": "idx_assignments_instructor_date",
+          "columns": [
+            "instructor_id",
+            "assigned_at"
+          ],
+          "isUnique": false
+        },
+        "idx_assignments_date_instructor": {
+          "name": "idx_assignments_date_instructor",
+          "columns": [
+            "assigned_at",
+            "instructor_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "shift_assignments_shift_id_shifts_id_fk": {
+          "name": "shift_assignments_shift_id_shifts_id_fk",
+          "tableFrom": "shift_assignments",
+          "tableTo": "shifts",
+          "columnsFrom": [
+            "shift_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "shift_assignments_instructor_id_instructors_id_fk": {
+          "name": "shift_assignments_instructor_id_instructors_id_fk",
+          "tableFrom": "shift_assignments",
+          "tableTo": "instructors",
+          "columnsFrom": [
+            "instructor_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "shift_types": {
+      "name": "shift_types",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch())"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch())"
+        }
+      },
+      "indexes": {
+        "idx_shift_types_active": {
+          "name": "idx_shift_types_active",
+          "columns": [
+            "is_active"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "shifts": {
+      "name": "shifts",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "date": {
+          "name": "date",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "department_code": {
+          "name": "department_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "shift_type_id": {
+          "name": "shift_type_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch())"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch())"
+        }
+      },
+      "indexes": {
+        "unique_shift_per_day": {
+          "name": "unique_shift_per_day",
+          "columns": [
+            "date",
+            "department_code",
+            "shift_type_id"
+          ],
+          "isUnique": true
+        },
+        "idx_shifts_department_code": {
+          "name": "idx_shifts_department_code",
+          "columns": [
+            "department_code"
+          ],
+          "isUnique": false
+        },
+        "idx_shifts_shift_type_id": {
+          "name": "idx_shifts_shift_type_id",
+          "columns": [
+            "shift_type_id"
+          ],
+          "isUnique": false
+        },
+        "idx_shifts_date": {
+          "name": "idx_shifts_date",
+          "columns": [
+            "date"
+          ],
+          "isUnique": false
+        },
+        "idx_shifts_date_department": {
+          "name": "idx_shifts_date_department",
+          "columns": [
+            "date",
+            "department_code"
+          ],
+          "isUnique": false
+        },
+        "idx_shifts_department_type_date": {
+          "name": "idx_shifts_department_type_date",
+          "columns": [
+            "department_code",
+            "shift_type_id",
+            "date"
+          ],
+          "isUnique": false
+        },
+        "idx_shifts_date_type": {
+          "name": "idx_shifts_date_type",
+          "columns": [
+            "date",
+            "shift_type_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "shifts_shift_type_id_shift_types_id_fk": {
+          "name": "shifts_shift_type_id_shift_types_id_fk",
+          "tableFrom": "shifts",
+          "tableTo": "shift_types",
+          "columnsFrom": [
+            "shift_type_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "users": {
+      "name": "users",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "line_user_id": {
+          "name": "line_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "display_name": {
+          "name": "display_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "picture_url": {
+          "name": "picture_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "role": {
+          "name": "role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'MEMBER'"
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": true
+        },
+        "instructor_id": {
+          "name": "instructor_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch())"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch())"
+        }
+      },
+      "indexes": {
+        "users_line_user_id_unique": {
+          "name": "users_line_user_id_unique",
+          "columns": [
+            "line_user_id"
+          ],
+          "isUnique": true
+        },
+        "idx_users_role": {
+          "name": "idx_users_role",
+          "columns": [
+            "role"
+          ],
+          "isUnique": false
+        },
+        "idx_users_active": {
+          "name": "idx_users_active",
+          "columns": [
+            "is_active"
+          ],
+          "isUnique": false
+        },
+        "idx_users_role_active": {
+          "name": "idx_users_role_active",
+          "columns": [
+            "role",
+            "is_active"
+          ],
+          "isUnique": false
+        },
+        "idx_users_instructor_id": {
+          "name": "idx_users_instructor_id",
+          "columns": [
+            "instructor_id"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "users_instructor_id_instructors_id_fk": {
+          "name": "users_instructor_id_instructors_id_fk",
+          "tableFrom": "users",
+          "tableTo": "instructors",
+          "columnsFrom": [
+            "instructor_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    }
+  },
+  "views": {},
+  "enums": {},
+  "_meta": {
+    "schemas": {},
+    "tables": {},
+    "columns": {}
+  },
+  "internal": {
+    "indexes": {}
+  }
+}

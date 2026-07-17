@@ -1,21 +1,25 @@
-import { and, asc, count, desc, eq, exists, gte, inArray, lt, lte, ne, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, exists, gte, inArray, lt, lte, ne, or, sql } from 'drizzle-orm';
 import type { BatchItem } from 'drizzle-orm/batch';
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { validator } from 'hono/validator';
 
 import { DEPARTMENT_LABELS, departmentCodeSchema } from '@/features/departments/schema';
+import { selectInstructorIdsWithFrameCertification } from '@/server/db/certification-requirements';
 import { createDb } from '@/server/db/client';
 import type { Database } from '@/server/db/client';
 import { isUniqueViolation } from '@/server/db/errors';
 import {
+  certificationRequirements,
   certifications,
   departmentShiftTypes,
+  instructorAvailabilities,
   instructorCertifications,
   instructors,
   shiftAssignments,
   shifts,
   shiftTypes,
+  users,
 } from '@/server/db/schema';
 import { requireAuth, requireRole, type AuthVariables } from '@/server/middleware/auth';
 import type { Env } from '@/server/types';
@@ -132,6 +136,79 @@ async function allInstructorsExist(db: Database, ids: string[]): Promise<boolean
     foundCount += rows.length;
   }
   return foundCount === ids.length;
+}
+
+/** 指定枠が資格要件を持つか、および枠 ID を取得する。 */
+async function findFrameQualificationRequirement(
+  db: Database,
+  departmentCode: string,
+  shiftTypeId: string,
+): Promise<{ frameId: string; isRequired: boolean }> {
+  const [frame] = await db
+    .select({ id: departmentShiftTypes.id })
+    .from(departmentShiftTypes)
+    .where(
+      and(
+        eq(departmentShiftTypes.departmentCode, departmentCode),
+        eq(departmentShiftTypes.shiftTypeId, shiftTypeId),
+      ),
+    )
+    .limit(1);
+
+  if (!frame) {
+    throw new HTTPException(400, { message: '部門で利用できないシフト種別が含まれています' });
+  }
+
+  const [requirement] = await db
+    .select({ id: certificationRequirements.id })
+    .from(certificationRequirements)
+    .where(eq(certificationRequirements.departmentShiftTypeId, frame.id))
+    .limit(1);
+
+  return { frameId: frame.id, isRequired: requirement !== undefined };
+}
+
+/**
+ * 資格要件が有効な枠の編集候補を取得する。
+ * ACTIVE の資格保有者に加え、候補外でも既に割り当て済みの Instructor を含める。
+ */
+async function selectCandidatesForQualifiedFrame(
+  db: Database,
+  candidateIds: string[],
+  assignedInstructorIds: string[],
+  departmentCode: string,
+) {
+  if (candidateIds.length === 0) {
+    return [];
+  }
+
+  return db
+    .select({
+      id: instructors.id,
+      lastName: instructors.lastName,
+      firstName: instructors.firstName,
+      lastNameKana: instructors.lastNameKana,
+      firstNameKana: instructors.firstNameKana,
+      status: instructors.status,
+      certShortName: certifications.shortName,
+    })
+    .from(instructors)
+    .leftJoin(instructorCertifications, eq(instructorCertifications.instructorId, instructors.id))
+    .leftJoin(
+      certifications,
+      and(
+        eq(certifications.id, instructorCertifications.certificationId),
+        eq(certifications.departmentCode, departmentCode),
+        eq(certifications.isActive, true),
+      ),
+    )
+    .where(
+      and(
+        inArray(instructors.id, candidateIds),
+        or(eq(instructors.status, 'ACTIVE'), inArray(instructors.id, assignedInstructorIds)),
+      ),
+    )
+    .orderBy(asc(instructors.lastName), asc(instructors.firstName));
 }
 
 /**
@@ -324,6 +401,214 @@ export const shiftsRoute = new Hono<{
   Bindings: Env;
   Variables: AuthVariables;
 }>()
+  /** 自動割当ソルバーが必要とする候補・資格・可用性・既存割当を集約して返す。 */
+  .get('/auto-assign-context', requireAuth, requireRole('MANAGER'), async (c) => {
+    const departmentCodeResult = departmentCodeSchema.safeParse(c.req.query('departmentCode'));
+    const from = c.req.query('from');
+    const to = c.req.query('to');
+    if (
+      !departmentCodeResult.success ||
+      !from ||
+      !to ||
+      !dateStringSchema.safeParse(from).success ||
+      !dateStringSchema.safeParse(to).success ||
+      !isValidCalendarDate(from) ||
+      !isValidCalendarDate(to) ||
+      from > to
+    ) {
+      throw new HTTPException(400, {
+        message: 'departmentCode, from, to を正しい期間で指定してください',
+      });
+    }
+
+    const departmentCode = departmentCodeResult.data;
+    const db = createDb(c.env.DB);
+    const [candidateRows, frameRows] = await Promise.all([
+      db
+        .select({
+          id: instructors.id,
+          lastName: instructors.lastName,
+          firstName: instructors.firstName,
+          certificationId: certifications.id,
+          linkedUserId: users.id,
+        })
+        .from(instructors)
+        .innerJoin(
+          instructorCertifications,
+          eq(instructorCertifications.instructorId, instructors.id),
+        )
+        .innerJoin(certifications, eq(certifications.id, instructorCertifications.certificationId))
+        .leftJoin(users, eq(users.instructorId, instructors.id))
+        .where(
+          and(
+            eq(instructors.status, 'ACTIVE'),
+            eq(certifications.departmentCode, departmentCode),
+            eq(certifications.isActive, true),
+          ),
+        )
+        .orderBy(asc(instructors.lastName), asc(instructors.firstName), asc(instructors.id)),
+      db
+        .select({
+          frameId: departmentShiftTypes.id,
+          shiftTypeId: departmentShiftTypes.shiftTypeId,
+          certificationId: certificationRequirements.certificationId,
+          tierRank: certificationRequirements.tierRank,
+        })
+        .from(departmentShiftTypes)
+        .leftJoin(
+          certificationRequirements,
+          eq(certificationRequirements.departmentShiftTypeId, departmentShiftTypes.id),
+        )
+        .where(eq(departmentShiftTypes.departmentCode, departmentCode))
+        .orderBy(asc(departmentShiftTypes.sortOrder), asc(certificationRequirements.tierRank)),
+    ]);
+
+    const instructorById = new Map<
+      string,
+      { id: string; displayName: string; certificationIds: string[]; linkedUserId: string | null }
+    >();
+    for (const row of candidateRows) {
+      const instructor = instructorById.get(row.id);
+      if (instructor) {
+        instructor.certificationIds.push(row.certificationId);
+      } else {
+        instructorById.set(row.id, {
+          id: row.id,
+          displayName: formatName(row.lastName, row.firstName),
+          certificationIds: [row.certificationId],
+          linkedUserId: row.linkedUserId,
+        });
+      }
+    }
+    const candidateIds = [...instructorById.keys()];
+    const targetFrom = parseShiftDate(from);
+    const targetTo = parseShiftDate(to);
+    const availabilityRows: {
+      instructorId: string;
+      date: Date;
+      type: 'UNAVAILABLE' | 'AVOID';
+      note: string | null;
+    }[] = [];
+    for (const chunk of chunkArray(candidateIds)) {
+      const rows = await db
+        .select({
+          instructorId: instructorAvailabilities.instructorId,
+          date: instructorAvailabilities.date,
+          type: instructorAvailabilities.type,
+          note: instructorAvailabilities.note,
+        })
+        .from(instructorAvailabilities)
+        .where(
+          and(
+            inArray(instructorAvailabilities.instructorId, chunk),
+            gte(instructorAvailabilities.date, targetFrom),
+            lte(instructorAvailabilities.date, targetTo),
+          ),
+        );
+      availabilityRows.push(...rows);
+    }
+    const submittedInstructorIds = new Set(availabilityRows.map((row) => row.instructorId));
+
+    const framesById = new Map<
+      string,
+      {
+        shiftTypeId: string;
+        certificationTiers: { certificationId: string; tierRank: number }[];
+      }
+    >();
+    for (const row of frameRows) {
+      const frame = framesById.get(row.frameId) ?? {
+        shiftTypeId: row.shiftTypeId,
+        certificationTiers: [],
+      };
+      if (row.certificationId !== null && row.tierRank !== null) {
+        frame.certificationTiers.push({
+          certificationId: row.certificationId,
+          tierRank: row.tierRank,
+        });
+      }
+      framesById.set(row.frameId, frame);
+    }
+    const frames = await Promise.all(
+      [...framesById.entries()].map(async ([frameId, frame]) => ({
+        ...frame,
+        // #191 の共有クエリを使い、枠の資格を満たす ACTIVE 候補を一貫して求める。
+        eligibleInstructorIds: await selectInstructorIdsWithFrameCertification(db, frameId),
+      })),
+    );
+
+    const seasonRange = seasonRangeForDate(
+      from,
+      parseSeasonMonth(c.env.WORKLOAD_SEASON_START_MONTH, 12),
+      parseSeasonMonth(c.env.WORKLOAD_SEASON_END_MONTH, 4),
+    );
+    const assignmentRows: {
+      date: Date;
+      departmentCode: string;
+      shiftTypeId: string;
+      instructorId: string;
+    }[] = [];
+    for (const chunk of chunkArray(candidateIds)) {
+      const rows = await db
+        .select({
+          date: shifts.date,
+          departmentCode: shifts.departmentCode,
+          shiftTypeId: shifts.shiftTypeId,
+          instructorId: shiftAssignments.instructorId,
+        })
+        .from(shiftAssignments)
+        .innerJoin(shifts, eq(shifts.id, shiftAssignments.shiftId))
+        .where(
+          and(
+            inArray(shiftAssignments.instructorId, chunk),
+            gte(shifts.date, parseShiftDate(seasonRange.from)),
+            lte(shifts.date, parseShiftDate(seasonRange.to)),
+          ),
+        );
+      assignmentRows.push(...rows);
+    }
+    const assignmentsByShift = new Map<
+      string,
+      { date: string; departmentCode: string; shiftTypeId: string; instructorIds: string[] }
+    >();
+    for (const row of assignmentRows) {
+      const date = formatDate(row.date);
+      const key = `${date}:${row.departmentCode}:${row.shiftTypeId}`;
+      const assignment = assignmentsByShift.get(key) ?? {
+        date,
+        departmentCode: row.departmentCode,
+        shiftTypeId: row.shiftTypeId,
+        instructorIds: [],
+      };
+      assignment.instructorIds.push(row.instructorId);
+      assignmentsByShift.set(key, assignment);
+    }
+
+    return c.json({
+      departmentCode,
+      period: { from, to },
+      instructors: [...instructorById.values()].map((instructor) => ({
+        id: instructor.id,
+        displayName: instructor.displayName,
+        certificationIds: instructor.certificationIds,
+        availabilityStatus: instructor.linkedUserId
+          ? submittedInstructorIds.has(instructor.id)
+            ? 'SUBMITTED'
+            : 'NOT_SUBMITTED'
+          : 'NOT_LINKED',
+      })),
+      frames,
+      availabilities: availabilityRows.map((row) => ({
+        instructorId: row.instructorId,
+        date: formatDate(row.date),
+        type: row.type,
+        note: row.note,
+      })),
+      existingAssignments: [...assignmentsByShift.values()].sort((left, right) =>
+        left.date.localeCompare(right.date),
+      ),
+    });
+  })
   /**
    * シフト作成フォームの集約データを返す（1リクエスト・N+1 なし）。
    */
@@ -412,31 +697,52 @@ export const shiftsRoute = new Hono<{
       assignedInstructorIds = assignRows.map((r) => r.instructorId);
     }
 
-    // 対象部門の割り当て候補（ACTIVE かつ当該部門のアクティブ資格を持つ）を JOIN で取得
-    const candidateRows = await db
-      .select({
-        id: instructors.id,
-        lastName: instructors.lastName,
-        firstName: instructors.firstName,
-        lastNameKana: instructors.lastNameKana,
-        firstNameKana: instructors.firstNameKana,
-        status: instructors.status,
-        certShortName: certifications.shortName,
-      })
-      .from(instructors)
-      .innerJoin(
-        instructorCertifications,
-        eq(instructorCertifications.instructorId, instructors.id),
-      )
-      .innerJoin(certifications, eq(certifications.id, instructorCertifications.certificationId))
-      .where(
-        and(
-          eq(instructors.status, 'ACTIVE'),
-          eq(certifications.departmentCode, departmentCode),
-          eq(certifications.isActive, true),
-        ),
-      )
-      .orderBy(asc(instructors.lastName), asc(instructors.firstName));
+    const frameRequirement = await findFrameQualificationRequirement(
+      db,
+      departmentCode,
+      shiftTypeId,
+    );
+    const qualifiedCandidateIds = frameRequirement.isRequired
+      ? await selectInstructorIdsWithFrameCertification(db, frameRequirement.frameId)
+      : [];
+    const qualifiedCandidateSet = new Set(qualifiedCandidateIds);
+
+    // 資格要件がない枠は従来どおり部門資格で絞る。要件がある枠では #191 の共有クエリを
+    // 利用し、既存割り当ては候補外でも再保存・解除できるよう結果に残す。
+    const candidateRows = frameRequirement.isRequired
+      ? await selectCandidatesForQualifiedFrame(
+          db,
+          [...new Set([...qualifiedCandidateIds, ...assignedInstructorIds])],
+          assignedInstructorIds,
+          departmentCode,
+        )
+      : await db
+          .select({
+            id: instructors.id,
+            lastName: instructors.lastName,
+            firstName: instructors.firstName,
+            lastNameKana: instructors.lastNameKana,
+            firstNameKana: instructors.firstNameKana,
+            status: instructors.status,
+            certShortName: certifications.shortName,
+          })
+          .from(instructors)
+          .innerJoin(
+            instructorCertifications,
+            eq(instructorCertifications.instructorId, instructors.id),
+          )
+          .innerJoin(
+            certifications,
+            eq(certifications.id, instructorCertifications.certificationId),
+          )
+          .where(
+            and(
+              eq(instructors.status, 'ACTIVE'),
+              eq(certifications.departmentCode, departmentCode),
+              eq(certifications.isActive, true),
+            ),
+          )
+          .orderBy(asc(instructors.lastName), asc(instructors.firstName));
 
     // 同日の別 Shift（競合候補）と、その割り当てを取得する
     const otherShiftRows = await db
@@ -501,14 +807,16 @@ export const shiftsRoute = new Hono<{
     for (const row of candidateRows) {
       const existing = candidateMap.get(row.id);
       if (existing) {
-        existing.certShortNames.push(row.certShortName);
+        if (row.certShortName) {
+          existing.certShortNames.push(row.certShortName);
+        }
       } else {
         candidateMap.set(row.id, {
           id: row.id,
           displayName: formatName(row.lastName, row.firstName),
           displayNameKana: formatNameKana(row.lastNameKana, row.firstNameKana),
           status: row.status,
-          certShortNames: [row.certShortName],
+          certShortNames: row.certShortName ? [row.certShortName] : [],
           isAssigned: assignedSet.has(row.id),
           hasConflict: conflictByInstructor.has(row.id),
         });
@@ -523,6 +831,8 @@ export const shiftsRoute = new Hono<{
       certifications: cand.certShortNames,
       isAssigned: cand.isAssigned,
       hasConflict: cand.hasConflict,
+      hasQualificationWarning:
+        frameRequirement.isRequired && cand.isAssigned && !qualifiedCandidateSet.has(cand.id),
     }));
 
     const seasonRange = seasonRangeForDate(
@@ -838,7 +1148,7 @@ export const shiftsRoute = new Hono<{
 
       const shiftTypeIds = [...new Set(input.cells.map((cell) => cell.shiftTypeId))];
       const availableRows = await db
-        .select({ shiftTypeId: departmentShiftTypes.shiftTypeId })
+        .select({ shiftTypeId: departmentShiftTypes.shiftTypeId, frameId: departmentShiftTypes.id })
         .from(departmentShiftTypes)
         .where(
           and(
@@ -849,6 +1159,9 @@ export const shiftsRoute = new Hono<{
       if (availableRows.length !== shiftTypeIds.length) {
         throw new HTTPException(400, { message: '部門で利用できないシフト種別が含まれています' });
       }
+      const frameIdByShiftTypeId = new Map(
+        availableRows.map((row) => [row.shiftTypeId, row.frameId]),
+      );
 
       // 全セルで参照される Instructor が実在するかを1クエリで検証
       const uniqueInstructorIds = [...new Set(input.cells.flatMap((cell) => cell.instructorIds))];
@@ -883,6 +1196,67 @@ export const shiftsRoute = new Hono<{
       const existingByKey = new Map<string, string>();
       for (const row of existingRows) {
         existingByKey.set(`${formatDate(row.date)}:${row.shiftTypeId}`, row.id);
+      }
+
+      // 既存ペアとの差分だけを資格要件の対象にする。これにより資格設定より前の
+      // 割り当ては再保存・解除できる一方、新規に追加する無資格者だけを拒否できる。
+      const existingInstructorIdsByShiftId = new Map<string, Set<string>>();
+      for (const chunk of chunkArray(existingRows.map((row) => row.id))) {
+        const assignmentRows = await db
+          .select({
+            shiftId: shiftAssignments.shiftId,
+            instructorId: shiftAssignments.instructorId,
+          })
+          .from(shiftAssignments)
+          .where(inArray(shiftAssignments.shiftId, chunk));
+        for (const row of assignmentRows) {
+          const ids = existingInstructorIdsByShiftId.get(row.shiftId) ?? new Set<string>();
+          ids.add(row.instructorId);
+          existingInstructorIdsByShiftId.set(row.shiftId, ids);
+        }
+      }
+
+      const requiredFrameIds = new Set<string>();
+      for (const row of await db
+        .select({ frameId: certificationRequirements.departmentShiftTypeId })
+        .from(certificationRequirements)
+        .where(
+          inArray(certificationRequirements.departmentShiftTypeId, [
+            ...new Set(availableRows.map((row) => row.frameId)),
+          ]),
+        )) {
+        requiredFrameIds.add(row.frameId);
+      }
+      const qualifiedInstructorIdsByFrameId = new Map<string, Set<string>>();
+      for (const frameId of requiredFrameIds) {
+        qualifiedInstructorIdsByFrameId.set(
+          frameId,
+          new Set(
+            await selectInstructorIdsWithFrameCertification(db, frameId, { activeOnly: false }),
+          ),
+        );
+      }
+
+      for (const cell of input.cells) {
+        const frameId = frameIdByShiftTypeId.get(cell.shiftTypeId);
+        if (!frameId || !requiredFrameIds.has(frameId)) {
+          continue;
+        }
+        const existingId = existingByKey.get(`${cell.date}:${cell.shiftTypeId}`);
+        const existingInstructorIds = existingId
+          ? (existingInstructorIdsByShiftId.get(existingId) ?? new Set<string>())
+          : new Set<string>();
+        const qualifiedInstructorIds =
+          qualifiedInstructorIdsByFrameId.get(frameId) ?? new Set<string>();
+        const hasUnqualifiedNewAssignment = [...new Set(cell.instructorIds)].some(
+          (instructorId) =>
+            !existingInstructorIds.has(instructorId) && !qualifiedInstructorIds.has(instructorId),
+        );
+        if (hasUnqualifiedNewAssignment) {
+          throw new HTTPException(400, {
+            message: '資格要件を満たさない新規割り当てが含まれています',
+          });
+        }
       }
 
       let upsertedCount = 0;

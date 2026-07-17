@@ -1,0 +1,64 @@
+/* shifts/manage と同じく MonthView の表示形式切替を隠し、月間表示に固定する。 */
+.calendarHeader > :nth-child(3),
+.calendarHeader > :nth-child(4) {
+  display: none !important;
+}
+
+.calendarWeekday:nth-child(6) {
+  color: var(--mantine-color-blue-7);
+}
+
+.calendarWeekday:nth-child(7) {
+  color: var(--mantine-color-red-7);
+}
+
+.calendarDay[data-disabled] {
+  background-color: var(--mantine-color-gray-1);
+}
+
+.calendarDay[data-availability='UNAVAILABLE'] {
+  background-color: var(--mantine-color-red-0);
+}
+
+.calendarDay[data-availability='AVOID'] {
+  background-color: var(--mantine-color-yellow-0);
+}
+
+.calendarDay[data-staged]::after {
+  position: absolute;
+  top: 6px;
+  right: 28px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--mantine-color-orange-6);
+  content: '';
+}
+
+.lockLayer {
+  /* MonthView の背景イベント領域をセル幅のレイヤーとして使う。 */
+  position: absolute;
+  top: -27px;
+  bottom: -21px;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.lockIcon {
+  position: absolute;
+  top: 1px;
+  right: 3px;
+}
+
+.availabilityEvent {
+  position: relative;
+  width: 100%;
+  padding: 0 6px;
+  text-align: left;
+}
+
+.noteIcon {
+  position: absolute;
+  right: 4px;
+  bottom: 2px;
+}

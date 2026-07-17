@@ -4,12 +4,14 @@ import { z } from 'zod';
 import { client } from '@/lib/rpc';
 
 import {
+  autoAssignContextSchema,
   shiftAgendaResponseSchema,
   shiftEditDataSchema,
   shiftFormDataSchema,
   shiftListSchema,
   shiftViewResponseSchema,
   upsertMonthlyAssignmentsResultSchema,
+  type AutoAssignContext,
   type ShiftAgendaDirection,
   type ShiftAgendaResponse,
   type ShiftEditData,
@@ -163,6 +165,38 @@ export function useShiftCreationContext(departmentCode: string) {
       return shiftFormDataSchema.parse(await res.json());
     },
     enabled: !!departmentCode,
+  });
+}
+
+/**
+ * 自動割当の候補・可用性・既存割当を対象月単位で取得する。
+ * @param departmentCode - 対象部門
+ * @param month - 対象月（YYYY-MM）
+ */
+export function useAutoAssignContext(departmentCode: string, month: string) {
+  const from = `${month}-01`;
+  const to = new Date(`${from}T00:00:00.000Z`);
+  to.setUTCMonth(to.getUTCMonth() + 1);
+  to.setUTCDate(0);
+  const end = to.toISOString().slice(0, 10);
+
+  return useQuery<AutoAssignContext>({
+    queryKey: [...SHIFTS_QUERY_KEY, 'auto-assign-context', departmentCode, month],
+    queryFn: async () => {
+      const res = await client.api.shifts['auto-assign-context'].$get({
+        query: { departmentCode, from, to: end },
+      });
+      if (!res.ok) {
+        const body = apiErrorSchema.safeParse(await res.json());
+        throw new Error(
+          body.success
+            ? (body.data.message ?? '自動割当データの取得に失敗しました')
+            : '自動割当データの取得に失敗しました',
+        );
+      }
+      return autoAssignContextSchema.parse(await res.json());
+    },
+    enabled: !!departmentCode && !!month,
   });
 }
 

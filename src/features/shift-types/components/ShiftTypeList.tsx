@@ -25,10 +25,16 @@ type ShiftTypeListProps = {
   renderRowAction?: (shiftType: ShiftTypeListItem) => ReactNode;
   /** 任意の行操作列の見出し。 */
   rowActionHeader?: ReactNode;
+  /** Drawerを親で管理する場合のフォーム開始処理。 */
+  onOpenForm?: (state: ShiftTypeDrawerState) => void;
 };
 
 /** シフト種別マスタの検索・絞り込みと新規登録・編集を提供する一覧。 */
-export function ShiftTypeList({ renderRowAction, rowActionHeader }: ShiftTypeListProps) {
+export function ShiftTypeList({
+  renderRowAction,
+  rowActionHeader,
+  onOpenForm,
+}: ShiftTypeListProps) {
   const [search, setSearch] = useState('');
   const [showInactive, setShowInactive] = useState(false);
   const [drawerState, setDrawerState] = useState<ShiftTypeDrawerState | null>(null);
@@ -57,7 +63,9 @@ export function ShiftTypeList({ renderRowAction, rowActionHeader }: ShiftTypeLis
           <Button
             size="sm"
             leftSection={<IconPlus size={16} />}
-            onClick={() => setDrawerState({ mode: 'create' })}
+            onClick={() =>
+              onOpenForm ? onOpenForm({ mode: 'create' }) : setDrawerState({ mode: 'create' })
+            }
           >
             登録
           </Button>
@@ -85,7 +93,9 @@ export function ShiftTypeList({ renderRowAction, rowActionHeader }: ShiftTypeLis
           action={
             <Button
               leftSection={<IconPlus size={16} />}
-              onClick={() => setDrawerState({ mode: 'create' })}
+              onClick={() =>
+                onOpenForm ? onOpenForm({ mode: 'create' }) : setDrawerState({ mode: 'create' })
+              }
             >
               シフト種別を新規登録
             </Button>
@@ -112,14 +122,18 @@ export function ShiftTypeList({ renderRowAction, rowActionHeader }: ShiftTypeLis
                 key={shiftType.id}
                 shiftType={shiftType}
                 rowAction={renderRowAction?.(shiftType)}
-                onEdit={() => setDrawerState({ mode: 'edit', shiftTypeId: shiftType.id })}
+                onEdit={() =>
+                  onOpenForm
+                    ? onOpenForm({ mode: 'edit', shiftTypeId: shiftType.id })
+                    : setDrawerState({ mode: 'edit', shiftTypeId: shiftType.id })
+                }
               />
             ))}
           </Table.Tbody>
         </AppTable>
       )}
 
-      <ShiftTypeDrawer state={drawerState} onClose={() => setDrawerState(null)} />
+      {!onOpenForm && <ShiftTypeDrawer state={drawerState} onClose={() => setDrawerState(null)} />}
     </Stack>
   );
 }

@@ -118,7 +118,7 @@ function MemberInstructorLinkPrompt({ user }: { user: MeResponse }) {
   );
 }
 
-const MEMBER_PATHS = new Set(['/', '/shifts']);
+const MEMBER_PATHS = new Set(['/', '/shifts', '/availabilities']);
 const NOOP = () => {};
 
 type NavigationItem = {

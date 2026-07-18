@@ -19,7 +19,6 @@
     "test:watch": "vitest",
     "db:generate": "drizzle-kit generate",
     "db:migrate:local": "wrangler d1 migrations apply fuyugyo --local",
-    "db:migrate:remote": "wrangler d1 migrations apply fuyugyo --remote",
     "db:studio": "drizzle-kit studio",
     "db:seed": "node scripts/seed-local.ts",
     "db:seed:data": "node scripts/seed-dev-data.ts",

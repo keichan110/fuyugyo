@@ -7,7 +7,7 @@ import { seasonRangeForDate, type SeasonRange } from './workload';
  *
  * 集計単位は2種類を使い分ける:
  * - サマリー・月別推移・通算トレンド → 勤務日数（同日に複数シフトへ入っても1日として数える）
- * - 部門別・シフト種別別の内訳 → 勤務回数（同日複数シフトはそれぞれ1件として数える）
+ * - 勤務内訳 → 勤務回数（同日複数シフトはそれぞれ1件として数える）
  */
 
 /** 集計対象の入力行（対象 Instructor の Shift × ShiftAssignment を平坦化したもの） */
@@ -26,14 +26,9 @@ export type MonthlyWorkDays = {
   workDays: number;
 };
 
-/** 部門別の勤務回数内訳（比率グラフの1セグメント） */
-export type DepartmentBreakdownItem = {
+/** 部門とシフト種別の組み合わせ別の勤務回数内訳（円グラフの1セグメント） */
+export type WorkBreakdownItem = {
   departmentCode: string;
-  count: number;
-};
-
-/** シフト種別別の勤務回数内訳（比率グラフの1セグメント） */
-export type ShiftTypeBreakdownItem = {
   shiftTypeId: string;
   shiftTypeName: string;
   count: number;
@@ -54,12 +49,11 @@ export type SeasonStats = {
   summary: SeasonStatsSummary;
   /** 今シーズン内の月別勤務日数（シーズン開始月→終了月の順。データがない月も 0 で含む） */
   monthlyTrend: MonthlyWorkDays[];
-  byDepartment: DepartmentBreakdownItem[];
-  byShiftType: ShiftTypeBreakdownItem[];
+  breakdown: WorkBreakdownItem[];
 };
 
 /**
- * 今シーズン・前シーズンの勤務行から、サマリー・月別推移・部門別/種別別内訳を組み立てる。
+ * 今シーズン・前シーズンの勤務行から、サマリー・月別推移・勤務内訳を組み立てる。
  * @param rows - 対象 Instructor の [前シーズン開始, 今シーズン終了] 範囲の勤務行
  * @param today - 基準日（YYYY-MM-DD）。通常はサーバーの当日
  * @returns 今シーズンセクション向けの集計結果
@@ -88,8 +82,7 @@ export function buildSeasonStats(rows: SeasonStatsSourceRow[], today: string): S
       previousSeasonRange,
     },
     monthlyTrend: buildMonthlyTrend(currentSeasonRows, currentSeasonRange),
-    byDepartment: aggregateDepartmentCounts(currentSeasonRows),
-    byShiftType: aggregateShiftTypeCounts(currentSeasonRows),
+    breakdown: aggregateWorkBreakdown(currentSeasonRows),
   };
 }
 
@@ -157,29 +150,22 @@ function buildMonthlyTrend(rows: SeasonStatsSourceRow[], range: SeasonRange): Mo
   }));
 }
 
-/** 部門別の勤務回数（同日複数シフトはそれぞれ1件）を、件数の多い順に集計する */
-function aggregateDepartmentCounts(rows: SeasonStatsSourceRow[]): DepartmentBreakdownItem[] {
-  const counts = new Map<string, number>();
+/** 部門とシフト種別の組み合わせ別に勤務回数を、件数の多い順で集計する */
+function aggregateWorkBreakdown(rows: SeasonStatsSourceRow[]): WorkBreakdownItem[] {
+  const counts = new Map<string, WorkBreakdownItem>();
   for (const row of rows) {
-    counts.set(row.departmentCode, (counts.get(row.departmentCode) ?? 0) + 1);
-  }
-  return Array.from(counts, ([departmentCode, count]) => ({ departmentCode, count })).sort(
-    (a, b) => b.count - a.count,
-  );
-}
-
-/** シフト種別別の勤務回数（同日複数シフトはそれぞれ1件）を、件数の多い順に集計する */
-function aggregateShiftTypeCounts(rows: SeasonStatsSourceRow[]): ShiftTypeBreakdownItem[] {
-  const counts = new Map<string, { shiftTypeName: string; count: number }>();
-  for (const row of rows) {
-    const existing = counts.get(row.shiftTypeId);
+    const key = `${row.departmentCode}:${row.shiftTypeId}`;
+    const existing = counts.get(key);
     if (existing) {
       existing.count += 1;
     } else {
-      counts.set(row.shiftTypeId, { shiftTypeName: row.shiftTypeName, count: 1 });
+      counts.set(key, {
+        departmentCode: row.departmentCode,
+        shiftTypeId: row.shiftTypeId,
+        shiftTypeName: row.shiftTypeName,
+        count: 1,
+      });
     }
   }
-  return Array.from(counts, ([shiftTypeId, value]) => ({ shiftTypeId, ...value })).sort(
-    (a, b) => b.count - a.count,
-  );
+  return Array.from(counts.values()).sort((a, b) => b.count - a.count);
 }

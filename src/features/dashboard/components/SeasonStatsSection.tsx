@@ -2,9 +2,7 @@ import { Card, Text } from '@mantine/core';
 
 import { useMySeasonStats } from '@/features/shifts/queries';
 
-import { SeasonBreakdownCounts } from './SeasonBreakdownCounts';
-import { SeasonDepartmentPieChart } from './SeasonDepartmentPieChart';
-import { SeasonShiftTypePieChart } from './SeasonShiftTypePieChart';
+import { SeasonWorkBreakdownChart } from './SeasonWorkBreakdownChart';
 import { SeasonWorkDaysChart } from './SeasonWorkDaysChart';
 import { SeasonWorkDaysSummary } from './SeasonWorkDaysSummary';
 
@@ -40,10 +38,8 @@ export function SeasonStatsSection() {
   return (
     <>
       <SeasonWorkDaysSummary summary={data.summary} />
-      <SeasonBreakdownCounts byDepartment={data.byDepartment} byShiftType={data.byShiftType} />
+      <SeasonWorkBreakdownChart breakdown={data.breakdown} />
       <SeasonWorkDaysChart monthlyTrend={data.monthlyTrend} />
-      <SeasonDepartmentPieChart byDepartment={data.byDepartment} />
-      <SeasonShiftTypePieChart byShiftType={data.byShiftType} />
     </>
   );
 }

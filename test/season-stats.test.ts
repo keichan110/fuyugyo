@@ -50,7 +50,7 @@ describe('buildSeasonStats', () => {
     expect(stats.summary.currentSeasonWorkDays).toBe(1);
   });
 
-  it('部門別・シフト種別別の内訳は勤務回数（同日複数シフトはそれぞれ1件）で数える', () => {
+  it('勤務内訳は部門とシフト種別の組み合わせごとに勤務回数を数える', () => {
     const rows: SeasonStatsSourceRow[] = [
       row('2026-01-05', 'ski', 'st-am', '午前'),
       row('2026-01-05', 'snowboard', 'st-pm', '午後'),
@@ -59,13 +59,9 @@ describe('buildSeasonStats', () => {
 
     const stats = buildSeasonStats(rows, '2026-01-15');
 
-    expect(stats.byDepartment).toEqual([
-      { departmentCode: 'ski', count: 2 },
-      { departmentCode: 'snowboard', count: 1 },
-    ]);
-    expect(stats.byShiftType).toEqual([
-      { shiftTypeId: 'st-am', shiftTypeName: '午前', count: 2 },
-      { shiftTypeId: 'st-pm', shiftTypeName: '午後', count: 1 },
+    expect(stats.breakdown).toEqual([
+      { departmentCode: 'ski', shiftTypeId: 'st-am', shiftTypeName: '午前', count: 2 },
+      { departmentCode: 'snowboard', shiftTypeId: 'st-pm', shiftTypeName: '午後', count: 1 },
     ]);
   });
 
@@ -95,8 +91,7 @@ describe('buildSeasonStats', () => {
 
     expect(stats.summary.currentMonthWorkDays).toBe(0);
     expect(stats.summary.currentSeasonWorkDays).toBe(0);
-    expect(stats.byDepartment).toEqual([]);
-    expect(stats.byShiftType).toEqual([]);
+    expect(stats.breakdown).toEqual([]);
     expect(stats.monthlyTrend.every((item) => item.workDays === 0)).toBe(true);
   });
 });

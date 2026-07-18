@@ -23,24 +23,3 @@
   border-radius: 2px;
   flex-shrink: 0;
 }
-
-.eventDetails {
-  flex: 1;
-  min-width: 0;
-}
-
-/* 担当者一覧は名前を主情報にし、人物アイコンは一覧全体の目印として一度だけ添える */
-.assignedInstructorList {
-  flex: 1;
-  min-width: 0;
-  line-height: 1.5;
-}
-
-/* 備考は補足情報のため、担当者名より目立たない薄い色・小さめサイズで表示する */
-.descriptionText {
-  flex: 1;
-  min-width: 0;
-  line-height: 1.5;
-  white-space: pre-wrap;
-  overflow-wrap: break-word;
-}

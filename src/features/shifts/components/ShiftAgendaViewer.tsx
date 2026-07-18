@@ -9,7 +9,6 @@ import {
   Stack,
   Switch,
   Text,
-  ThemeIcon,
   Title,
   Transition,
   UnstyledButton,
@@ -17,7 +16,6 @@ import {
 import { useWindowScroll } from '@mantine/hooks';
 import { AgendaView } from '@mantine/schedule';
 import type { ScheduleEventData } from '@mantine/schedule';
-import { IconMessage, IconUserFilled } from '@tabler/icons-react';
 
 import { ErrorAlert, InfoAlert } from '@/components/AppAlert';
 import { AppButton } from '@/components/AppButton';
@@ -30,6 +28,7 @@ import { fetchShiftAgendaPage, useShiftAgendaFuture } from '../queries';
 import type { ShiftAgendaDay, ShiftAgendaResponse, ShiftViewItem } from '../schema';
 import { addDays, addMonths, shortDateLabel, toMonth } from '../view-utils';
 import classes from './ShiftAgendaViewer.module.css';
+import { ShiftAttendeeRow } from './ShiftAttendeeRow';
 
 type ShiftAgendaViewerProps = {
   /** 初回表示の起点日（YYYY-MM-DD） */
@@ -327,7 +326,7 @@ function AgendaDayList({
                         ).color
                       }
                     />
-                    <ShiftAgendaContent shift={payload.shift} myInstructorId={myInstructorId} />
+                    <ShiftAttendeeRow shift={payload.shift} myInstructorId={myInstructorId} />
                   </Box>
                 </UnstyledButton>
               );
@@ -344,64 +343,6 @@ function MonthHeader({ month }: { month: string }) {
     <Text fw={700} size="sm" className={classes.monthHeader}>
       {month.replace('-', '年')}月
     </Text>
-  );
-}
-
-function ShiftAgendaContent({
-  shift,
-  myInstructorId,
-}: {
-  shift: ShiftViewItem;
-  myInstructorId: string | null;
-}) {
-  const department = getDepartmentAppearance(shift.department.code, shift.department.name);
-  const DepartmentIcon = department.icon;
-
-  return (
-    <Stack gap={4} className={classes.eventDetails}>
-      <Group justify="space-between" wrap="nowrap">
-        <Group gap={4} wrap="nowrap">
-          <ThemeIcon color={department.color} variant="transparent" size="sm">
-            <DepartmentIcon size={18} stroke={1.75} />
-          </ThemeIcon>
-          <Text fw={600}>{shift.shiftType.name}</Text>
-        </Group>
-        <Text size="sm" c="dimmed">
-          {shift.assignedInstructors.length}名
-        </Text>
-      </Group>
-      {shift.assignedInstructors.length > 0 ? (
-        <Group gap={4} align="flex-start" wrap="nowrap">
-          <ThemeIcon color="gray" variant="transparent" size={16} mt={3}>
-            <IconUserFilled size={14} />
-          </ThemeIcon>
-          <Text size="sm" className={classes.assignedInstructorList}>
-            {shift.assignedInstructors.map((instructor) => (
-              <Fragment key={instructor.id}>
-                <Text component="span" fw={instructor.id === myInstructorId ? 600 : 400}>
-                  {instructor.displayName}
-                </Text>
-                {instructor.id !== shift.assignedInstructors.at(-1)?.id && ' ・ '}
-              </Fragment>
-            ))}
-          </Text>
-        </Group>
-      ) : (
-        <Text size="sm" c="dimmed">
-          未割り当て
-        </Text>
-      )}
-      {shift.description && (
-        <Group gap={4} align="flex-start" wrap="nowrap">
-          <ThemeIcon color="gray.6" variant="transparent" size={16} mt={1}>
-            <IconMessage size={14} stroke={1.75} />
-          </ThemeIcon>
-          <Text size="xs" c="dimmed" className={classes.descriptionText}>
-            {shift.description}
-          </Text>
-        </Group>
-      )}
-    </Stack>
   );
 }
 

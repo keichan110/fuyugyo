@@ -1,0 +1,11 @@
+.shiftRow {
+  display: flex;
+  gap: var(--mantine-spacing-sm);
+  padding: var(--mantine-spacing-xs) var(--mantine-spacing-sm);
+}
+
+.departmentBar {
+  width: 4px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}

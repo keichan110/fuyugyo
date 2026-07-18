@@ -4,6 +4,7 @@ import { createFileRoute, Link, redirect } from '@tanstack/react-router';
 import { AppButton } from '@/components/AppButton';
 import { ensureAuthenticated } from '@/features/auth/auth-guard';
 import { useMe } from '@/features/auth/queries';
+import { CurrentAttendance } from '@/features/dashboard/components/CurrentAttendance';
 import { UpcomingShifts } from '@/features/dashboard/components/UpcomingShifts';
 
 /**
@@ -29,6 +30,7 @@ function DashboardPage() {
         <Title order={2}>ダッシュボード</Title>
         {instructorId && (
           <>
+            <CurrentAttendance instructorId={instructorId} />
             <UpcomingShifts instructorId={instructorId} />
             <Card padding="lg">
               <Group justify="space-between" align="center">

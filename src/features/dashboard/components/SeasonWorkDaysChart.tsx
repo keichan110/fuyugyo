@@ -40,11 +40,7 @@ export function formatSeasonWorkDaysTooltip(
 /**
  * 月別勤務日数（棒）とシーズン通算勤務日数（線）を重ねて表示する複合グラフカード。
  */
-export function SeasonWorkDaysChart({
-  monthlyTrend,
-}: {
-  monthlyTrend: SeasonMonthlyWorkDays[];
-}) {
+export function SeasonWorkDaysChart({ monthlyTrend }: { monthlyTrend: SeasonMonthlyWorkDays[] }) {
   const hasData = monthlyTrend.some((item) => item.workDays > 0);
   const data = buildSeasonWorkDaysChartData(monthlyTrend);
 
@@ -76,7 +72,9 @@ export function SeasonWorkDaysChart({
           tooltipProps={{
             content: ({ active, label, payload }) => {
               const workDays = payload?.find((item) => item.dataKey === 'workDays')?.value;
-              const totalWorkDays = payload?.find((item) => item.dataKey === 'totalWorkDays')?.value;
+              const totalWorkDays = payload?.find(
+                (item) => item.dataKey === 'totalWorkDays',
+              )?.value;
 
               if (
                 !active ||

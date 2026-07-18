@@ -59,7 +59,7 @@ export function SeasonWorkDaysChart({ monthlyTrend }: { monthlyTrend: SeasonMont
             {
               name: 'totalWorkDays',
               type: 'line',
-              color: 'teal.6',
+              color: 'orange.6',
               label: 'シーズン通算勤務日数',
               yAxisId: 'right',
             },
@@ -68,6 +68,8 @@ export function SeasonWorkDaysChart({ monthlyTrend }: { monthlyTrend: SeasonMont
           withRightYAxis
           yAxisLabel="月別"
           rightYAxisLabel="通算"
+          yAxisProps={{ allowDecimals: false }}
+          rightYAxisProps={{ allowDecimals: false }}
           valueFormatter={(value) => `${value}日`}
           tooltipProps={{
             content: ({ active, label, payload }) => {

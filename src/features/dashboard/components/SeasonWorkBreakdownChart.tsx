@@ -1,5 +1,5 @@
 import { DonutChart } from '@mantine/charts';
-import { Box, Card, Group, Stack, Text, Title } from '@mantine/core';
+import { Box, Group, Stack, Text, Title } from '@mantine/core';
 
 import { getDepartmentAppearance } from '@/features/departments/appearance';
 import type { SeasonWorkBreakdownItem } from '@/features/shifts/schema';
@@ -27,8 +27,8 @@ export function SeasonWorkBreakdownChart({ breakdown }: { breakdown: SeasonWorkB
   const totalCount = data.reduce((sum, item) => sum + item.value, 0);
 
   return (
-    <Card padding="lg">
-      <Title order={3} size="h4" mb="sm">
+    <Stack gap="md">
+      <Title order={3} size="h4">
         勤務内訳
       </Title>
       {data.length === 0 ? (
@@ -80,6 +80,6 @@ export function SeasonWorkBreakdownChart({ breakdown }: { breakdown: SeasonWorkB
           </Stack>
         </Stack>
       )}
-    </Card>
+    </Stack>
   );
 }

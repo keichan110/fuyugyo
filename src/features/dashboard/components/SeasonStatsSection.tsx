@@ -1,4 +1,4 @@
-import { Card, Text } from '@mantine/core';
+import { SimpleGrid, Stack, Text } from '@mantine/core';
 
 import { useMySeasonStats } from '@/features/shifts/queries';
 
@@ -17,29 +17,31 @@ export function SeasonStatsSection() {
 
   if (isLoading) {
     return (
-      <Card padding="lg">
+      <Stack>
         <Text size="sm" c="dimmed">
           読み込み中…
         </Text>
-      </Card>
+      </Stack>
     );
   }
 
   if (isError || !data) {
     return (
-      <Card padding="lg">
+      <Stack>
         <Text size="sm" c="dimmed">
           今シーズンの集計を取得できませんでした。
         </Text>
-      </Card>
+      </Stack>
     );
   }
 
   return (
-    <>
+    <Stack gap="xl">
       <SeasonWorkDaysSummary summary={data.summary} />
-      <SeasonWorkBreakdownChart breakdown={data.breakdown} />
-      <SeasonWorkDaysChart monthlyTrend={data.monthlyTrend} />
-    </>
+      <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="xl">
+        <SeasonWorkBreakdownChart breakdown={data.breakdown} />
+        <SeasonWorkDaysChart monthlyTrend={data.monthlyTrend} />
+      </SimpleGrid>
+    </Stack>
   );
 }

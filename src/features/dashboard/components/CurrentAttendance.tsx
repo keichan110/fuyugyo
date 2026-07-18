@@ -1,4 +1,4 @@
-import { Box, Card, Stack, Tabs, Text, Title } from '@mantine/core';
+import { Box, Stack, Tabs, Text, Title } from '@mantine/core';
 
 import { getDepartmentAppearance } from '@/features/departments/appearance';
 import { ShiftAttendeeRow } from '@/features/shifts/components/ShiftAttendeeRow';
@@ -22,12 +22,12 @@ export function CurrentAttendance({ instructorId }: { instructorId: string }) {
   const tomorrowShifts = (data ?? []).filter((shift) => shift.date === tomorrow);
 
   return (
-    <Card padding="lg">
-      <Title order={3} size="h4" mb="sm">
+    <Stack gap="sm">
+      <Title order={3} size="h4">
         本日・明日の出勤
       </Title>
 
-      <Tabs defaultValue="today">
+      <Tabs defaultValue="today" variant="pills">
         <Tabs.List>
           <Tabs.Tab value="today">本日</Tabs.Tab>
           <Tabs.Tab value="tomorrow">明日</Tabs.Tab>
@@ -55,7 +55,7 @@ export function CurrentAttendance({ instructorId }: { instructorId: string }) {
           />
         </Tabs.Panel>
       </Tabs>
-    </Card>
+    </Stack>
   );
 }
 

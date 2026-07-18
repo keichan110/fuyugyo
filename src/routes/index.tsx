@@ -1,4 +1,5 @@
-import { Card, Container, Group, Stack, Text, Title } from '@mantine/core';
+import { Container, Group, Stack, Text, ThemeIcon, Timeline, Title } from '@mantine/core';
+import { IconCalendarEvent, IconChartBar, IconUsers } from '@tabler/icons-react';
 import { createFileRoute, Link, redirect } from '@tanstack/react-router';
 
 import { AppButton } from '@/components/AppButton';
@@ -27,29 +28,56 @@ function DashboardPage() {
 
   return (
     <Container size="sm" py="md">
-      <Stack gap="md">
+      <Stack gap="xl">
         <Title order={2}>ダッシュボード</Title>
         {instructorId && (
-          <>
-            <CurrentAttendance instructorId={instructorId} />
-            <UpcomingShifts instructorId={instructorId} />
-            <SeasonStatsSection />
-            <Card padding="lg">
-              <Group justify="space-between" align="center">
-                <Stack gap={4}>
-                  <Title order={3} size="h4">
-                    シフト希望
-                  </Title>
-                  <Text size="sm" c="dimmed">
-                    勤務できない日や調整が必要な日を登録します。
-                  </Text>
-                </Stack>
-                <AppButton intent="secondary" component={Link} to="/availabilities">
-                  シフト希望を入力
-                </AppButton>
-              </Group>
-            </Card>
-          </>
+          <Timeline active={0} bulletSize={32} lineWidth={2}>
+            <Timeline.Item
+              title="現在"
+              bullet={
+                <ThemeIcon size={32} radius="xl" variant="filled">
+                  <IconUsers size={18} stroke={1.8} />
+                </ThemeIcon>
+              }
+            >
+              <CurrentAttendance instructorId={instructorId} />
+            </Timeline.Item>
+
+            <Timeline.Item
+              title="次の勤務"
+              bullet={
+                <ThemeIcon size={32} radius="xl" color="cyan" variant="light">
+                  <IconCalendarEvent size={18} stroke={1.8} />
+                </ThemeIcon>
+              }
+            >
+              <UpcomingShifts instructorId={instructorId} />
+            </Timeline.Item>
+
+            <Timeline.Item
+              title="今シーズン"
+              bullet={
+                <ThemeIcon size={32} radius="xl" color="gray" variant="light">
+                  <IconChartBar size={18} stroke={1.8} />
+                </ThemeIcon>
+              }
+            >
+              <Stack gap="xl">
+                <SeasonStatsSection />
+                <Group justify="space-between" align="center">
+                  <Stack gap={4}>
+                    <Text fw={600}>シフト希望</Text>
+                    <Text size="sm" c="dimmed">
+                      勤務できない日や調整が必要な日を登録します。
+                    </Text>
+                  </Stack>
+                  <AppButton intent="secondary" component={Link} to="/availabilities">
+                    シフト希望を入力
+                  </AppButton>
+                </Group>
+              </Stack>
+            </Timeline.Item>
+          </Timeline>
         )}
       </Stack>
     </Container>

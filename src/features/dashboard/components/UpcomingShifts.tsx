@@ -1,5 +1,5 @@
 import { Carousel } from '@mantine/carousel';
-import { Badge, Box, Card, Divider, Group, Stack, Text, Title } from '@mantine/core';
+import { Badge, Box, Divider, Group, Paper, Stack, Text, Title } from '@mantine/core';
 import { Calendar, type CalendarProps } from '@mantine/dates';
 import dayjs, { type Dayjs } from 'dayjs';
 
@@ -191,8 +191,8 @@ export function UpcomingShifts({ instructorId }: { instructorId: string }) {
   };
 
   return (
-    <Card padding="lg">
-      <Title order={3} size="h4" mb="sm">
+    <Stack gap="md">
+      <Title order={3} size="h4">
         直近の勤務予定
       </Title>
 
@@ -216,35 +216,47 @@ export function UpcomingShifts({ instructorId }: { instructorId: string }) {
 
       {!isLoading && upcoming.length > 0 && !isAttendanceError && (
         <Stack gap="sm">
-          {groups.map((group, index) => (
-            <Stack key={group.dateStr} gap={4}>
-              <Group gap={6}>
-                <Text size="sm" c="dimmed">
-                  {shortDateLabel(group.dateStr)}
-                </Text>
-                {/* 次回勤務（先頭グループ）にのみカウントダウンを表示する */}
-                {index === 0 && (
-                  <Badge size="sm" variant="light" color="blue">
-                    {getCountdownLabel(group.dateStr)}
-                  </Badge>
-                )}
-              </Group>
-              <Stack gap={0}>
-                {group.shifts.map((viewItem) => (
-                  <Box key={viewItem.id} className={classes.shiftRow}>
-                    <Box
-                      className={classes.departmentBar}
-                      bg={
-                        getDepartmentAppearance(viewItem.department.code, viewItem.department.name)
-                          .color
-                      }
-                    />
-                    <ShiftAttendeeRow shift={viewItem} myInstructorId={instructorId} />
-                  </Box>
-                ))}
+          {groups.map((group, index) => {
+            const content = (
+              <Stack gap={4}>
+                <Group gap={6}>
+                  <Text size="sm" c="dimmed">
+                    {shortDateLabel(group.dateStr)}
+                  </Text>
+                  {/* 次回勤務（先頭グループ）にのみカウントダウンを表示する */}
+                  {index === 0 && (
+                    <Badge size="sm" variant="light" color="blue">
+                      {getCountdownLabel(group.dateStr)}
+                    </Badge>
+                  )}
+                </Group>
+                <Stack gap={0}>
+                  {group.shifts.map((viewItem) => (
+                    <Box key={viewItem.id} className={classes.shiftRow}>
+                      <Box
+                        className={classes.departmentBar}
+                        bg={
+                          getDepartmentAppearance(
+                            viewItem.department.code,
+                            viewItem.department.name,
+                          ).color
+                        }
+                      />
+                      <ShiftAttendeeRow shift={viewItem} myInstructorId={instructorId} />
+                    </Box>
+                  ))}
+                </Stack>
               </Stack>
-            </Stack>
-          ))}
+            );
+
+            return index === 0 ? (
+              <Paper key={group.dateStr} p="md" bg="blue.0" radius="md">
+                {content}
+              </Paper>
+            ) : (
+              <Box key={group.dateStr}>{content}</Box>
+            );
+          })}
         </Stack>
       )}
 
@@ -295,6 +307,6 @@ export function UpcomingShifts({ instructorId }: { instructorId: string }) {
           })}
         </Group>
       </Stack>
-    </Card>
+    </Stack>
   );
 }

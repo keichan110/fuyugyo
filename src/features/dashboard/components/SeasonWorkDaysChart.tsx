@@ -1,5 +1,5 @@
 import { CompositeChart } from '@mantine/charts';
-import { Card, Paper, Text, Title } from '@mantine/core';
+import { Paper, Stack, Text, Title } from '@mantine/core';
 
 import type { SeasonMonthlyWorkDays } from '@/features/shifts/schema';
 
@@ -45,8 +45,8 @@ export function SeasonWorkDaysChart({ monthlyTrend }: { monthlyTrend: SeasonMont
   const data = buildSeasonWorkDaysChartData(monthlyTrend);
 
   return (
-    <Card padding="lg">
-      <Title order={3} size="h4" mb="sm">
+    <Stack gap="md">
+      <Title order={3} size="h4">
         月別・シーズン通算勤務日数
       </Title>
       {hasData ? (
@@ -102,6 +102,6 @@ export function SeasonWorkDaysChart({ monthlyTrend }: { monthlyTrend: SeasonMont
           今シーズンの勤務実績はまだありません。
         </Text>
       )}
-    </Card>
+    </Stack>
   );
 }

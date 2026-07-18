@@ -1,4 +1,4 @@
-import { Card, Group, Progress, SimpleGrid, Stack, Text, Title } from '@mantine/core';
+import { Group, Progress, SimpleGrid, Stack, Text } from '@mantine/core';
 
 import type { SeasonStatsSummary } from '@/features/shifts/schema';
 
@@ -49,52 +49,47 @@ export function SeasonWorkDaysSummary({ summary }: { summary: SeasonStatsSummary
   const monthDiff = summary.currentMonthWorkDays - summary.previousMonthWorkDays;
 
   return (
-    <Card padding="lg">
-      <Title order={3} size="h4" mb="sm">
-        今シーズンの勤務日数
-      </Title>
-      <SimpleGrid cols={{ base: 1, xs: 2 }} spacing="xl">
-        <Stack gap="md">
-          <Stack gap={0}>
-            <Text size="sm" c="dimmed">
-              今シーズン
-            </Text>
-            <Text size="2rem" lh={1.2} fw={700}>
-              {summary.currentSeasonWorkDays}日
-            </Text>
-            <Text size="sm" c={diffColor(paceDiff)}>
-              昨季同時点より {formatDiffLabel(paceDiff)}
-            </Text>
-          </Stack>
-
-          <Stack gap={4}>
-            <Group justify="space-between" gap="xs">
-              <Text size="sm">昨季実績 {summary.previousSeasonWorkDays}日</Text>
-              <Text size="sm" c="dimmed">
-                {summary.currentSeasonWorkDays} / {summary.previousSeasonWorkDays}日
-              </Text>
-            </Group>
-            <Progress value={progress} aria-label="昨季実績に対する勤務日数の到達状況" />
-            <Text size="sm" c="dimmed">
-              {formatSeasonGoalLabel(summary.currentSeasonWorkDays, summary.previousSeasonWorkDays)}
-            </Text>
-          </Stack>
-        </Stack>
-
+    <SimpleGrid cols={{ base: 1, xs: 2 }} spacing="xl">
+      <Stack gap="md">
         <Stack gap={0}>
           <Text size="sm" c="dimmed">
-            今月
+            勤務日数
           </Text>
-          <Group gap="xs" align="baseline">
-            <Text size="xl" fw={700}>
-              {summary.currentMonthWorkDays}日
-            </Text>
-            <Text size="sm" c={diffColor(monthDiff)}>
-              前月より {formatDiffLabel(monthDiff)}
+          <Text size="2rem" lh={1.2} fw={700}>
+            {summary.currentSeasonWorkDays}日
+          </Text>
+          <Text size="sm" c={diffColor(paceDiff)}>
+            昨季同時点より {formatDiffLabel(paceDiff)}
+          </Text>
+        </Stack>
+
+        <Stack gap={4}>
+          <Group justify="space-between" gap="xs">
+            <Text size="sm">昨季実績 {summary.previousSeasonWorkDays}日</Text>
+            <Text size="sm" c="dimmed">
+              {summary.currentSeasonWorkDays} / {summary.previousSeasonWorkDays}日
             </Text>
           </Group>
+          <Progress value={progress} aria-label="昨季実績に対する勤務日数の到達状況" />
+          <Text size="sm" c="dimmed">
+            {formatSeasonGoalLabel(summary.currentSeasonWorkDays, summary.previousSeasonWorkDays)}
+          </Text>
         </Stack>
-      </SimpleGrid>
-    </Card>
+      </Stack>
+
+      <Stack gap={0}>
+        <Text size="sm" c="dimmed">
+          今月
+        </Text>
+        <Group gap="xs" align="baseline">
+          <Text size="xl" fw={700}>
+            {summary.currentMonthWorkDays}日
+          </Text>
+          <Text size="sm" c={diffColor(monthDiff)}>
+            前月より {formatDiffLabel(monthDiff)}
+          </Text>
+        </Group>
+      </Stack>
+    </SimpleGrid>
   );
 }

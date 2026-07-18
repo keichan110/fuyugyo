@@ -18,12 +18,13 @@ function row(
 }
 
 describe('buildSeasonStats', () => {
-  it('今月・前月・今シーズン・前シーズンの勤務日数を集計する（今日=2026-01-15、シーズン=2025-09〜2026-08）', () => {
+  it('今月・前月・今シーズン・前シーズン同時点・前シーズン最終の勤務日数を集計する', () => {
     const rows: SeasonStatsSourceRow[] = [
       row('2026-01-05', 'ski', 'st-am'), // 今月（かつ今シーズン）
       row('2025-10-03', 'ski', 'st-am'), // 今シーズンのみ（今月でも前月でもない）
       row('2025-12-20', 'ski', 'st-am'), // 前月（2025-12。かつ今シーズン）
-      row('2024-12-20', 'ski', 'st-am'), // 前シーズンのみ（2024-09〜2025-08）
+      row('2024-12-20', 'ski', 'st-am'), // 前シーズン同時点まで
+      row('2025-03-20', 'ski', 'st-am'), // 前シーズン同時点より後
     ];
 
     const stats = buildSeasonStats(rows, '2026-01-15');
@@ -32,10 +33,22 @@ describe('buildSeasonStats', () => {
       currentMonthWorkDays: 1,
       previousMonthWorkDays: 1,
       currentSeasonWorkDays: 3,
-      previousSeasonWorkDays: 1,
+      previousSeasonToDateWorkDays: 1,
+      previousSeasonWorkDays: 2,
       currentSeasonRange: { from: '2025-09-01', to: '2026-08-31' },
       previousSeasonRange: { from: '2024-09-01', to: '2025-08-31' },
     });
+  });
+
+  it('今シーズンの勤務日数は今日までを数え、未来の勤務予定を含めない', () => {
+    const rows: SeasonStatsSourceRow[] = [
+      row('2026-01-15', 'ski', 'st-am'),
+      row('2026-01-16', 'ski', 'st-am'),
+    ];
+
+    const stats = buildSeasonStats(rows, '2026-01-15');
+
+    expect(stats.summary.currentSeasonWorkDays).toBe(1);
   });
 
   it('同日に複数シフトへ入っていても勤務日数は1日として数える', () => {

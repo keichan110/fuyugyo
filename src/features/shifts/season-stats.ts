@@ -39,6 +39,9 @@ export type SeasonStatsSummary = {
   currentMonthWorkDays: number;
   previousMonthWorkDays: number;
   currentSeasonWorkDays: number;
+  /** 前シーズン開始日から、基準日を1年前にずらした日までの勤務日数 */
+  previousSeasonToDateWorkDays: number;
+  /** 前シーズン全期間の勤務日数 */
   previousSeasonWorkDays: number;
   currentSeasonRange: SeasonRange;
   previousSeasonRange: SeasonRange;
@@ -61,22 +64,31 @@ export type SeasonStats = {
 export function buildSeasonStats(rows: SeasonStatsSourceRow[], today: string): SeasonStats {
   const currentSeasonRange = seasonRangeForDate(today);
   const previousSeasonRange = shiftSeasonRangeByYears(currentSeasonRange, -1);
+  const previousSeasonToDateRange = {
+    from: previousSeasonRange.from,
+    to: shiftYearInDateString(today, -1),
+  };
 
   const currentMonth = today.slice(0, 7);
   const previousMonth = shiftMonthString(currentMonth, -1);
 
-  const currentSeasonRows = rows.filter((row) => isWithinRange(row.date, currentSeasonRange));
+  const currentSeasonRows = rows.filter(
+    (row) => isWithinRange(row.date, currentSeasonRange) && row.date <= today,
+  );
   const previousSeasonRows = rows.filter((row) => isWithinRange(row.date, previousSeasonRange));
 
   return {
     summary: {
       currentMonthWorkDays: countDistinctDates(
-        rows.filter((row) => row.date.startsWith(currentMonth)),
+        rows.filter((row) => row.date.startsWith(currentMonth) && row.date <= today),
       ),
       previousMonthWorkDays: countDistinctDates(
         rows.filter((row) => row.date.startsWith(previousMonth)),
       ),
       currentSeasonWorkDays: countDistinctDates(currentSeasonRows),
+      previousSeasonToDateWorkDays: countDistinctDates(
+        rows.filter((row) => isWithinRange(row.date, previousSeasonToDateRange)),
+      ),
       previousSeasonWorkDays: countDistinctDates(previousSeasonRows),
       currentSeasonRange,
       previousSeasonRange,

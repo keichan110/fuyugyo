@@ -32,6 +32,12 @@ const apiErrorSchema = z.object({ message: z.string().optional() });
 /** Shift 関連クエリキー */
 export const SHIFTS_QUERY_KEY = ['shifts'] as const;
 
+/**
+ * 今シーズン集計のクエリキー。
+ * `v2` は昨季同時点の値を持たない旧レスポンスを永続キャッシュから再利用しないための世代番号。
+ */
+export const SEASON_STATS_QUERY_KEY = [...SHIFTS_QUERY_KEY, 'me', 'season-stats', 'v2'] as const;
+
 /** アジェンダ取得パラメータ */
 export type ShiftAgendaParams = {
   cursor: string;
@@ -262,7 +268,7 @@ export function useShiftAssignmentEditor(params: Partial<ShiftEditDataParams>) {
  */
 export function useMySeasonStats() {
   return useQuery<SeasonStatsResponse>({
-    queryKey: [...SHIFTS_QUERY_KEY, 'me', 'season-stats'],
+    queryKey: SEASON_STATS_QUERY_KEY,
     queryFn: async () => {
       const res = await client.api.shifts.me['season-stats'].$get();
       if (!res.ok) {

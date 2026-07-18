@@ -364,11 +364,12 @@ export const seasonWorkBreakdownItemSchema = z.object({
 
 export type SeasonWorkBreakdownItem = z.infer<typeof seasonWorkBreakdownItemSchema>;
 
-/** 今シーズンの勤務実績サマリー（今月/今シーズンと前月/前シーズンの比較。単位は勤務日数） */
+/** 今シーズンの勤務実績サマリー（今月と、昨季同時点・昨季最終との比較。単位は勤務日数） */
 export const seasonStatsSummarySchema = z.object({
   currentMonthWorkDays: z.number(),
   previousMonthWorkDays: z.number(),
   currentSeasonWorkDays: z.number(),
+  previousSeasonToDateWorkDays: z.number(),
   previousSeasonWorkDays: z.number(),
   currentSeasonRange: z.object({ from: dateStringSchema, to: dateStringSchema }),
   previousSeasonRange: z.object({ from: dateStringSchema, to: dateStringSchema }),

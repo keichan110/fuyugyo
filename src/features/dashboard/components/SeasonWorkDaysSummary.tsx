@@ -1,9 +1,9 @@
-import { Card, Group, Stack, Text, Title } from '@mantine/core';
+import { Card, Group, Progress, SimpleGrid, Stack, Text, Title } from '@mantine/core';
 
 import type { SeasonStatsSummary } from '@/features/shifts/schema';
 
 /**
- * 差分（前月・前シーズン比）を「+3日」「-2日」「±0日」の形式に整形する。
+ * 差分を「+3日」「-2日」「±0日」の形式に整形する。
  * @param diff - 今期の値から前期の値を引いた差分
  */
 function formatDiffLabel(diff: number): string {
@@ -21,55 +21,80 @@ function diffColor(diff: number): string {
   return diff > 0 ? 'teal' : 'red';
 }
 
-/** 今月/今シーズンの勤務日数と、前月/前シーズンとの差分を表示する1ブロック */
-function WorkDaysStat({
-  label,
-  workDays,
-  diff,
-}: {
-  label: string;
-  workDays: number;
-  diff: number;
-}) {
-  return (
-    <Stack gap={0}>
-      <Text size="sm" c="dimmed">
-        {label}
-      </Text>
-      <Group gap="xs" align="baseline">
-        <Text size="xl" fw={700}>
-          {workDays}日
-        </Text>
-        <Text size="sm" c={diffColor(diff)}>
-          {formatDiffLabel(diff)}
-        </Text>
-      </Group>
-    </Stack>
-  );
+/** 昨季最終実績に対する到達状況を表示する。 */
+function formatSeasonGoalLabel(current: number, previous: number): string {
+  const diff = current - previous;
+  if (diff > 0) {
+    return `昨季実績を${diff}日上回りました`;
+  }
+  if (diff === 0) {
+    return '昨季実績に到達しました';
+  }
+  return `昨季実績まであと${Math.abs(diff)}日`;
 }
 
 /**
- * 今シーズンの勤務日数サマリーカード（今月/今シーズンの勤務日数と前月/前シーズン比）。
+ * 今シーズンの勤務日数を主指標に、昨季同時点とのペース差と昨季最終実績への到達状況を表示する。
+ * 今月の勤務日数と前月差は補助指標として併記する。
  * Issue #203 採用アイデア「今月/今シーズンの勤務日数サマリー」。
  */
 export function SeasonWorkDaysSummary({ summary }: { summary: SeasonStatsSummary }) {
+  const paceDiff = summary.currentSeasonWorkDays - summary.previousSeasonToDateWorkDays;
+  const progress =
+    summary.previousSeasonWorkDays === 0
+      ? summary.currentSeasonWorkDays > 0
+        ? 100
+        : 0
+      : Math.min((summary.currentSeasonWorkDays / summary.previousSeasonWorkDays) * 100, 100);
+  const monthDiff = summary.currentMonthWorkDays - summary.previousMonthWorkDays;
+
   return (
     <Card padding="lg">
       <Title order={3} size="h4" mb="sm">
         今シーズンの勤務日数
       </Title>
-      <Group gap="xl">
-        <WorkDaysStat
-          label="今月"
-          workDays={summary.currentMonthWorkDays}
-          diff={summary.currentMonthWorkDays - summary.previousMonthWorkDays}
-        />
-        <WorkDaysStat
-          label="今シーズン"
-          workDays={summary.currentSeasonWorkDays}
-          diff={summary.currentSeasonWorkDays - summary.previousSeasonWorkDays}
-        />
-      </Group>
+      <SimpleGrid cols={{ base: 1, xs: 2 }} spacing="xl">
+        <Stack gap="md">
+          <Stack gap={0}>
+            <Text size="sm" c="dimmed">
+              今シーズン
+            </Text>
+            <Text size="2rem" lh={1.2} fw={700}>
+              {summary.currentSeasonWorkDays}日
+            </Text>
+            <Text size="sm" c={diffColor(paceDiff)}>
+              昨季同時点より {formatDiffLabel(paceDiff)}
+            </Text>
+          </Stack>
+
+          <Stack gap={4}>
+            <Group justify="space-between" gap="xs">
+              <Text size="sm">昨季実績 {summary.previousSeasonWorkDays}日</Text>
+              <Text size="sm" c="dimmed">
+                {summary.currentSeasonWorkDays} / {summary.previousSeasonWorkDays}日
+              </Text>
+            </Group>
+            <Progress value={progress} aria-label="昨季実績に対する勤務日数の到達状況" />
+            <Text size="sm" c="dimmed">
+              {formatSeasonGoalLabel(summary.currentSeasonWorkDays, summary.previousSeasonWorkDays)}
+            </Text>
+          </Stack>
+        </Stack>
+
+        <Stack gap={0}>
+          <Text size="sm" c="dimmed">
+            今月
+          </Text>
+          <Group gap="xs" align="baseline">
+            <Text size="xl" fw={700}>
+              {summary.currentMonthWorkDays}日
+            </Text>
+            <Text size="sm" c={diffColor(monthDiff)}>
+              前月より {formatDiffLabel(monthDiff)}
+            </Text>
+          </Group>
+        </Stack>
+      </SimpleGrid>
     </Card>
   );
 }

@@ -2,7 +2,7 @@
  * ローカル開発用のマスタ・ダミーデータ投入スクリプト。
  * 旧スタック（Next.js + Prisma、`legacy/prisma/seed.ts`）にあった初期データ投入ロジックを
  * 現行の Drizzle スキーマに移植したもの。実行のたびに対象テーブルをクリアしてから再投入する。
- * 認証まわり（users / invitation_tokens）は対象外（`pnpm run db:seed` で別途管理）。
+ * 認証まわり（users / invitation_tokens）は対象外（`pnpm run db:seed:auth` で別途管理）。
  *
  * 「今シーズン」を起点に前・今・次の3シーズン分の勤務実績（シフト・アサイン・勤務可否申告）を
  * 生成する。ダッシュボードのシーズン統計（Issue #203）を実データで検証できるよう、

@@ -1,5 +1,5 @@
 import { Carousel } from '@mantine/carousel';
-import { Box, Card, Divider, Group, Stack, Text, Title } from '@mantine/core';
+import { Badge, Box, Card, Divider, Group, Stack, Text, Title } from '@mantine/core';
 import { Calendar, type CalendarProps } from '@mantine/dates';
 import dayjs, { type Dayjs } from 'dayjs';
 
@@ -23,6 +23,15 @@ type UpcomingShiftGroup = {
 
 /** Calendar の getDayProps prop 自体の型を流用し、既存の getDayProps 実装とのズレを防ぐ */
 type GetDayProps = NonNullable<CalendarProps['getDayProps']>;
+
+/**
+ * 次回勤務日までのカウントダウンラベルを返す（Issue #202）。
+ * 当日勤務の場合は日数ではなく「本日」と表示する
+ */
+function getCountdownLabel(dateStr: string): string {
+  const diffDays = dayjs(dateStr).diff(dayjs(todayString()), 'day');
+  return diffDays <= 0 ? '本日' : `あと${diffDays}日`;
+}
 
 /**
  * ミニカレンダー1枚分（自前の月ラベル＋Calendar本体）。
@@ -207,11 +216,19 @@ export function UpcomingShifts({ instructorId }: { instructorId: string }) {
 
       {!isLoading && upcoming.length > 0 && !isAttendanceError && (
         <Stack gap="sm">
-          {groups.map((group) => (
+          {groups.map((group, index) => (
             <Stack key={group.dateStr} gap={4}>
-              <Text size="sm" c="dimmed">
-                {shortDateLabel(group.dateStr)}
-              </Text>
+              <Group gap={6}>
+                <Text size="sm" c="dimmed">
+                  {shortDateLabel(group.dateStr)}
+                </Text>
+                {/* 次回勤務（先頭グループ）にのみカウントダウンを表示する */}
+                {index === 0 && (
+                  <Badge size="sm" variant="light" color="blue">
+                    {getCountdownLabel(group.dateStr)}
+                  </Badge>
+                )}
+              </Group>
               <Stack gap={0}>
                 {group.shifts.map((viewItem) => (
                   <Box key={viewItem.id} className={classes.shiftRow}>

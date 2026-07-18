@@ -302,6 +302,16 @@ export const shiftViewResponseSchema = z.object({
 
 export type ShiftViewResponse = z.infer<typeof shiftViewResponseSchema>;
 
+/**
+ * 出勤状況ビュー: 指定日群のシフトを表示ビュー形式でそのまま返す。
+ * ダッシュボードの「現在（本日・明日）」「直近（同僚一覧）」セクションで共有する。
+ * 休校日（シフト0件の日）は要素を持たないだけで、日付ごとのグルーピングは
+ * クライアント側で行う（アジェンダの「稼働日スキップ」意味論は持ち込まない）。
+ */
+export const shiftAttendanceSchema = z.array(shiftViewItemSchema);
+
+export type ShiftAttendance = z.infer<typeof shiftAttendanceSchema>;
+
 // ─── アジェンダ表示 ────────────────────────────────────────────────────────
 
 /** アジェンダのページング方向 */

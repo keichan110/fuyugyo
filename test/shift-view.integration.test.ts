@@ -1,7 +1,11 @@
 import { env } from 'cloudflare:test';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { shiftAgendaResponseSchema, shiftViewResponseSchema } from '../src/features/shifts/schema';
+import {
+  shiftAgendaResponseSchema,
+  shiftAttendanceSchema,
+  shiftViewResponseSchema,
+} from '../src/features/shifts/schema';
 import app from '../src/index';
 import { signJwt } from '../src/server/auth/jwt';
 import { createDb } from '../src/server/db/client';
@@ -393,5 +397,99 @@ describe('GET /api/shifts/agenda', () => {
       ski,
       ski,
     ]);
+  });
+});
+
+// ─── GET /api/shifts/attendance ──────────────────────────────────────────────
+
+describe('GET /api/shifts/attendance', () => {
+  it('複数日付を渡すと、各日の全出勤者を表示名付きで返す', async () => {
+    const ski = await seedDepartment('スキー', 'ski');
+    const fullDay = await seedShiftType('終日');
+    const inst1 = await seedInstructor('山田', '太郎');
+    const inst2 = await seedInstructor('鈴木', '花子');
+    await seedShift('2026-01-10', ski, fullDay, [inst1, inst2]);
+    await seedShift('2026-01-11', ski, fullDay, [inst2]);
+    const token = await seedToken('MEMBER');
+
+    const res = await app.request(
+      '/api/shifts/attendance?dates=2026-01-10,2026-01-11',
+      authHeader(token),
+      envWith({}),
+    );
+    expect(res.status).toBe(200);
+    const body = shiftAttendanceSchema.parse(await res.json());
+
+    expect(body).toHaveLength(2);
+    const day10 = body.find((shift) => shift.date === '2026-01-10');
+    expect(day10?.assignedInstructors.map((i) => i.displayName)).toEqual([
+      '山田 太郎',
+      '鈴木 花子',
+    ]);
+  });
+
+  it('departmentCode を指定すると対象部門のシフトのみを返す', async () => {
+    const ski = await seedDepartment('スキー', 'ski');
+    const snb = await seedDepartment('スノーボード', 'snowboard');
+    const fullDay = await seedShiftType('終日');
+    const inst = await seedInstructor('山田', '太郎');
+    await seedShift('2026-01-10', ski, fullDay, [inst]);
+    await seedShift('2026-01-10', snb, fullDay, [inst]);
+    const token = await seedToken('MEMBER');
+
+    const res = await app.request(
+      `/api/shifts/attendance?dates=2026-01-10&departmentCode=${ski}`,
+      authHeader(token),
+      envWith({}),
+    );
+    expect(res.status).toBe(200);
+    const body = shiftAttendanceSchema.parse(await res.json());
+
+    expect(body).toHaveLength(1);
+    expect(body[0]?.department.code).toBe(ski);
+  });
+
+  it('シフトの無い日を含めても 400 にならず、その日の要素は含まれない', async () => {
+    const ski = await seedDepartment('スキー', 'ski');
+    const fullDay = await seedShiftType('終日');
+    const inst = await seedInstructor('山田', '太郎');
+    await seedShift('2026-01-10', ski, fullDay, [inst]);
+    const token = await seedToken('MEMBER');
+
+    const res = await app.request(
+      '/api/shifts/attendance?dates=2026-01-10,2026-01-11',
+      authHeader(token),
+      envWith({}),
+    );
+    expect(res.status).toBe(200);
+    const body = shiftAttendanceSchema.parse(await res.json());
+
+    expect(body.map((shift) => shift.date)).toEqual(['2026-01-10']);
+  });
+
+  it('dates が不正形式・件数超過・未指定は 400 を返す', async () => {
+    const token = await seedToken('MEMBER');
+
+    const missing = await app.request('/api/shifts/attendance', authHeader(token), envWith({}));
+    expect(missing.status).toBe(400);
+
+    const badFormat = await app.request(
+      '/api/shifts/attendance?dates=2026-1-10',
+      authHeader(token),
+      envWith({}),
+    );
+    expect(badFormat.status).toBe(400);
+
+    const tooMany = await app.request(
+      `/api/shifts/attendance?dates=${Array.from({ length: 8 }, (_, i) => `2026-01-${String(i + 1).padStart(2, '0')}`).join(',')}`,
+      authHeader(token),
+      envWith({}),
+    );
+    expect(tooMany.status).toBe(400);
+  });
+
+  it('未認証は 401 を返す', async () => {
+    const res = await app.request('/api/shifts/attendance?dates=2026-01-10', {}, envWith({}));
+    expect(res.status).toBe(401);
   });
 });

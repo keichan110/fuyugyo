@@ -1010,6 +1010,38 @@ export const shiftsRoute = new Hono<{
     });
   })
   /**
+   * 出勤状況ビュー: `dates`（カンマ区切り・YYYY-MM-DD、1〜7件）で指定した日群の
+   * 全出勤者（部門・シフト種別・表示名付き）を返す。MEMBER 以上。
+   * 休校日（シフトが0件の日）は要素を持たないだけで、400 にはしない。
+   * ダッシュボードの「本日・明日の出勤状況」「同じ日に勤務する同僚一覧」で共有する。
+   */
+  .get('/attendance', requireAuth, async (c) => {
+    const datesQuery = c.req.query('dates');
+    if (!datesQuery) {
+      throw new HTTPException(400, { message: 'dates を指定してください' });
+    }
+
+    const dateStrings = datesQuery.split(',');
+    if (dateStrings.length < 1 || dateStrings.length > 7) {
+      throw new HTTPException(400, { message: 'dates は1〜7件で指定してください' });
+    }
+    if (
+      dateStrings.some((d) => !(dateStringSchema.safeParse(d).success && isValidCalendarDate(d)))
+    ) {
+      throw new HTTPException(400, { message: 'dates は YYYY-MM-DD 形式で指定してください' });
+    }
+
+    const departmentCode = c.req.query('departmentCode');
+    if (departmentCode && !departmentCodeSchema.safeParse(departmentCode).success) {
+      throw new HTTPException(400, { message: 'departmentCode が不正です' });
+    }
+
+    const db = createDb(c.env.DB);
+    const dates = dateStrings.map((d) => parseShiftDate(d));
+    const shiftsView = await loadShiftViewByDates(db, dates, departmentCode);
+    return c.json(shiftsView);
+  })
+  /**
    * シフト一覧を返す。`dateFrom`/`dateTo`（YYYY-MM-DD）で期間を、`instructorId` で
    * その Instructor が割り当てられたシフトのみに絞り込める。
    * `limit` で返却件数の上限を指定できる（既定100・上限200）。期間・件数のどちらも

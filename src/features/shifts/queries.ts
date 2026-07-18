@@ -6,6 +6,7 @@ import { client } from '@/lib/rpc';
 import {
   autoAssignContextSchema,
   shiftAgendaResponseSchema,
+  shiftAttendanceSchema,
   shiftEditDataSchema,
   shiftFormDataSchema,
   shiftListSchema,
@@ -14,6 +15,7 @@ import {
   type AutoAssignContext,
   type ShiftAgendaDirection,
   type ShiftAgendaResponse,
+  type ShiftAttendance,
   type ShiftEditData,
   type ShiftFormData,
   type ShiftListItem,
@@ -99,6 +101,31 @@ export function useShiftCalendar(month: string | undefined) {
       return shiftViewResponseSchema.parse(await res.json());
     },
     enabled: !!month,
+  });
+}
+
+/**
+ * 指定日群の出勤状況（各シフトの部門・種別・割り当て済み表示名）を取得する。
+ * ダッシュボードの「現在（本日・明日）」「直近（同僚一覧）」で共有する。
+ * @param dates - 取得対象日（YYYY-MM-DD）の配列（1〜7件）。空配列なら取得しない
+ * @param departmentCode - 任意の部門コード。指定時はその部門のみに絞る
+ */
+export function useShiftAttendance(dates: string[], departmentCode?: string) {
+  return useQuery<ShiftAttendance>({
+    queryKey: [...SHIFTS_QUERY_KEY, 'attendance', dates, departmentCode ?? 'all'],
+    queryFn: async () => {
+      const query: Record<string, string> = { dates: dates.join(',') };
+      if (departmentCode) {
+        query['departmentCode'] = departmentCode;
+      }
+      const res = await client.api.shifts.attendance.$get({ query });
+      if (!res.ok) {
+        const body = apiErrorSchema.parse(await res.json());
+        throw new Error(body.message ?? '出勤状況の取得に失敗しました');
+      }
+      return shiftAttendanceSchema.parse(await res.json());
+    },
+    enabled: dates.length > 0,
   });
 }
 

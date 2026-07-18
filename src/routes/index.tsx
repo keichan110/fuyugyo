@@ -5,6 +5,7 @@ import { AppButton } from '@/components/AppButton';
 import { ensureAuthenticated } from '@/features/auth/auth-guard';
 import { useMe } from '@/features/auth/queries';
 import { CurrentAttendance } from '@/features/dashboard/components/CurrentAttendance';
+import { SeasonStatsSection } from '@/features/dashboard/components/SeasonStatsSection';
 import { UpcomingShifts } from '@/features/dashboard/components/UpcomingShifts';
 
 /**
@@ -32,6 +33,7 @@ function DashboardPage() {
           <>
             <CurrentAttendance instructorId={instructorId} />
             <UpcomingShifts instructorId={instructorId} />
+            <SeasonStatsSection />
             <Card padding="lg">
               <Group justify="space-between" align="center">
                 <Stack gap={4}>

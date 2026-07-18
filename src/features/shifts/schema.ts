@@ -342,3 +342,58 @@ export const shiftAgendaResponseSchema = z.object({
 });
 
 export type ShiftAgendaResponse = z.infer<typeof shiftAgendaResponseSchema>;
+
+// ─── 今シーズンの勤務実績（ダッシュボード） ─────────────────────────────────
+
+/** 月別勤務日数（推移グラフの1点。同日複数シフトは1日として数える） */
+export const seasonMonthlyWorkDaysSchema = z.object({
+  /** 対象月（YYYY-MM） */
+  month: z.string(),
+  workDays: z.number(),
+});
+
+export type SeasonMonthlyWorkDays = z.infer<typeof seasonMonthlyWorkDaysSchema>;
+
+/** 部門別の勤務回数内訳（比率グラフの1セグメント。同日複数シフトはそれぞれ1件） */
+export const seasonDepartmentBreakdownItemSchema = z.object({
+  departmentCode: departmentCodeSchema,
+  count: z.number(),
+});
+
+export type SeasonDepartmentBreakdownItem = z.infer<typeof seasonDepartmentBreakdownItemSchema>;
+
+/** シフト種別別の勤務回数内訳（比率グラフの1セグメント。同日複数シフトはそれぞれ1件） */
+export const seasonShiftTypeBreakdownItemSchema = z.object({
+  shiftTypeId: z.string(),
+  shiftTypeName: z.string(),
+  count: z.number(),
+});
+
+export type SeasonShiftTypeBreakdownItem = z.infer<typeof seasonShiftTypeBreakdownItemSchema>;
+
+/** 今シーズンの勤務実績サマリー（今月/今シーズンと前月/前シーズンの比較。単位は勤務日数） */
+export const seasonStatsSummarySchema = z.object({
+  currentMonthWorkDays: z.number(),
+  previousMonthWorkDays: z.number(),
+  currentSeasonWorkDays: z.number(),
+  previousSeasonWorkDays: z.number(),
+  currentSeasonRange: z.object({ from: dateStringSchema, to: dateStringSchema }),
+  previousSeasonRange: z.object({ from: dateStringSchema, to: dateStringSchema }),
+});
+
+export type SeasonStatsSummary = z.infer<typeof seasonStatsSummarySchema>;
+
+/**
+ * ダッシュボード「今シーズン」セクションの集計レスポンス（Issue #203）。
+ * サマリー・月別推移・部門別/シフト種別別の内訳を1リクエストで返す。
+ * 通算トレンドライン（累積）は表示側で `monthlyTrend` の累積和として計算する
+ * （月別推移と同一データの粒度違いのため、レスポンスには含めない）。
+ */
+export const seasonStatsResponseSchema = z.object({
+  summary: seasonStatsSummarySchema,
+  monthlyTrend: z.array(seasonMonthlyWorkDaysSchema),
+  byDepartment: z.array(seasonDepartmentBreakdownItemSchema),
+  byShiftType: z.array(seasonShiftTypeBreakdownItemSchema),
+});
+
+export type SeasonStatsResponse = z.infer<typeof seasonStatsResponseSchema>;

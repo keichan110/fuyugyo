@@ -22,3 +22,17 @@
   border-radius: var(--mantine-radius-xs);
   flex-shrink: 0;
 }
+
+/* Mantine既定では前後矢印に data-inactive は付与されるがスタイルは提供されないため、
+   端のスライドに到達した側の矢印を明示的に薄く・操作不可にする */
+.carouselControl[data-inactive] {
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+/* sm以上は今月・来月が横並びでスワイプ不要になるため、前後矢印を隠す */
+@media (min-width: 48em) {
+  .carouselControls {
+    display: none;
+  }
+}

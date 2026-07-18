@@ -26,11 +26,12 @@ type GetDayProps = NonNullable<CalendarProps['getDayProps']>;
 
 /**
  * ミニカレンダー1枚分（自前の月ラベル＋Calendar本体）。
- * デスクトップの横並び・モバイルのカルーセル表示の両方から共用する
+ * 単一の Carousel の各スライドとして描画され、sm以上では2枚横並び・
+ * モバイルでは1枚ずつスワイプ表示になる
  */
 function MonthCalendar({ month, getDayProps }: { month: Dayjs; getDayProps: GetDayProps }) {
   return (
-    <Stack gap={4}>
+    <Stack gap={4} align="center">
       {/* ヘッダーを隠しているため、対象月を自前のラベルで明示する */}
       <Text size="sm" fw={600}>
         {month.format('YYYY年M月')}
@@ -237,27 +238,24 @@ export function UpcomingShifts({ instructorId }: { instructorId: string }) {
           今月・来月の勤務
         </Text>
 
-        {/* デスクトップ: 今月・来月を横並び */}
-        <Group align="flex-start" grow visibleFrom="sm">
-          <MonthCalendar month={currentMonth} getDayProps={getDayProps} />
-          <MonthCalendar month={nextMonth} getDayProps={getDayProps} />
-        </Group>
-
-        {/* モバイル: スワイプで今月/来月を切り替えるカルーセル */}
+        {/* 今月・来月をカルーセルで表示。sm以上は2枚横並びで両方同時に見えるため
+            前後矢印は不要になり非表示にする（module.cssで制御）。
+            モバイルは1枚ずつスワイプ切替のため矢印を表示する */}
         <Carousel
-          hiddenFrom="sm"
-          withIndicators
-          withControls={false}
-          slideSize="100%"
+          slideSize={{ base: '100%', sm: '50%' }}
           slideGap="md"
+          withControls
           emblaOptions={{ align: 'start' }}
+          classNames={{
+            controls: classes.carouselControls,
+            control: classes.carouselControl,
+          }}
         >
-          <Carousel.Slide>
-            <MonthCalendar month={currentMonth} getDayProps={getDayProps} />
-          </Carousel.Slide>
-          <Carousel.Slide>
-            <MonthCalendar month={nextMonth} getDayProps={getDayProps} />
-          </Carousel.Slide>
+          {[currentMonth, nextMonth].map((month) => (
+            <Carousel.Slide key={month.format('YYYY-MM')}>
+              <MonthCalendar month={month} getDayProps={getDayProps} />
+            </Carousel.Slide>
+          ))}
         </Carousel>
 
         <Group gap="md">

@@ -1,6 +1,7 @@
+import { Carousel } from '@mantine/carousel';
 import { Box, Card, Divider, Group, Stack, Text, Title } from '@mantine/core';
-import { Calendar } from '@mantine/dates';
-import dayjs from 'dayjs';
+import { Calendar, type CalendarProps } from '@mantine/dates';
+import dayjs, { type Dayjs } from 'dayjs';
 
 import { getDepartmentAppearance } from '@/features/departments/appearance';
 import { departmentCodeSchema, type DepartmentCode } from '@/features/departments/schema';
@@ -19,6 +20,37 @@ type UpcomingShiftGroup = {
   dateStr: string;
   shifts: ShiftViewItem[];
 };
+
+/** Calendar の getDayProps prop 自体の型を流用し、既存の getDayProps 実装とのズレを防ぐ */
+type GetDayProps = NonNullable<CalendarProps['getDayProps']>;
+
+/**
+ * ミニカレンダー1枚分（自前の月ラベル＋Calendar本体）。
+ * デスクトップの横並び・モバイルのカルーセル表示の両方から共用する
+ */
+function MonthCalendar({ month, getDayProps }: { month: Dayjs; getDayProps: GetDayProps }) {
+  return (
+    <Stack gap={4}>
+      {/* ヘッダーを隠しているため、対象月を自前のラベルで明示する */}
+      <Text size="sm" fw={600}>
+        {month.format('YYYY年M月')}
+      </Text>
+      <Calendar
+        date={month.format('YYYY-MM-DD')}
+        static
+        size="xs"
+        highlightToday
+        minLevel="month"
+        maxLevel="month"
+        withCellSpacing={false}
+        // Mantine既定の週末赤（土日両方）を無効化し、getDayPropsで日本式の土日配色に差し替える
+        weekendDays={[]}
+        classNames={{ calendarHeader: classes.hiddenCalendarHeader }}
+        getDayProps={getDayProps}
+      />
+    </Stack>
+  );
+}
 
 /**
  * 直近の勤務予定パネル。連携済み Instructor の本日以降のシフトを最大3件、
@@ -95,16 +127,32 @@ export function UpcomingShifts({ instructorId }: { instructorId: string }) {
   }
 
   /**
+   * 勤務がない日の曜日文字色を日本式（日曜=赤・土曜=青）で返す。
+   * 平日は何も返さない
+   */
+  const getWeekendDayProps = (date: string) => {
+    const dayOfWeek = dayjs(date).day();
+    if (dayOfWeek === 0) {
+      return { style: { color: 'var(--mantine-color-red-6)' } };
+    }
+    if (dayOfWeek === 6) {
+      return { style: { color: 'var(--mantine-color-blue-6)' } };
+    }
+    return {};
+  };
+
+  /**
    * カレンダーの日セルに部門色の背景を当てる。
-   * 勤務部門が0件ならそのまま（背景なし）、1件ならその部門色で塗り、
-   * 2件（ski・snowboard）なら45°の対角スプリット背景で両方を表現する。
+   * 勤務部門が0件なら曜日に応じた日本式の週末文字色（土曜=青・日曜=赤）、
+   * 1件ならその部門色で塗り、2件（ski・snowboard）なら45°の対角スプリット背景で
+   * 両方を表現する。勤務日は部門色の背景が主役のため週末色は当てない。
    * 色は Mantine のセマンティック CSS 変数（`-light` / `-light-color`）経由で指定し、
    * ライト/ダーク双方のテーマに追従させる。
    */
   const getDayProps = (date: string) => {
     const departments = departmentsByDate.get(date);
     if (!departments) {
-      return {};
+      return getWeekendDayProps(date);
     }
     // departmentCodeSchema.options（ski→snowboard）の順に揃え、
     // スプリット背景の色順（青→オレンジ）を安定させる
@@ -112,7 +160,7 @@ export function UpcomingShifts({ instructorId }: { instructorId: string }) {
       departments.has(code),
     );
     if (!firstCode) {
-      return {};
+      return getWeekendDayProps(date);
     }
     if (!secondCode) {
       const color = getDepartmentAppearance(firstCode).color;
@@ -189,27 +237,28 @@ export function UpcomingShifts({ instructorId }: { instructorId: string }) {
           今月・来月の勤務
         </Text>
 
-        <Stack gap="sm">
-          {[currentMonth, nextMonth].map((month) => (
-            <Stack key={month.format('YYYY-MM')} gap={4}>
-              {/* ヘッダーを隠しているため、対象月を自前のラベルで明示する */}
-              <Text size="sm" fw={600}>
-                {month.format('YYYY年M月')}
-              </Text>
-              <Calendar
-                date={month.format('YYYY-MM-DD')}
-                static
-                size="xs"
-                highlightToday
-                minLevel="month"
-                maxLevel="month"
-                withCellSpacing={false}
-                classNames={{ calendarHeader: classes.hiddenCalendarHeader }}
-                getDayProps={getDayProps}
-              />
-            </Stack>
-          ))}
-        </Stack>
+        {/* デスクトップ: 今月・来月を横並び */}
+        <Group align="flex-start" grow visibleFrom="sm">
+          <MonthCalendar month={currentMonth} getDayProps={getDayProps} />
+          <MonthCalendar month={nextMonth} getDayProps={getDayProps} />
+        </Group>
+
+        {/* モバイル: スワイプで今月/来月を切り替えるカルーセル */}
+        <Carousel
+          hiddenFrom="sm"
+          withIndicators
+          withControls={false}
+          slideSize="100%"
+          slideGap="md"
+          emblaOptions={{ align: 'start' }}
+        >
+          <Carousel.Slide>
+            <MonthCalendar month={currentMonth} getDayProps={getDayProps} />
+          </Carousel.Slide>
+          <Carousel.Slide>
+            <MonthCalendar month={nextMonth} getDayProps={getDayProps} />
+          </Carousel.Slide>
+        </Carousel>
 
         <Group gap="md">
           {departmentCodeSchema.options.map((code) => {

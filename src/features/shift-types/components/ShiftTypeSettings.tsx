@@ -157,7 +157,6 @@ export function ShiftTypeSettings() {
           </Stack>
         ) : (
           <DepartmentShiftTypeCatalog
-            departmentCode={departmentCode}
             onOpenForm={(state) => {
               if (state.mode === 'create') {
                 setCreateDialogOpened(true);

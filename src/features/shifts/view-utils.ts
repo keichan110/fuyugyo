@@ -54,23 +54,50 @@ export function weekdayIndex(dateStr: string): number {
   return parseDate(dateStr).getUTCDay();
 }
 
+const MAX_DATE_CACHE_SIZE = 512;
+const holidayCache = new Map<string, boolean>();
+const calendarDayColorCache = new Map<string, 'red' | 'blue' | ''>();
+
 /** YYYY-MM-DD が日本の祝日または振替休日かを判定する。 */
 export function isJapaneseHoliday(dateStr: string): boolean {
+  const cached = holidayCache.get(dateStr);
+  if (cached !== undefined) {
+    return cached;
+  }
+
   const year = Number(dateStr.slice(0, 4));
   const month = Number(dateStr.slice(5, 7));
   const day = Number(dateStr.slice(8, 10));
-  return Boolean(JapaneseHolidays.isHoliday(new Date(year, month - 1, day)));
+  const isHoliday = Boolean(JapaneseHolidays.isHoliday(new Date(year, month - 1, day)));
+  // LRU の更新コストをホットパスに持ち込まず、十分な日数を保持しながらメモリを有界にする。
+  if (holidayCache.size >= MAX_DATE_CACHE_SIZE) {
+    holidayCache.clear();
+  }
+  holidayCache.set(dateStr, isHoliday);
+  return isHoliday;
 }
 
 /** 日本式カレンダーにおける日付文字色を返す（日曜・祝日=赤、土曜=青）。 */
 export function getCalendarDayColor(dateStr: string): 'red' | 'blue' | undefined {
-  if (isJapaneseHoliday(dateStr) || weekdayIndex(dateStr) === 0) {
-    return 'red';
+  const cached = calendarDayColorCache.get(dateStr);
+  if (cached !== undefined) {
+    return cached || undefined;
   }
-  if (weekdayIndex(dateStr) === 6) {
-    return 'blue';
+
+  const dayIndex = weekdayIndex(dateStr);
+  let color: 'red' | 'blue' | '' = '';
+  if (dayIndex === 0 || isJapaneseHoliday(dateStr)) {
+    color = 'red';
+  } else if (dayIndex === 6) {
+    color = 'blue';
   }
-  return undefined;
+
+  // 通常のカレンダー利用では到達しない上限で一括破棄し、キャッシュヒットを Map#get 1回に保つ。
+  if (calendarDayColorCache.size >= MAX_DATE_CACHE_SIZE) {
+    calendarDayColorCache.clear();
+  }
+  calendarDayColorCache.set(dateStr, color);
+  return color || undefined;
 }
 
 /** 「M/D（曜）」形式の短い日付ラベルを返す */

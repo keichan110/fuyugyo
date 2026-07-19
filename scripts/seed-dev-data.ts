@@ -152,9 +152,13 @@ async function seedCertificationRequirements(
 
     return certificationShortNamesByTier.flatMap((certificationShortNames, tierIndex) =>
       certificationShortNames.map((shortName) => {
-        const certification = certificationRows.find((row) => row.shortName === shortName);
+        const matchedCertifications = certificationRows.filter((row) => row.shortName === shortName);
+        if (matchedCertifications.length !== 1) {
+          throw new Error(`対象資格「${shortName}」を一意に特定できません`);
+        }
+        const [certification] = matchedCertifications;
         if (!certification) {
-          throw new Error('対象資格の作成に失敗しました');
+          throw new Error(`対象資格「${shortName}」を取得できません`);
         }
         return {
           departmentShiftTypeId: frame.id,

@@ -25,7 +25,7 @@ import 'dayjs/locale/ja';
 import { ErrorAlert } from '@/components/AppAlert';
 import { AppButton } from '@/components/AppButton';
 import { UnsavedChangesBar } from '@/components/UnsavedChangesBar';
-import { addDays, todayString, toMonth, weekdayIndex } from '@/features/shifts/view-utils';
+import { addDays, getCalendarDayColor, todayString, toMonth } from '@/features/shifts/view-utils';
 
 import {
   buildAvailabilityChanges,
@@ -362,6 +362,7 @@ function AvailabilityMonthView({
       viewSelectProps={{ views: ['month'], style: { display: 'none' } }}
       getDayProps={(date) => {
         const editability = getDateEditability(date, today, lockedDates);
+        const calendarDayColor = getCalendarDayColor(date);
         const disabled = editability !== 'editable';
         const disabledReason =
           editability === 'locked'
@@ -380,12 +381,7 @@ function AvailabilityMonthView({
           title: disabledReason,
           disabled,
           style: {
-            color:
-              weekdayIndex(date) === 0
-                ? 'var(--mantine-color-red-7)'
-                : weekdayIndex(date) === 6
-                  ? 'var(--mantine-color-blue-7)'
-                  : undefined,
+            color: calendarDayColor ? `var(--mantine-color-${calendarDayColor}-7)` : undefined,
           },
         };
       }}

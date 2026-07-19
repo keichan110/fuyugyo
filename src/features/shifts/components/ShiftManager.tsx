@@ -48,7 +48,14 @@ import {
   useUpsertAssignments,
 } from '../queries';
 import type { AutoAssignProposal, AvailableInstructor, ShiftViewItem } from '../schema';
-import { addDays, shortDateLabel, todayString, toMonth, weekdayIndex } from '../view-utils';
+import {
+  addDays,
+  getCalendarDayColor,
+  shortDateLabel,
+  todayString,
+  toMonth,
+  weekdayIndex,
+} from '../view-utils';
 import { calculateFairShare, countCurrentMonthWorkDays, type CellAssignment } from '../workload';
 import { applyAutoAssignProposals } from './auto-assign-stage';
 import {
@@ -425,6 +432,7 @@ export function ShiftManager() {
   const selectedStagedCell = selectedCell
     ? stagedCells.get(cellKey(selectedCell.date, selectedCell.shiftTypeId))
     : undefined;
+  const selectedCellDateColor = selectedCell ? getCalendarDayColor(selectedCell.date) : undefined;
   const selectedServerShift = selectedCell
     ? monthly.data?.shifts.find(
         (shift) =>
@@ -539,7 +547,9 @@ export function ShiftManager() {
               selectedCell ? (
                 <Group justify="space-between" wrap="nowrap" w="100%">
                   <Stack gap={0}>
-                    <Text fw={600}>{shortDateLabel(selectedCell.date)}</Text>
+                    <Text fw={600} {...(selectedCellDateColor ? { c: selectedCellDateColor } : {})}>
+                      {shortDateLabel(selectedCell.date)}
+                    </Text>
                     <Text size="xs" c="dimmed" fw={400}>
                       {formData.data.shiftTypes.find(
                         (shiftType) => shiftType.id === selectedCell.shiftTypeId,
@@ -920,18 +930,14 @@ function ShiftCalendar({
         getDayProps={(date) => {
           const selected =
             selectedCell?.date === date && selectedCell.shiftTypeId === activeShiftTypeId;
+          const calendarDayColor = getCalendarDayColor(date);
           return {
             'data-shift-date': date,
             'data-selected': selected || undefined,
             'data-staged': stagedCells.has(cellKey(date, activeShiftTypeId)) || undefined,
             'aria-label': `${Number(date.slice(5, 7))}月${Number(date.slice(8, 10))}日（${weekdayLabel(date)}）の割り当てを編集`,
             style: {
-              color:
-                weekdayIndex(date) === 0
-                  ? 'var(--mantine-color-red-7)'
-                  : weekdayIndex(date) === 6
-                    ? 'var(--mantine-color-blue-7)'
-                    : undefined,
+              color: calendarDayColor ? `var(--mantine-color-${calendarDayColor}-7)` : undefined,
               backgroundColor:
                 autoAssignMode && autoAssignDates.has(date)
                   ? 'var(--mantine-color-blue-0)'

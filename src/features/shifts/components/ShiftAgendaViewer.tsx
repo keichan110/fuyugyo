@@ -26,7 +26,7 @@ import { departmentCodeSchema, type DepartmentCode } from '@/features/department
 import { containsInstructorAssignment, filterAgendaDaysByInstructor } from '../aggregators';
 import { fetchShiftAgendaPage, useShiftAgendaFuture } from '../queries';
 import type { ShiftAgendaDay, ShiftAgendaResponse, ShiftViewItem } from '../schema';
-import { addDays, addMonths, shortDateLabel, toMonth } from '../view-utils';
+import { addDays, addMonths, getCalendarDayColor, shortDateLabel, toMonth } from '../view-utils';
 import classes from './ShiftAgendaViewer.module.css';
 import { ShiftAttendeeRow } from './ShiftAttendeeRow';
 
@@ -302,6 +302,7 @@ function AgendaDayList({
             mode="static"
             dateHeaderFormat={(date) => shortDateLabel(date.slice(0, 10))}
             styles={{ agendaViewHeader: { display: 'none' } }}
+            classNames={{ agendaViewDateGroup: classes.agendaDateGroup }}
             renderEvent={(event, props) => {
               // AgendaView の payload は汎用型のため、ここで自前の型へ絞り込む
               // （events はこのコンポーネント自身が組み立てているため安全）
@@ -310,6 +311,7 @@ function AgendaDayList({
                 <UnstyledButton
                   {...props}
                   data-agenda-date={payload.shift.date}
+                  data-agenda-day-color={getCalendarDayColor(payload.shift.date)}
                   display="block"
                   w="100%"
                 >

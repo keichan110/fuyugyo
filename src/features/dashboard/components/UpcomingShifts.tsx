@@ -1,5 +1,5 @@
 import { Carousel } from '@mantine/carousel';
-import { Badge, Box, Divider, Group, Paper, Stack, Text, Title } from '@mantine/core';
+import { Badge, Box, Divider, Group, Paper, Stack, Text } from '@mantine/core';
 import { Calendar, type CalendarProps } from '@mantine/dates';
 import dayjs, { type Dayjs } from 'dayjs';
 
@@ -192,10 +192,6 @@ export function UpcomingShifts({ instructorId }: { instructorId: string }) {
 
   return (
     <Stack gap="md">
-      <Title order={3} size="h4">
-        直近の勤務予定
-      </Title>
-
       {isLoading && (
         <Text c="dimmed" size="sm">
           読み込み中…

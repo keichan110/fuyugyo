@@ -1,6 +1,6 @@
 import { Fragment, type ReactNode } from 'react';
 
-import { ActionIcon, Box, Divider, Group, Paper, Stack, Text } from '@mantine/core';
+import { ActionIcon, Box, Divider, Group, Paper, Stack, Text, Title } from '@mantine/core';
 import { IconAlertTriangleFilled, IconInfoCircle, IconX } from '@tabler/icons-react';
 
 /** ダッシュボード通知の重要度。 */
@@ -45,7 +45,9 @@ export function DashboardNotificationInbox({
   return (
     <Paper withBorder radius="md" style={{ overflow: 'hidden' }}>
       <Group justify="space-between" px="md" py="sm">
-        <Text fw={700}>通知</Text>
+        <Title order={2} size="h4">
+          お知らせ
+        </Title>
         <Group gap="xs">
           {infoCount > 0 && (
             <Group gap={4} c="blue.7" aria-label={`お知らせ${infoCount}件`}>

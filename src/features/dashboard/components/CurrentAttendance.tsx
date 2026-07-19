@@ -1,4 +1,4 @@
-import { Box, Stack, Tabs, Text, Title } from '@mantine/core';
+import { Box, Stack, Tabs, Text } from '@mantine/core';
 
 import { getDepartmentAppearance } from '@/features/departments/appearance';
 import { ShiftAttendeeRow } from '@/features/shifts/components/ShiftAttendeeRow';
@@ -23,10 +23,6 @@ export function CurrentAttendance({ instructorId }: { instructorId: string }) {
 
   return (
     <Stack gap="sm">
-      <Title order={3} size="h4">
-        今日・明日の出勤
-      </Title>
-
       <Tabs defaultValue="today">
         <Tabs.List>
           <Tabs.Tab value="today">今日</Tabs.Tab>

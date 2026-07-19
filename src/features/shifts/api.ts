@@ -135,7 +135,11 @@ async function findFrameQualificationRequirement(
   db: Database,
   departmentCode: string,
   shiftTypeId: string,
-): Promise<{ frameId: string; isRequired: boolean }> {
+): Promise<{
+  frameId: string;
+  certificationTiers: Array<{ certificationId: string; tierRank: number }>;
+  isRequired: boolean;
+}> {
   const [frame] = await db
     .select({ id: departmentShiftTypes.id })
     .from(departmentShiftTypes)
@@ -151,13 +155,19 @@ async function findFrameQualificationRequirement(
     throw new HTTPException(400, { message: '部門で利用できないシフト種別が含まれています' });
   }
 
-  const [requirement] = await db
-    .select({ id: certificationRequirements.id })
+  const certificationTiers = await db
+    .select({
+      certificationId: certificationRequirements.certificationId,
+      tierRank: certificationRequirements.tierRank,
+    })
     .from(certificationRequirements)
     .where(eq(certificationRequirements.departmentShiftTypeId, frame.id))
-    .limit(1);
+    .orderBy(
+      asc(certificationRequirements.tierRank),
+      asc(certificationRequirements.certificationId),
+    );
 
-  return { frameId: frame.id, isRequired: requirement !== undefined };
+  return { frameId: frame.id, certificationTiers, isRequired: certificationTiers.length > 0 };
 }
 
 /**
@@ -182,6 +192,7 @@ async function selectCandidatesForQualifiedFrame(
       lastNameKana: instructors.lastNameKana,
       firstNameKana: instructors.firstNameKana,
       status: instructors.status,
+      certificationId: certifications.id,
       certShortName: certifications.shortName,
     })
     .from(instructors)
@@ -201,6 +212,19 @@ async function selectCandidatesForQualifiedFrame(
       ),
     )
     .orderBy(asc(instructors.lastName), asc(instructors.firstName));
+}
+
+/** 候補行の資格が勤務種別の要件に含まれる場合だけ、表示用の資格情報へ変換する。 */
+function toRelevantCertification(
+  certificationId: string | null,
+  shortName: string | null,
+  tierRankByCertificationId: Map<string, number>,
+): { shortName: string; tierRank: number } | undefined {
+  if (!certificationId || !shortName) {
+    return undefined;
+  }
+  const tierRank = tierRankByCertificationId.get(certificationId);
+  return tierRank === undefined ? undefined : { shortName, tierRank };
 }
 
 /**
@@ -712,6 +736,7 @@ export const shiftsRoute = new Hono<{
             lastNameKana: instructors.lastNameKana,
             firstNameKana: instructors.firstNameKana,
             status: instructors.status,
+            certificationId: certifications.id,
             certShortName: certifications.shortName,
           })
           .from(instructors)
@@ -780,23 +805,31 @@ export const shiftsRoute = new Hono<{
       }
     }
 
-    // Instructor ごとに候補をグルーピングし、資格略称をまとめる
+    // Instructor ごとに候補をグルーピングし、この勤務種別の要件に該当する資格だけをまとめる。
     const assignedSet = new Set(assignedInstructorIds);
     type Candidate = {
       id: string;
       displayName: string;
       displayNameKana: string | null;
       status: string;
-      certShortNames: string[];
+      certifications: Array<{ shortName: string; tierRank: number }>;
       isAssigned: boolean;
       hasConflict: boolean;
     };
+    const tierRankByCertificationId = new Map(
+      frameRequirement.certificationTiers.map((tier) => [tier.certificationId, tier.tierRank]),
+    );
     const candidateMap = new Map<string, Candidate>();
     for (const row of candidateRows) {
       const existing = candidateMap.get(row.id);
+      const relevantCertification = toRelevantCertification(
+        row.certificationId,
+        row.certShortName,
+        tierRankByCertificationId,
+      );
       if (existing) {
-        if (row.certShortName) {
-          existing.certShortNames.push(row.certShortName);
+        if (relevantCertification) {
+          existing.certifications.push(relevantCertification);
         }
       } else {
         candidateMap.set(row.id, {
@@ -804,7 +837,7 @@ export const shiftsRoute = new Hono<{
           displayName: formatName(row.lastName, row.firstName),
           displayNameKana: formatNameKana(row.lastNameKana, row.firstNameKana),
           status: row.status,
-          certShortNames: row.certShortName ? [row.certShortName] : [],
+          certifications: relevantCertification ? [relevantCertification] : [],
           isAssigned: assignedSet.has(row.id),
           hasConflict: conflictByInstructor.has(row.id),
         });
@@ -816,7 +849,10 @@ export const shiftsRoute = new Hono<{
       displayName: cand.displayName,
       displayNameKana: cand.displayNameKana,
       status: cand.status,
-      certifications: cand.certShortNames,
+      certifications: cand.certifications.sort(
+        (left, right) =>
+          left.tierRank - right.tierRank || left.shortName.localeCompare(right.shortName, 'ja-JP'),
+      ),
       isAssigned: cand.isAssigned,
       hasConflict: cand.hasConflict,
       hasQualificationWarning:

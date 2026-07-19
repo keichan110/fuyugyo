@@ -40,6 +40,7 @@ import { departmentCodeSchema, type DepartmentCode } from '@/features/department
 
 import type { AutoAssignSolver } from '../auto-assign-solver-port';
 import { createWorkerSolver } from '../auto-assign-worker-solver';
+import { compareInstructorCertification, compareInstructorKana } from '../candidate-display';
 import {
   useAutoAssignContext,
   useShiftAssignmentEditor,
@@ -73,7 +74,7 @@ const ASSIGNMENT_DRAWER_HEIGHT = '55vh';
  */
 const autoAssignSolver: AutoAssignSolver = createWorkerSolver();
 
-type CandidateSortMode = 'kana' | 'workload';
+type CandidateSortMode = 'certification' | 'kana' | 'workload';
 
 type SelectedCell = ShiftManagerSelection;
 
@@ -1058,7 +1059,7 @@ function AssignmentPanel({
   }, [editData.data, onRegisterInstructorNames]);
 
   const [search, setSearch] = useState('');
-  const [sortMode, setSortMode] = useState<CandidateSortMode>('kana');
+  const [sortMode, setSortMode] = useState<CandidateSortMode>('certification');
 
   // 表示・編集対象の割り当て内容: stagedCell 優先、無ければサーバー state。
   const stagedInstructorIds = stagedCell?.instructorIds;
@@ -1099,13 +1100,17 @@ function AssignmentPanel({
           .toLocaleLowerCase('ja-JP')
           .includes(query);
       })
-      .sort(
-        sortMode === 'workload'
-          ? (a, b) =>
-              (loadByInstructor.get(a.id) ?? 0) - (loadByInstructor.get(b.id) ?? 0) ||
-              compareInstructorKana(a, b)
-          : compareInstructorKana,
-      );
+      .sort((a, b) => {
+        if (sortMode === 'workload') {
+          return (
+            (loadByInstructor.get(a.id) ?? 0) - (loadByInstructor.get(b.id) ?? 0) ||
+            compareInstructorKana(a, b)
+          );
+        }
+        return sortMode === 'certification'
+          ? compareInstructorCertification(a, b)
+          : compareInstructorKana(a, b);
+      });
   }, [editData.data?.availableInstructors, search, sortMode, loadByInstructor]);
 
   const availabilityByInstructor = useMemo(
@@ -1157,6 +1162,7 @@ function AssignmentPanel({
               value={sortMode}
               onChange={(value) => setSortMode(parseCandidateSortMode(value))}
               data={[
+                { value: 'certification', label: '資格順' },
                 { value: 'kana', label: 'かな順' },
                 { value: 'workload', label: '負荷が低い順' },
               ]}
@@ -1311,14 +1317,14 @@ function InstructorCard({
                 </Group>
                 {instructor.certifications.length > 0 && (
                   <Group gap={4} wrap="wrap">
-                    {instructor.certifications.map((cert, index) => (
+                    {instructor.certifications.map((cert) => (
                       <AppBadge
-                        key={index}
+                        key={`${cert.shortName}:${cert.tierRank}`}
                         kind="certification"
                         departmentCode={departmentCode}
                         size="xs"
                       >
-                        {cert}
+                        {cert.shortName}
                       </AppBadge>
                     ))}
                   </Group>
@@ -1404,12 +1410,9 @@ function weekdayLabel(date: string): string {
   return ['日', '月', '火', '水', '木', '金', '土'][weekdayIndex(date)] ?? '';
 }
 
-function compareInstructorKana(a: AvailableInstructor, b: AvailableInstructor): number {
-  const aKey = a.displayNameKana ?? a.displayName;
-  const bKey = b.displayNameKana ?? b.displayName;
-  return aKey.localeCompare(bKey, 'ja-JP');
-}
-
 function parseCandidateSortMode(value: string): CandidateSortMode {
-  return value === 'workload' ? 'workload' : 'kana';
+  if (value === 'workload' || value === 'kana' || value === 'certification') {
+    return value;
+  }
+  return 'certification';
 }

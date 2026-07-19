@@ -7,16 +7,15 @@ import { InfoAlert } from '@/components/AppAlert';
 import { AppButton } from '@/components/AppButton';
 import { useMyAvailabilities } from '@/features/availabilities/queries';
 
-import { getNextJstMonth, shouldShowAvailabilityReminder } from '../availability-reminder';
+import { getAvailabilityReminderMonth } from '../availability-reminder';
 
 /** 来月の勤務不可・回避希望が未入力のときに表示する、控えめな確認案内。 */
 export function AvailabilityReminder() {
   const [isVisible, setIsVisible] = useState(true);
-  const isReminderPeriod = shouldShowAvailabilityReminder();
-  const month = getNextJstMonth();
-  const availabilityQuery = useMyAvailabilities(month, isReminderPeriod);
+  const month = getAvailabilityReminderMonth();
+  const availabilityQuery = useMyAvailabilities(month);
 
-  if (!isReminderPeriod || !isVisible || availabilityQuery.isLoading) {
+  if (!isVisible || availabilityQuery.isLoading) {
     return null;
   }
 

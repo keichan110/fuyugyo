@@ -15,6 +15,7 @@ import JapaneseHolidays from 'japanese-holidays';
 
 import {
   certifications,
+  departmentShiftTypes,
   instructorAvailabilities,
   instructorCertifications,
   instructors,
@@ -43,7 +44,7 @@ function chunk<T>(items: T[], size: number): T[][] {
 
 type Db = ReturnType<typeof drizzle>;
 
-/** シフト種類データ（一般レッスン・団体レッスン・バッジテスト・県連事業）を投入する */
+/** シフト種類と部門別の利用設定を投入する */
 async function seedShiftTypes(db: Db) {
   const [general, group, badgeTest, prefectureEvent] = await db
     .insert(shiftTypes)
@@ -59,9 +60,21 @@ async function seedShiftTypes(db: Db) {
     throw new Error('シフト種類データの作成に失敗しました');
   }
 
+  const shiftTypeRows = [general, group, badgeTest, prefectureEvent];
+  await db.insert(departmentShiftTypes).values(
+    Object.values(DEPARTMENT_CODES).flatMap((departmentCode) =>
+      shiftTypeRows.map((shiftType, index) => ({
+        departmentCode,
+        shiftTypeId: shiftType.id,
+        sortOrder: index + 1,
+      })),
+    ),
+  );
+
   console.log(
     `シフト種類: ${general.name}, ${group.name}, ${badgeTest.name}, ${prefectureEvent.name}`,
   );
+  console.log('部門別シフト種別設定: スキー4件、スノーボード4件');
   return { general, group, badgeTest, prefectureEvent };
 }
 
@@ -667,6 +680,7 @@ async function clearExistingData(db: Db) {
   await db.delete(instructorCertifications);
   await db.delete(instructors);
   await db.delete(certifications);
+  await db.delete(departmentShiftTypes);
   await db.delete(shiftTypes);
   console.log('既存データのクリア完了\n');
 }

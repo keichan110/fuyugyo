@@ -38,7 +38,7 @@ export function useAvailabilities(from: string, to: string) {
 }
 
 /** 指定月の本人申告と編集不能な割当日を取得する。 */
-export function useMyAvailabilities(month: string) {
+export function useMyAvailabilities(month: string, enabled = true) {
   const from = `${month}-01`;
   const nextMonth = new Date(`${from}T00:00:00.000Z`);
   nextMonth.setUTCMonth(nextMonth.getUTCMonth() + 1);
@@ -59,6 +59,7 @@ export function useMyAvailabilities(month: string) {
       }
       return availabilityListResponseSchema.parse(await res.json());
     },
+    enabled,
   });
 }
 

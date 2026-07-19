@@ -17,9 +17,6 @@ jobs:
     runs-on: ubuntu-latest
     if: github.repository == 'keichan110/fuyugyo'
     timeout-minutes: 10
-    env:
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
     steps:
       - name: Checkout repository
@@ -59,6 +56,8 @@ jobs:
           pnpm exec wrangler secret put JWT_SECRET <<< "$JWT_SECRET"
           pnpm exec wrangler secret put LINE_CHANNEL_SECRET <<< "$LINE_CHANNEL_SECRET"
         env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           LINE_CHANNEL_SECRET: ${{ secrets.LINE_CHANNEL_SECRET }}
 
@@ -66,10 +65,15 @@ jobs:
       # Wrangler は migration ごとに D1 バックアップを取得し、失敗した migration をロールバックする。
       - name: Apply database migrations with D1 backup
         run: pnpm exec wrangler d1 migrations apply fuyugyo --remote
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
       - name: Deploy to Cloudflare Workers
         run: pnpm exec wrangler deploy --var "APP_URL:$APP_URL" --var "LINE_CHANNEL_ID:$LINE_CHANNEL_ID"
         env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           APP_URL: ${{ vars.APP_URL }}
           LINE_CHANNEL_ID: ${{ vars.LINE_CHANNEL_ID }}
 

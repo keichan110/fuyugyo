@@ -1,4 +1,19 @@
-import { and, asc, count, desc, eq, exists, gte, inArray, lt, lte, ne, or, sql } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  exists,
+  gte,
+  inArray,
+  lt,
+  lte,
+  ne,
+  or,
+  sql,
+  type SQL,
+} from 'drizzle-orm';
 import type { BatchItem } from 'drizzle-orm/batch';
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
@@ -227,8 +242,76 @@ function toRelevantCertification(
   return tierRank === undefined ? undefined : { shortName, tierRank };
 }
 
+/** 資格要件に該当する割り当てごとに、最上位の資格ランクを対応付ける。 */
+function indexBestCertificationTier(
+  rows: Array<{ shiftId: string; instructorId: string; tierRank: number }>,
+): Map<string, number> {
+  const tierRankByAssignment = new Map<string, number>();
+  for (const row of rows) {
+    const key = `${row.shiftId}:${row.instructorId}`;
+    const current = tierRankByAssignment.get(key);
+    if (current === undefined || row.tierRank < current) {
+      tierRankByAssignment.set(key, row.tierRank);
+    }
+  }
+  return tierRankByAssignment;
+}
+
+/** シフトの絞り込み条件に一致する、資格要件を満たす割り当ての資格ランクを取得する。 */
+async function loadCertificationTierRows(
+  db: Database,
+  condition: SQL<unknown> | undefined,
+): Promise<Array<{ shiftId: string; instructorId: string; tierRank: number }>> {
+  return db
+    .select({
+      shiftId: shiftAssignments.shiftId,
+      instructorId: shiftAssignments.instructorId,
+      tierRank: certificationRequirements.tierRank,
+    })
+    .from(shiftAssignments)
+    .innerJoin(shifts, eq(shifts.id, shiftAssignments.shiftId))
+    .innerJoin(
+      departmentShiftTypes,
+      and(
+        eq(departmentShiftTypes.departmentCode, shifts.departmentCode),
+        eq(departmentShiftTypes.shiftTypeId, shifts.shiftTypeId),
+      ),
+    )
+    .innerJoin(
+      certificationRequirements,
+      eq(certificationRequirements.departmentShiftTypeId, departmentShiftTypes.id),
+    )
+    .innerJoin(
+      instructorCertifications,
+      and(
+        eq(instructorCertifications.instructorId, shiftAssignments.instructorId),
+        eq(instructorCertifications.certificationId, certificationRequirements.certificationId),
+      ),
+    )
+    .where(condition);
+}
+
+type RankedAssignedInstructor = {
+  id: string;
+  displayName: string;
+  displayNameKana: string | null;
+  tierRank: number | undefined;
+};
+
+/** 担当者を資格ランクの昇順、同ランクと資格なしはかな順で並べる。 */
+function sortAssignedInstructors(assigned: RankedAssignedInstructor[]): void {
+  assigned.sort(
+    (left, right) =>
+      (left.tierRank ?? Number.POSITIVE_INFINITY) - (right.tierRank ?? Number.POSITIVE_INFINITY) ||
+      (left.displayNameKana ?? left.displayName).localeCompare(
+        right.displayNameKana ?? right.displayName,
+        'ja-JP',
+      ),
+  );
+}
+
 /**
- * 指定期間 [from, to]（両端含む）のシフトを表示ビュー用に整形する（2クエリ・N+1 なし）。
+ * 指定期間 [from, to]（両端含む）のシフトを表示ビュー用に整形する（3クエリ・N+1 なし）。
  * shifts × shiftTypes を JOIN し、割り当てを別クエリでまとめて付与する。
  * カレンダービュー（月次）が使う読み取りロジック。
  */
@@ -264,6 +347,8 @@ async function loadShiftView(db: Database, from: Date, to: Date): Promise<ShiftV
             instructorId: instructors.id,
             lastName: instructors.lastName,
             firstName: instructors.firstName,
+            lastNameKana: instructors.lastNameKana,
+            firstNameKana: instructors.firstNameKana,
           })
           .from(shiftAssignments)
           .innerJoin(instructors, eq(instructors.id, shiftAssignments.instructorId))
@@ -271,16 +356,29 @@ async function loadShiftView(db: Database, from: Date, to: Date): Promise<ShiftV
           .where(and(gte(shifts.date, from), lte(shifts.date, to)))
       : [];
 
-  // shiftId → 割り当て済み Instructor（表示名付き）のマップを1パスで構築する
-  const assignedByShift = new Map<string, { id: string; displayName: string }[]>();
+  // 枠の資格要件と保有資格が一致する担当者だけを集計し、各担当者の最上位ランクを取得する。
+  // 要件外資格しか持たない担当者は結果に含めず、後段で資格なしとしてかな順に並べる。
+  const certificationTierRows =
+    shiftRows.length > 0
+      ? await loadCertificationTierRows(db, and(gte(shifts.date, from), lte(shifts.date, to)))
+      : [];
+
+  const tierRankByAssignment = indexBestCertificationTier(certificationTierRows);
+
+  // shiftId → 資格順に並べた割り当て済み Instructor（表示名付き）のマップを構築する。
+  const assignedByShift = new Map<string, RankedAssignedInstructor[]>();
   for (const row of assignRows) {
     const list = assignedByShift.get(row.shiftId) ?? [];
     list.push({
       id: row.instructorId,
       displayName: formatName(row.lastName, row.firstName),
+      displayNameKana: formatNameKana(row.lastNameKana, row.firstNameKana),
+      tierRank: tierRankByAssignment.get(`${row.shiftId}:${row.instructorId}`),
     });
     assignedByShift.set(row.shiftId, list);
   }
+
+  for (const assigned of assignedByShift.values()) sortAssignedInstructors(assigned);
 
   return shiftRows.map((s) => {
     const code = departmentCodeSchema.parse(s.departmentCode);
@@ -293,13 +391,16 @@ async function loadShiftView(db: Database, from: Date, to: Date): Promise<ShiftV
         code,
       },
       shiftType: { id: s.shiftTypeId, name: s.shiftTypeName },
-      assignedInstructors: assignedByShift.get(s.id) ?? [],
+      assignedInstructors: (assignedByShift.get(s.id) ?? []).map(({ id, displayName }) => ({
+        id,
+        displayName,
+      })),
     };
   });
 }
 
 /**
- * 指定された日付群のシフトを表示ビュー用に整形する（2クエリ・N+1 なし）。
+ * 指定された日付群のシフトを表示ビュー用に整形する（3クエリ・N+1 なし）。
  * アジェンダでは先に稼働日だけをページングし、その日付群に属する Shift 詳細だけを取得する。
  */
 async function loadShiftViewByDates(
@@ -347,6 +448,8 @@ async function loadShiftViewByDates(
             instructorId: instructors.id,
             lastName: instructors.lastName,
             firstName: instructors.firstName,
+            lastNameKana: instructors.lastNameKana,
+            firstNameKana: instructors.firstNameKana,
           })
           .from(shiftAssignments)
           .innerJoin(instructors, eq(instructors.id, shiftAssignments.instructorId))
@@ -355,15 +458,24 @@ async function loadShiftViewByDates(
           .orderBy(asc(instructors.lastName), asc(instructors.firstName))
       : [];
 
-  const assignedByShift = new Map<string, { id: string; displayName: string }[]>();
+  const certificationTierRows =
+    shiftRows.length > 0 ? await loadCertificationTierRows(db, and(...conditions)) : [];
+
+  const tierRankByAssignment = indexBestCertificationTier(certificationTierRows);
+
+  const assignedByShift = new Map<string, RankedAssignedInstructor[]>();
   for (const row of assignRows) {
     const list = assignedByShift.get(row.shiftId) ?? [];
     list.push({
       id: row.instructorId,
       displayName: formatName(row.lastName, row.firstName),
+      displayNameKana: formatNameKana(row.lastNameKana, row.firstNameKana),
+      tierRank: tierRankByAssignment.get(`${row.shiftId}:${row.instructorId}`),
     });
     assignedByShift.set(row.shiftId, list);
   }
+
+  for (const assigned of assignedByShift.values()) sortAssignedInstructors(assigned);
 
   return shiftRows.map((s) => {
     const code = departmentCodeSchema.parse(s.departmentCode);
@@ -376,7 +488,10 @@ async function loadShiftViewByDates(
         code,
       },
       shiftType: { id: s.shiftTypeId, name: s.shiftTypeName },
-      assignedInstructors: assignedByShift.get(s.id) ?? [],
+      assignedInstructors: (assignedByShift.get(s.id) ?? []).map(({ id, displayName }) => ({
+        id,
+        displayName,
+      })),
     };
   });
 }

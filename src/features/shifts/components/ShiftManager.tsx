@@ -1257,7 +1257,7 @@ function InstructorCard({
       : availability?.type === 'UNAVAILABLE'
         ? `勤務不可${availability.note ? `: ${availability.note}` : ''}`
         : availabilityStatus === 'NOT_LINKED'
-          ? '入力不能（user未連携）'
+          ? '未連携'
           : availabilityStatus === 'NOT_SUBMITTED'
             ? '未入力（userリンク済み・申告なし）'
             : undefined;
@@ -1311,7 +1311,7 @@ function InstructorCard({
                   )}
                   {!availability && availabilityStatus === 'NOT_LINKED' && (
                     <AppBadge kind="inactive" size="xs">
-                      入力不能
+                      未連携
                     </AppBadge>
                   )}
                 </Group>

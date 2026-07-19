@@ -8,8 +8,8 @@ import { useLinkInstructor } from '@/features/auth/queries';
 import { useInstructors } from '@/features/instructors/queries';
 
 /**
- * MEMBER 向け画面でインストラクター未連携時に表示する案内。
- * 画面上では案内と導線だけを表示し、連携操作はモーダル内にまとめる。
+ * ダッシュボード以外の MEMBER 向け画面で、インストラクター未連携時に表示する案内。
+ * ダッシュボードでは受信箱形式の通知へ置き換える。
  */
 export function InstructorLinkPrompt() {
   const { data: instructors } = useInstructors();

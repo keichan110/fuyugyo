@@ -5,13 +5,13 @@ import { createFileRoute, Link, redirect } from '@tanstack/react-router';
 import { AppButton } from '@/components/AppButton';
 import { ensureAuthenticated } from '@/features/auth/auth-guard';
 import { useMe } from '@/features/auth/queries';
-import { AvailabilityReminder } from '@/features/dashboard/components/AvailabilityReminder';
 import { CurrentAttendance } from '@/features/dashboard/components/CurrentAttendance';
+import { DashboardNotifications } from '@/features/dashboard/components/DashboardNotifications';
 import { SeasonStatsSection } from '@/features/dashboard/components/SeasonStatsSection';
 import { UpcomingShifts } from '@/features/dashboard/components/UpcomingShifts';
 
 /**
- * ダッシュボード（ルートパス）。直近の勤務予定、シフト希望、インストラクター連携を表示する。
+ * ダッシュボード（ルートパス）。通知と直近の勤務予定、シフト希望を表示する。
  */
 export const Route = createFileRoute('/')({
   beforeLoad: async ({ context }) => {
@@ -31,10 +31,10 @@ function DashboardPage() {
     <Container size="sm" py="md">
       <Stack gap="xl">
         <Title order={2}>ダッシュボード</Title>
+        <DashboardNotifications instructorId={instructorId ?? null} />
         {instructorId && (
           <>
             <Stack gap="sm">
-              <AvailabilityReminder />
               <Group justify="space-between" align="center">
                 <Stack gap={4}>
                   <Text fw={600}>シフト希望</Text>

@@ -34,11 +34,19 @@ const DEPARTMENT_CODES = { ski: 'ski', snowboard: 'snowboard' } as const;
 // （season.ts 経由）を直接 import できず、値のみここに複製している。
 const SEASON_START_MONTH = 9;
 
-// SKI_CERTIFICATIONS / SNOWBOARD_CERTIFICATIONS の並びに対応する対象資格設定。
+// 資格の shortName に対応する対象資格設定。
 // 外側の配列が資格ランク、内側の配列が同一ランクに属する資格を表す。
-const GENERAL_LESSON_CERTIFICATION_TIERS = [[0], [1], [2]] as const;
-const PREFECTURE_EVENT_CERTIFICATION_TIERS = [[0, 1]] as const;
-const BADGE_TEST_CERTIFICATION_TIERS = [[3, 4, 5]] as const;
+const GENERAL_LESSON_CERTIFICATION_TIERS: readonly (readonly string[])[] = [
+  ['指導員'],
+  ['準指導員'],
+  ['認定指導員'],
+];
+const PREFECTURE_EVENT_CERTIFICATION_TIERS: readonly (readonly string[])[] = [
+  ['指導員', '準指導員'],
+];
+const BADGE_TEST_CERTIFICATION_TIERS: readonly (readonly string[])[] = [
+  ['A級検定員', 'B級検定員', 'C級検定員'],
+];
 
 /** 配列を指定サイズごとのチャンクに分割する（SQLite のバインド変数上限対策） */
 function chunk<T>(items: T[], size: number): T[][] {
@@ -84,7 +92,15 @@ async function seedShiftTypes(db: Db) {
   console.log(
     `シフト種類: ${general.name}, ${group.name}, ${badgeTest.name}, ${prefectureEvent.name}`,
   );
-  console.log('部門別シフト種別設定: スキー4件、スノーボード4件');
+  const skiSettingCount = departmentShiftTypeRows.filter(
+    (row) => row.departmentCode === DEPARTMENT_CODES.ski,
+  ).length;
+  const snowboardSettingCount = departmentShiftTypeRows.filter(
+    (row) => row.departmentCode === DEPARTMENT_CODES.snowboard,
+  ).length;
+  console.log(
+    `部門別シフト種別設定: スキー${skiSettingCount}件、スノーボード${snowboardSettingCount}件`,
+  );
   return { general, group, badgeTest, prefectureEvent, departmentShiftTypeRows };
 }
 
@@ -116,7 +132,10 @@ async function seedCertificationRequirements(
     [DEPARTMENT_CODES.ski]: certs.skiCertifications,
     [DEPARTMENT_CODES.snowboard]: certs.snowboardCertifications,
   };
-  const certificationTierIndicesByShiftTypeId = new Map<string, readonly (readonly number[])[]>([
+  const certificationShortNamesByTierByShiftTypeId = new Map<
+    string,
+    readonly (readonly string[])[]
+  >([
     [shiftTypeRows.general.id, GENERAL_LESSON_CERTIFICATION_TIERS],
     [shiftTypeRows.group.id, []],
     [shiftTypeRows.badgeTest.id, BADGE_TEST_CERTIFICATION_TIERS],
@@ -124,14 +143,16 @@ async function seedCertificationRequirements(
   ]);
   const rows = shiftTypeRows.departmentShiftTypeRows.flatMap((frame) => {
     const certificationRows = certificationRowsByDepartment[frame.departmentCode];
-    const tierIndices = certificationTierIndicesByShiftTypeId.get(frame.shiftTypeId);
-    if (!certificationRows || !tierIndices) {
+    const certificationShortNamesByTier = certificationShortNamesByTierByShiftTypeId.get(
+      frame.shiftTypeId,
+    );
+    if (!certificationRows || !certificationShortNamesByTier) {
       throw new Error('シフト種別設定に対応する対象資格が見つかりません');
     }
 
-    return tierIndices.flatMap((certificationIndices, tierIndex) =>
-      certificationIndices.map((certificationIndex) => {
-        const certification = certificationRows[certificationIndex];
+    return certificationShortNamesByTier.flatMap((certificationShortNames, tierIndex) =>
+      certificationShortNames.map((shortName) => {
+        const certification = certificationRows.find((row) => row.shortName === shortName);
         if (!certification) {
           throw new Error('対象資格の作成に失敗しました');
         }
@@ -199,7 +220,7 @@ async function seedInstructors(db: Db) {
   return created;
 }
 
-type CertRow = { id: string };
+type CertRow = { id: string; shortName: string };
 
 // 資格パターン定義（インデックスは SKI_CERTIFICATIONS / SNOWBOARD_CERTIFICATIONS の並びに対応）
 // [0]公認指導員, [1]準指導員, [2]認定指導員, [3]A級検定員, [4]B級検定員, [5]C級検定員

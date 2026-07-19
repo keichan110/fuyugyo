@@ -114,7 +114,7 @@ export function useShiftCalendar(month: string | undefined) {
 
 /**
  * 指定日群の出勤状況（各シフトの部門・種別・割り当て済み表示名）を取得する。
- * ダッシュボードの「現在（本日・明日）」「直近（同僚一覧）」で共有する。
+ * ダッシュボードの「現在（今日・明日）」「直近（同僚一覧）」で共有する。
  * @param dates - 取得対象日（YYYY-MM-DD）の配列（1〜7件）。空配列なら取得しない
  * @param departmentCode - 任意の部門コード。指定時はその部門のみに絞る
  */

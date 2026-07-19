@@ -9,8 +9,8 @@ import { addDays, shortDateLabel, todayString } from '@/features/shifts/view-uti
 import classes from './CurrentAttendance.module.css';
 
 /**
- * 本日・明日の出勤状況セクション。全インストラクターの出勤を部門・シフト種別ごとに
- * 本日/明日タブで表示し、自分が含まれる行を強調する。
+ * 今日・明日の出勤状況セクション。全インストラクターの出勤を部門・シフト種別ごとに
+ * 今日/明日タブで表示し、自分が含まれる行を強調する。
  */
 export function CurrentAttendance({ instructorId }: { instructorId: string }) {
   const today = todayString();
@@ -24,12 +24,12 @@ export function CurrentAttendance({ instructorId }: { instructorId: string }) {
   return (
     <Stack gap="sm">
       <Title order={3} size="h4">
-        本日・明日の出勤
+        今日・明日の出勤
       </Title>
 
       <Tabs defaultValue="today" variant="pills">
         <Tabs.List>
-          <Tabs.Tab value="today">本日</Tabs.Tab>
+          <Tabs.Tab value="today">今日</Tabs.Tab>
           <Tabs.Tab value="tomorrow">明日</Tabs.Tab>
         </Tabs.List>
 
@@ -39,7 +39,7 @@ export function CurrentAttendance({ instructorId }: { instructorId: string }) {
             shifts={todayShifts}
             isLoading={isLoading}
             isError={isError}
-            emptyMessage="本日の出勤予定はありません。"
+            emptyMessage="今日の出勤予定はありません。"
             instructorId={instructorId}
           />
         </Tabs.Panel>
@@ -59,7 +59,7 @@ export function CurrentAttendance({ instructorId }: { instructorId: string }) {
   );
 }
 
-/** 1タブ分（本日 or 明日）の出勤者一覧パネル */
+/** 1タブ分（今日 or 明日）の出勤者一覧パネル */
 function AttendanceDayPanel({
   date,
   shifts,

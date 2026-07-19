@@ -997,7 +997,7 @@ export const shiftsRoute = new Hono<{
    * 出勤状況ビュー: `dates`（カンマ区切り・YYYY-MM-DD、1〜7件）で指定した日群の
    * 全出勤者（部門・シフト種別・表示名付き）を返す。MEMBER 以上。
    * 休校日（シフトが0件の日）は要素を持たないだけで、400 にはしない。
-   * ダッシュボードの「本日・明日の出勤状況」「同じ日に勤務する同僚一覧」で共有する。
+   * ダッシュボードの「今日・明日の出勤状況」「同じ日に勤務する同僚一覧」で共有する。
    */
   .get('/attendance', requireAuth, async (c) => {
     const datesQuery = c.req.query('dates');

@@ -26,11 +26,11 @@ type GetDayProps = NonNullable<CalendarProps['getDayProps']>;
 
 /**
  * 次回勤務日までのカウントダウンラベルを返す（Issue #202）。
- * 当日勤務の場合は日数ではなく「本日」と表示する
+ * 当日勤務の場合は日数ではなく「今日」と表示する
  */
 function getCountdownLabel(dateStr: string): string {
   const diffDays = dayjs(dateStr).diff(dayjs(todayString()), 'day');
-  return diffDays <= 0 ? '本日' : `あと${diffDays}日`;
+  return diffDays <= 0 ? '今日' : `あと${diffDays}日`;
 }
 
 /**
@@ -63,7 +63,7 @@ function MonthCalendar({ month, getDayProps }: { month: Dayjs; getDayProps: GetD
 }
 
 /**
- * 直近の勤務予定パネル。連携済み Instructor の本日以降のシフトを最大3件、
+ * 直近の勤務予定パネル。連携済み Instructor の今日以降のシフトを最大3件、
  * 同じシフトに割り当てられた同僚（表示名）とあわせて表示する
  * （Issue #202 の「同じ日に勤務する同僚一覧」第一段）。
  * 未連携ユーザーには呼び出し元（ダッシュボード）がそもそも描画しない前提

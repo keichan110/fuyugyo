@@ -8,6 +8,7 @@ import { AppButton } from '@/components/AppButton';
 import { ListHeader } from '@/components/ListHeader';
 import { CertificationRankEditor } from '@/features/certification-requirements';
 import {
+  CreateDepartmentShiftTypeDialog,
   DepartmentShiftTypeCatalog,
   DepartmentShiftTypeList,
   useDepartmentShiftTypes,
@@ -25,6 +26,7 @@ import classes from './ShiftTypeSettings.module.css';
 export function ShiftTypeSettings() {
   const [departmentCode, setDepartmentCode] = useState<DepartmentCode>('ski');
   const [selectedShiftTypeId, setSelectedShiftTypeId] = useState<string | null>(null);
+  const [createDialogOpened, setCreateDialogOpened] = useState(false);
   const [catalogOpened, setCatalogOpened] = useState(false);
   const [masterView, setMasterView] = useState<ShiftTypeDrawerState | null>(null);
   const [isEditorDirty, setEditorDirty] = useState(false);
@@ -136,9 +138,28 @@ export function ShiftTypeSettings() {
             <ShiftTypeDrawerContent state={masterView} onDone={() => setMasterView(null)} />
           </Stack>
         ) : (
-          <DepartmentShiftTypeCatalog departmentCode={departmentCode} onOpenForm={setMasterView} />
+          <DepartmentShiftTypeCatalog
+            departmentCode={departmentCode}
+            onOpenForm={(state) => {
+              if (state.mode === 'create') {
+                setCreateDialogOpened(true);
+                return;
+              }
+              setMasterView(state);
+            }}
+          />
         )}
       </Drawer>
+
+      <CreateDepartmentShiftTypeDialog
+        opened={createDialogOpened}
+        departmentCode={departmentCode}
+        onClose={() => setCreateDialogOpened(false)}
+        onCreated={(shiftTypeId) => {
+          setCreateDialogOpened(false);
+          selectShiftType(shiftTypeId);
+        }}
+      />
 
       <Modal
         opened={blocker.status === 'blocked'}

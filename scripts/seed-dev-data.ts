@@ -14,6 +14,7 @@ import { drizzle } from 'drizzle-orm/libsql';
 import JapaneseHolidays from 'japanese-holidays';
 
 import {
+  certificationRequirements,
   certifications,
   departmentShiftTypes,
   instructorAvailabilities,
@@ -32,6 +33,12 @@ const DEPARTMENT_CODES = { ski: 'ski', snowboard: 'snowboard' } as const;
 // このスクリプトは `node` で直接実行するため、拡張子省略の内部 import を含む src 側モジュール
 // （season.ts 経由）を直接 import できず、値のみここに複製している。
 const SEASON_START_MONTH = 9;
+
+// SKI_CERTIFICATIONS / SNOWBOARD_CERTIFICATIONS の並びに対応する対象資格設定。
+// 外側の配列が資格ランク、内側の配列が同一ランクに属する資格を表す。
+const GENERAL_LESSON_CERTIFICATION_TIERS = [[0], [1], [2]] as const;
+const PREFECTURE_EVENT_CERTIFICATION_TIERS = [[0, 1]] as const;
+const BADGE_TEST_CERTIFICATION_TIERS = [[3, 4, 5]] as const;
 
 /** 配列を指定サイズごとのチャンクに分割する（SQLite のバインド変数上限対策） */
 function chunk<T>(items: T[], size: number): T[][] {
@@ -61,21 +68,24 @@ async function seedShiftTypes(db: Db) {
   }
 
   const shiftTypeRows = [general, group, badgeTest, prefectureEvent];
-  await db.insert(departmentShiftTypes).values(
-    Object.values(DEPARTMENT_CODES).flatMap((departmentCode) =>
-      shiftTypeRows.map((shiftType, index) => ({
-        departmentCode,
-        shiftTypeId: shiftType.id,
-        sortOrder: index + 1,
-      })),
-    ),
-  );
+  const departmentShiftTypeRows = await db
+    .insert(departmentShiftTypes)
+    .values(
+      Object.values(DEPARTMENT_CODES).flatMap((departmentCode) =>
+        shiftTypeRows.map((shiftType, index) => ({
+          departmentCode,
+          shiftTypeId: shiftType.id,
+          sortOrder: index + 1,
+        })),
+      ),
+    )
+    .returning();
 
   console.log(
     `シフト種類: ${general.name}, ${group.name}, ${badgeTest.name}, ${prefectureEvent.name}`,
   );
   console.log('部門別シフト種別設定: スキー4件、スノーボード4件');
-  return { general, group, badgeTest, prefectureEvent };
+  return { general, group, badgeTest, prefectureEvent, departmentShiftTypeRows };
 }
 
 const SKI_CERTIFICATIONS = [
@@ -95,6 +105,48 @@ const SNOWBOARD_CERTIFICATIONS = [
   { name: '公認スノーボードB級検定員', shortName: 'B級検定員', organization: 'SAJ' },
   { name: '公認スノーボードC級検定員', shortName: 'C級検定員', organization: 'SAJ' },
 ];
+
+/** 部門別シフト種別ごとの対象資格を、資格レベル順に投入する */
+async function seedCertificationRequirements(
+  db: Db,
+  shiftTypeRows: Awaited<ReturnType<typeof seedShiftTypes>>,
+  certs: { skiCertifications: CertRow[]; snowboardCertifications: CertRow[] },
+) {
+  const certificationRowsByDepartment = {
+    [DEPARTMENT_CODES.ski]: certs.skiCertifications,
+    [DEPARTMENT_CODES.snowboard]: certs.snowboardCertifications,
+  };
+  const certificationTierIndicesByShiftTypeId = new Map<string, readonly (readonly number[])[]>([
+    [shiftTypeRows.general.id, GENERAL_LESSON_CERTIFICATION_TIERS],
+    [shiftTypeRows.group.id, []],
+    [shiftTypeRows.badgeTest.id, BADGE_TEST_CERTIFICATION_TIERS],
+    [shiftTypeRows.prefectureEvent.id, PREFECTURE_EVENT_CERTIFICATION_TIERS],
+  ]);
+  const rows = shiftTypeRows.departmentShiftTypeRows.flatMap((frame) => {
+    const certificationRows = certificationRowsByDepartment[frame.departmentCode];
+    const tierIndices = certificationTierIndicesByShiftTypeId.get(frame.shiftTypeId);
+    if (!certificationRows || !tierIndices) {
+      throw new Error('シフト種別設定に対応する対象資格が見つかりません');
+    }
+
+    return tierIndices.flatMap((certificationIndices, tierIndex) =>
+      certificationIndices.map((certificationIndex) => {
+        const certification = certificationRows[certificationIndex];
+        if (!certification) {
+          throw new Error('対象資格の作成に失敗しました');
+        }
+        return {
+          departmentShiftTypeId: frame.id,
+          certificationId: certification.id,
+          tierRank: tierIndex + 1,
+        };
+      }),
+    );
+  });
+
+  await db.insert(certificationRequirements).values(rows);
+  console.log(`対象資格設定: ${rows.length}件作成`);
+}
 
 /** 資格データ（部門ごとに6件ずつ）を投入する */
 async function seedCertifications(db: Db) {
@@ -677,6 +729,7 @@ async function clearExistingData(db: Db) {
   await db.delete(instructorAvailabilities);
   await db.delete(shiftAssignments);
   await db.delete(shifts);
+  await db.delete(certificationRequirements);
   await db.delete(instructorCertifications);
   await db.delete(instructors);
   await db.delete(certifications);
@@ -703,6 +756,7 @@ async function main() {
     };
 
     const certs = await seedCertifications(db);
+    await seedCertificationRequirements(db, shiftTypeRows, certs);
     const instructorRows = await seedInstructors(db);
     const instructorCertRows = await seedInstructorCertifications(db, instructorRows, certs);
 

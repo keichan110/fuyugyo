@@ -41,7 +41,7 @@ export function ShiftTypeDrawer({ state, onClose }: Props) {
       title={isEdit ? 'シフト種別を編集' : 'シフト種別を新規登録'}
     >
       {effectiveState?.mode === 'edit' ? (
-        <EditPanel
+        <ShiftTypeEditForm
           key={effectiveState.shiftTypeId}
           shiftTypeId={effectiveState.shiftTypeId}
           onClose={onClose}
@@ -62,7 +62,7 @@ export function ShiftTypeDrawerContent({
   onDone: () => void;
 }) {
   return state.mode === 'edit' ? (
-    <EditPanel shiftTypeId={state.shiftTypeId} onClose={onDone} />
+    <ShiftTypeEditForm shiftTypeId={state.shiftTypeId} onClose={onDone} />
   ) : (
     <CreatePanel onClose={onDone} />
   );
@@ -107,7 +107,15 @@ function CreatePanel({ onClose }: { onClose: () => void }) {
 }
 
 /** 編集対象の詳細を読み込み、揃うまで Skeleton を表示するローダー */
-function EditPanel({ shiftTypeId, onClose }: { shiftTypeId: string; onClose: () => void }) {
+export function ShiftTypeEditForm({
+  shiftTypeId,
+  onClose,
+  onSavingChange,
+}: {
+  shiftTypeId: string;
+  onClose: () => void;
+  onSavingChange?: (saving: boolean) => void;
+}) {
   const { data: detail, isLoading } = useShiftType(shiftTypeId);
   const { data: shiftTypes } = useShiftTypes(false);
 
@@ -129,6 +137,7 @@ function EditPanel({ shiftTypeId, onClose }: { shiftTypeId: string; onClose: () 
       detail={detail}
       availableDepartmentCount={availableDepartmentCount}
       onClose={onClose}
+      {...(onSavingChange ? { onSavingChange } : {})}
     />
   );
 }
@@ -137,6 +146,7 @@ type EditFormProps = {
   detail: ShiftType;
   availableDepartmentCount: number | undefined;
   onClose: () => void;
+  onSavingChange?: (saving: boolean) => void;
 };
 
 /**
@@ -144,7 +154,7 @@ type EditFormProps = {
  * 保存で初期値との差分だけをまとめて API に反映する。
  * 有効・無効の切り替えは可逆であり、無効化による影響は保存前に表示する。
  */
-function EditForm({ detail, availableDepartmentCount, onClose }: EditFormProps) {
+function EditForm({ detail, availableDepartmentCount, onClose, onSavingChange }: EditFormProps) {
   const form = useShiftTypeForm({ name: detail.name });
   const [active, setActive] = useState(detail.isActive);
   const [saving, setSaving] = useState(false);
@@ -154,6 +164,7 @@ function EditForm({ detail, availableDepartmentCount, onClose }: EditFormProps) 
 
   const handleSave = async (values: ShiftTypeFormValues) => {
     setSaving(true);
+    onSavingChange?.(true);
     setError(null);
     try {
       if (values.name !== detail.name || active !== detail.isActive) {
@@ -168,6 +179,7 @@ function EditForm({ detail, availableDepartmentCount, onClose }: EditFormProps) 
       setError(e instanceof Error ? e.message : 'シフト種別の保存に失敗しました');
     } finally {
       setSaving(false);
+      onSavingChange?.(false);
     }
   };
 

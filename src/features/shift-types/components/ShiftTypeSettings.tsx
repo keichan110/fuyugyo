@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { Drawer, Grid, Group, Modal, Paper, Stack, Tabs, Text } from '@mantine/core';
-import { IconArrowLeft, IconDatabase } from '@tabler/icons-react';
+import { IconDatabase } from '@tabler/icons-react';
 import { useBlocker } from '@tanstack/react-router';
 
 import { AppButton } from '@/components/AppButton';
@@ -19,7 +19,7 @@ import {
   type DepartmentCode,
 } from '@/features/departments/schema';
 
-import { ShiftTypeDrawerContent, type ShiftTypeDrawerState } from './ShiftTypeDrawer';
+import { EditShiftTypeDialog } from './EditShiftTypeDialog';
 import classes from './ShiftTypeSettings.module.css';
 
 /** 部門別シフト種別と必要資格を一続きで管理する画面。 */
@@ -28,7 +28,7 @@ export function ShiftTypeSettings() {
   const [selectedShiftTypeId, setSelectedShiftTypeId] = useState<string | null>(null);
   const [createDialogOpened, setCreateDialogOpened] = useState(false);
   const [catalogOpened, setCatalogOpened] = useState(false);
-  const [masterView, setMasterView] = useState<ShiftTypeDrawerState | null>(null);
+  const [editingShiftTypeId, setEditingShiftTypeId] = useState<string | null>(null);
   const [isEditorDirty, setEditorDirty] = useState(false);
   const [isShiftTypeListDirty, setShiftTypeListDirty] = useState(false);
   const { data: shiftTypes } = useDepartmentShiftTypes(departmentCode);
@@ -138,34 +138,19 @@ export function ShiftTypeSettings() {
         opened={catalogOpened}
         onClose={() => {
           setCatalogOpened(false);
-          setMasterView(null);
         }}
-        title={masterView ? 'シフト種別を登録・編集' : '共有シフト種別マスタ'}
+        title="共有シフト種別マスタ"
         size="xl"
       >
-        {masterView ? (
-          <Stack gap="md">
-            <AppButton
-              intent="tertiary"
-              leftSection={<IconArrowLeft size={16} />}
-              onClick={() => setMasterView(null)}
-              style={{ alignSelf: 'flex-start' }}
-            >
-              一覧へ戻る
-            </AppButton>
-            <ShiftTypeDrawerContent state={masterView} onDone={() => setMasterView(null)} />
-          </Stack>
-        ) : (
-          <DepartmentShiftTypeCatalog
-            onOpenForm={(state) => {
-              if (state.mode === 'create') {
-                setCreateDialogOpened(true);
-                return;
-              }
-              setMasterView(state);
-            }}
-          />
-        )}
+        <DepartmentShiftTypeCatalog
+          onOpenForm={(state) => {
+            if (state.mode === 'create') {
+              setCreateDialogOpened(true);
+              return;
+            }
+            setEditingShiftTypeId(state.shiftTypeId);
+          }}
+        />
       </Drawer>
 
       <CreateDepartmentShiftTypeDialog
@@ -176,6 +161,12 @@ export function ShiftTypeSettings() {
           setCreateDialogOpened(false);
           selectShiftType(shiftTypeId);
         }}
+      />
+
+      <EditShiftTypeDialog
+        opened={editingShiftTypeId !== null}
+        shiftTypeId={editingShiftTypeId}
+        onClose={() => setEditingShiftTypeId(null)}
       />
 
       <Modal

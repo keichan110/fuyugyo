@@ -1,4 +1,5 @@
 import { and, asc, eq, inArray, max } from 'drizzle-orm';
+import type { BatchItem } from 'drizzle-orm/batch';
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { validator } from 'hono/validator';
@@ -174,32 +175,58 @@ export const departmentShiftTypesRoute = new Hono<{
         }
       }
 
+      // 継続する行の ID を保ち、資格要件の cascade 削除を避けるため、
+      // 削除・追加・順序変更を差分として単一バッチにまとめる。
       const currentAssignments = await db
-        .select({ shiftTypeId: departmentShiftTypes.shiftTypeId })
+        .select({
+          id: departmentShiftTypes.id,
+          shiftTypeId: departmentShiftTypes.shiftTypeId,
+          sortOrder: departmentShiftTypes.sortOrder,
+        })
         .from(departmentShiftTypes)
         .where(eq(departmentShiftTypes.departmentCode, departmentCode));
-      const currentShiftTypeIds = new Set(
-        currentAssignments.map((assignment) => assignment.shiftTypeId),
+      const assignmentByShiftTypeId = new Map(
+        currentAssignments.map((assignment) => [assignment.shiftTypeId, assignment]),
       );
-      // 一括更新は並べ替え専用とし、割当集合の変更は個別の追加・除外APIへ委ねる
-      if (
-        currentShiftTypeIds.size !== shiftTypeIds.length ||
-        shiftTypeIds.some((shiftTypeId) => !currentShiftTypeIds.has(shiftTypeId))
-      ) {
-        throw new HTTPException(400, { message: 'Shift type IDs must match current assignments' });
+      const requestedShiftTypeIds = new Set(shiftTypeIds);
+      const removedAssignmentIds = currentAssignments
+        .filter((assignment) => !requestedShiftTypeIds.has(assignment.shiftTypeId))
+        .map((assignment) => assignment.id);
+      const assignmentChanges: BatchItem<'sqlite'>[] = [];
+      if (removedAssignmentIds.length > 0) {
+        assignmentChanges.push(
+          db
+            .delete(departmentShiftTypes)
+            .where(inArray(departmentShiftTypes.id, removedAssignmentIds)),
+        );
       }
-
-      const removeCurrent = db
-        .delete(departmentShiftTypes)
-        .where(eq(departmentShiftTypes.departmentCode, departmentCode));
-      const additions = shiftTypeIds.map((shiftTypeId, index) =>
-        db.insert(departmentShiftTypes).values({
-          departmentCode,
-          shiftTypeId,
-          sortOrder: index + 1,
-        }),
-      );
-      await db.batch([removeCurrent, ...additions]);
+      for (const [index, shiftTypeId] of shiftTypeIds.entries()) {
+        const current = assignmentByShiftTypeId.get(shiftTypeId);
+        const sortOrder = index + 1;
+        if (!current) {
+          assignmentChanges.push(
+            db.insert(departmentShiftTypes).values({
+              departmentCode,
+              shiftTypeId,
+              sortOrder,
+            }),
+          );
+          continue;
+        }
+        if (current.sortOrder === sortOrder) {
+          continue;
+        }
+        assignmentChanges.push(
+          db
+            .update(departmentShiftTypes)
+            .set({ sortOrder })
+            .where(eq(departmentShiftTypes.id, current.id)),
+        );
+      }
+      const [firstChange, ...remainingChanges] = assignmentChanges;
+      if (firstChange) {
+        await db.batch([firstChange, ...remainingChanges]);
+      }
 
       const rows = await selectDepartmentShiftTypes(db, departmentCode);
 

@@ -195,8 +195,13 @@ const availableInstructorSchema = z.object({
   displayName: z.string(),
   displayNameKana: z.string().nullable(),
   status: z.string(),
-  /** 保有資格の略称一覧 */
-  certifications: z.array(z.string()),
+  /** 勤務種別に該当する保有資格（上位ランク順） */
+  certifications: z.array(
+    z.object({
+      shortName: z.string(),
+      tierRank: z.number().int().positive(),
+    }),
+  ),
   /** この Shift に既に割り当て済みか */
   isAssigned: z.boolean(),
   /** 同日の別 Shift に割り当て済みで競合しているか */

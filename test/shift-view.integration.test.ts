@@ -1,4 +1,5 @@
 import { env } from 'cloudflare:test';
+import { and, eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
@@ -10,7 +11,10 @@ import app from '../src/index';
 import { signJwt } from '../src/server/auth/jwt';
 import { createDb } from '../src/server/db/client';
 import {
+  certificationRequirements,
+  certifications,
   departmentShiftTypes,
+  instructorCertifications,
   instructors,
   shiftAssignments,
   shifts,
@@ -104,6 +108,56 @@ async function seedInstructor(lastName: string, firstName: string): Promise<stri
   return inst.id;
 }
 
+async function seedCertification(departmentCode: string, shortName: string): Promise<string> {
+  const db = createDb(env.DB);
+  const [certification] = await db
+    .insert(certifications)
+    .values({
+      departmentCode,
+      name: `${shortName}資格`,
+      shortName,
+      organization: 'テスト団体',
+      isActive: true,
+    })
+    .returning();
+  if (!certification) {
+    throw new Error('seedCertification: insert failed');
+  }
+  return certification.id;
+}
+
+async function assignCertification(instructorId: string, certificationId: string): Promise<void> {
+  const db = createDb(env.DB);
+  await db.insert(instructorCertifications).values({ instructorId, certificationId });
+}
+
+async function requireCertification(
+  departmentCode: string,
+  shiftTypeId: string,
+  certificationId: string,
+  tierRank: number,
+): Promise<void> {
+  const db = createDb(env.DB);
+  const [frame] = await db
+    .select({ id: departmentShiftTypes.id })
+    .from(departmentShiftTypes)
+    .where(
+      and(
+        eq(departmentShiftTypes.departmentCode, departmentCode),
+        eq(departmentShiftTypes.shiftTypeId, shiftTypeId),
+      ),
+    )
+    .limit(1);
+  if (!frame) {
+    throw new Error('requireCertification: frame not found');
+  }
+  await db.insert(certificationRequirements).values({
+    departmentShiftTypeId: frame.id,
+    certificationId,
+    tierRank,
+  });
+}
+
 /** 指定日（YYYY-MM-DD）にシフトを直接 INSERT し、割り当てを付与する */
 async function seedShift(
   dateStr: string,
@@ -130,9 +184,12 @@ beforeEach(async () => {
   const db = createDb(env.DB);
   await db.delete(shiftAssignments);
   await db.delete(shifts);
+  await db.delete(certificationRequirements);
   await db.delete(departmentShiftTypes);
   await db.delete(shiftTypes);
+  await db.delete(instructorCertifications);
   await db.delete(instructors);
+  await db.delete(certifications);
   await db.delete(users);
 });
 
@@ -264,6 +321,58 @@ describe('GET /api/shifts/calendar', () => {
     expect(res.status).toBe(200);
     const body = shiftViewResponseSchema.parse(await res.json());
     expect(body.shifts.map((shift) => shift.shiftType.name)).toEqual(['午後', '終日', '午前']);
+  });
+
+  it('カレンダー・アジェンダ・出勤状況の担当者を資格ランク順にする', async () => {
+    const ski = await seedDepartment('スキー', 'ski');
+    const shiftTypeId = await seedShiftType('終日', ['ski']);
+    const top = await seedInstructor('鈴木', '花子');
+    const lower = await seedInstructor('佐藤', '次郎');
+    const unqualified = await seedInstructor('山田', '太郎');
+    const topCertification = await seedCertification(ski, '指導員');
+    const lowerCertification = await seedCertification(ski, '準指導員');
+    await assignCertification(top, topCertification);
+    await assignCertification(lower, lowerCertification);
+    await requireCertification(ski, shiftTypeId, lowerCertification, 2);
+    await requireCertification(ski, shiftTypeId, topCertification, 1);
+    await seedShift('2026-01-10', ski, shiftTypeId, [unqualified, lower, top]);
+    const token = await seedToken('MEMBER');
+
+    const res = await app.request(
+      '/api/shifts/calendar?month=2026-01',
+      authHeader(token),
+      envWith({}),
+    );
+
+    expect(res.status).toBe(200);
+    const body = shiftViewResponseSchema.parse(await res.json());
+    expect(body.shifts[0]?.assignedInstructors.map((instructor) => instructor.displayName)).toEqual(
+      ['鈴木 花子', '佐藤 次郎', '山田 太郎'],
+    );
+
+    const agendaRes = await app.request(
+      '/api/shifts/agenda?cursor=2026-01-10&direction=future',
+      authHeader(token),
+      envWith({}),
+    );
+    expect(agendaRes.status).toBe(200);
+    const agenda = shiftAgendaResponseSchema.parse(await agendaRes.json());
+    expect(
+      agenda.days[0]?.shifts[0]?.assignedInstructors.map((instructor) => instructor.displayName),
+    ).toEqual(['鈴木 花子', '佐藤 次郎', '山田 太郎']);
+
+    const attendanceRes = await app.request(
+      '/api/shifts/attendance?dates=2026-01-10',
+      authHeader(token),
+      envWith({}),
+    );
+    expect(attendanceRes.status).toBe(200);
+    const attendance = shiftAttendanceSchema.parse(await attendanceRes.json());
+    expect(attendance[0]?.assignedInstructors.map((instructor) => instructor.displayName)).toEqual([
+      '鈴木 花子',
+      '佐藤 次郎',
+      '山田 太郎',
+    ]);
   });
 
   it('未認証は 401 を返す', async () => {

@@ -1,24 +1,17 @@
-import { ActionIcon, Group, Paper, Stack, Text } from '@mantine/core';
+import { useEffect, useMemo, useState } from 'react';
+
+import { ActionIcon, Divider, Group, Paper, Select, Stack, Text } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import {
-  IconArrowDown,
-  IconArrowUp,
-  IconListDetails,
-  IconPlus,
-  IconTrash,
-} from '@tabler/icons-react';
+import { IconArrowDown, IconArrowUp, IconListDetails, IconTrash } from '@tabler/icons-react';
 
 import { ErrorAlert } from '@/components/AppAlert';
 import { AppBadge } from '@/components/AppBadge';
-import { AppButton } from '@/components/AppButton';
 import { ListEmptyState } from '@/components/ListEmptyState';
+import { UnsavedChangesBar } from '@/components/UnsavedChangesBar';
 import { DEPARTMENT_LABELS, type DepartmentCode } from '@/features/departments/schema';
+import { useShiftTypes } from '@/features/shift-types/queries';
 
-import {
-  useDepartmentShiftTypes,
-  useRemoveDepartmentShiftType,
-  useUpdateDepartmentShiftTypes,
-} from '../queries';
+import { useDepartmentShiftTypes, useUpdateDepartmentShiftTypes } from '../queries';
 import type { DepartmentShiftType } from '../schema';
 
 /** 部門ごとの利用可能なシフト種別を追加・除外・並べ替えする一覧。 */
@@ -26,37 +19,81 @@ export function DepartmentShiftTypeList({
   departmentCode,
   selectedShiftTypeId,
   onSelect,
-  onAdd,
+  canAssign,
   canRemove,
+  onRemoved,
+  onDirtyChange,
 }: {
   departmentCode: DepartmentCode;
   selectedShiftTypeId?: string | null;
   onSelect?: (shiftTypeId: string) => void;
-  onAdd?: () => void;
+  canAssign?: () => boolean;
   canRemove?: (shiftTypeId: string) => boolean;
+  onRemoved?: (nextSelectedShiftTypeId: string | null) => void;
+  onDirtyChange?: (dirty: boolean) => void;
 }) {
   const {
     data: departmentShiftTypes,
     isLoading,
     isError,
   } = useDepartmentShiftTypes(departmentCode);
+  const {
+    data: shiftTypes,
+    isLoading: isShiftTypesLoading,
+    isError: isShiftTypesError,
+  } = useShiftTypes();
   const update = useUpdateDepartmentShiftTypes(departmentCode);
-  const removeMutation = useRemoveDepartmentShiftType(departmentCode);
-  const items = departmentShiftTypes ?? [];
+  const [stagedItems, setStagedItems] = useState<DepartmentShiftType[] | null>(null);
+  const items = stagedItems ?? departmentShiftTypes ?? [];
+  const assignedShiftTypeIds = new Set(items.map((item) => item.shiftTypeId));
+  const shiftTypesToAssign = (shiftTypes ?? []).filter(
+    (shiftType) => !assignedShiftTypeIds.has(shiftType.id),
+  );
 
-  const save = (shiftTypeIds: string[], message: string) => {
+  const isDirty = useMemo(() => {
+    if (!stagedItems || !departmentShiftTypes) return false;
+    return !hasSameShiftTypeOrder(stagedItems, departmentShiftTypes);
+  }, [departmentShiftTypes, stagedItems]);
+
+  useEffect(() => {
+    onDirtyChange?.(isDirty);
+  }, [isDirty, onDirtyChange]);
+
+  const stage = (nextItems: DepartmentShiftType[]) => {
+    if (departmentShiftTypes && hasSameShiftTypeOrder(nextItems, departmentShiftTypes)) {
+      setStagedItems(null);
+      return;
+    }
+    setStagedItems(nextItems);
+  };
+
+  const save = () => {
     update.mutate(
-      { shiftTypeIds },
+      { shiftTypeIds: items.map((item) => item.shiftTypeId) },
       {
-        onSuccess: () => notifications.show({ color: 'green', message }),
+        onSuccess: () => {
+          setStagedItems(null);
+          notifications.show({ color: 'green', message: 'シフト種別の利用設定を保存しました' });
+        },
       },
     );
   };
 
-  const remove = (shiftTypeId: string, name: string) => {
-    removeMutation.mutate(shiftTypeId, {
-      onSuccess: () => notifications.show({ color: 'green', message: `${name}を除外しました` }),
-    });
+  const assign = (shiftTypeId: string | null) => {
+    if (!shiftTypeId || canAssign?.() === false) return;
+
+    const shiftType = shiftTypesToAssign.find((item) => item.id === shiftTypeId);
+    if (!shiftType) return;
+
+    stage([
+      ...items,
+      {
+        shiftTypeId: shiftType.id,
+        name: shiftType.name,
+        isActive: shiftType.isActive,
+        sortOrder: items.length + 1,
+      },
+    ]);
   };
 
   const move = (shiftTypeId: string, offset: -1 | 1) => {
@@ -68,10 +105,15 @@ export function DepartmentShiftTypeList({
     const [source] = reordered.splice(sourceIndex, 1);
     if (!source) return;
     reordered.splice(targetIndex, 0, source);
-    save(
-      reordered.map((item) => item.shiftTypeId),
-      '並び順を更新しました',
-    );
+    stage(reordered);
+  };
+
+  const remove = (shiftTypeId: string) => {
+    const nextItems = items.filter((item) => item.shiftTypeId !== shiftTypeId);
+    stage(nextItems);
+    if (selectedShiftTypeId === shiftTypeId) {
+      onRemoved?.(nextItems[0]?.shiftTypeId ?? null);
+    }
   };
 
   return (
@@ -82,6 +124,21 @@ export function DepartmentShiftTypeList({
           マスタから追加し、上下ボタンで表示順を変更できます。
         </Text>
       </Stack>
+
+      <Select
+        label="シフト種別を追加"
+        placeholder="シフト種別を選択"
+        searchable
+        value={null}
+        data={shiftTypesToAssign.map((shiftType) => ({
+          value: shiftType.id,
+          label: shiftType.name,
+        }))}
+        nothingFoundMessage="追加できるシフト種別がありません"
+        disabled={isShiftTypesLoading || update.isPending || shiftTypesToAssign.length === 0}
+        onChange={assign}
+      />
+      <Divider />
 
       {isError && <ErrorAlert>部門別シフト種別の取得に失敗しました</ErrorAlert>}
 
@@ -95,7 +152,7 @@ export function DepartmentShiftTypeList({
         <ListEmptyState
           icon={<IconListDetails size={32} stroke={1.5} />}
           title="シフト種別がありません"
-          description="マスタ一覧の ← から、この部門で利用する種別を追加してください。"
+          description="上のセレクトから、この部門で利用する種別を追加してください。"
         />
       )}
 
@@ -105,10 +162,10 @@ export function DepartmentShiftTypeList({
             <ShiftTypeRow
               key={item.shiftTypeId}
               item={item}
-              isUpdating={update.isPending || removeMutation.isPending}
+              isUpdating={update.isPending}
               onRemove={() => {
                 if (canRemove?.(item.shiftTypeId) === false) return;
-                remove(item.shiftTypeId, item.name);
+                remove(item.shiftTypeId);
               }}
               selected={selectedShiftTypeId === item.shiftTypeId}
               onSelect={() => onSelect?.(item.shiftTypeId)}
@@ -121,15 +178,27 @@ export function DepartmentShiftTypeList({
         </Stack>
       )}
 
-      {onAdd && (
-        <AppButton intent="tertiary" leftSection={<IconPlus size={16} />} onClick={onAdd}>
-          シフト種別を追加
-        </AppButton>
-      )}
-
       {update.isError && <ErrorAlert>{update.error.message}</ErrorAlert>}
-      {removeMutation.isError && <ErrorAlert>{removeMutation.error.message}</ErrorAlert>}
+      {isShiftTypesError && <ErrorAlert>シフト種別マスタの取得に失敗しました</ErrorAlert>}
+      {isDirty && (
+        <UnsavedChangesBar
+          description="この部門で利用するシフト種別と表示順をまとめて保存します"
+          loading={update.isPending}
+          onCancel={() => setStagedItems(null)}
+          onSave={save}
+        />
+      )}
     </Stack>
+  );
+}
+
+function hasSameShiftTypeOrder(
+  first: DepartmentShiftType[],
+  second: DepartmentShiftType[],
+): boolean {
+  return (
+    first.length === second.length &&
+    first.every((item, index) => item.shiftTypeId === second[index]?.shiftTypeId)
   );
 }
 
@@ -145,7 +214,7 @@ type ShiftTypeRowProps = {
   onMoveDown: () => void;
 };
 
-/** 上下移動と即時除外を提供する部門別シフト種別の1行。 */
+/** 上下移動とステージへの除外を提供する部門別シフト種別の1行。 */
 function ShiftTypeRow({
   item,
   isUpdating,

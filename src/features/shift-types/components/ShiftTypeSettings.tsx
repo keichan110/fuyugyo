@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { Drawer, Grid, Group, Modal, Paper, Stack, Tabs, Text } from '@mantine/core';
-import { IconArrowLeft, IconDatabase } from '@tabler/icons-react';
+import { IconDatabase } from '@tabler/icons-react';
 import { useBlocker } from '@tanstack/react-router';
 
 import { AppButton } from '@/components/AppButton';
 import { ListHeader } from '@/components/ListHeader';
 import { CertificationRankEditor } from '@/features/certification-requirements';
 import {
+  CreateDepartmentShiftTypeDialog,
   DepartmentShiftTypeCatalog,
   DepartmentShiftTypeList,
   useDepartmentShiftTypes,
@@ -18,16 +19,18 @@ import {
   type DepartmentCode,
 } from '@/features/departments/schema';
 
-import { ShiftTypeDrawerContent, type ShiftTypeDrawerState } from './ShiftTypeDrawer';
+import { EditShiftTypeDialog } from './EditShiftTypeDialog';
 import classes from './ShiftTypeSettings.module.css';
 
 /** 部門別シフト種別と必要資格を一続きで管理する画面。 */
 export function ShiftTypeSettings() {
   const [departmentCode, setDepartmentCode] = useState<DepartmentCode>('ski');
   const [selectedShiftTypeId, setSelectedShiftTypeId] = useState<string | null>(null);
+  const [createDialogOpened, setCreateDialogOpened] = useState(false);
   const [catalogOpened, setCatalogOpened] = useState(false);
-  const [masterView, setMasterView] = useState<ShiftTypeDrawerState | null>(null);
+  const [editingShiftTypeId, setEditingShiftTypeId] = useState<string | null>(null);
   const [isEditorDirty, setEditorDirty] = useState(false);
+  const [isShiftTypeListDirty, setShiftTypeListDirty] = useState(false);
   const { data: shiftTypes } = useDepartmentShiftTypes(departmentCode);
 
   useEffect(() => {
@@ -39,17 +42,24 @@ export function ShiftTypeSettings() {
   }, [shiftTypes]);
 
   const blocker = useBlocker({
-    shouldBlockFn: () => isEditorDirty,
-    enableBeforeUnload: () => isEditorDirty,
+    shouldBlockFn: () => isEditorDirty || isShiftTypeListDirty,
+    enableBeforeUnload: () => isEditorDirty || isShiftTypeListDirty,
     withResolver: true,
   });
 
-  const confirmDiscard = useCallback(() => {
+  const confirmDiscardEditor = useCallback(() => {
     return !isEditorDirty || window.confirm('保存していない必要資格の変更を破棄しますか？');
   }, [isEditorDirty]);
 
+  const confirmDiscard = useCallback(() => {
+    return (
+      (!isEditorDirty && !isShiftTypeListDirty) ||
+      window.confirm('保存していないシフト種別設定の変更を破棄しますか？')
+    );
+  }, [isEditorDirty, isShiftTypeListDirty]);
+
   const selectShiftType = (shiftTypeId: string) => {
-    if (!confirmDiscard()) return;
+    if (!confirmDiscardEditor()) return;
     setEditorDirty(false);
     setSelectedShiftTypeId(shiftTypeId);
   };
@@ -58,6 +68,7 @@ export function ShiftTypeSettings() {
     const parsed = departmentCodeSchema.safeParse(value);
     if (!parsed.success || parsed.data === departmentCode || !confirmDiscard()) return;
     setEditorDirty(false);
+    setShiftTypeListDirty(false);
     setDepartmentCode(parsed.data);
   };
 
@@ -69,6 +80,7 @@ export function ShiftTypeSettings() {
           <AppButton
             intent="secondary"
             leftSection={<IconDatabase size={16} />}
+            disabled={isShiftTypeListDirty}
             onClick={() => setCatalogOpened(true)}
           >
             シフト種別マスタを管理
@@ -89,11 +101,19 @@ export function ShiftTypeSettings() {
         <Grid.Col span={{ base: 12, md: 4 }}>
           <Paper withBorder p="md">
             <DepartmentShiftTypeList
+              key={departmentCode}
               departmentCode={departmentCode}
               selectedShiftTypeId={selectedShiftTypeId}
               onSelect={selectShiftType}
-              onAdd={() => setCatalogOpened(true)}
-              canRemove={(shiftTypeId) => shiftTypeId !== selectedShiftTypeId || confirmDiscard()}
+              canAssign={confirmDiscardEditor}
+              canRemove={(shiftTypeId) =>
+                shiftTypeId !== selectedShiftTypeId || confirmDiscardEditor()
+              }
+              onRemoved={(nextSelectedShiftTypeId) => {
+                setEditorDirty(false);
+                setSelectedShiftTypeId(nextSelectedShiftTypeId);
+              }}
+              onDirtyChange={setShiftTypeListDirty}
             />
           </Paper>
         </Grid.Col>
@@ -118,27 +138,36 @@ export function ShiftTypeSettings() {
         opened={catalogOpened}
         onClose={() => {
           setCatalogOpened(false);
-          setMasterView(null);
         }}
-        title={masterView ? 'シフト種別を登録・編集' : '共有シフト種別マスタ'}
+        title="共有シフト種別マスタ"
         size="xl"
       >
-        {masterView ? (
-          <Stack gap="md">
-            <AppButton
-              intent="tertiary"
-              leftSection={<IconArrowLeft size={16} />}
-              onClick={() => setMasterView(null)}
-              style={{ alignSelf: 'flex-start' }}
-            >
-              一覧へ戻る
-            </AppButton>
-            <ShiftTypeDrawerContent state={masterView} onDone={() => setMasterView(null)} />
-          </Stack>
-        ) : (
-          <DepartmentShiftTypeCatalog departmentCode={departmentCode} onOpenForm={setMasterView} />
-        )}
+        <DepartmentShiftTypeCatalog
+          onOpenForm={(state) => {
+            if (state.mode === 'create') {
+              setCreateDialogOpened(true);
+              return;
+            }
+            setEditingShiftTypeId(state.shiftTypeId);
+          }}
+        />
       </Drawer>
+
+      <CreateDepartmentShiftTypeDialog
+        opened={createDialogOpened}
+        departmentCode={departmentCode}
+        onClose={() => setCreateDialogOpened(false)}
+        onCreated={(shiftTypeId) => {
+          setCreateDialogOpened(false);
+          selectShiftType(shiftTypeId);
+        }}
+      />
+
+      <EditShiftTypeDialog
+        opened={editingShiftTypeId !== null}
+        shiftTypeId={editingShiftTypeId}
+        onClose={() => setEditingShiftTypeId(null)}
+      />
 
       <Modal
         opened={blocker.status === 'blocked'}
@@ -147,7 +176,7 @@ export function ShiftTypeSettings() {
         centered
       >
         <Stack>
-          <Text>このページを離れると、保存していない必要資格の変更は失われます。</Text>
+          <Text>このページを離れると、保存していないシフト種別設定の変更は失われます。</Text>
           <Group justify="flex-end">
             <AppButton intent="secondary" onClick={() => blocker.reset?.()}>
               このページに残る

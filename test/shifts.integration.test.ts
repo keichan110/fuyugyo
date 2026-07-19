@@ -93,14 +93,18 @@ async function seedShiftType(name = '終日', isActive = true): Promise<string> 
   return st.id;
 }
 
-async function seedCertification(departmentCode: string, name = 'スキー指導員'): Promise<string> {
+async function seedCertification(
+  departmentCode: string,
+  name = 'スキー指導員',
+  shortName = '指導員',
+): Promise<string> {
   const db = createDb(env.DB);
   const [cert] = await db
     .insert(certifications)
     .values({
       departmentCode,
       name,
-      shortName: '指導員',
+      shortName,
       organization: '全日本スキー連盟',
       isActive: true,
     })
@@ -135,6 +139,7 @@ async function requireFrameCertification(
   departmentCode: string,
   shiftTypeId: string,
   certificationId: string,
+  tierRank = 1,
 ): Promise<void> {
   const db = createDb(env.DB);
   const [frame] = await db
@@ -153,7 +158,7 @@ async function requireFrameCertification(
   await db.insert(certificationRequirements).values({
     departmentShiftTypeId: frame.id,
     certificationId,
-    tierRank: 1,
+    tierRank,
   });
 }
 
@@ -898,7 +903,7 @@ describe('GET /api/shifts/assignment-editor', () => {
     expect(body.availableInstructors).toHaveLength(1);
     expect(body.availableInstructors[0]?.id).toBe(inst);
     expect(body.availableInstructors[0]?.isAssigned).toBe(false);
-    expect(body.availableInstructors[0]?.certifications).toEqual(['指導員']);
+    expect(body.availableInstructors[0]?.certifications).toEqual([]);
   });
 
   it('既存シフトがあれば edit モードで割り当て状態を返す', async () => {
@@ -932,6 +937,7 @@ describe('GET /api/shifts/assignment-editor', () => {
     const otherInstructorId = await seedInstructor('鈴木', '花子');
     const token = await seedToken('MANAGER');
     await linkCertification(qualifiedInstructorId, requiredCertificationId);
+    await linkCertification(qualifiedInstructorId, otherCertificationId);
     await linkCertification(otherInstructorId, otherCertificationId);
     await requireFrameCertification(departmentCode, shiftTypeId, requiredCertificationId);
 
@@ -944,6 +950,36 @@ describe('GET /api/shifts/assignment-editor', () => {
     const body = shiftEditDataSchema.parse(await res.json());
     expect(body.availableInstructors.map((instructor) => instructor.id)).toEqual([
       qualifiedInstructorId,
+    ]);
+    expect(body.availableInstructors[0]?.certifications).toEqual([
+      { shortName: '指導員', tierRank: 1 },
+    ]);
+  });
+
+  it('該当資格だけをランク順に返す', async () => {
+    const departmentCode = await seedDepartment();
+    const shiftTypeId = await seedShiftType();
+    const topCertificationId = await seedCertification(departmentCode, '指導員', '指導員');
+    const lowerCertificationId = await seedCertification(departmentCode, '準指導員', '準指導員');
+    const unrelatedCertificationId = await seedCertification(departmentCode, '検定員', '検定員');
+    const instructorId = await seedInstructor('山田', '太郎');
+    const token = await seedToken('MANAGER');
+    await linkCertification(instructorId, lowerCertificationId);
+    await linkCertification(instructorId, unrelatedCertificationId);
+    await linkCertification(instructorId, topCertificationId);
+    await requireFrameCertification(departmentCode, shiftTypeId, lowerCertificationId, 2);
+    await requireFrameCertification(departmentCode, shiftTypeId, topCertificationId, 1);
+
+    const res = await app.request(
+      `/api/shifts/assignment-editor?date=2026-01-15&departmentCode=${departmentCode}&shiftTypeId=${shiftTypeId}`,
+      authHeader(token),
+      envWith({}),
+    );
+
+    const body = shiftEditDataSchema.parse(await res.json());
+    expect(body.availableInstructors[0]?.certifications).toEqual([
+      { shortName: '指導員', tierRank: 1 },
+      { shortName: '準指導員', tierRank: 2 },
     ]);
   });
 

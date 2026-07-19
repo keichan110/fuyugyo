@@ -7,6 +7,15 @@
   padding-block: 8px;
 }
 
+/* AgendaView は日付見出しの個別描画を差し替えられないため、同日イベントの属性から色を適用する。 */
+.agendaDateGroup:has([data-agenda-day-color='red']) > :first-child {
+  color: var(--mantine-color-red-7);
+}
+
+.agendaDateGroup:has([data-agenda-day-color='blue']) > :first-child {
+  color: var(--mantine-color-blue-7);
+}
+
 /* AgendaView の標準イベントと同じく、左端バーで部門を識別する */
 .eventBody {
   display: flex;

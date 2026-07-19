@@ -10,7 +10,12 @@ import { departmentCodeSchema, type DepartmentCode } from '@/features/department
 import { ShiftAttendeeRow } from '@/features/shifts/components/ShiftAttendeeRow';
 import { useShiftAttendance, useShifts } from '@/features/shifts/queries';
 import type { ShiftViewItem } from '@/features/shifts/schema';
-import { formatDate, shortDateLabel, todayString } from '@/features/shifts/view-utils';
+import {
+  formatDate,
+  getCalendarDayColor,
+  shortDateLabel,
+  todayString,
+} from '@/features/shifts/view-utils';
 
 import classes from './UpcomingShifts.module.css';
 
@@ -152,26 +157,21 @@ export function UpcomingShifts({ instructorId }: { instructorId: string }) {
   }
 
   /**
-   * 勤務がない日の曜日文字色を日本式（日曜=赤・土曜=青）で返す。
+   * 勤務がない日の曜日・祝日文字色を日本式（日曜・祝日=赤、土曜=青）で返す。
    * 平日は何も返さない
    */
   const getWeekendDayProps = (date: string) => {
-    const dayOfWeek = dayjs(date).day();
-    if (dayOfWeek === 0) {
-      return { style: { color: 'var(--mantine-color-red-6)' } };
-    }
-    if (dayOfWeek === 6) {
-      return { style: { color: 'var(--mantine-color-blue-6)' } };
-    }
-    return {};
+    const color = getCalendarDayColor(date);
+    return color ? { style: { color: `var(--mantine-color-${color}-6)` } } : {};
   };
 
   /**
    * カレンダーの日セルに部門色の背景と勤務可用性の記号を当てる。
-   * 勤務部門が0件なら曜日に応じた日本式の週末文字色（土曜=青・日曜=赤）、
+   * 祝日は勤務予定の有無にかかわらず赤字にする。勤務部門が0件なら、
+   * 曜日に応じた日本式の週末文字色（土曜=青・日曜=赤）も適用する。
    * 1件ならその部門色で塗り、2件（ski・snowboard）なら45°の対角スプリット背景で
    * 両方を表現する。勤務可用性は勤務の有無にかかわらず右上へ重ねる。
-   * 勤務日は部門色の背景が主役のため週末色は当てない。
+   * 勤務日は部門色の背景を優先するが、祝日の赤字表示は維持する。
    * 色は Mantine のセマンティック CSS 変数（`-light` / `-light-color`）経由で指定し、
    * ライト/ダーク双方のテーマに追従させる。
    */
@@ -205,7 +205,10 @@ export function UpcomingShifts({ instructorId }: { instructorId: string }) {
         ...availabilityProps,
         style: {
           backgroundColor: `var(--mantine-color-${color}-light)`,
-          color: `var(--mantine-color-${color}-light-color)`,
+          color:
+            getCalendarDayColor(date) === 'red'
+              ? 'var(--mantine-color-red-6)'
+              : `var(--mantine-color-${color}-light-color)`,
         },
       };
     }
@@ -215,6 +218,7 @@ export function UpcomingShifts({ instructorId }: { instructorId: string }) {
       ...availabilityProps,
       style: {
         backgroundImage: `linear-gradient(135deg, var(--mantine-color-${firstColor}-light) 50%, var(--mantine-color-${secondColor}-light) 50%)`,
+        color: getCalendarDayColor(date) === 'red' ? 'var(--mantine-color-red-6)' : undefined,
       },
     };
   };

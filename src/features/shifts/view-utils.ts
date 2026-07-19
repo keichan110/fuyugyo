@@ -1,3 +1,5 @@
+import JapaneseHolidays from 'japanese-holidays';
+
 /**
  * 表示ビュー（週次/月次）の日付計算ユーティリティ。
  * 期間計算・整形は UTC 基準で行い、サーバー側の日付正規化（`T00:00:00.000Z`）と一致させる。
@@ -50,6 +52,25 @@ export const WEEKDAY_LABELS = ['日', '月', '火', '水', '木', '金', '土'] 
 /** YYYY-MM-DD の曜日インデックス（0=日）を返す */
 export function weekdayIndex(dateStr: string): number {
   return parseDate(dateStr).getUTCDay();
+}
+
+/** YYYY-MM-DD が日本の祝日または振替休日かを判定する。 */
+export function isJapaneseHoliday(dateStr: string): boolean {
+  const year = Number(dateStr.slice(0, 4));
+  const month = Number(dateStr.slice(5, 7));
+  const day = Number(dateStr.slice(8, 10));
+  return Boolean(JapaneseHolidays.isHoliday(new Date(year, month - 1, day)));
+}
+
+/** 日本式カレンダーにおける日付文字色を返す（日曜・祝日=赤、土曜=青）。 */
+export function getCalendarDayColor(dateStr: string): 'red' | 'blue' | undefined {
+  if (isJapaneseHoliday(dateStr) || weekdayIndex(dateStr) === 0) {
+    return 'red';
+  }
+  if (weekdayIndex(dateStr) === 6) {
+    return 'blue';
+  }
+  return undefined;
 }
 
 /** 「M/D（曜）」形式の短い日付ラベルを返す */

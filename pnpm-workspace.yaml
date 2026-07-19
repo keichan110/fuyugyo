@@ -4,3 +4,4 @@ allowBuilds:
   workerd: true
 auditConfig: {}
 minimumReleaseAge: 10080
+trustPolicy: no-downgrade

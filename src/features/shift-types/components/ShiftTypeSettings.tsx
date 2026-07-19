@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { Drawer, Grid, Group, Modal, Paper, Stack, Tabs, Text } from '@mantine/core';
 import { IconArrowLeft, IconDatabase } from '@tabler/icons-react';
@@ -30,7 +30,12 @@ export function ShiftTypeSettings() {
   const [catalogOpened, setCatalogOpened] = useState(false);
   const [masterView, setMasterView] = useState<ShiftTypeDrawerState | null>(null);
   const [isEditorDirty, setEditorDirty] = useState(false);
+  const currentDepartmentCode = useRef(departmentCode);
   const { data: shiftTypes } = useDepartmentShiftTypes(departmentCode);
+
+  useEffect(() => {
+    currentDepartmentCode.current = departmentCode;
+  }, [departmentCode]);
 
   useEffect(() => {
     setSelectedShiftTypeId((current) =>
@@ -94,7 +99,12 @@ export function ShiftTypeSettings() {
               departmentCode={departmentCode}
               selectedShiftTypeId={selectedShiftTypeId}
               onSelect={selectShiftType}
-              onAdd={() => setCatalogOpened(true)}
+              canAssign={confirmDiscard}
+              onAssigned={(shiftTypeId, assignedDepartmentCode) => {
+                if (assignedDepartmentCode !== currentDepartmentCode.current) return;
+                setEditorDirty(false);
+                setSelectedShiftTypeId(shiftTypeId);
+              }}
               canRemove={(shiftTypeId) => shiftTypeId !== selectedShiftTypeId || confirmDiscard()}
             />
           </Paper>

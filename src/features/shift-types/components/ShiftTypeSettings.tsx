@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import { Drawer, Grid, Group, Modal, Paper, Stack, Tabs, Text } from '@mantine/core';
 import { IconArrowLeft, IconDatabase } from '@tabler/icons-react';
@@ -30,12 +30,8 @@ export function ShiftTypeSettings() {
   const [catalogOpened, setCatalogOpened] = useState(false);
   const [masterView, setMasterView] = useState<ShiftTypeDrawerState | null>(null);
   const [isEditorDirty, setEditorDirty] = useState(false);
-  const currentDepartmentCode = useRef(departmentCode);
+  const [isShiftTypeListDirty, setShiftTypeListDirty] = useState(false);
   const { data: shiftTypes } = useDepartmentShiftTypes(departmentCode);
-
-  useEffect(() => {
-    currentDepartmentCode.current = departmentCode;
-  }, [departmentCode]);
 
   useEffect(() => {
     setSelectedShiftTypeId((current) =>
@@ -46,17 +42,24 @@ export function ShiftTypeSettings() {
   }, [shiftTypes]);
 
   const blocker = useBlocker({
-    shouldBlockFn: () => isEditorDirty,
-    enableBeforeUnload: () => isEditorDirty,
+    shouldBlockFn: () => isEditorDirty || isShiftTypeListDirty,
+    enableBeforeUnload: () => isEditorDirty || isShiftTypeListDirty,
     withResolver: true,
   });
 
-  const confirmDiscard = useCallback(() => {
+  const confirmDiscardEditor = useCallback(() => {
     return !isEditorDirty || window.confirm('保存していない必要資格の変更を破棄しますか？');
   }, [isEditorDirty]);
 
+  const confirmDiscard = useCallback(() => {
+    return (
+      (!isEditorDirty && !isShiftTypeListDirty) ||
+      window.confirm('保存していないシフト種別設定の変更を破棄しますか？')
+    );
+  }, [isEditorDirty, isShiftTypeListDirty]);
+
   const selectShiftType = (shiftTypeId: string) => {
-    if (!confirmDiscard()) return;
+    if (!confirmDiscardEditor()) return;
     setEditorDirty(false);
     setSelectedShiftTypeId(shiftTypeId);
   };
@@ -65,6 +68,7 @@ export function ShiftTypeSettings() {
     const parsed = departmentCodeSchema.safeParse(value);
     if (!parsed.success || parsed.data === departmentCode || !confirmDiscard()) return;
     setEditorDirty(false);
+    setShiftTypeListDirty(false);
     setDepartmentCode(parsed.data);
   };
 
@@ -76,6 +80,7 @@ export function ShiftTypeSettings() {
           <AppButton
             intent="secondary"
             leftSection={<IconDatabase size={16} />}
+            disabled={isShiftTypeListDirty}
             onClick={() => setCatalogOpened(true)}
           >
             シフト種別マスタを管理
@@ -96,16 +101,19 @@ export function ShiftTypeSettings() {
         <Grid.Col span={{ base: 12, md: 4 }}>
           <Paper withBorder p="md">
             <DepartmentShiftTypeList
+              key={departmentCode}
               departmentCode={departmentCode}
               selectedShiftTypeId={selectedShiftTypeId}
               onSelect={selectShiftType}
-              canAssign={confirmDiscard}
-              onAssigned={(shiftTypeId, assignedDepartmentCode) => {
-                if (assignedDepartmentCode !== currentDepartmentCode.current) return;
+              canAssign={confirmDiscardEditor}
+              canRemove={(shiftTypeId) =>
+                shiftTypeId !== selectedShiftTypeId || confirmDiscardEditor()
+              }
+              onRemoved={(nextSelectedShiftTypeId) => {
                 setEditorDirty(false);
-                setSelectedShiftTypeId(shiftTypeId);
+                setSelectedShiftTypeId(nextSelectedShiftTypeId);
               }}
-              canRemove={(shiftTypeId) => shiftTypeId !== selectedShiftTypeId || confirmDiscard()}
+              onDirtyChange={setShiftTypeListDirty}
             />
           </Paper>
         </Grid.Col>
@@ -178,7 +186,7 @@ export function ShiftTypeSettings() {
         centered
       >
         <Stack>
-          <Text>このページを離れると、保存していない必要資格の変更は失われます。</Text>
+          <Text>このページを離れると、保存していないシフト種別設定の変更は失われます。</Text>
           <Group justify="flex-end">
             <AppButton intent="secondary" onClick={() => blocker.reset?.()}>
               このページに残る

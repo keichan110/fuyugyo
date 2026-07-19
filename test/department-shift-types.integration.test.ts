@@ -166,7 +166,7 @@ describe('PUT /api/department-shift-types/:departmentCode', () => {
     expect(res.status).toBe(400);
   });
 
-  it('追加または除外を含む配列を 400 で拒否する', async () => {
+  it('追加と除外を含む配列で可用集合をまとめて更新する', async () => {
     const db = createDb(env.DB);
     const [assigned, unassigned] = await db
       .insert(shiftTypes)
@@ -191,16 +191,18 @@ describe('PUT /api/department-shift-types/:departmentCode', () => {
       envWith({}),
     );
 
-    expect(addRes.status).toBe(400);
-    expect(removeRes.status).toBe(400);
+    expect(addRes.status).toBe(200);
+    expect(departmentShiftTypeListSchema.parse(await addRes.json())).toMatchObject([
+      { shiftTypeId: assigned.id, sortOrder: 1 },
+      { shiftTypeId: unassigned.id, sortOrder: 2 },
+    ]);
+    expect(removeRes.status).toBe(200);
     const assignmentsRes = await app.request(
       '/api/department-shift-types/ski',
       authRequest(token),
       envWith({}),
     );
-    expect(departmentShiftTypeListSchema.parse(await assignmentsRes.json())).toMatchObject([
-      { shiftTypeId: assigned.id },
-    ]);
+    expect(departmentShiftTypeListSchema.parse(await assignmentsRes.json())).toEqual([]);
   });
 });
 

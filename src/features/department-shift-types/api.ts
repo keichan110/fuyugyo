@@ -174,21 +174,6 @@ export const departmentShiftTypesRoute = new Hono<{
         }
       }
 
-      const currentAssignments = await db
-        .select({ shiftTypeId: departmentShiftTypes.shiftTypeId })
-        .from(departmentShiftTypes)
-        .where(eq(departmentShiftTypes.departmentCode, departmentCode));
-      const currentShiftTypeIds = new Set(
-        currentAssignments.map((assignment) => assignment.shiftTypeId),
-      );
-      // 一括更新は並べ替え専用とし、割当集合の変更は個別の追加・除外APIへ委ねる
-      if (
-        currentShiftTypeIds.size !== shiftTypeIds.length ||
-        shiftTypeIds.some((shiftTypeId) => !currentShiftTypeIds.has(shiftTypeId))
-      ) {
-        throw new HTTPException(400, { message: 'Shift type IDs must match current assignments' });
-      }
-
       const removeCurrent = db
         .delete(departmentShiftTypes)
         .where(eq(departmentShiftTypes.departmentCode, departmentCode));

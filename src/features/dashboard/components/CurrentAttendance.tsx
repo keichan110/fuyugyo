@@ -27,7 +27,7 @@ export function CurrentAttendance({ instructorId }: { instructorId: string }) {
         今日・明日の出勤
       </Title>
 
-      <Tabs defaultValue="today" variant="pills">
+      <Tabs defaultValue="today">
         <Tabs.List>
           <Tabs.Tab value="today">今日</Tabs.Tab>
           <Tabs.Tab value="tomorrow">明日</Tabs.Tab>

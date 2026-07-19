@@ -547,13 +547,9 @@ export function ShiftManager() {
               selectedCell ? (
                 <Group justify="space-between" wrap="nowrap" w="100%">
                   <Stack gap={0}>
-                    {selectedCellDateColor ? (
-                      <Text fw={600} c={selectedCellDateColor}>
-                        {shortDateLabel(selectedCell.date)}
-                      </Text>
-                    ) : (
-                      <Text fw={600}>{shortDateLabel(selectedCell.date)}</Text>
-                    )}
+                    <Text fw={600} {...(selectedCellDateColor ? { c: selectedCellDateColor } : {})}>
+                      {shortDateLabel(selectedCell.date)}
+                    </Text>
                     <Text size="xs" c="dimmed" fw={400}>
                       {formData.data.shiftTypes.find(
                         (shiftType) => shiftType.id === selectedCell.shiftTypeId,

@@ -103,7 +103,7 @@ function RootLayout() {
   );
 }
 
-/** ダッシュボード以外の MEMBER 向け画面に、未連携時のインストラクター連携案内を表示する。 */
+/** ホーム以外の MEMBER 向け画面に、未連携時のインストラクター連携案内を表示する。 */
 function MemberInstructorLinkPrompt({ user }: { user: MeResponse }) {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
 
@@ -136,7 +136,7 @@ type NavigationGroup = {
 };
 
 const NAVIGATION_GROUPS: NavigationGroup[] = [
-  { id: 'dashboard', items: [{ to: '/', label: 'ダッシュボード', icon: IconHome }] },
+  { id: 'dashboard', items: [{ to: '/', label: 'ホーム', icon: IconHome }] },
   {
     id: 'shift-operations',
     label: 'シフト運用',

@@ -11,7 +11,7 @@ import { SeasonStatsSection } from '@/features/dashboard/components/SeasonStatsS
 import { UpcomingShifts } from '@/features/dashboard/components/UpcomingShifts';
 
 /**
- * ダッシュボード（ルートパス）。通知と直近の勤務予定、シフト希望を表示する。
+ * ホーム（ルートパス）。通知と直近の勤務予定、シフト希望を表示する。
  */
 export const Route = createFileRoute('/')({
   beforeLoad: async ({ context }) => {
@@ -30,7 +30,7 @@ function DashboardPage() {
   return (
     <Container size="sm" py="md">
       <Stack gap="xl">
-        <Title order={2}>ダッシュボード</Title>
+        <Title order={2}>ホーム</Title>
         <DashboardNotifications instructorId={instructorId ?? null} />
         {instructorId && (
           <>

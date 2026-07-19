@@ -1,11 +1,11 @@
-import { Container, Group, Stack, Text, ThemeIcon, Timeline, Title } from '@mantine/core';
+import { Container, Stack, ThemeIcon, Timeline, Title } from '@mantine/core';
 import { IconCalendarEvent, IconChartBar, IconUsers } from '@tabler/icons-react';
-import { createFileRoute, Link, redirect } from '@tanstack/react-router';
+import { createFileRoute, redirect } from '@tanstack/react-router';
 
-import { AppButton } from '@/components/AppButton';
 import { ensureAuthenticated } from '@/features/auth/auth-guard';
 import { useMe } from '@/features/auth/queries';
 import { CurrentAttendance } from '@/features/dashboard/components/CurrentAttendance';
+import { DashboardAvailabilityLink } from '@/features/dashboard/components/DashboardAvailabilityLink';
 import { DashboardNotifications } from '@/features/dashboard/components/DashboardNotifications';
 import { SeasonStatsSection } from '@/features/dashboard/components/SeasonStatsSection';
 import { UpcomingShifts } from '@/features/dashboard/components/UpcomingShifts';
@@ -34,20 +34,6 @@ function DashboardPage() {
         <DashboardNotifications instructorId={instructorId ?? null} />
         {instructorId && (
           <>
-            <Stack gap="sm">
-              <Group justify="space-between" align="center">
-                <Stack gap={4}>
-                  <Text fw={600}>シフト希望</Text>
-                  <Text size="sm" c="dimmed">
-                    勤務できない日や調整が必要な日を登録します。
-                  </Text>
-                </Stack>
-                <AppButton intent="secondary" component={Link} to="/availabilities">
-                  シフト希望を入力
-                </AppButton>
-              </Group>
-            </Stack>
-
             <Timeline active={0} bulletSize={32} lineWidth={2}>
               <Timeline.Item
                 title="現在"
@@ -69,6 +55,7 @@ function DashboardPage() {
                 }
               >
                 <UpcomingShifts instructorId={instructorId} />
+                <DashboardAvailabilityLink />
               </Timeline.Item>
 
               <Timeline.Item

@@ -3,6 +3,8 @@ import { Badge, Box, Divider, Group, Paper, Stack, Text } from '@mantine/core';
 import { Calendar, type CalendarProps } from '@mantine/dates';
 import dayjs, { type Dayjs } from 'dayjs';
 
+import { useMyAvailabilities } from '@/features/availabilities/queries';
+import type { Availability } from '@/features/availabilities/schema';
 import { getDepartmentAppearance } from '@/features/departments/appearance';
 import { departmentCodeSchema, type DepartmentCode } from '@/features/departments/schema';
 import { ShiftAttendeeRow } from '@/features/shifts/components/ShiftAttendeeRow';
@@ -55,7 +57,10 @@ function MonthCalendar({ month, getDayProps }: { month: Dayjs; getDayProps: GetD
         withCellSpacing={false}
         // Mantine既定の週末赤（土日両方）を無効化し、getDayPropsで日本式の土日配色に差し替える
         weekendDays={[]}
-        classNames={{ calendarHeader: classes.hiddenCalendarHeader }}
+        classNames={{
+          calendarHeader: classes.hiddenCalendarHeader,
+          day: classes.calendarDay,
+        }}
         getDayProps={getDayProps}
       />
     </Stack>
@@ -125,6 +130,8 @@ export function UpcomingShifts({ instructorId }: { instructorId: string }) {
     dateTo: calendarRangeEnd,
     instructorId,
   });
+  const { data: currentMonthAvailabilities } = useMyAvailabilities(currentMonth.format('YYYY-MM'));
+  const { data: nextMonthAvailabilities } = useMyAvailabilities(nextMonth.format('YYYY-MM'));
 
   // 日付文字列(YYYY-MM-DD) → その日に自分が勤務する部門コードの集合。
   // 同日に ski/snowboard 両方の枠に入ることもあるため Set で持つ
@@ -134,6 +141,14 @@ export function UpcomingShifts({ instructorId }: { instructorId: string }) {
     const set = departmentsByDate.get(dateStr) ?? new Set<DepartmentCode>();
     set.add(shift.departmentCode);
     departmentsByDate.set(dateStr, set);
+  }
+
+  const availabilityByDate = new Map<string, Availability['type']>();
+  for (const availability of [
+    ...(currentMonthAvailabilities?.availabilities ?? []),
+    ...(nextMonthAvailabilities?.availabilities ?? []),
+  ]) {
+    availabilityByDate.set(availability.date, availability.type);
   }
 
   /**
@@ -152,17 +167,29 @@ export function UpcomingShifts({ instructorId }: { instructorId: string }) {
   };
 
   /**
-   * カレンダーの日セルに部門色の背景を当てる。
+   * カレンダーの日セルに部門色の背景と勤務可用性の記号を当てる。
    * 勤務部門が0件なら曜日に応じた日本式の週末文字色（土曜=青・日曜=赤）、
    * 1件ならその部門色で塗り、2件（ski・snowboard）なら45°の対角スプリット背景で
-   * 両方を表現する。勤務日は部門色の背景が主役のため週末色は当てない。
+   * 両方を表現する。勤務可用性は勤務の有無にかかわらず右上へ重ねる。
+   * 勤務日は部門色の背景が主役のため週末色は当てない。
    * 色は Mantine のセマンティック CSS 変数（`-light` / `-light-color`）経由で指定し、
    * ライト/ダーク双方のテーマに追従させる。
    */
   const getDayProps = (date: string) => {
     const departments = departmentsByDate.get(date);
+    const availability = availabilityByDate.get(date);
+    const availabilityLabel =
+      availability === 'UNAVAILABLE' ? '勤務不可' : availability === 'AVOID' ? '要調整' : undefined;
+    const availabilityProps = {
+      'data-availability': availability,
+      'aria-label': availabilityLabel
+        ? `${dayjs(date).format('M月D日')}、${availabilityLabel}`
+        : undefined,
+      title: availabilityLabel,
+    };
+
     if (!departments) {
-      return getWeekendDayProps(date);
+      return { ...getWeekendDayProps(date), ...availabilityProps };
     }
     // departmentCodeSchema.options（ski→snowboard）の順に揃え、
     // スプリット背景の色順（青→オレンジ）を安定させる
@@ -170,11 +197,12 @@ export function UpcomingShifts({ instructorId }: { instructorId: string }) {
       departments.has(code),
     );
     if (!firstCode) {
-      return getWeekendDayProps(date);
+      return { ...getWeekendDayProps(date), ...availabilityProps };
     }
     if (!secondCode) {
       const color = getDepartmentAppearance(firstCode).color;
       return {
+        ...availabilityProps,
         style: {
           backgroundColor: `var(--mantine-color-${color}-light)`,
           color: `var(--mantine-color-${color}-light-color)`,
@@ -184,6 +212,7 @@ export function UpcomingShifts({ instructorId }: { instructorId: string }) {
     const firstColor = getDepartmentAppearance(firstCode).color;
     const secondColor = getDepartmentAppearance(secondCode).color;
     return {
+      ...availabilityProps,
       style: {
         backgroundImage: `linear-gradient(135deg, var(--mantine-color-${firstColor}-light) 50%, var(--mantine-color-${secondColor}-light) 50%)`,
       },
@@ -301,6 +330,22 @@ export function UpcomingShifts({ instructorId }: { instructorId: string }) {
               </Group>
             );
           })}
+          <Group gap={6} wrap="nowrap">
+            <Text className={classes.unavailableLegend} aria-hidden>
+              ×
+            </Text>
+            <Text size="xs" c="dimmed">
+              勤務不可
+            </Text>
+          </Group>
+          <Group gap={6} wrap="nowrap">
+            <Text className={classes.avoidLegend} aria-hidden>
+              △
+            </Text>
+            <Text size="xs" c="dimmed">
+              要調整
+            </Text>
+          </Group>
         </Group>
       </Stack>
     </Stack>

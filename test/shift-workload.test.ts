@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { SEASON_END_MONTH, SEASON_START_MONTH } from '../src/features/shifts/season';
 import {
   calculateFairShare,
   countCurrentMonthWorkDays,
@@ -8,12 +9,32 @@ import {
 } from '../src/features/shifts/workload';
 
 describe('seasonRangeForDate', () => {
-  it('年をまたぐ冬季シーズンを対象日から決定する', () => {
+  it('デフォルトは共通定数（9月始まり〜8月終わり）のシーズン範囲を返す', () => {
+    expect(SEASON_START_MONTH).toBe(9);
+    expect(SEASON_END_MONTH).toBe(8);
     expect(seasonRangeForDate('2026-01-15')).toEqual({
-      from: '2025-12-01',
-      to: '2026-04-30',
+      from: '2025-09-01',
+      to: '2026-08-31',
     });
     expect(seasonRangeForDate('2025-12-10')).toEqual({
+      from: '2025-09-01',
+      to: '2026-08-31',
+    });
+  });
+
+  it('シーズン開始月の前日と当日で属するシーズンが切り替わる（9月カットオーバー）', () => {
+    expect(seasonRangeForDate('2026-08-31')).toEqual({
+      from: '2025-09-01',
+      to: '2026-08-31',
+    });
+    expect(seasonRangeForDate('2026-09-01')).toEqual({
+      from: '2026-09-01',
+      to: '2027-08-31',
+    });
+  });
+
+  it('任意のシーズン境界（例: 年をまたぐ冬季12〜4月）も指定できる', () => {
+    expect(seasonRangeForDate('2026-01-15', 12, 4)).toEqual({
       from: '2025-12-01',
       to: '2026-04-30',
     });

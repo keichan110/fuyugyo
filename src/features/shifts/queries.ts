@@ -5,15 +5,19 @@ import { client } from '@/lib/rpc';
 
 import {
   autoAssignContextSchema,
+  seasonStatsResponseSchema,
   shiftAgendaResponseSchema,
+  shiftAttendanceSchema,
   shiftEditDataSchema,
   shiftFormDataSchema,
   shiftListSchema,
   shiftViewResponseSchema,
   upsertMonthlyAssignmentsResultSchema,
   type AutoAssignContext,
+  type SeasonStatsResponse,
   type ShiftAgendaDirection,
   type ShiftAgendaResponse,
+  type ShiftAttendance,
   type ShiftEditData,
   type ShiftFormData,
   type ShiftListItem,
@@ -27,6 +31,12 @@ const apiErrorSchema = z.object({ message: z.string().optional() });
 
 /** Shift 関連クエリキー */
 export const SHIFTS_QUERY_KEY = ['shifts'] as const;
+
+/**
+ * 今シーズン集計のクエリキー。
+ * `v2` は昨季同時点の値を持たない旧レスポンスを永続キャッシュから再利用しないための世代番号。
+ */
+export const SEASON_STATS_QUERY_KEY = [...SHIFTS_QUERY_KEY, 'me', 'season-stats', 'v2'] as const;
 
 /** アジェンダ取得パラメータ */
 export type ShiftAgendaParams = {
@@ -99,6 +109,31 @@ export function useShiftCalendar(month: string | undefined) {
       return shiftViewResponseSchema.parse(await res.json());
     },
     enabled: !!month,
+  });
+}
+
+/**
+ * 指定日群の出勤状況（各シフトの部門・種別・割り当て済み表示名）を取得する。
+ * ダッシュボードの「現在（今日・明日）」「直近（同僚一覧）」で共有する。
+ * @param dates - 取得対象日（YYYY-MM-DD）の配列（1〜7件）。空配列なら取得しない
+ * @param departmentCode - 任意の部門コード。指定時はその部門のみに絞る
+ */
+export function useShiftAttendance(dates: string[], departmentCode?: string) {
+  return useQuery<ShiftAttendance>({
+    queryKey: [...SHIFTS_QUERY_KEY, 'attendance', dates, departmentCode ?? 'all'],
+    queryFn: async () => {
+      const query: Record<string, string> = { dates: dates.join(',') };
+      if (departmentCode) {
+        query['departmentCode'] = departmentCode;
+      }
+      const res = await client.api.shifts.attendance.$get({ query });
+      if (!res.ok) {
+        const body = apiErrorSchema.parse(await res.json());
+        throw new Error(body.message ?? '出勤状況の取得に失敗しました');
+      }
+      return shiftAttendanceSchema.parse(await res.json());
+    },
+    enabled: dates.length > 0,
   });
 }
 
@@ -223,6 +258,25 @@ export function useShiftAssignmentEditor(params: Partial<ShiftEditDataParams>) {
       return shiftEditDataSchema.parse(await res.json());
     },
     enabled,
+  });
+}
+
+/**
+ * ダッシュボード「今シーズン」セクション向けの集計を取得する（Issue #203）。
+ * ログイン User が Instructor 未連携の場合はサーバーが 404 を返す前提のため、
+ * 呼び出し元（ダッシュボード）は instructorId が確定しているときだけ描画すること。
+ */
+export function useMySeasonStats() {
+  return useQuery<SeasonStatsResponse>({
+    queryKey: SEASON_STATS_QUERY_KEY,
+    queryFn: async () => {
+      const res = await client.api.shifts.me['season-stats'].$get();
+      if (!res.ok) {
+        const body = apiErrorSchema.parse(await res.json());
+        throw new Error(body.message ?? '今シーズンの集計取得に失敗しました');
+      }
+      return seasonStatsResponseSchema.parse(await res.json());
+    },
   });
 }
 

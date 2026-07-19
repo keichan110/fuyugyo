@@ -23,8 +23,4 @@ export type Env = {
   APP_URL: string;
   /** 認証系エンドポイント用の CF ネイティブ Rate Limiter（ADR 0004） */
   AUTH_RATE_LIMITER: RateLimit;
-  /** 負荷計算のシーズン開始月（1〜12）。未設定時は 12 */
-  WORKLOAD_SEASON_START_MONTH?: string;
-  /** 負荷計算のシーズン終了月（1〜12）。未設定時は 4 */
-  WORKLOAD_SEASON_END_MONTH?: string;
 };

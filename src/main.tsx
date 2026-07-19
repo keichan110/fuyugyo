@@ -12,6 +12,8 @@ import { theme } from '@/lib/theme';
 import { routeTree } from './routeTree.gen';
 
 import '@mantine/core/styles.css';
+import '@mantine/carousel/styles.css';
+import '@mantine/charts/styles.css';
 import '@mantine/dates/styles.css';
 import '@mantine/notifications/styles.css';
 import '@mantine/schedule/styles.css';

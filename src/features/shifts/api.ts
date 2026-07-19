@@ -32,6 +32,7 @@ import {
   upsertMonthlyAssignmentsSchema,
   type ShiftViewItem,
 } from './schema';
+import { buildSeasonStats } from './season-stats';
 import { seasonRangeForDate } from './workload';
 
 /**
@@ -69,15 +70,6 @@ function addDays(dateStr: string, days: number): string {
   const date = parseShiftDate(dateStr);
   date.setUTCDate(date.getUTCDate() + days);
   return formatDate(date);
-}
-
-/** 環境値の月（1〜12）を読み取り、不正値ならデフォルトを使う */
-function parseSeasonMonth(value: string | undefined, fallback: number): number {
-  const parsed = Number(value);
-  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 12) {
-    return fallback;
-  }
-  return parsed;
 }
 
 /** インストラクター表示名（姓 名） */
@@ -537,11 +529,7 @@ export const shiftsRoute = new Hono<{
       })),
     );
 
-    const seasonRange = seasonRangeForDate(
-      from,
-      parseSeasonMonth(c.env.WORKLOAD_SEASON_START_MONTH, 12),
-      parseSeasonMonth(c.env.WORKLOAD_SEASON_END_MONTH, 4),
-    );
+    const seasonRange = seasonRangeForDate(from);
     const assignmentRows: {
       date: Date;
       departmentCode: string;
@@ -835,11 +823,7 @@ export const shiftsRoute = new Hono<{
         frameRequirement.isRequired && cand.isAssigned && !qualifiedCandidateSet.has(cand.id),
     }));
 
-    const seasonRange = seasonRangeForDate(
-      dateStr,
-      parseSeasonMonth(c.env.WORKLOAD_SEASON_START_MONTH, 12),
-      parseSeasonMonth(c.env.WORKLOAD_SEASON_END_MONTH, 4),
-    );
+    const seasonRange = seasonRangeForDate(dateStr);
     // candidateIds が多い場合に備え、日付範囲の2パラメータ分の余裕を見てチャンク分割して問い合わせる
     const candidateIds = availableInstructors.map((inst) => inst.id);
     const workloadRows: { instructorId: string; date: Date }[] = [];
@@ -1010,6 +994,38 @@ export const shiftsRoute = new Hono<{
     });
   })
   /**
+   * 出勤状況ビュー: `dates`（カンマ区切り・YYYY-MM-DD、1〜7件）で指定した日群の
+   * 全出勤者（部門・シフト種別・表示名付き）を返す。MEMBER 以上。
+   * 休校日（シフトが0件の日）は要素を持たないだけで、400 にはしない。
+   * ダッシュボードの「今日・明日の出勤状況」「同じ日に勤務する同僚一覧」で共有する。
+   */
+  .get('/attendance', requireAuth, async (c) => {
+    const datesQuery = c.req.query('dates');
+    if (!datesQuery) {
+      throw new HTTPException(400, { message: 'dates を指定してください' });
+    }
+
+    const dateStrings = datesQuery.split(',');
+    if (dateStrings.length < 1 || dateStrings.length > 7) {
+      throw new HTTPException(400, { message: 'dates は1〜7件で指定してください' });
+    }
+    if (
+      dateStrings.some((d) => !(dateStringSchema.safeParse(d).success && isValidCalendarDate(d)))
+    ) {
+      throw new HTTPException(400, { message: 'dates は YYYY-MM-DD 形式で指定してください' });
+    }
+
+    const departmentCode = c.req.query('departmentCode');
+    if (departmentCode && !departmentCodeSchema.safeParse(departmentCode).success) {
+      throw new HTTPException(400, { message: 'departmentCode が不正です' });
+    }
+
+    const db = createDb(c.env.DB);
+    const dates = dateStrings.map((d) => parseShiftDate(d));
+    const shiftsView = await loadShiftViewByDates(db, dates, departmentCode);
+    return c.json(shiftsView);
+  })
+  /**
    * シフト一覧を返す。`dateFrom`/`dateTo`（YYYY-MM-DD）で期間を、`instructorId` で
    * その Instructor が割り当てられたシフトのみに絞り込める。
    * `limit` で返却件数の上限を指定できる（既定100・上限200）。期間・件数のどちらも
@@ -1106,6 +1122,64 @@ export const shiftsRoute = new Hono<{
         assignedInstructorIds: assignedByShift.get(s.id) ?? [],
       })),
     );
+  })
+  /**
+   * ダッシュボード「今シーズン」セクション向けの集計を返す（Issue #203）。
+   * ログイン User にリンクされた Instructor の [前シーズン開始, 今シーズン終了] 範囲の
+   * 勤務実績を1クエリで取得し、`buildSeasonStats` でサマリー・月別推移・
+   * 部門別/シフト種別別内訳にまとめる。User が Instructor 未連携なら 404。
+   */
+  .get('/me/season-stats', requireAuth, async (c) => {
+    const db = createDb(c.env.DB);
+    const { userId } = c.get('user');
+
+    const [me] = await db
+      .select({ instructorId: users.instructorId })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    if (!me?.instructorId) {
+      throw new HTTPException(404, { message: 'Instructor が連携されていません' });
+    }
+
+    const today = formatDate(new Date());
+    const currentSeasonRange = seasonRangeForDate(today);
+    const previousSeasonRange = seasonRangeForDate(
+      // 前シーズンは基準日を1年前にずらして同じ関数で求める（境界が9/1・8/31でうるう年の影響を受けないため安全）
+      `${Number(today.slice(0, 4)) - 1}${today.slice(4)}`,
+    );
+
+    const rows = await db
+      .select({
+        date: shifts.date,
+        departmentCode: shifts.departmentCode,
+        shiftTypeId: shifts.shiftTypeId,
+        shiftTypeName: shiftTypes.name,
+      })
+      .from(shiftAssignments)
+      .innerJoin(shifts, eq(shifts.id, shiftAssignments.shiftId))
+      .innerJoin(shiftTypes, eq(shiftTypes.id, shifts.shiftTypeId))
+      .where(
+        and(
+          eq(shiftAssignments.instructorId, me.instructorId),
+          gte(shifts.date, parseShiftDate(previousSeasonRange.from)),
+          lte(shifts.date, parseShiftDate(currentSeasonRange.to)),
+        ),
+      )
+      .orderBy(asc(shifts.date));
+
+    const stats = buildSeasonStats(
+      rows.map((row) => ({
+        date: formatDate(row.date),
+        departmentCode: row.departmentCode,
+        shiftTypeId: row.shiftTypeId,
+        shiftTypeName: row.shiftTypeName,
+      })),
+      today,
+    );
+
+    return c.json(stats);
   })
   /**
    * (month × 部門) の割り当てを月次まとめて upsert する（MANAGER 以上）。

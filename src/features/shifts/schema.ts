@@ -302,6 +302,16 @@ export const shiftViewResponseSchema = z.object({
 
 export type ShiftViewResponse = z.infer<typeof shiftViewResponseSchema>;
 
+/**
+ * 出勤状況ビュー: 指定日群のシフトを表示ビュー形式でそのまま返す。
+ * ダッシュボードの「現在（今日・明日）」「直近（同僚一覧）」セクションで共有する。
+ * 休校日（シフト0件の日）は要素を持たないだけで、日付ごとのグルーピングは
+ * クライアント側で行う（アジェンダの「稼働日スキップ」意味論は持ち込まない）。
+ */
+export const shiftAttendanceSchema = z.array(shiftViewItemSchema);
+
+export type ShiftAttendance = z.infer<typeof shiftAttendanceSchema>;
+
 // ─── アジェンダ表示 ────────────────────────────────────────────────────────
 
 /** アジェンダのページング方向 */
@@ -332,3 +342,51 @@ export const shiftAgendaResponseSchema = z.object({
 });
 
 export type ShiftAgendaResponse = z.infer<typeof shiftAgendaResponseSchema>;
+
+// ─── 今シーズンの勤務実績（ダッシュボード） ─────────────────────────────────
+
+/** 月別勤務日数（推移グラフの1点。同日複数シフトは1日として数える） */
+export const seasonMonthlyWorkDaysSchema = z.object({
+  /** 対象月（YYYY-MM） */
+  month: z.string(),
+  workDays: z.number(),
+});
+
+export type SeasonMonthlyWorkDays = z.infer<typeof seasonMonthlyWorkDaysSchema>;
+
+/** 部門とシフト種別の組み合わせ別の勤務回数内訳（円グラフの1セグメント） */
+export const seasonWorkBreakdownItemSchema = z.object({
+  departmentCode: departmentCodeSchema,
+  shiftTypeId: z.string(),
+  shiftTypeName: z.string(),
+  count: z.number(),
+});
+
+export type SeasonWorkBreakdownItem = z.infer<typeof seasonWorkBreakdownItemSchema>;
+
+/** 今シーズンの勤務実績サマリー（今月と、昨季同時点・昨季最終との比較。単位は勤務日数） */
+export const seasonStatsSummarySchema = z.object({
+  currentMonthWorkDays: z.number(),
+  previousMonthWorkDays: z.number(),
+  currentSeasonWorkDays: z.number(),
+  previousSeasonToDateWorkDays: z.number(),
+  previousSeasonWorkDays: z.number(),
+  currentSeasonRange: z.object({ from: dateStringSchema, to: dateStringSchema }),
+  previousSeasonRange: z.object({ from: dateStringSchema, to: dateStringSchema }),
+});
+
+export type SeasonStatsSummary = z.infer<typeof seasonStatsSummarySchema>;
+
+/**
+ * ダッシュボード「今シーズン」セクションの集計レスポンス（Issue #203）。
+ * サマリー・月別推移・部門とシフト種別を組み合わせた勤務内訳を1リクエストで返す。
+ * 通算トレンドライン（累積）は表示側で `monthlyTrend` の累積和として計算する
+ * （月別推移と同一データの粒度違いのため、レスポンスには含めない）。
+ */
+export const seasonStatsResponseSchema = z.object({
+  summary: seasonStatsSummarySchema,
+  monthlyTrend: z.array(seasonMonthlyWorkDaysSchema),
+  breakdown: z.array(seasonWorkBreakdownItemSchema),
+});
+
+export type SeasonStatsResponse = z.infer<typeof seasonStatsResponseSchema>;

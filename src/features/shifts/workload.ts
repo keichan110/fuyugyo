@@ -1,3 +1,5 @@
+import { SEASON_END_MONTH, SEASON_START_MONTH } from './season';
+
 /**
  * 割り当て候補の負荷（Workload）を計算する純粋関数群。
  *
@@ -14,13 +16,17 @@ export type SeasonRange = {
 };
 
 /**
- * 対象日を含む冬季シーズン範囲を返す。
+ * 対象日を含むシーズン範囲を返す。
  * @param targetDate - 対象日（YYYY-MM-DD）
- * @param startMonth - シーズン開始月（1〜12）
- * @param endMonth - シーズン終了月（1〜12）
+ * @param startMonth - シーズン開始月（1〜12）。省略時は `SEASON_START_MONTH`
+ * @param endMonth - シーズン終了月（1〜12）。省略時は `SEASON_END_MONTH`
  * @returns 対象日を含むシーズンの開始日・終了日
  */
-export function seasonRangeForDate(targetDate: string, startMonth = 12, endMonth = 4): SeasonRange {
+export function seasonRangeForDate(
+  targetDate: string,
+  startMonth = SEASON_START_MONTH,
+  endMonth = SEASON_END_MONTH,
+): SeasonRange {
   const date = parseDate(targetDate);
   const targetYear = date.getUTCFullYear();
   const targetMonth = date.getUTCMonth() + 1;

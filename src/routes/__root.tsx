@@ -103,11 +103,11 @@ function RootLayout() {
   );
 }
 
-/** MEMBER 向け画面の共通位置に、未連携時のインストラクター連携案内を表示する。 */
+/** ホーム以外の MEMBER 向け画面に、未連携時のインストラクター連携案内を表示する。 */
 function MemberInstructorLinkPrompt({ user }: { user: MeResponse }) {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
 
-  if (user.instructorId || !MEMBER_PATHS.has(pathname)) {
+  if (user.instructorId || pathname === '/' || !MEMBER_PATHS.has(pathname)) {
     return null;
   }
 
@@ -118,7 +118,8 @@ function MemberInstructorLinkPrompt({ user }: { user: MeResponse }) {
   );
 }
 
-const MEMBER_PATHS = new Set(['/', '/shifts', '/availabilities']);
+const MEMBER_PATHS = new Set(['/shifts', '/availabilities']);
+
 const NOOP = () => {};
 
 type NavigationItem = {
@@ -135,7 +136,7 @@ type NavigationGroup = {
 };
 
 const NAVIGATION_GROUPS: NavigationGroup[] = [
-  { id: 'dashboard', items: [{ to: '/', label: 'ダッシュボード', icon: IconHome }] },
+  { id: 'dashboard', items: [{ to: '/', label: 'ホーム', icon: IconHome }] },
   {
     id: 'shift-operations',
     label: 'シフト運用',

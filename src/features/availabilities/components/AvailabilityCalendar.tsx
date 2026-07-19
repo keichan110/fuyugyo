@@ -38,8 +38,8 @@ import type { Availability } from '../schema';
 import classes from './AvailabilityCalendar.module.css';
 
 /** 本人が月間カレンダー上で勤務不可・回避希望日をまとめて申告する画面。 */
-export function AvailabilityCalendar() {
-  const [month, setMonth] = useState(() => todayString().slice(0, 7));
+export function AvailabilityCalendar({ initialMonth }: { initialMonth?: string }) {
+  const [month, setMonth] = useState(() => initialMonth ?? todayString().slice(0, 7));
   const availabilityQuery = useMyAvailabilities(month);
   const updateMutation = useUpdateMyAvailabilities();
   const [staged, setStaged] = useState<Map<string, StagedAvailability>>(new Map());

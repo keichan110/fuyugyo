@@ -149,7 +149,6 @@ pnpm run test:watch   # ウォッチモード
 ```bash
 pnpm run db:generate       # Drizzle マイグレーション SQL 生成
 pnpm run db:migrate:local  # ローカル D1 にマイグレーション適用
-pnpm run db:migrate:remote # リモート D1 にマイグレーション適用
 pnpm run db:studio         # Drizzle Studio 起動
 ```
 

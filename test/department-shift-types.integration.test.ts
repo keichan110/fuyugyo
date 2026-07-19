@@ -9,7 +9,13 @@ import {
 import app from '../src/index';
 import { signJwt } from '../src/server/auth/jwt';
 import { createDb } from '../src/server/db/client';
-import { departmentShiftTypes, shiftTypes, users } from '../src/server/db/schema';
+import {
+  certificationRequirements,
+  certifications,
+  departmentShiftTypes,
+  shiftTypes,
+  users,
+} from '../src/server/db/schema';
 import type { Env } from '../src/server/types';
 
 function envWith(overrides: Partial<Env>): Env {
@@ -53,7 +59,9 @@ async function seedToken(role: 'ADMIN' | 'MANAGER' | 'MEMBER'): Promise<string> 
 
 beforeEach(async () => {
   const db = createDb(env.DB);
+  await db.delete(certificationRequirements);
   await db.delete(departmentShiftTypes);
+  await db.delete(certifications);
   await db.delete(shiftTypes);
   await db.delete(users);
 });
@@ -133,6 +141,60 @@ describe('PUT /api/department-shift-types/:departmentCode', () => {
     expect(body.map(({ shiftTypeId, sortOrder }) => ({ shiftTypeId, sortOrder }))).toEqual([
       { shiftTypeId: second.id, sortOrder: 1 },
       { shiftTypeId: first.id, sortOrder: 2 },
+    ]);
+  });
+
+  it('並べ替えても継続する種別の資格要件を保持する', async () => {
+    const db = createDb(env.DB);
+    const [first, second] = await db
+      .insert(shiftTypes)
+      .values([{ name: '終日' }, { name: '午前' }])
+      .returning();
+    const [certification] = await db
+      .insert(certifications)
+      .values({
+        departmentCode: 'ski',
+        name: '指導員',
+        shortName: '指導員',
+        organization: 'テスト連盟',
+      })
+      .returning();
+    if (!first || !second || !certification) {
+      throw new Error('テストデータの作成に失敗しました');
+    }
+    await db.insert(departmentShiftTypes).values([
+      { departmentCode: 'ski', shiftTypeId: first.id, sortOrder: 1 },
+      { departmentCode: 'ski', shiftTypeId: second.id, sortOrder: 2 },
+    ]);
+    const token = await seedToken('ADMIN');
+
+    const requirementsRes = await app.request(
+      `/api/certification-requirements/ski/${first.id}`,
+      {
+        method: 'PUT',
+        ...authRequest(token, {
+          certifications: [{ certificationId: certification.id, tierRank: 1 }],
+        }),
+      },
+      envWith({}),
+    );
+    expect(requirementsRes.status).toBe(200);
+
+    const reorderRes = await app.request(
+      '/api/department-shift-types/ski',
+      { method: 'PUT', ...authRequest(token, { shiftTypeIds: [second.id, first.id] }) },
+      envWith({}),
+    );
+    expect(reorderRes.status).toBe(200);
+
+    const getRequirementsRes = await app.request(
+      `/api/certification-requirements/ski/${first.id}`,
+      authRequest(token),
+      envWith({}),
+    );
+    expect(getRequirementsRes.status).toBe(200);
+    expect(await getRequirementsRes.json()).toEqual([
+      { certificationId: certification.id, tierRank: 1 },
     ]);
   });
 

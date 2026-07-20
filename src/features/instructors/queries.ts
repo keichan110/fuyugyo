@@ -4,12 +4,10 @@ import { z } from 'zod';
 import { client } from '@/lib/rpc';
 
 import {
-  activeInstructorInDepartmentListSchema,
   instructorCertificationSchema,
   instructorListSchema,
   instructorSchema,
   instructorWithCertificationsSchema,
-  type ActiveInstructorInDepartment,
   type ChangeInstructorStatusInput,
   type CreateInstructorInput,
   type Instructor,
@@ -60,26 +58,6 @@ export function useInstructor(id: string) {
       return instructorWithCertificationsSchema.parse(await res.json());
     },
     enabled: !!id,
-  });
-}
-
-/**
- * 部門別アクティブ Instructor 一覧を取得する（N+1 なし）。
- * @param departmentCode - 対象部門のコード
- */
-export function useActiveInstructorsByDepartment(departmentCode: string) {
-  return useQuery<ActiveInstructorInDepartment[]>({
-    queryKey: [...INSTRUCTORS_QUERY_KEY, 'by-department', departmentCode, 'active'],
-    queryFn: async () => {
-      const res = await client.api.instructors['by-department'][':departmentCode'].active.$get({
-        param: { departmentCode },
-      });
-      if (!res.ok) {
-        throw new Error('部門別インストラクターの取得に失敗しました');
-      }
-      return activeInstructorInDepartmentListSchema.parse(await res.json());
-    },
-    enabled: !!departmentCode,
   });
 }
 

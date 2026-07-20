@@ -36,16 +36,6 @@ export const shiftSchema = z.object({
 
 export type Shift = z.infer<typeof shiftSchema>;
 
-/** ShiftAssignment（割り当て）の単一レコード */
-export const shiftAssignmentSchema = z.object({
-  id: z.string(),
-  shiftId: z.string(),
-  instructorId: z.string(),
-  assignedAt: z.coerce.date(),
-});
-
-export type ShiftAssignment = z.infer<typeof shiftAssignmentSchema>;
-
 /** Shift 詳細（割り当て済み Instructor ID 付き） */
 export const shiftWithAssignmentsSchema = shiftSchema.extend({
   assignedInstructorIds: z.array(z.string()),
@@ -147,25 +137,21 @@ export const autoAssignContextSchema = z.object({
 export type AutoAssignContext = z.infer<typeof autoAssignContextSchema>;
 
 /** 自動割当を実行する対象種別・必要人数・対象日。DB には保存しない一時パラメータ。 */
-export const autoAssignExecutionParamsSchema = z.object({
-  shiftTypeId: z.string().min(1),
-  weekdayRequiredCount: z.number().int().min(0),
-  weekendHolidayRequiredCount: z.number().int().min(0),
-  targetDates: z.array(dateStringSchema).min(1),
-  holidayDates: z.array(dateStringSchema).default([]),
-});
-
-export type AutoAssignExecutionParams = z.infer<typeof autoAssignExecutionParamsSchema>;
+export type AutoAssignExecutionParams = {
+  shiftTypeId: string;
+  weekdayRequiredCount: number;
+  weekendHolidayRequiredCount: number;
+  targetDates: string[];
+  holidayDates: string[];
+};
 
 /** 自動割当の1枠に対する提案結果。 */
-export const autoAssignProposalSchema = z.object({
-  date: dateStringSchema,
-  shiftTypeId: z.string(),
-  instructorIds: z.array(z.string()),
-  shortage: z.object({ count: z.number().int().min(0), reasons: z.array(z.string()) }),
-});
-
-export type AutoAssignProposal = z.infer<typeof autoAssignProposalSchema>;
+export type AutoAssignProposal = {
+  date: string;
+  shiftTypeId: string;
+  instructorIds: string[];
+  shortage: { count: number; reasons: string[] };
+};
 
 // ─── 集約（フォーム）データ ─────────────────────────────────────────────────
 

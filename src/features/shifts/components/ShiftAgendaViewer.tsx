@@ -60,10 +60,9 @@ export function ShiftAgendaViewer({ date, onVisibleDateChange }: ShiftAgendaView
   );
   const pastDays = useMemo(() => pastPages.flatMap((page) => page.days), [pastPages]);
   const days = useMemo(() => mergeAgendaDays([...pastDays, ...futureDays]), [futureDays, pastDays]);
-  const filteredDays = useMemo(
-    () => (effectiveShowMineOnly ? filterAgendaDaysByInstructor(days, myInstructorId) : days),
-    [days, effectiveShowMineOnly, myInstructorId],
-  );
+  const filteredDays = effectiveShowMineOnly
+    ? filterAgendaDaysByInstructor(days, myInstructorId)
+    : days;
   const firstDate = days[0]?.date ?? initialDateRef.current;
 
   useEffect(() => {

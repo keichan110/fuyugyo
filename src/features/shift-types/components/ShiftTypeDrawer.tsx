@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 import { Divider, Drawer, Group, Skeleton, Stack, Switch, Text } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
@@ -25,11 +25,9 @@ type Props = {
  */
 export function ShiftTypeDrawer({ state, onClose }: Props) {
   // 閉じるアニメーション中に表示内容が消えないよう、直近の非 null な state を保持する
-  const [lastState, setLastState] = useState<ShiftTypeDrawerState | null>(null);
+  const [lastState, setLastState] = useState<ShiftTypeDrawerState | null>(state);
 
-  useEffect(() => {
-    if (state) setLastState(state);
-  }, [state]);
+  if (state !== null && state !== lastState) setLastState(state);
 
   const effectiveState = state ?? lastState;
   const isEdit = effectiveState?.mode === 'edit';
@@ -50,21 +48,6 @@ export function ShiftTypeDrawer({ state, onClose }: Props) {
         <CreatePanel onClose={onClose} />
       )}
     </Drawer>
-  );
-}
-
-/** 親Drawer内で一覧から遷移して表示するシフト種別フォーム。 */
-export function ShiftTypeDrawerContent({
-  state,
-  onDone,
-}: {
-  state: ShiftTypeDrawerState;
-  onDone: () => void;
-}) {
-  return state.mode === 'edit' ? (
-    <ShiftTypeEditForm shiftTypeId={state.shiftTypeId} onClose={onDone} />
-  ) : (
-    <CreatePanel onClose={onDone} />
   );
 }
 

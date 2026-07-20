@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 import {
   CloseButton,
@@ -45,11 +45,9 @@ type Props = {
  */
 export function InstructorDrawer({ state, onClose }: Props) {
   // 閉じるアニメーション中に表示内容が消えないよう、直近の非 null な state を保持する
-  const [lastState, setLastState] = useState<InstructorDrawerState | null>(null);
+  const [lastState, setLastState] = useState<InstructorDrawerState | null>(state);
 
-  useEffect(() => {
-    if (state) setLastState(state);
-  }, [state]);
+  if (state !== null && state !== lastState) setLastState(state);
 
   const effectiveState = state ?? lastState;
   const isEdit = effectiveState?.mode === 'edit';
@@ -169,9 +167,11 @@ function CreatePanel({ onClose }: { onClose: () => void }) {
         firstNameKana: values.firstNameKana || undefined,
         notes: values.notes || undefined,
       });
-      for (const certificationId of pendingCertIds) {
-        await assign.mutateAsync({ instructorId: created.id, certificationId });
-      }
+      await Promise.all(
+        pendingCertIds.map((certificationId) =>
+          assign.mutateAsync({ instructorId: created.id, certificationId }),
+        ),
+      );
       notifications.show({
         color: 'green',
         message: `${created.lastName} ${created.firstName} を作成しました`,

@@ -131,15 +131,17 @@ function chunkArray<T>(items: T[], size: number = MAX_IN_ARRAY_CHUNK_SIZE): T[][
  * 割り当て対象の妥当性チェックに使う。
  */
 async function allInstructorsExist(db: Database, ids: string[]): Promise<boolean> {
-  if (ids.length === 0) {
+  // IN 句は重複 ID をユニーク行としてしか返さないため、事前に重複排除して件数比較を正しくする
+  const uniqueIds = [...new Set(ids)];
+  if (uniqueIds.length === 0) {
     return true;
   }
   const rowsByChunk = await Promise.all(
-    chunkArray(ids).map((chunk) =>
+    chunkArray(uniqueIds).map((chunk) =>
       db.select({ id: instructors.id }).from(instructors).where(inArray(instructors.id, chunk)),
     ),
   );
-  return rowsByChunk.flat().length === ids.length;
+  return rowsByChunk.flat().length === uniqueIds.length;
 }
 
 /** 指定枠が資格要件を持つか、および枠 ID を取得する。 */

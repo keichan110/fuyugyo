@@ -231,9 +231,11 @@ export function CertificationRankEditor({
                 searchable
                 clearable
                 value={certificationToAdd}
-                data={certifications
-                  .filter((certification) => !selectedCertificationIds.has(certification.id))
-                  .map((certification) => ({ value: certification.id, label: certification.name }))}
+                data={certifications.flatMap((certification) =>
+                  selectedCertificationIds.has(certification.id)
+                    ? []
+                    : [{ value: certification.id, label: certification.name }],
+                )}
                 nothingFoundMessage="追加できる資格がありません"
                 onChange={(certificationId) => {
                   setCertificationToAdd(null);

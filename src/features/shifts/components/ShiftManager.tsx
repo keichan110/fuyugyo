@@ -130,12 +130,6 @@ export function ShiftManager() {
     withResolver: true,
   });
 
-  useEffect(() => {
-    if (blocker.status === 'blocked') {
-      setPendingNav(null);
-    }
-  }, [blocker.status]);
-
   const activeShiftTypeId = selectedCell?.shiftTypeId ?? formData.data?.shiftTypes[0]?.id ?? '';
   // シフト種別タブに「未保存の編集あり」のドットを出すため、ステージ済みセルの種別IDを集計する
   const stagedShiftTypeIds = useMemo(() => {
@@ -1113,15 +1107,15 @@ function AssignmentPanel({
       });
   }, [editData.data?.availableInstructors, search, sortMode, loadByInstructor]);
 
-  const availabilityByInstructor = useMemo(
-    () =>
-      new Map(
-        availabilities
-          .filter((availability) => availability.date === date)
-          .map((availability) => [availability.instructorId, availability]),
-      ),
-    [availabilities, date],
-  );
+  const availabilityByInstructor = useMemo(() => {
+    const byInstructor = new Map<string, Availability>();
+    for (const availability of availabilities) {
+      if (availability.date === date) {
+        byInstructor.set(availability.instructorId, availability);
+      }
+    }
+    return byInstructor;
+  }, [availabilities, date]);
 
   const toggle = (id: string) => {
     const next = new Set(selectedSet);

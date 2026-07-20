@@ -28,28 +28,26 @@ export function solveAutoAssignments(
   }
 
   const eligibleIds = new Set(frame.eligibleInstructorIds);
-  const qualifiedIds = new Set(
-    context.instructors
-      .filter(
-        (instructor) =>
-          eligibleIds.has(instructor.id) &&
-          instructor.certificationIds.some((id) =>
-            frame.certificationTiers.some((tier) => tier.certificationId === id),
-          ),
-      )
-      .map((instructor) => instructor.id),
-  );
+  const qualifiedIds = new Set<string>();
+  for (const instructor of context.instructors) {
+    const isQualified = instructor.certificationIds.some((id) =>
+      frame.certificationTiers.some((tier) => tier.certificationId === id),
+    );
+    if (eligibleIds.has(instructor.id) && isQualified) {
+      qualifiedIds.add(instructor.id);
+    }
+  }
   const targetDates = [...new Set(params.targetDates)].sort();
-  const unavailable = new Set(
-    context.availabilities
-      .filter((item) => item.type === 'UNAVAILABLE')
-      .map((item) => dateInstructorKey(item.date, item.instructorId)),
-  );
-  const avoid = new Set(
-    context.availabilities
-      .filter((item) => item.type === 'AVOID')
-      .map((item) => dateInstructorKey(item.date, item.instructorId)),
-  );
+  const unavailable = new Set<string>();
+  const avoid = new Set<string>();
+  for (const item of context.availabilities) {
+    const key = dateInstructorKey(item.date, item.instructorId);
+    if (item.type === 'UNAVAILABLE') {
+      unavailable.add(key);
+    } else if (item.type === 'AVOID') {
+      avoid.add(key);
+    }
+  }
   const occupied = occupiedDateInstructorKeys(context);
   const capacity = calculateCapacity(context, targetDates, unavailable, occupied);
   const tierRanks = effectiveTierRankByInstructor(context, frame.certificationTiers);

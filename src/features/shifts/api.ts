@@ -1015,25 +1015,22 @@ export const shiftsRoute = new Hono<{
       seasonWorkDaysOutsideMonth: outsideMonthDatesByInstructor.get(inst.id)?.size ?? 0,
     }));
 
-    const conflicts = availableInstructorsWithLoad
-      .filter((inst) => inst.hasConflict)
-      .map((inst) => {
-        const conflictShift = conflictByInstructor.get(inst.id);
-        if (!conflictShift) {
-          return null;
-        }
-        return {
-          instructorId: inst.id,
-          instructorName: inst.displayName,
-          conflictingShift: {
-            id: conflictShift.id,
-            departmentName:
-              DEPARTMENT_LABELS[departmentCodeSchema.parse(conflictShift.departmentCode)],
-            shiftTypeName: conflictShift.shiftTypeName,
-          },
-        };
-      })
-      .filter((v): v is NonNullable<typeof v> => v !== null);
+    const conflicts = [];
+    for (const inst of availableInstructorsWithLoad) {
+      if (!inst.hasConflict) continue;
+      const conflictShift = conflictByInstructor.get(inst.id);
+      if (!conflictShift) continue;
+      conflicts.push({
+        instructorId: inst.id,
+        instructorName: inst.displayName,
+        conflictingShift: {
+          id: conflictShift.id,
+          departmentName:
+            DEPARTMENT_LABELS[departmentCodeSchema.parse(conflictShift.departmentCode)],
+          shiftTypeName: conflictShift.shiftTypeName,
+        },
+      });
+    }
 
     return c.json({
       mode,

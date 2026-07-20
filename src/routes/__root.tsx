@@ -180,11 +180,15 @@ function NavigationMenu({
     ),
   }));
   // 現在地に一致する項目のうち、最も深いパスだけをアクティブにする
-  const activePath = navigationGroups
-    .flatMap((group) => group.items)
-    .filter((item) => pathname === item.to || pathname.startsWith(`${item.to}/`))
-    .sort((a, b) => b.to.length - a.to.length)
-    .at(0)?.to;
+  const matchingNavigationItems: NavigationItem[] = [];
+  for (const group of navigationGroups) {
+    for (const item of group.items) {
+      if (pathname === item.to || pathname.startsWith(`${item.to}/`)) {
+        matchingNavigationItems.push(item);
+      }
+    }
+  }
+  const activePath = matchingNavigationItems.sort((a, b) => b.to.length - a.to.length).at(0)?.to;
 
   return (
     <Stack gap="sm">

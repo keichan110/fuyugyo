@@ -189,9 +189,12 @@ export const departmentShiftTypesRoute = new Hono<{
         currentAssignments.map((assignment) => [assignment.shiftTypeId, assignment]),
       );
       const requestedShiftTypeIds = new Set(shiftTypeIds);
-      const removedAssignmentIds = currentAssignments
-        .filter((assignment) => !requestedShiftTypeIds.has(assignment.shiftTypeId))
-        .map((assignment) => assignment.id);
+      const removedAssignmentIds: string[] = [];
+      for (const assignment of currentAssignments) {
+        if (!requestedShiftTypeIds.has(assignment.shiftTypeId)) {
+          removedAssignmentIds.push(assignment.id);
+        }
+      }
       const assignmentChanges: BatchItem<'sqlite'>[] = [];
       if (removedAssignmentIds.length > 0) {
         assignmentChanges.push(

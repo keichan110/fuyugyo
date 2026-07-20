@@ -73,8 +73,9 @@ export function CertificationRankEditor({
   useEffect(() => {
     if (savedCertifications) {
       setTierBlocks(createTierBlocks(savedCertifications));
+      onDirtyChange?.(false);
     }
-  }, [savedCertifications]);
+  }, [savedCertifications, onDirtyChange]);
 
   const selectedCertificationIds = useMemo(
     () => new Set(tierBlocks.flatMap((block) => block.certificationIds)),

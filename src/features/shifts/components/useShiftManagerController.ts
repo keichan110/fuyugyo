@@ -37,7 +37,11 @@ const autoAssignSolver: AutoAssignSolver = createWorkerSolver();
 /** ShiftManager の編集状態、データ取得、副作用、操作ハンドラーをまとめて提供する。 */
 export function useShiftManagerController() {
   const [month, setMonth] = useState(() => toMonth(todayString()));
-  const [departmentCode, setDepartmentCode] = useState<DepartmentCode>('ski');
+  const [departmentCode, setDepartmentCode] = useState<DepartmentCode>(() => {
+    const stored = window.localStorage.getItem(DEPARTMENT_STORAGE_KEY);
+    const parsed = departmentCodeSchema.safeParse(stored);
+    return parsed.success ? parsed.data : 'ski';
+  });
   const [selectedCell, setSelectedCell] = useState<SelectedCell | null>(null);
   const [drawerOpened, setDrawerOpened] = useState(false);
   const [stagedCells, setStagedCells] = useState<Map<string, StagedCell>>(new Map());
@@ -101,13 +105,6 @@ export function useShiftManagerController() {
     );
     if (entries.length > 0) registerInstructorNames(entries);
   }, [monthly.data, registerInstructorNames]);
-
-  useEffect(() => {
-    if (!formData.data) return;
-    const stored = window.localStorage.getItem(DEPARTMENT_STORAGE_KEY);
-    const storedDepartment = departmentCodeSchema.safeParse(stored);
-    setDepartmentCode(storedDepartment.success ? storedDepartment.data : 'ski');
-  }, [formData.data]);
 
   useEffect(() => {
     window.localStorage.setItem(DEPARTMENT_STORAGE_KEY, departmentCode);

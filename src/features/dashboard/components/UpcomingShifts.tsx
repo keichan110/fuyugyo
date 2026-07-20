@@ -31,6 +31,12 @@ type UpcomingShiftGroup = {
 /** Calendar の getDayProps prop 自体の型を流用し、既存の getDayProps 実装とのズレを防ぐ */
 type GetDayProps = NonNullable<CalendarProps['getDayProps']>;
 
+/** 勤務がない日の曜日・祝日文字色を日本式（日曜・祝日=赤、土曜=青）で返す。 */
+function getWeekendDayProps(date: string) {
+  const color = getCalendarDayColor(date);
+  return color ? { style: { color: `var(--mantine-color-${color}-6)` } } : {};
+}
+
 /**
  * 次回勤務日までのカウントダウンラベルを返す（Issue #202）。
  * 当日勤務の場合は日数ではなく「今日」と表示する
@@ -155,15 +161,6 @@ export function UpcomingShifts({ instructorId }: { instructorId: string }) {
   ]) {
     availabilityByDate.set(availability.date, availability.type);
   }
-
-  /**
-   * 勤務がない日の曜日・祝日文字色を日本式（日曜・祝日=赤、土曜=青）で返す。
-   * 平日は何も返さない
-   */
-  const getWeekendDayProps = (date: string) => {
-    const color = getCalendarDayColor(date);
-    return color ? { style: { color: `var(--mantine-color-${color}-6)` } } : {};
-  };
 
   /**
    * カレンダーの日セルに部門色の背景と勤務可用性の記号を当てる。

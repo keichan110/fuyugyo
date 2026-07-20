@@ -25,6 +25,11 @@ type DashboardNotificationInboxProps = {
   onDismiss: (id: string) => void;
 };
 
+/** 通知の重要度に対応する表示色を返す。 */
+function notificationColor(level: DashboardNotificationLevel) {
+  return level === 'warn' ? 'yellow' : 'blue';
+}
+
 /**
  * ダッシュボード通知をメールの受信箱のように一覧表示する。
  * 通知の表示条件や操作は呼び出し側に委ね、新しい通知を追加しやすくする。
@@ -37,8 +42,6 @@ export function DashboardNotificationInbox({
     return null;
   }
 
-  const notificationColor = (level: DashboardNotificationLevel) =>
-    level === 'warn' ? 'yellow' : 'blue';
   const infoCount = notifications.filter((notification) => notification.level === 'info').length;
   const warnCount = notifications.filter((notification) => notification.level === 'warn').length;
 

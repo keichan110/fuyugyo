@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 
 import {
   Box,
@@ -75,10 +75,6 @@ export function AvailabilityCalendar({ initialMonth }: { initialMonth?: string }
     withResolver: true,
   });
 
-  useEffect(() => {
-    setStaged(new Map());
-  }, [month]);
-
   const getValue = (date: string): StagedAvailability | undefined =>
     staged.get(date) ?? saved.get(date);
   const changeType = (date: string, type: Availability['type'] | null) => {
@@ -113,17 +109,20 @@ export function AvailabilityCalendar({ initialMonth }: { initialMonth?: string }
     const { left, bottom } = target.getBoundingClientRect();
     setMenu({ date, left, top: bottom });
   };
+  const changeMonth = (nextMonth: string) => {
+    setStaged(new Map());
+    setMonth(nextMonth);
+  };
   const requestMonthChange = (nextMonth: string) => {
     if (hasChanges) {
       setPendingMonth(nextMonth);
       return;
     }
-    setMonth(nextMonth);
+    changeMonth(nextMonth);
   };
   const discardChangesAndChangeMonth = () => {
     if (!pendingMonth) return;
-    setStaged(new Map());
-    setMonth(pendingMonth);
+    changeMonth(pendingMonth);
     setPendingMonth(null);
   };
 
@@ -295,43 +294,40 @@ function AvailabilityMonthView({
 }) {
   const today = todayString();
   // 可否表示と、割当済み日の日付見出しへ重ねるロック表示を同じ MonthView のイベントとして合成する。
-  const events = useMemo<ScheduleEventData<AvailabilityEventPayload>[]>(
-    () => [
-      ...Array.from(availabilityDates)
-        .filter((date) => date.startsWith(month))
-        .flatMap((date): ScheduleEventData<AvailabilityEventPayload>[] => {
-          const value = getValue(date);
-          if (!value) return [];
-          return [
-            {
-              id: date,
-              title: value.type === 'UNAVAILABLE' ? '勤務不可' : '要調整',
-              start: `${date} 00:00:00`,
-              end: `${addDays(date, 1)} 00:00:00`,
-              color: value.type === 'UNAVAILABLE' ? 'red' : 'yellow',
-              payload: {
-                kind: 'availability',
-                date,
-                type: value.type,
-                note: value.note,
-              },
-            },
-          ];
-        }),
-      ...Array.from(lockedDates)
-        .filter((date) => date.startsWith(month))
-        .map((date): ScheduleEventData<AvailabilityEventPayload> => ({
-          id: `lock:${date}`,
-          title: '割当済み',
-          start: `${date} 00:00:00`,
-          end: `${addDays(date, 1)} 00:00:00`,
-          color: 'gray',
-          display: 'background',
-          payload: { kind: 'locked', date },
-        })),
-    ],
-    [availabilityDates, getValue, lockedDates, month],
-  );
+  const events = useMemo<ScheduleEventData<AvailabilityEventPayload>[]>(() => {
+    const calendarEvents: ScheduleEventData<AvailabilityEventPayload>[] = [];
+    for (const date of availabilityDates) {
+      if (!date.startsWith(month)) continue;
+      const value = getValue(date);
+      if (!value) continue;
+      calendarEvents.push({
+        id: date,
+        title: value.type === 'UNAVAILABLE' ? '勤務不可' : '要調整',
+        start: `${date} 00:00:00`,
+        end: `${addDays(date, 1)} 00:00:00`,
+        color: value.type === 'UNAVAILABLE' ? 'red' : 'yellow',
+        payload: {
+          kind: 'availability',
+          date,
+          type: value.type,
+          note: value.note,
+        },
+      });
+    }
+    for (const date of lockedDates) {
+      if (!date.startsWith(month)) continue;
+      calendarEvents.push({
+        id: `lock:${date}`,
+        title: '割当済み',
+        start: `${date} 00:00:00`,
+        end: `${addDays(date, 1)} 00:00:00`,
+        color: 'gray',
+        display: 'background',
+        payload: { kind: 'locked', date },
+      });
+    }
+    return calendarEvents;
+  }, [availabilityDates, getValue, lockedDates, month]);
 
   return (
     <MonthView

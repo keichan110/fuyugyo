@@ -131,18 +131,17 @@ function chunkArray<T>(items: T[], size: number = MAX_IN_ARRAY_CHUNK_SIZE): T[][
  * 割り当て対象の妥当性チェックに使う。
  */
 async function allInstructorsExist(db: Database, ids: string[]): Promise<boolean> {
-  if (ids.length === 0) {
+  // IN 句は重複 ID をユニーク行としてしか返さないため、事前に重複排除して件数比較を正しくする
+  const uniqueIds = [...new Set(ids)];
+  if (uniqueIds.length === 0) {
     return true;
   }
-  let foundCount = 0;
-  for (const chunk of chunkArray(ids)) {
-    const rows = await db
-      .select({ id: instructors.id })
-      .from(instructors)
-      .where(inArray(instructors.id, chunk));
-    foundCount += rows.length;
-  }
-  return foundCount === ids.length;
+  const rowsByChunk = await Promise.all(
+    chunkArray(uniqueIds).map((chunk) =>
+      db.select({ id: instructors.id }).from(instructors).where(inArray(instructors.id, chunk)),
+    ),
+  );
+  return rowsByChunk.flat().length === uniqueIds.length;
 }
 
 /** 指定枠が資格要件を持つか、および枠 ID を取得する。 */
@@ -614,30 +613,27 @@ export const shiftsRoute = new Hono<{
     const candidateIds = [...instructorById.keys()];
     const targetFrom = parseShiftDate(from);
     const targetTo = parseShiftDate(to);
-    const availabilityRows: {
-      instructorId: string;
-      date: Date;
-      type: 'UNAVAILABLE' | 'AVOID';
-      note: string | null;
-    }[] = [];
-    for (const chunk of chunkArray(candidateIds)) {
-      const rows = await db
-        .select({
-          instructorId: instructorAvailabilities.instructorId,
-          date: instructorAvailabilities.date,
-          type: instructorAvailabilities.type,
-          note: instructorAvailabilities.note,
-        })
-        .from(instructorAvailabilities)
-        .where(
-          and(
-            inArray(instructorAvailabilities.instructorId, chunk),
-            gte(instructorAvailabilities.date, targetFrom),
-            lte(instructorAvailabilities.date, targetTo),
-          ),
-        );
-      availabilityRows.push(...rows);
-    }
+    const availabilityRows = (
+      await Promise.all(
+        chunkArray(candidateIds).map((chunk) =>
+          db
+            .select({
+              instructorId: instructorAvailabilities.instructorId,
+              date: instructorAvailabilities.date,
+              type: instructorAvailabilities.type,
+              note: instructorAvailabilities.note,
+            })
+            .from(instructorAvailabilities)
+            .where(
+              and(
+                inArray(instructorAvailabilities.instructorId, chunk),
+                gte(instructorAvailabilities.date, targetFrom),
+                lte(instructorAvailabilities.date, targetTo),
+              ),
+            ),
+        ),
+      )
+    ).flat();
     const submittedInstructorIds = new Set(availabilityRows.map((row) => row.instructorId));
 
     const framesById = new Map<
@@ -669,31 +665,28 @@ export const shiftsRoute = new Hono<{
     );
 
     const seasonRange = seasonRangeForDate(from);
-    const assignmentRows: {
-      date: Date;
-      departmentCode: string;
-      shiftTypeId: string;
-      instructorId: string;
-    }[] = [];
-    for (const chunk of chunkArray(candidateIds)) {
-      const rows = await db
-        .select({
-          date: shifts.date,
-          departmentCode: shifts.departmentCode,
-          shiftTypeId: shifts.shiftTypeId,
-          instructorId: shiftAssignments.instructorId,
-        })
-        .from(shiftAssignments)
-        .innerJoin(shifts, eq(shifts.id, shiftAssignments.shiftId))
-        .where(
-          and(
-            inArray(shiftAssignments.instructorId, chunk),
-            gte(shifts.date, parseShiftDate(seasonRange.from)),
-            lte(shifts.date, parseShiftDate(seasonRange.to)),
-          ),
-        );
-      assignmentRows.push(...rows);
-    }
+    const assignmentRows = (
+      await Promise.all(
+        chunkArray(candidateIds).map((chunk) =>
+          db
+            .select({
+              date: shifts.date,
+              departmentCode: shifts.departmentCode,
+              shiftTypeId: shifts.shiftTypeId,
+              instructorId: shiftAssignments.instructorId,
+            })
+            .from(shiftAssignments)
+            .innerJoin(shifts, eq(shifts.id, shiftAssignments.shiftId))
+            .where(
+              and(
+                inArray(shiftAssignments.instructorId, chunk),
+                gte(shifts.date, parseShiftDate(seasonRange.from)),
+                lte(shifts.date, parseShiftDate(seasonRange.to)),
+              ),
+            ),
+        ),
+      )
+    ).flat();
     const assignmentsByShift = new Map<
       string,
       { date: string; departmentCode: string; shiftTypeId: string; instructorIds: string[] }
@@ -977,24 +970,26 @@ export const shiftsRoute = new Hono<{
     const seasonRange = seasonRangeForDate(dateStr);
     // candidateIds が多い場合に備え、日付範囲の2パラメータ分の余裕を見てチャンク分割して問い合わせる
     const candidateIds = availableInstructors.map((inst) => inst.id);
-    const workloadRows: { instructorId: string; date: Date }[] = [];
-    for (const chunk of chunkArray(candidateIds)) {
-      const rows = await db
-        .select({
-          instructorId: shiftAssignments.instructorId,
-          date: shifts.date,
-        })
-        .from(shiftAssignments)
-        .innerJoin(shifts, eq(shifts.id, shiftAssignments.shiftId))
-        .where(
-          and(
-            inArray(shiftAssignments.instructorId, chunk),
-            gte(shifts.date, parseShiftDate(seasonRange.from)),
-            lte(shifts.date, parseShiftDate(seasonRange.to)),
-          ),
-        );
-      workloadRows.push(...rows);
-    }
+    const workloadRows = (
+      await Promise.all(
+        chunkArray(candidateIds).map((chunk) =>
+          db
+            .select({
+              instructorId: shiftAssignments.instructorId,
+              date: shifts.date,
+            })
+            .from(shiftAssignments)
+            .innerJoin(shifts, eq(shifts.id, shiftAssignments.shiftId))
+            .where(
+              and(
+                inArray(shiftAssignments.instructorId, chunk),
+                gte(shifts.date, parseShiftDate(seasonRange.from)),
+                lte(shifts.date, parseShiftDate(seasonRange.to)),
+              ),
+            ),
+        ),
+      )
+    ).flat();
 
     // 対象月（dateStr の年月）を除いた保存済みシーズン勤務日数を Instructor 別に数える。
     // 対象月分はステージ中の未保存編集を含めてクライアント側でライブ計算し、この値と合算する。
@@ -1015,25 +1010,22 @@ export const shiftsRoute = new Hono<{
       seasonWorkDaysOutsideMonth: outsideMonthDatesByInstructor.get(inst.id)?.size ?? 0,
     }));
 
-    const conflicts = availableInstructorsWithLoad
-      .filter((inst) => inst.hasConflict)
-      .map((inst) => {
-        const conflictShift = conflictByInstructor.get(inst.id);
-        if (!conflictShift) {
-          return null;
-        }
-        return {
-          instructorId: inst.id,
-          instructorName: inst.displayName,
-          conflictingShift: {
-            id: conflictShift.id,
-            departmentName:
-              DEPARTMENT_LABELS[departmentCodeSchema.parse(conflictShift.departmentCode)],
-            shiftTypeName: conflictShift.shiftTypeName,
-          },
-        };
-      })
-      .filter((v): v is NonNullable<typeof v> => v !== null);
+    const conflicts = [];
+    for (const inst of availableInstructorsWithLoad) {
+      if (!inst.hasConflict) continue;
+      const conflictShift = conflictByInstructor.get(inst.id);
+      if (!conflictShift) continue;
+      conflicts.push({
+        instructorId: inst.id,
+        instructorName: inst.displayName,
+        conflictingShift: {
+          id: conflictShift.id,
+          departmentName:
+            DEPARTMENT_LABELS[departmentCodeSchema.parse(conflictShift.departmentCode)],
+          shiftTypeName: conflictShift.shiftTypeName,
+        },
+      });
+    }
 
     return c.json({
       mode,
@@ -1244,17 +1236,19 @@ export const shiftsRoute = new Hono<{
     // shiftRows は limit で有界なので inArray で安全だが、D1 のバインドパラメータ上限
     // （100個）を超えないよう chunkArray でチャンク分割して問い合わせる。
     const shiftIds = shiftRows.map((s) => s.id);
-    const assignRows: { shiftId: string; instructorId: string }[] = [];
-    for (const chunk of chunkArray(shiftIds)) {
-      const rows = await db
-        .select({
-          shiftId: shiftAssignments.shiftId,
-          instructorId: shiftAssignments.instructorId,
-        })
-        .from(shiftAssignments)
-        .where(inArray(shiftAssignments.shiftId, chunk));
-      assignRows.push(...rows);
-    }
+    const assignRows = (
+      await Promise.all(
+        chunkArray(shiftIds).map((chunk) =>
+          db
+            .select({
+              shiftId: shiftAssignments.shiftId,
+              instructorId: shiftAssignments.instructorId,
+            })
+            .from(shiftAssignments)
+            .where(inArray(shiftAssignments.shiftId, chunk)),
+        ),
+      )
+    ).flat();
 
     const assignedByShift = new Map<string, string[]>();
     for (const row of assignRows) {
@@ -1425,20 +1419,24 @@ export const shiftsRoute = new Hono<{
 
       // 既存ペアとの差分だけを資格要件の対象にする。これにより資格設定より前の
       // 割り当ては再保存・解除できる一方、新規に追加する無資格者だけを拒否できる。
+      const existingAssignmentRows = (
+        await Promise.all(
+          chunkArray(existingRows.map((row) => row.id)).map((chunk) =>
+            db
+              .select({
+                shiftId: shiftAssignments.shiftId,
+                instructorId: shiftAssignments.instructorId,
+              })
+              .from(shiftAssignments)
+              .where(inArray(shiftAssignments.shiftId, chunk)),
+          ),
+        )
+      ).flat();
       const existingInstructorIdsByShiftId = new Map<string, Set<string>>();
-      for (const chunk of chunkArray(existingRows.map((row) => row.id))) {
-        const assignmentRows = await db
-          .select({
-            shiftId: shiftAssignments.shiftId,
-            instructorId: shiftAssignments.instructorId,
-          })
-          .from(shiftAssignments)
-          .where(inArray(shiftAssignments.shiftId, chunk));
-        for (const row of assignmentRows) {
-          const ids = existingInstructorIdsByShiftId.get(row.shiftId) ?? new Set<string>();
-          ids.add(row.instructorId);
-          existingInstructorIdsByShiftId.set(row.shiftId, ids);
-        }
+      for (const row of existingAssignmentRows) {
+        const ids = existingInstructorIdsByShiftId.get(row.shiftId) ?? new Set<string>();
+        ids.add(row.instructorId);
+        existingInstructorIdsByShiftId.set(row.shiftId, ids);
       }
 
       const requiredFrameIds = new Set<string>();
@@ -1452,15 +1450,16 @@ export const shiftsRoute = new Hono<{
         )) {
         requiredFrameIds.add(row.frameId);
       }
-      const qualifiedInstructorIdsByFrameId = new Map<string, Set<string>>();
-      for (const frameId of requiredFrameIds) {
-        qualifiedInstructorIdsByFrameId.set(
-          frameId,
-          new Set(
-            await selectInstructorIdsWithFrameCertification(db, frameId, { activeOnly: false }),
-          ),
-        );
-      }
+      const qualifiedInstructorIdsByFrameId = new Map(
+        await Promise.all(
+          [...requiredFrameIds].map(async (frameId): Promise<[string, Set<string>]> => [
+            frameId,
+            new Set(
+              await selectInstructorIdsWithFrameCertification(db, frameId, { activeOnly: false }),
+            ),
+          ]),
+        ),
+      );
 
       for (const cell of input.cells) {
         const frameId = frameIdByShiftTypeId.get(cell.shiftTypeId);

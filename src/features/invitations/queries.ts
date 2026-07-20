@@ -6,10 +6,8 @@ import { client } from '@/lib/rpc';
 import {
   invitationListSchema,
   invitationSchema,
-  verifyInvitationResponseSchema,
   type CreateInvitationInput,
   type Invitation,
-  type VerifyInvitationResponse,
 } from './schema';
 
 /** API エラーレスポンスのスキーマ */
@@ -78,27 +76,5 @@ export function useDeactivateInvitation(token: string) {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: INVITATIONS_QUERY_KEY });
     },
-  });
-}
-
-/**
- * 招待トークンを検証するクエリ（未認証で使用可能）。
- * 有効な場合は公開用の招待情報（token・expiresAt・description）を返す。
- */
-export function useVerifyInvitation(token: string | null) {
-  return useQuery<VerifyInvitationResponse>({
-    queryKey: ['invitations', 'verify', token],
-    queryFn: async () => {
-      if (!token) throw new Error('トークンが指定されていません');
-      const res = await client.api.invitations[':token'].verify.$get({
-        param: { token },
-      });
-      if (!res.ok) {
-        throw new Error(await extractErrorMessage(res, '招待の検証に失敗しました'));
-      }
-      return verifyInvitationResponseSchema.parse(await res.json());
-    },
-    enabled: !!token,
-    retry: false,
   });
 }

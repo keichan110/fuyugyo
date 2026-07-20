@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 
 import { ActionIcon, Divider, Group, Paper, Select, Stack, Text } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
@@ -55,16 +55,14 @@ export function DepartmentShiftTypeList({
     return !hasSameShiftTypeOrder(stagedItems, departmentShiftTypes);
   }, [departmentShiftTypes, stagedItems]);
 
-  useEffect(() => {
-    onDirtyChange?.(isDirty);
-  }, [isDirty, onDirtyChange]);
-
   const stage = (nextItems: DepartmentShiftType[]) => {
     if (departmentShiftTypes && hasSameShiftTypeOrder(nextItems, departmentShiftTypes)) {
       setStagedItems(null);
+      onDirtyChange?.(false);
       return;
     }
     setStagedItems(nextItems);
+    onDirtyChange?.(departmentShiftTypes !== undefined);
   };
 
   const save = () => {
@@ -73,6 +71,7 @@ export function DepartmentShiftTypeList({
       {
         onSuccess: () => {
           setStagedItems(null);
+          onDirtyChange?.(false);
           notifications.show({ color: 'green', message: 'シフト種別の利用設定を保存しました' });
         },
       },
@@ -184,7 +183,10 @@ export function DepartmentShiftTypeList({
         <UnsavedChangesBar
           description="この部門で利用するシフト種別と表示順をまとめて保存します"
           loading={update.isPending}
-          onCancel={() => setStagedItems(null)}
+          onCancel={() => {
+            setStagedItems(null);
+            onDirtyChange?.(false);
+          }}
           onSave={save}
         />
       )}

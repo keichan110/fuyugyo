@@ -105,10 +105,12 @@ export function filterAgendaDaysByInstructor(
     return [];
   }
 
-  return days
-    .map((day) => ({
-      ...day,
-      shifts: day.shifts.filter((shift) => containsInstructorAssignment(shift, instructorId)),
-    }))
-    .filter((day) => day.shifts.length > 0);
+  const filteredDays: ShiftAgendaDay[] = [];
+  for (const day of days) {
+    const shifts = day.shifts.filter((shift) => containsInstructorAssignment(shift, instructorId));
+    if (shifts.length > 0) {
+      filteredDays.push({ ...day, shifts });
+    }
+  }
+  return filteredDays;
 }

@@ -58,49 +58,6 @@ export function useUpdateDepartmentShiftTypes(departmentCode: DepartmentCode) {
   });
 }
 
-/** 指定部門へ既存のシフト種別を割り当てる。 */
-export function useAssignDepartmentShiftType(departmentCode: DepartmentCode) {
-  const queryClient = useQueryClient();
-
-  return useMutation<DepartmentShiftType[], Error, string>({
-    mutationFn: async (shiftTypeId) => {
-      const res = await client.api['department-shift-types'][':departmentCode'].assignments.$post({
-        param: { departmentCode },
-        json: { shiftTypeId },
-      });
-      if (!res.ok) {
-        const body = apiErrorSchema.parse(await res.json());
-        throw new Error(body.message ?? '部門別シフト種別の割り当てに失敗しました');
-      }
-      return departmentShiftTypeListSchema.parse(await res.json());
-    },
-    onSuccess: (data) => {
-      queryClient.setQueryData([...DEPARTMENT_SHIFT_TYPES_QUERY_KEY, departmentCode], data);
-    },
-  });
-}
-
-/** 指定部門から既存のシフト種別を除外する。 */
-export function useRemoveDepartmentShiftType(departmentCode: DepartmentCode) {
-  const queryClient = useQueryClient();
-
-  return useMutation<DepartmentShiftType[], Error, string>({
-    mutationFn: async (shiftTypeId) => {
-      const res = await client.api['department-shift-types'][':departmentCode'].assignments[
-        ':shiftTypeId'
-      ].$delete({ param: { departmentCode, shiftTypeId } });
-      if (!res.ok) {
-        const body = apiErrorSchema.parse(await res.json());
-        throw new Error(body.message ?? '部門別シフト種別の除外に失敗しました');
-      }
-      return departmentShiftTypeListSchema.parse(await res.json());
-    },
-    onSuccess: (data) => {
-      queryClient.setQueryData([...DEPARTMENT_SHIFT_TYPES_QUERY_KEY, departmentCode], data);
-    },
-  });
-}
-
 /** シフト種別を作成し、指定部門の末尾へ割り当てる。 */
 export function useCreateDepartmentShiftType(departmentCode: DepartmentCode) {
   const queryClient = useQueryClient();

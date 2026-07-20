@@ -8,14 +8,19 @@ export type TierBlock = {
 
 /** 保存済みの資格要件を、画面編集用のレベルブロックへ変換する。 */
 export function createTierBlocks(requirements: CertificationRequirement[]): TierBlock[] {
-  const sortedRanks = [...new Set(requirements.map(({ tierRank }) => tierRank))].sort(
-    (left, right) => left - right,
-  );
+  const certificationIdsByRank = new Map<number, string[]>();
+  for (const { tierRank, certificationId } of requirements) {
+    const certificationIds = certificationIdsByRank.get(tierRank);
+    if (certificationIds) {
+      certificationIds.push(certificationId);
+    } else {
+      certificationIdsByRank.set(tierRank, [certificationId]);
+    }
+  }
+  const sortedRanks = [...certificationIdsByRank.keys()].sort((left, right) => left - right);
   return sortedRanks.map((tierRank) => ({
     id: `saved-tier-${tierRank}`,
-    certificationIds: requirements
-      .filter((requirement) => requirement.tierRank === tierRank)
-      .map(({ certificationId }) => certificationId),
+    certificationIds: certificationIdsByRank.get(tierRank) ?? [],
     preserveWhenEmpty: false,
   }));
 }
@@ -90,14 +95,16 @@ export function moveCertification(
 
 /** 画面上のレベル順を、欠番のない資格要件として保存形式へ変換する。 */
 export function serializeTierBlocks(blocks: TierBlock[]): CertificationRequirement[] {
-  return blocks
-    .filter((block) => block.certificationIds.length > 0)
-    .flatMap((block, index) =>
-      block.certificationIds.map((certificationId) => ({
-        certificationId,
-        tierRank: index + 1,
-      })),
-    );
+  const requirements: CertificationRequirement[] = [];
+  let tierRank = 0;
+  for (const block of blocks) {
+    if (block.certificationIds.length === 0) continue;
+    tierRank += 1;
+    for (const certificationId of block.certificationIds) {
+      requirements.push({ certificationId, tierRank });
+    }
+  }
+  return requirements;
 }
 
 /** 保存済み要件と編集中要件を比較し、追加・除外・レベル変更された資格数を返す。 */

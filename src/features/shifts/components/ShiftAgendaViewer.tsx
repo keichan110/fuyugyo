@@ -67,12 +67,6 @@ export function ShiftAgendaViewer({ date, onVisibleDateChange }: ShiftAgendaView
   const firstDate = days[0]?.date ?? initialDateRef.current;
 
   useEffect(() => {
-    setPastPages([]);
-    setPastError(null);
-    setHasReachedPastEnd(false);
-  }, [departmentCode]);
-
-  useEffect(() => {
     const sentinel = sentinelRef.current;
     if (!sentinel) {
       return;
@@ -136,6 +130,14 @@ export function ShiftAgendaViewer({ date, onVisibleDateChange }: ShiftAgendaView
     }
   };
 
+  const changeDepartment = (nextDepartmentCode: DepartmentCode | null) => {
+    if (nextDepartmentCode === departmentCode) return;
+    setDepartmentCode(nextDepartmentCode);
+    setPastPages([]);
+    setPastError(null);
+    setHasReachedPastEnd(false);
+  };
+
   return (
     <>
       <Stack gap="md">
@@ -154,7 +156,7 @@ export function ShiftAgendaViewer({ date, onVisibleDateChange }: ShiftAgendaView
             value={departmentCode ?? 'all'}
             onChange={(value) => {
               const parsed = departmentCodeSchema.safeParse(value);
-              setDepartmentCode(parsed.success ? parsed.data : null);
+              changeDepartment(parsed.success ? parsed.data : null);
             }}
             allowDeselect={false}
             size="sm"

@@ -1,38 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-import {
-  ActionIcon,
-  Button,
-  Divider,
-  Grid,
-  Group,
-  Paper,
-  Select,
-  Stack,
-  Tabs,
-  Text,
-} from '@mantine/core';
+import { ActionIcon, Divider, Group, Paper, Select, Stack, Text } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import {
-  IconCertificate,
-  IconGripVertical,
-  IconListDetails,
-  IconPlus,
-  IconTrash,
-} from '@tabler/icons-react';
+import { IconCertificate, IconGripVertical, IconPlus, IconTrash } from '@tabler/icons-react';
 
 import { ErrorAlert } from '@/components/AppAlert';
 import { AppButton } from '@/components/AppButton';
 import { ListEmptyState } from '@/components/ListEmptyState';
-import { ListHeader } from '@/components/ListHeader';
 import { UnsavedChangesBar } from '@/components/UnsavedChangesBar';
 import { useCertifications } from '@/features/certifications/queries';
-import { useDepartmentShiftTypes } from '@/features/department-shift-types/queries';
-import {
-  DEPARTMENT_LABELS,
-  departmentCodeSchema,
-  type DepartmentCode,
-} from '@/features/departments/schema';
+import type { DepartmentCode } from '@/features/departments/schema';
 
 import { useCertificationRequirements, useUpdateCertificationRequirements } from '../queries';
 import {
@@ -46,78 +23,6 @@ import {
   serializeTierBlocks,
   type TierBlock,
 } from '../tier-editor-state';
-
-/** 部門・シフト種別枠ごとに必要資格を設定する画面。 */
-export function CertificationRequirementSettings() {
-  const [departmentCode, setDepartmentCode] = useState<DepartmentCode>('ski');
-  const { data: shiftTypes, isLoading, isError } = useDepartmentShiftTypes(departmentCode);
-  const [shiftTypeId, setShiftTypeId] = useState<string | null>(null);
-
-  useEffect(() => {
-    const firstShiftTypeId = shiftTypes?.[0]?.shiftTypeId ?? null;
-    setShiftTypeId((current) =>
-      shiftTypes?.some((shiftType) => shiftType.shiftTypeId === current)
-        ? current
-        : firstShiftTypeId,
-    );
-  }, [shiftTypes]);
-
-  return (
-    <Stack gap="lg">
-      <ListHeader title="必要資格設定" />
-      <Tabs
-        value={departmentCode}
-        onChange={(value) => {
-          const parsed = departmentCodeSchema.safeParse(value);
-          if (parsed.success) setDepartmentCode(parsed.data);
-        }}
-      >
-        <Tabs.List>
-          {departmentCodeSchema.options.map((code) => (
-            <Tabs.Tab key={code} value={code}>
-              {DEPARTMENT_LABELS[code]}
-            </Tabs.Tab>
-          ))}
-        </Tabs.List>
-      </Tabs>
-      <Grid gap="lg">
-        <Grid.Col span={{ base: 12, md: 4 }}>
-          <Paper withBorder p="md">
-            <Stack gap="xs">
-              <Text fw={600}>シフト種別</Text>
-              {isError && <ErrorAlert>シフト種別の取得に失敗しました</ErrorAlert>}
-              {isLoading && <Text c="dimmed">読み込み中...</Text>}
-              {!isLoading && !isError && shiftTypes?.length === 0 && (
-                <ListEmptyState
-                  icon={<IconListDetails size={32} stroke={1.5} />}
-                  title="シフト種別がありません"
-                  description="先にシフト種別設定で、この部門にシフト種別を追加してください。"
-                />
-              )}
-              {shiftTypes?.map((shiftType) => (
-                <Button
-                  key={shiftType.shiftTypeId}
-                  variant={shiftTypeId === shiftType.shiftTypeId ? 'light' : 'subtle'}
-                  justify="flex-start"
-                  onClick={() => setShiftTypeId(shiftType.shiftTypeId)}
-                >
-                  {shiftType.name}
-                </Button>
-              ))}
-            </Stack>
-          </Paper>
-        </Grid.Col>
-        <Grid.Col span={{ base: 12, md: 8 }}>
-          <CertificationRankEditor
-            key={`${departmentCode}:${shiftTypeId ?? 'none'}`}
-            departmentCode={departmentCode}
-            shiftTypeId={shiftTypeId}
-          />
-        </Grid.Col>
-      </Grid>
-    </Stack>
-  );
-}
 
 /** 選択枠の対象資格と資格レベルを編集し、枠単位で保存する。 */
 export function CertificationRankEditor({
@@ -143,7 +48,6 @@ export function CertificationRankEditor({
   const [draggedCertificationId, setDraggedCertificationId] = useState<string | null>(null);
   const dragSourceId = useRef<string | null>(null);
   const nextBlockId = useRef(0);
-  const isHydratingRef = useRef(false);
   const update = useUpdateCertificationRequirements(departmentCode, shiftTypeId ?? '');
 
   const savedTierBlocks = useMemo(
@@ -157,22 +61,21 @@ export function CertificationRankEditor({
     JSON.stringify(currentRequirements) !== JSON.stringify(savedRequirements);
   const changedRequirementCount = countChangedRequirements(savedRequirements, currentRequirements);
 
+  const setTierBlocksAndDirtyState = (nextTierBlocks: TierBlock[]) => {
+    setTierBlocks(nextTierBlocks);
+    const nextRequirements = serializeTierBlocks(nextTierBlocks);
+    onDirtyChange?.(
+      savedCertifications !== undefined &&
+        JSON.stringify(nextRequirements) !== JSON.stringify(savedRequirements),
+    );
+  };
+
   useEffect(() => {
     if (savedCertifications) {
-      isHydratingRef.current = true;
       setTierBlocks(createTierBlocks(savedCertifications));
       onDirtyChange?.(false);
     }
-  }, [onDirtyChange, savedCertifications]);
-
-  useEffect(() => {
-    if (savedCertifications === undefined) return;
-    if (isHydratingRef.current) {
-      isHydratingRef.current = false;
-      return;
-    }
-    onDirtyChange?.(isDirty);
-  }, [isDirty, onDirtyChange, savedCertifications]);
+  }, [savedCertifications, onDirtyChange]);
 
   const selectedCertificationIds = useMemo(
     () => new Set(tierBlocks.flatMap((block) => block.certificationIds)),
@@ -197,8 +100,9 @@ export function CertificationRankEditor({
     const certificationId = dragSourceId.current;
     dragSourceId.current = null;
     setDraggedCertificationId(null);
-    if (certificationId)
-      setTierBlocks((current) => moveCertification(current, certificationId, tierId, index));
+    if (certificationId) {
+      setTierBlocksAndDirtyState(moveCertification(tierBlocks, certificationId, tierId, index));
+    }
   };
 
   return (
@@ -231,16 +135,19 @@ export function CertificationRankEditor({
                 searchable
                 clearable
                 value={certificationToAdd}
-                data={certifications
-                  .filter((certification) => !selectedCertificationIds.has(certification.id))
-                  .map((certification) => ({ value: certification.id, label: certification.name }))}
+                data={certifications.flatMap((certification) =>
+                  selectedCertificationIds.has(certification.id)
+                    ? []
+                    : [{ value: certification.id, label: certification.name }],
+                )}
                 nothingFoundMessage="追加できる資格がありません"
                 onChange={(certificationId) => {
                   setCertificationToAdd(null);
-                  if (certificationId)
-                    setTierBlocks((current) =>
-                      addCertification(current, certificationId, createBlockId()),
+                  if (certificationId) {
+                    setTierBlocksAndDirtyState(
+                      addCertification(tierBlocks, certificationId, createBlockId()),
                     );
+                  }
                 }}
               />
               <Divider />
@@ -268,7 +175,7 @@ export function CertificationRankEditor({
                           variant="subtle"
                           aria-label={`上から${tierIndex + 1}番目の空レベルを削除`}
                           onClick={() =>
-                            setTierBlocks((current) => removeEmptyTier(current, block.id))
+                            setTierBlocksAndDirtyState(removeEmptyTier(tierBlocks, block.id))
                           }
                         >
                           <IconTrash size={16} />
@@ -319,8 +226,8 @@ export function CertificationRankEditor({
                               variant="subtle"
                               aria-label={`${certificationNameById.get(certificationId) ?? '資格'}を除外`}
                               onClick={() =>
-                                setTierBlocks((current) =>
-                                  removeCertification(current, certificationId),
+                                setTierBlocksAndDirtyState(
+                                  removeCertification(tierBlocks, certificationId),
                                 )
                               }
                             >
@@ -341,7 +248,9 @@ export function CertificationRankEditor({
               <AppButton
                 intent="tertiary"
                 leftSection={<IconPlus size={16} />}
-                onClick={() => setTierBlocks((current) => addEmptyTier(current, createBlockId()))}
+                onClick={() =>
+                  setTierBlocksAndDirtyState(addEmptyTier(tierBlocks, createBlockId()))
+                }
               >
                 レベルを追加
               </AppButton>
@@ -350,7 +259,7 @@ export function CertificationRankEditor({
                   count={changedRequirementCount}
                   description="選択中のシフト種別に必要な資格を保存します"
                   loading={update.isPending}
-                  onCancel={() => setTierBlocks(savedTierBlocks)}
+                  onCancel={() => setTierBlocksAndDirtyState(savedTierBlocks)}
                   onSave={() => {
                     update.mutate(
                       { certifications: currentRequirements },

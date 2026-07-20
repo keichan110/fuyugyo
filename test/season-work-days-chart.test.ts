@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildSeasonWorkDaysChartData,
   formatSeasonWorkDaysTooltip,
-} from '../src/features/dashboard/components/SeasonWorkDaysChart';
+} from '../src/features/dashboard/components/season-work-days-chart-data';
 
 describe('buildSeasonWorkDaysChartData', () => {
   it('月別勤務日数とその月までの累積勤務日数を同じ月順で返す', () => {

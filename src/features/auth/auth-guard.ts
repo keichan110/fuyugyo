@@ -1,30 +1,15 @@
 import type { QueryClient } from '@tanstack/react-query';
 
-import { client } from '@/lib/rpc';
-
-import { ME_QUERY_KEY } from './queries';
-import { meResponseSchema, type MeResponse } from './schema';
+import { meQueryOptions } from './queries';
+import type { MeResponse } from './schema';
 
 /**
  * 現在の認証状態を取得する（未認証なら null）。
  * TanStack Query のキャッシュを共有し、ルートガードとコンポーネント表示で同じ結果を使う。
- * 親レイアウトルートで `ensureAuthenticated` を通過した後、子ルートでロールなどの追加チェックを
- * 行うときはこの関数を使うとキャッシュヒットで済み、余分な API 呼び出しが発生しない。
+ * 認証主体の取り違えを避けるため、グローバルの `staleTime` に関係なく毎回再検証する。
  */
 export async function fetchMe(queryClient: QueryClient): Promise<MeResponse | null> {
-  return await queryClient.fetchQuery({
-    queryKey: ME_QUERY_KEY,
-    queryFn: async () => {
-      const res = await client.api.auth.me.$get();
-      if (res.status === 401 || res.status === 403) {
-        return null;
-      }
-      if (!res.ok) {
-        throw new Error('ユーザー情報の取得に失敗しました');
-      }
-      return meResponseSchema.parse(await res.json());
-    },
-  });
+  return await queryClient.fetchQuery(meQueryOptions());
 }
 
 /**

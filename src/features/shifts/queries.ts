@@ -1,4 +1,10 @@
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  queryOptions,
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import { z } from 'zod';
 
 import { useMe } from '@/features/auth/queries';
@@ -277,7 +283,15 @@ export function useMySeasonStats() {
   const me = useMe();
   const userId = me.data?.id;
 
-  return useQuery<SeasonStatsResponse>({
+  return useQuery(mySeasonStatsQueryOptions(userId));
+}
+
+/**
+ * ダッシュボード「今シーズン」集計の query 設定を認証主体ごとに返す。
+ * @param userId - 現在ログイン中の User ID。未認証時は取得を無効化する
+ */
+export function mySeasonStatsQueryOptions(userId: string | undefined) {
+  return queryOptions<SeasonStatsResponse>({
     queryKey: seasonStatsQueryKey(userId ?? ''),
     queryFn: async () => {
       const res = await client.api.shifts.me['season-stats'].$get();

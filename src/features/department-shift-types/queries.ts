@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 
 import type { DepartmentCode } from '@/features/departments/schema';
+import { MASTER_DATA_STALE_TIME } from '@/lib/query-client';
 import { client } from '@/lib/rpc';
 
 import {
@@ -21,6 +22,7 @@ const apiErrorSchema = z.object({ message: z.string().optional() });
 export function useDepartmentShiftTypes(departmentCode: DepartmentCode) {
   return useQuery<DepartmentShiftType[]>({
     queryKey: [...DEPARTMENT_SHIFT_TYPES_QUERY_KEY, departmentCode],
+    staleTime: MASTER_DATA_STALE_TIME,
     queryFn: async () => {
       const res = await client.api['department-shift-types'][':departmentCode'].$get({
         param: { departmentCode },

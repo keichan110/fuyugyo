@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 
+import { useMe } from '@/features/auth/queries';
 import { client } from '@/lib/rpc';
 
 import {
@@ -12,10 +13,14 @@ import {
 
 const apiErrorSchema = z.object({ message: z.string().optional() });
 
-/** 本人の可用性申告クエリキー。月単位でキャッシュする。 */
+/** 本人の可用性申告クエリキー。認証主体・月単位でキャッシュする。 */
 export const MY_AVAILABILITIES_QUERY_KEY = ['availabilities', 'me'] as const;
 /** 管理者向け可用性一覧クエリキー。 */
 export const AVAILABILITIES_QUERY_KEY = ['availabilities'] as const;
+
+/** 本人の勤務可否クエリキーを認証主体 userId と対象月で隔離して組み立てる。 */
+export const myAvailabilitiesQueryKey = (userId: string, month: string) =>
+  [...MY_AVAILABILITIES_QUERY_KEY, userId, month] as const;
 
 /** 指定期間の全インストラクターの可用性を取得する（MANAGER 以上）。 */
 export function useAvailabilities(from: string, to: string) {
@@ -39,6 +44,7 @@ export function useAvailabilities(from: string, to: string) {
 
 /** 指定月の本人申告と編集不能な割当日を取得する。 */
 export function useMyAvailabilities(month: string, enabled = true) {
+  const userId = useMe().data?.id;
   const from = `${month}-01`;
   const nextMonth = new Date(`${from}T00:00:00.000Z`);
   nextMonth.setUTCMonth(nextMonth.getUTCMonth() + 1);
@@ -46,7 +52,7 @@ export function useMyAvailabilities(month: string, enabled = true) {
   const to = nextMonth.toISOString().slice(0, 10);
 
   return useQuery({
-    queryKey: [...MY_AVAILABILITIES_QUERY_KEY, month],
+    queryKey: myAvailabilitiesQueryKey(userId ?? '', month),
     queryFn: async () => {
       const res = await client.api.availabilities.me.$get({ query: { from, to } });
       if (!res.ok) {
@@ -59,7 +65,7 @@ export function useMyAvailabilities(month: string, enabled = true) {
       }
       return availabilityListResponseSchema.parse(await res.json());
     },
-    enabled,
+    enabled: enabled && !!userId,
   });
 }
 
@@ -80,6 +86,7 @@ export function useUpdateMyAvailabilities() {
       return z.object({ updatedCount: z.number() }).parse(await res.json());
     },
     onSuccess: () => {
+      // 共通プレフィックスで userId・月を含む本人可用性キャッシュも無効化する
       void queryClient.invalidateQueries({ queryKey: MY_AVAILABILITIES_QUERY_KEY });
     },
   });

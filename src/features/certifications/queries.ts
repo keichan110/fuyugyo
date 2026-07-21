@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 
+import { MASTER_DATA_STALE_TIME } from '@/lib/query-client';
 import { client } from '@/lib/rpc';
 
 import {
@@ -25,6 +26,7 @@ export const CERTIFICATIONS_QUERY_KEY = ['certifications'] as const;
 export function useCertifications(activeOnly = true, departmentCode?: string) {
   return useQuery<Certification[]>({
     queryKey: [...CERTIFICATIONS_QUERY_KEY, { activeOnly, departmentCode }],
+    staleTime: MASTER_DATA_STALE_TIME,
     queryFn: async () => {
       const query: Record<string, string> = {};
       if (!activeOnly) query['active'] = 'false';
@@ -46,6 +48,7 @@ export function useCertifications(activeOnly = true, departmentCode?: string) {
 export function useCertification(id: string) {
   return useQuery<Certification>({
     queryKey: [...CERTIFICATIONS_QUERY_KEY, id],
+    staleTime: MASTER_DATA_STALE_TIME,
     queryFn: async () => {
       const res = await client.api.certifications[':id'].$get({ param: { id } });
       if (!res.ok) {

@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 
 import type { DepartmentCode } from '@/features/departments/schema';
+import { MASTER_DATA_STALE_TIME } from '@/lib/query-client';
 import { client } from '@/lib/rpc';
 
 import {
@@ -23,6 +24,7 @@ export function useCertificationRequirements(
   return useQuery<CertificationRequirement[]>({
     queryKey: [...CERTIFICATION_REQUIREMENTS_QUERY_KEY, departmentCode, shiftTypeId],
     enabled: shiftTypeId !== null,
+    staleTime: MASTER_DATA_STALE_TIME,
     queryFn: async () => {
       if (!shiftTypeId) throw new Error('シフト種別が選択されていません');
       const res = await client.api['certification-requirements'][':departmentCode'][

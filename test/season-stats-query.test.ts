@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { SEASON_STATS_QUERY_KEY } from '../src/features/shifts/queries';
+import { SEASON_STATS_QUERY_KEY, seasonStatsQueryKey } from '../src/features/shifts/queries';
 import { seasonStatsResponseSchema } from '../src/features/shifts/schema';
 
 describe('SEASON_STATS_QUERY_KEY', () => {
@@ -24,5 +24,15 @@ describe('SEASON_STATS_QUERY_KEY', () => {
     };
 
     expect(seasonStatsResponseSchema.safeParse(legacyResponse).success).toBe(false);
+  });
+});
+
+describe('seasonStatsQueryKey', () => {
+  it('認証主体ごとに異なるクエリキーを組み立てる', () => {
+    expect(seasonStatsQueryKey('userA')).not.toEqual(seasonStatsQueryKey('userB'));
+  });
+
+  it('既存の season-stats キーをプレフィックスとして維持する', () => {
+    expect(seasonStatsQueryKey('userA')).toEqual([...SEASON_STATS_QUERY_KEY, 'userA']);
   });
 });

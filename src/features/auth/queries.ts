@@ -28,11 +28,13 @@ export function useMe() {
       }
       return meResponseSchema.parse(await res.json());
     },
+    // 認証主体の取り違えを防ぐため、identity はグローバルの staleTime（60s）でマスクせず、マウント・フォーカスのたびに再検証する
+    staleTime: 0,
   });
 }
 
 /**
- * ログアウトする。成功後は認証状態キャッシュを無効化する。
+ * ログアウトする。成功後は認証済みの全キャッシュを破棄する。
  */
 export function useLogout() {
   const queryClient = useQueryClient();
@@ -44,6 +46,9 @@ export function useLogout() {
       }
     },
     onSuccess: () => {
+      // ログアウト時は認証済みの全キャッシュを破棄し、同一 QueryClient を再利用する
+      // 後続の別ユーザーセッションに前ユーザーのデータ（統計・勤務可否等）が残らないようにする
+      queryClient.clear();
       queryClient.setQueryData(ME_QUERY_KEY, null);
     },
   });

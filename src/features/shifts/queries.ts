@@ -1,6 +1,8 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 
+import { useMe } from '@/features/auth/queries';
+import { SEASON_STATS_CACHE_TIME } from '@/lib/query-client';
 import { client } from '@/lib/rpc';
 
 import {
@@ -37,6 +39,9 @@ export const SHIFTS_QUERY_KEY = ['shifts'] as const;
  * `v2` は昨季同時点の値を持たない旧レスポンスを永続キャッシュから再利用しないための世代番号。
  */
 export const SEASON_STATS_QUERY_KEY = [...SHIFTS_QUERY_KEY, 'me', 'season-stats', 'v2'] as const;
+
+/** season-stats のクエリキーを認証主体 userId で隔離して組み立てる（クロスユーザーのキャッシュ再利用を防ぐ）。 */
+export const seasonStatsQueryKey = (userId: string) => [...SEASON_STATS_QUERY_KEY, userId] as const;
 
 /** アジェンダ取得パラメータ */
 export type ShiftAgendaParams = {
@@ -265,10 +270,15 @@ export function useShiftAssignmentEditor(params: Partial<ShiftEditDataParams>) {
  * ダッシュボード「今シーズン」セクション向けの集計を取得する（Issue #203）。
  * ログイン User が Instructor 未連携の場合はサーバーが 404 を返す前提のため、
  * 呼び出し元（ダッシュボード）は instructorId が確定しているときだけ描画すること。
+ * userId でキャッシュを隔離し、12h の staleTime/gcTime でセッション中の重い再計算を抑える。
+ * メモリキャッシュのため、リロード時は最新を再取得する。
  */
 export function useMySeasonStats() {
+  const me = useMe();
+  const userId = me.data?.id;
+
   return useQuery<SeasonStatsResponse>({
-    queryKey: SEASON_STATS_QUERY_KEY,
+    queryKey: seasonStatsQueryKey(userId ?? ''),
     queryFn: async () => {
       const res = await client.api.shifts.me['season-stats'].$get();
       if (!res.ok) {
@@ -277,6 +287,9 @@ export function useMySeasonStats() {
       }
       return seasonStatsResponseSchema.parse(await res.json());
     },
+    enabled: !!userId,
+    staleTime: SEASON_STATS_CACHE_TIME,
+    gcTime: SEASON_STATS_CACHE_TIME,
   });
 }
 

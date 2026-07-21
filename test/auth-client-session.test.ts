@@ -96,6 +96,14 @@ describe('未認証時のルーティング', () => {
     });
   });
 
+  it('保護画面のクエリをログイン後の戻り先に引き継ぐ', () => {
+    expect(getUnauthenticatedRedirect('/shifts', '/shifts?date=2026-01')).toEqual({
+      to: '/login',
+      search: { redirect: '/shifts?date=2026-01' },
+      replace: true,
+    });
+  });
+
   it('ログイン画面ではリダイレクトしない', () => {
     expect(getUnauthenticatedRedirect('/login')).toBeNull();
   });

@@ -20,7 +20,10 @@ export function RootLayout() {
     return <Outlet />;
   }
   if (!user) {
-    const redirect = getUnauthenticatedRedirect(location.pathname);
+    const redirect = getUnauthenticatedRedirect(
+      location.pathname,
+      location.pathname + location.searchStr,
+    );
     return redirect ? <Navigate {...redirect} /> : <Outlet />;
   }
 

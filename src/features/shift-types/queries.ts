@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 
+import { MASTER_DATA_STALE_TIME } from '@/lib/query-client';
 import { client } from '@/lib/rpc';
 
 import {
@@ -25,6 +26,7 @@ export const SHIFT_TYPES_QUERY_KEY = ['shift-types'] as const;
 export function useShiftTypes(activeOnly = true) {
   return useQuery<ShiftTypeListItem[]>({
     queryKey: [...SHIFT_TYPES_QUERY_KEY, { activeOnly }],
+    staleTime: MASTER_DATA_STALE_TIME,
     queryFn: async () => {
       const res = await client.api['shift-types'].$get({
         query: activeOnly ? {} : { active: 'false' },
@@ -44,6 +46,7 @@ export function useShiftTypes(activeOnly = true) {
 export function useShiftType(id: string) {
   return useQuery<ShiftType>({
     queryKey: [...SHIFT_TYPES_QUERY_KEY, id],
+    staleTime: MASTER_DATA_STALE_TIME,
     queryFn: async () => {
       const res = await client.api['shift-types'][':id'].$get({ param: { id } });
       if (!res.ok) {

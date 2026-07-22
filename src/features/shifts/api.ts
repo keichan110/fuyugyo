@@ -37,6 +37,7 @@ import {
   users,
 } from '@/server/db/schema';
 import { requireAuth, requireRole, type AuthVariables } from '@/server/middleware/auth';
+import { readRateLimit } from '@/server/middleware/rate-limit';
 import type { Env } from '@/server/types';
 
 import { groupShiftsByWorkingDay, summarizeShifts } from './aggregators';
@@ -1047,7 +1048,7 @@ export const shiftsRoute = new Hono<{
    * アジェンダビュー: 起点日から未来/過去方向へ、Shift が 1 件以上ある稼働日だけを返す。
    * 休校日は日付行自体を返さず、各稼働日の Shift は部門 × シフト種別でまとめて返す。
    */
-  .get('/agenda', requireAuth, async (c) => {
+  .get('/agenda', requireAuth, readRateLimit(), async (c) => {
     const cursor = c.req.query('cursor');
     const directionQuery = c.req.query('direction') ?? 'future';
     const departmentCode = c.req.query('departmentCode');
@@ -1142,7 +1143,7 @@ export const shiftsRoute = new Hono<{
    * 休校日（シフトが0件の日）は要素を持たないだけで、400 にはしない。
    * ダッシュボードの「今日・明日の出勤状況」「同じ日に勤務する同僚一覧」で共有する。
    */
-  .get('/attendance', requireAuth, async (c) => {
+  .get('/attendance', requireAuth, readRateLimit(), async (c) => {
     const datesQuery = c.req.query('dates');
     if (!datesQuery) {
       throw new HTTPException(400, { message: 'dates を指定してください' });

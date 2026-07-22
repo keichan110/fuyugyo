@@ -33,6 +33,18 @@ function envWith(overrides: Partial<Env>): Env {
   return { ...(env as unknown as Env), ...overrides };
 }
 
+/** テスト中に件数を数える擬似 Rate Limiter。CF ネイティブ binding はローカルで決定論的に動かせないため注入する */
+function makeRateLimiter(limit: number) {
+  const counts = new Map<string, number>();
+  return {
+    limit: async ({ key }: { key: string }) => {
+      const next = (counts.get(key) ?? 0) + 1;
+      counts.set(key, next);
+      return { success: next <= limit };
+    },
+  };
+}
+
 function authHeader(token: string): RequestInit {
   return { headers: { cookie: `auth-token=${token}` } };
 }
@@ -600,5 +612,45 @@ describe('GET /api/shifts/attendance', () => {
   it('未認証は 401 を返す', async () => {
     const res = await app.request('/api/shifts/attendance?dates=2026-01-10', {}, envWith({}));
     expect(res.status).toBe(401);
+  });
+});
+
+// ─── 認証済み高コスト read の Rate Limit ─────────────────────────────────────
+
+describe('認証済み高コスト read の Rate Limit', () => {
+  it('同一ユーザーが上限を超えて agenda を連続で取得すると 429 を返す', async () => {
+    const token = await seedToken('MEMBER');
+    const reqEnv = envWith({ READ_RATE_LIMITER: makeRateLimiter(2) });
+    const path = '/api/shifts/agenda?cursor=2026-01-10&direction=future';
+
+    const first = await app.request(path, authHeader(token), reqEnv);
+    const second = await app.request(path, authHeader(token), reqEnv);
+    const third = await app.request(path, authHeader(token), reqEnv);
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    expect(third.status).toBe(429);
+  });
+
+  it('ユーザーごとに別の上限を使う', async () => {
+    const tokenA = await seedToken('MEMBER');
+    const tokenB = await seedToken('MEMBER');
+    const reqEnv = envWith({ READ_RATE_LIMITER: makeRateLimiter(1) });
+    const path = '/api/shifts/agenda?cursor=2026-01-10&direction=future';
+
+    const firstForA = await app.request(path, authHeader(tokenA), reqEnv);
+    const firstForB = await app.request(path, authHeader(tokenB), reqEnv);
+
+    expect(firstForA.status).toBe(200);
+    expect(firstForB.status).toBe(200);
+  });
+
+  it('対象外の calendar は read limiter を参照しない', async () => {
+    const token = await seedToken('MEMBER');
+    const reqEnv = envWith({ READ_RATE_LIMITER: makeRateLimiter(0) });
+
+    const res = await app.request('/api/shifts/calendar?month=2026-01', authHeader(token), reqEnv);
+
+    expect(res.status).toBe(200);
   });
 });

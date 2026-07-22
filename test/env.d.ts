@@ -13,6 +13,7 @@ declare global {
       LINE_CHANNEL_SECRET: string;
       APP_URL: string;
       AUTH_RATE_LIMITER: import('@cloudflare/workers-types').RateLimit;
+      READ_RATE_LIMITER: import('@cloudflare/workers-types').RateLimit;
       /** vitest.config.ts の miniflare バインディングから渡されるマイグレーション一覧 */
       TEST_MIGRATIONS: D1Migration[];
     }

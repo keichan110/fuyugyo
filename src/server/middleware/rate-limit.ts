@@ -1,6 +1,7 @@
 import { createMiddleware } from 'hono/factory';
 import { HTTPException } from 'hono/http-exception';
 
+import { type AuthVariables } from '@/server/middleware/auth';
 import type { Env } from '@/server/types';
 
 /**
@@ -29,6 +30,28 @@ export function rateLimit(bucket: string) {
     });
 
     if (!success) {
+      throw new HTTPException(429, {
+        message: 'Too many requests. Please try again later.',
+      });
+    }
+
+    await next();
+  });
+}
+
+/**
+ * 認証済み高コスト read 用の Rate Limit。requireAuth の後段で userId をキーにレート制限する（issue #214）。
+ */
+export function readRateLimit() {
+  return createMiddleware<{ Bindings: Env; Variables: AuthVariables }>(async (c, next) => {
+    const { userId } = c.get('user');
+    const key = `read:${userId}`;
+    const { success } = await c.env.READ_RATE_LIMITER.limit({ key });
+
+    if (!success) {
+      console.warn(
+        JSON.stringify({ event: 'rate_limit_exceeded', limiter: 'read', key, path: c.req.path }),
+      );
       throw new HTTPException(429, {
         message: 'Too many requests. Please try again later.',
       });

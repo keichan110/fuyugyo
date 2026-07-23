@@ -8,7 +8,16 @@
   backdrop-filter: blur(8px);
 }
 
+/* 固定バーの背後にコンテンツ末尾が隠れないよう、表示中だけ AppShell にスクロール余白を確保する。 */
+:global(.mantine-AppShell-main):has(.bar) {
+  padding-bottom: calc(100px + env(safe-area-inset-bottom));
+}
+
 @media (max-width: 48em) {
+  :global(.mantine-AppShell-main):has(.bar) {
+    padding-bottom: calc(140px + env(safe-area-inset-bottom));
+  }
+
   .bar {
     inset-inline-end: 10px;
     bottom: 10px;

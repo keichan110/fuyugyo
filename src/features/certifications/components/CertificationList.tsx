@@ -121,15 +121,17 @@ export function CertificationList() {
               </Table.Tbody>
             </AppTable>
           </Stack>
-          <Stack hiddenFrom="sm" gap="sm">
-            {visibleCertifications.map((cert) => (
-              <CertificationMobileRow
-                key={cert.id}
-                certification={cert}
-                onEdit={() => setDrawerState({ mode: 'edit', certificationId: cert.id })}
-              />
-            ))}
-          </Stack>
+          <Paper hiddenFrom="sm" withBorder p={0}>
+            <Stack gap={0}>
+              {visibleCertifications.map((cert) => (
+                <CertificationMobileRow
+                  key={cert.id}
+                  certification={cert}
+                  onEdit={() => setDrawerState({ mode: 'edit', certificationId: cert.id })}
+                />
+              ))}
+            </Stack>
+          </Paper>
         </>
       )}
 
@@ -178,10 +180,8 @@ function CertificationRow({ certification, onEdit }: CertificationRowProps) {
 /** モバイル幅で資格を名簿形式に表示する行。 */
 function CertificationMobileRow({ certification, onEdit }: CertificationRowProps) {
   return (
-    <Paper
-      withBorder
-      p="sm"
-      className={!certification.isActive ? mobileClasses.inactive : undefined}
+    <div
+      className={`${mobileClasses.row}${!certification.isActive ? ` ${mobileClasses.inactive}` : ''}`}
     >
       <Group justify="space-between" align="flex-start" wrap="nowrap">
         <Stack gap={4}>
@@ -202,6 +202,6 @@ function CertificationMobileRow({ certification, onEdit }: CertificationRowProps
           編集
         </AppButton>
       </Group>
-    </Paper>
+    </div>
   );
 }

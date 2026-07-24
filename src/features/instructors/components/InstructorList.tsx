@@ -141,15 +141,17 @@ export function InstructorList() {
               </Table.Tbody>
             </AppTable>
           </Stack>
-          <Stack hiddenFrom="sm" gap="sm">
-            {visibleInstructors.map((instructor) => (
-              <InstructorMobileRow
-                key={instructor.id}
-                instructor={instructor}
-                onEdit={() => setDrawerState({ mode: 'edit', instructorId: instructor.id })}
-              />
-            ))}
-          </Stack>
+          <Paper hiddenFrom="sm" withBorder p={0}>
+            <Stack gap={0}>
+              {visibleInstructors.map((instructor) => (
+                <InstructorMobileRow
+                  key={instructor.id}
+                  instructor={instructor}
+                  onEdit={() => setDrawerState({ mode: 'edit', instructorId: instructor.id })}
+                />
+              ))}
+            </Stack>
+          </Paper>
         </>
       )}
 
@@ -244,10 +246,8 @@ function InstructorMobileRow({ instructor, onEdit }: InstructorRowProps) {
   const hiddenCerts = instructor.certifications.slice(MAX_VISIBLE_CERTS);
 
   return (
-    <Paper
-      withBorder
-      p="sm"
-      className={instructor.status === 'INACTIVE' ? mobileClasses.inactive : undefined}
+    <div
+      className={`${mobileClasses.row}${instructor.status === 'INACTIVE' ? ` ${mobileClasses.inactive}` : ''}`}
     >
       <Group justify="space-between" align="flex-start" wrap="nowrap">
         <Group gap="sm" wrap="nowrap">
@@ -291,6 +291,6 @@ function InstructorMobileRow({ instructor, onEdit }: InstructorRowProps) {
           編集
         </AppButton>
       </Group>
-    </Paper>
+    </div>
   );
 }

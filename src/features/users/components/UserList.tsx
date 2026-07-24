@@ -96,15 +96,17 @@ export function UserList() {
               </Table.Tbody>
             </AppTable>
           </Stack>
-          <Stack hiddenFrom="sm" gap="sm">
-            {visibleUsers.map((user) => (
-              <UserMobileRow
-                key={user.id}
-                user={user}
-                onEdit={() => setDrawerState({ userId: user.id })}
-              />
-            ))}
-          </Stack>
+          <Paper hiddenFrom="sm" withBorder p={0}>
+            <Stack gap={0}>
+              {visibleUsers.map((user) => (
+                <UserMobileRow
+                  key={user.id}
+                  user={user}
+                  onEdit={() => setDrawerState({ userId: user.id })}
+                />
+              ))}
+            </Stack>
+          </Paper>
         </>
       )}
 
@@ -166,7 +168,7 @@ function UserMobileRow({ user, onEdit }: UserRowProps) {
   const roleMeta = USER_ROLE_META[user.role];
 
   return (
-    <Paper withBorder p="sm" className={!user.isActive ? mobileClasses.inactive : undefined}>
+    <div className={`${mobileClasses.row}${!user.isActive ? ` ${mobileClasses.inactive}` : ''}`}>
       <Group justify="space-between" align="flex-start" wrap="nowrap">
         <Group gap="sm" wrap="nowrap">
           {user.pictureUrl ? (
@@ -190,6 +192,6 @@ function UserMobileRow({ user, onEdit }: UserRowProps) {
           編集
         </AppButton>
       </Group>
-    </Paper>
+    </div>
   );
 }

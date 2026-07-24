@@ -138,20 +138,22 @@ export function ShiftTypeList({
               </Table.Tbody>
             </AppTable>
           </Stack>
-          <Stack hiddenFrom="sm" gap="sm">
-            {visibleShiftTypes.map((shiftType) => (
-              <ShiftTypeMobileRow
-                key={shiftType.id}
-                shiftType={shiftType}
-                rowAction={renderRowAction?.(shiftType)}
-                onEdit={() =>
-                  onOpenForm
-                    ? onOpenForm({ mode: 'edit', shiftTypeId: shiftType.id })
-                    : setDrawerState({ mode: 'edit', shiftTypeId: shiftType.id })
-                }
-              />
-            ))}
-          </Stack>
+          <Paper hiddenFrom="sm" withBorder p={0}>
+            <Stack gap={0}>
+              {visibleShiftTypes.map((shiftType) => (
+                <ShiftTypeMobileRow
+                  key={shiftType.id}
+                  shiftType={shiftType}
+                  rowAction={renderRowAction?.(shiftType)}
+                  onEdit={() =>
+                    onOpenForm
+                      ? onOpenForm({ mode: 'edit', shiftTypeId: shiftType.id })
+                      : setDrawerState({ mode: 'edit', shiftTypeId: shiftType.id })
+                  }
+                />
+              ))}
+            </Stack>
+          </Paper>
         </>
       )}
 
@@ -163,7 +165,9 @@ export function ShiftTypeList({
 /** モバイル幅でシフト種別を名簿形式に表示する行。 */
 function ShiftTypeMobileRow({ shiftType, rowAction, onEdit }: ShiftTypeRowProps) {
   return (
-    <Paper withBorder p="sm" className={!shiftType.isActive ? mobileClasses.inactive : undefined}>
+    <div
+      className={`${mobileClasses.row}${!shiftType.isActive ? ` ${mobileClasses.inactive}` : ''}`}
+    >
       <Group justify="space-between" align="center" wrap="nowrap">
         <Text fw={500} size="sm">
           {shiftType.name}
@@ -175,7 +179,7 @@ function ShiftTypeMobileRow({ shiftType, rowAction, onEdit }: ShiftTypeRowProps)
           </AppButton>
         </Group>
       </Group>
-    </Paper>
+    </div>
   );
 }
 

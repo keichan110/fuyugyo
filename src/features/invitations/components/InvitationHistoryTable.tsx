@@ -62,11 +62,13 @@ export function InvitationHistoryTable({ invitations }: InvitationHistoryTablePr
           </Table.Tbody>
         </Table>
       </Table.ScrollContainer>
-      <Stack hiddenFrom="sm" gap="sm">
-        {invitations.map((invitation) => (
-          <InvitationMobileRow key={invitation.token} invitation={invitation} now={now} />
-        ))}
-      </Stack>
+      <Paper hiddenFrom="sm" withBorder p={0}>
+        <Stack gap={0}>
+          {invitations.map((invitation) => (
+            <InvitationMobileRow key={invitation.token} invitation={invitation} now={now} />
+          ))}
+        </Stack>
+      </Paper>
     </>
   );
 }
@@ -109,8 +111,10 @@ function InvitationTableRow({ invitation, now }: InvitationRowProps) {
 /** モバイル幅で招待履歴を名簿形式に表示する行。 */
 function InvitationMobileRow({ invitation, now }: InvitationRowProps) {
   const status = invitationStatusOf(invitation, now);
+  const className =
+    status === 'active' ? mobileClasses.row : `${mobileClasses.row} ${mobileClasses.inactive}`;
   return (
-    <Paper withBorder p="sm" className={status === 'active' ? undefined : mobileClasses.inactive}>
+    <div className={className}>
       <Group justify="space-between" align="flex-start" wrap="nowrap">
         <Stack gap={4}>
           <Text fw={500} size="sm">
@@ -125,6 +129,6 @@ function InvitationMobileRow({ invitation, now }: InvitationRowProps) {
           </Text>
         </Stack>
       </Group>
-    </Paper>
+    </div>
   );
 }

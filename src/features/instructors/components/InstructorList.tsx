@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 
-import { Avatar, Group, Menu, Stack, Table, Text, Tooltip } from '@mantine/core';
-import { notifications } from '@mantine/notifications';
+import { Avatar, Group, Paper, Stack, Table, Text, Tooltip } from '@mantine/core';
 import { IconPlus, IconUsers } from '@tabler/icons-react';
 
 import { ErrorAlert } from '@/components/AppAlert';
@@ -13,11 +12,11 @@ import { InactiveVisibilityToggle } from '@/components/InactiveVisibilityToggle'
 import { ListEmptyState, ListNoResultsState } from '@/components/ListEmptyState';
 import { ListHeader } from '@/components/ListHeader';
 import { ListToolbar } from '@/components/ListToolbar';
-import { RowActionsButton } from '@/components/RowActionsButton';
+import mobileClasses from '@/components/MobileListItem.module.css';
 import { SearchInput } from '@/components/SearchInput';
 import { TableRowsSkeleton } from '@/components/TableRowsSkeleton';
 
-import { useChangeInstructorStatus, useInstructors } from '../queries';
+import { useInstructors } from '../queries';
 import type { InstructorListItem } from '../schema';
 import { InstructorDrawer, type InstructorDrawerState } from './InstructorDrawer';
 
@@ -119,26 +118,39 @@ export function InstructorList() {
       )}
 
       {visibleInstructors.length > 0 && (
-        <AppTable minWidth={640}>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>氏名</Table.Th>
-              <Table.Th>資格</Table.Th>
-              <Table.Th w={120}>状態</Table.Th>
-              <Table.Th>備考</Table.Th>
-              <Table.Th w={56} />
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
+        <>
+          <Stack visibleFrom="sm" gap={0}>
+            <AppTable minWidth={640}>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>氏名</Table.Th>
+                  <Table.Th>資格</Table.Th>
+                  <Table.Th w={120}>状態</Table.Th>
+                  <Table.Th>備考</Table.Th>
+                  <Table.Th w={72} />
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {visibleInstructors.map((instructor) => (
+                  <InstructorRow
+                    key={instructor.id}
+                    instructor={instructor}
+                    onEdit={() => setDrawerState({ mode: 'edit', instructorId: instructor.id })}
+                  />
+                ))}
+              </Table.Tbody>
+            </AppTable>
+          </Stack>
+          <Stack hiddenFrom="sm" gap="sm">
             {visibleInstructors.map((instructor) => (
-              <InstructorRow
+              <InstructorMobileRow
                 key={instructor.id}
                 instructor={instructor}
                 onEdit={() => setDrawerState({ mode: 'edit', instructorId: instructor.id })}
               />
             ))}
-          </Table.Tbody>
-        </AppTable>
+          </Stack>
+        </>
       )}
 
       <InstructorDrawer state={drawerState} onClose={() => setDrawerState(null)} />
@@ -153,28 +165,12 @@ type InstructorRowProps = {
 
 /** インストラクター一覧の1行。クリックで編集 Drawer を開く。 */
 function InstructorRow({ instructor, onEdit }: InstructorRowProps) {
-  const changeStatus = useChangeInstructorStatus(instructor.id);
   const isActive = instructor.status === 'ACTIVE';
   const fullName = fullNameOf(instructor);
   const fullNameKana = fullNameKanaOf(instructor);
 
   const visibleCerts = instructor.certifications.slice(0, MAX_VISIBLE_CERTS);
   const hiddenCerts = instructor.certifications.slice(MAX_VISIBLE_CERTS);
-
-  const handleToggleStatus = () => {
-    const nextStatus = isActive ? 'INACTIVE' : 'ACTIVE';
-    changeStatus.mutate(
-      { status: nextStatus },
-      {
-        onSuccess: () => {
-          notifications.show({
-            color: 'green',
-            message: `${fullName}を${nextStatus === 'ACTIVE' ? '有効' : '無効'}にしました`,
-          });
-        },
-      },
-    );
-  };
 
   return (
     <ClickableTr onClick={onEdit}>
@@ -232,18 +228,69 @@ function InstructorRow({ instructor, onEdit }: InstructorRowProps) {
         )}
       </Table.Td>
       <Table.Td onClick={(e) => e.stopPropagation()}>
-        <Menu position="bottom-end">
-          <Menu.Target>
-            <RowActionsButton />
-          </Menu.Target>
-          <Menu.Dropdown>
-            <Menu.Item onClick={onEdit}>編集</Menu.Item>
-            <Menu.Item onClick={handleToggleStatus} disabled={changeStatus.isPending}>
-              {isActive ? '無効にする' : '有効にする'}
-            </Menu.Item>
-          </Menu.Dropdown>
-        </Menu>
+        <AppButton intent="tertiary" size="xs" onClick={onEdit}>
+          編集
+        </AppButton>
       </Table.Td>
     </ClickableTr>
+  );
+}
+
+/** モバイル幅でインストラクターを名簿形式に表示する行。 */
+function InstructorMobileRow({ instructor, onEdit }: InstructorRowProps) {
+  const fullName = fullNameOf(instructor);
+  const fullNameKana = fullNameKanaOf(instructor);
+  const visibleCerts = instructor.certifications.slice(0, MAX_VISIBLE_CERTS);
+  const hiddenCerts = instructor.certifications.slice(MAX_VISIBLE_CERTS);
+
+  return (
+    <Paper
+      withBorder
+      p="sm"
+      className={instructor.status === 'INACTIVE' ? mobileClasses.inactive : undefined}
+    >
+      <Group justify="space-between" align="flex-start" wrap="nowrap">
+        <Group gap="sm" wrap="nowrap">
+          <Avatar color="initials" name={fullName} radius="xl" size="sm" />
+          <Stack gap={4}>
+            <div>
+              <Text fw={500} size="sm">
+                {fullName}
+              </Text>
+              {fullNameKana && (
+                <Text c="dimmed" size="xs">
+                  {fullNameKana}
+                </Text>
+              )}
+            </div>
+            {instructor.certifications.length > 0 && (
+              <Group gap={4} wrap="wrap">
+                {visibleCerts.map((cert) => (
+                  <Tooltip key={cert.id} label={cert.name}>
+                    <AppBadge
+                      kind={cert.isActive ? 'certification' : 'inactive'}
+                      departmentCode={cert.departmentCode}
+                      size="sm"
+                    >
+                      {cert.shortName}
+                    </AppBadge>
+                  </Tooltip>
+                ))}
+                {hiddenCerts.length > 0 && (
+                  <Tooltip label={hiddenCerts.map((cert) => cert.name).join('、')}>
+                    <AppBadge kind="count" size="sm">
+                      +{hiddenCerts.length}
+                    </AppBadge>
+                  </Tooltip>
+                )}
+              </Group>
+            )}
+          </Stack>
+        </Group>
+        <AppButton intent="tertiary" size="xs" onClick={onEdit}>
+          編集
+        </AppButton>
+      </Group>
+    </Paper>
   );
 }

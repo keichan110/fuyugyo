@@ -4,7 +4,6 @@ import { Group, Paper, Stack, Table, Text } from '@mantine/core';
 import { IconClock, IconPlus } from '@tabler/icons-react';
 
 import { ErrorAlert } from '@/components/AppAlert';
-import { AppBadge } from '@/components/AppBadge';
 import { AppButton } from '@/components/AppButton';
 import { AppTable } from '@/components/AppTable';
 import { ClickableTr } from '@/components/ClickableTr';
@@ -118,7 +117,6 @@ export function ShiftTypeList({
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>種別名</Table.Th>
-                  <Table.Th w={120}>状態</Table.Th>
                   {renderRowAction && <Table.Th w={48}>{rowActionHeader}</Table.Th>}
                 </Table.Tr>
               </Table.Thead>
@@ -191,16 +189,12 @@ type ShiftTypeRowProps = {
 
 /** シフト種別一覧の1行。クリックで編集 Drawer を開く。 */
 function ShiftTypeRow({ shiftType, rowAction, onEdit }: ShiftTypeRowProps) {
-  const isActive = shiftType.isActive;
   return (
-    <ClickableTr onClick={onEdit}>
+    <ClickableTr inactive={!shiftType.isActive} onClick={onEdit}>
       <Table.Td>
         <Text fw={500} size="sm">
           {shiftType.name}
         </Text>
-      </Table.Td>
-      <Table.Td>
-        <AppBadge kind={isActive ? 'active' : 'inactive'}>{isActive ? '有効' : '無効'}</AppBadge>
       </Table.Td>
       {rowAction && <Table.Td onClick={(event) => event.stopPropagation()}>{rowAction}</Table.Td>}
     </ClickableTr>

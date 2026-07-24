@@ -81,7 +81,6 @@ export function UserList() {
                   <Table.Th>ユーザー名</Table.Th>
                   <Table.Th w={140}>ロール</Table.Th>
                   <Table.Th>Instructor リンク</Table.Th>
-                  <Table.Th w={120}>状態</Table.Th>
                   <Table.Th w={72} />
                 </Table.Tr>
               </Table.Thead>
@@ -122,11 +121,10 @@ type UserRowProps = {
 
 /** ユーザー一覧の1行。クリックで編集 Drawer を開く。 */
 function UserRow({ user, onEdit }: UserRowProps) {
-  const isActive = user.isActive;
   const roleMeta = USER_ROLE_META[user.role];
 
   return (
-    <ClickableTr onClick={onEdit}>
+    <ClickableTr inactive={!user.isActive} onClick={onEdit}>
       <Table.Td>
         <Group gap="sm" wrap="nowrap">
           {user.pictureUrl ? (
@@ -150,9 +148,6 @@ function UserRow({ user, onEdit }: UserRowProps) {
             —
           </Text>
         )}
-      </Table.Td>
-      <Table.Td>
-        <AppBadge kind={isActive ? 'active' : 'inactive'}>{isActive ? '有効' : '無効'}</AppBadge>
       </Table.Td>
       <Table.Td onClick={(e) => e.stopPropagation()}>
         <AppButton intent="tertiary" size="xs" onClick={onEdit}>

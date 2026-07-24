@@ -4,7 +4,6 @@ import { Group, Paper, Stack, Table, Text } from '@mantine/core';
 import { IconCertificate, IconPlus } from '@tabler/icons-react';
 
 import { ErrorAlert } from '@/components/AppAlert';
-import { AppBadge } from '@/components/AppBadge';
 import { AppButton } from '@/components/AppButton';
 import { AppTable } from '@/components/AppTable';
 import { ClickableTr } from '@/components/ClickableTr';
@@ -106,7 +105,6 @@ export function CertificationList() {
                   <Table.Th>資格名</Table.Th>
                   <Table.Th>部門</Table.Th>
                   <Table.Th>発行団体</Table.Th>
-                  <Table.Th w={100}>状態</Table.Th>
                   <Table.Th w={72} />
                 </Table.Tr>
               </Table.Thead>
@@ -147,10 +145,8 @@ type CertificationRowProps = {
 
 /** 資格一覧の1行。クリックで編集 Drawer を開く。 */
 function CertificationRow({ certification, onEdit }: CertificationRowProps) {
-  const isActive = certification.isActive;
-
   return (
-    <ClickableTr onClick={onEdit}>
+    <ClickableTr inactive={!certification.isActive} onClick={onEdit}>
       <Table.Td>
         <Text fw={500} size="sm">
           {certification.name}
@@ -164,9 +160,6 @@ function CertificationRow({ certification, onEdit }: CertificationRowProps) {
       </Table.Td>
       <Table.Td>
         <Text size="sm">{certification.organization}</Text>
-      </Table.Td>
-      <Table.Td>
-        <AppBadge kind={isActive ? 'active' : 'inactive'}>{isActive ? '有効' : '無効'}</AppBadge>
       </Table.Td>
       <Table.Td onClick={(e) => e.stopPropagation()}>
         <AppButton intent="tertiary" size="xs" onClick={onEdit}>

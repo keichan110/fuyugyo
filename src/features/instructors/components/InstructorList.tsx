@@ -125,7 +125,6 @@ export function InstructorList() {
                 <Table.Tr>
                   <Table.Th>氏名</Table.Th>
                   <Table.Th>資格</Table.Th>
-                  <Table.Th w={120}>状態</Table.Th>
                   <Table.Th>備考</Table.Th>
                   <Table.Th w={72} />
                 </Table.Tr>
@@ -175,7 +174,7 @@ function InstructorRow({ instructor, onEdit }: InstructorRowProps) {
   const hiddenCerts = instructor.certifications.slice(MAX_VISIBLE_CERTS);
 
   return (
-    <ClickableTr onClick={onEdit}>
+    <ClickableTr inactive={!isActive} onClick={onEdit}>
       <Table.Td>
         <Group gap="sm" wrap="nowrap">
           <Avatar color="initials" name={fullName} radius="xl" size="sm" />
@@ -218,9 +217,6 @@ function InstructorRow({ instructor, onEdit }: InstructorRowProps) {
             —
           </Text>
         )}
-      </Table.Td>
-      <Table.Td>
-        <AppBadge kind={isActive ? 'active' : 'inactive'}>{isActive ? '有効' : '無効'}</AppBadge>
       </Table.Td>
       <Table.Td>
         {instructor.notes && (

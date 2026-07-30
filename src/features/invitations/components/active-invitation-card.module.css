@@ -1,0 +1,26 @@
+.invitationActions {
+  display: flex;
+  gap: var(--mantine-spacing-sm);
+  min-width: 0;
+}
+
+.urlInput {
+  flex: 1;
+  min-width: 0;
+}
+
+/* モバイルではリンクを独立した行にし、操作ボタンのタップ領域を確保する。 */
+@media (max-width: 48em) {
+  .invitationActions {
+    flex-wrap: wrap;
+  }
+
+  .urlInput {
+    flex-basis: 100%;
+  }
+
+  .copyButton,
+  .deactivateButton {
+    flex: 1;
+  }
+}

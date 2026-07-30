@@ -1,22 +1,22 @@
 import { useMemo, useState } from 'react';
 
-import { Avatar, Group, Menu, Stack, Table, Text } from '@mantine/core';
-import { notifications } from '@mantine/notifications';
+import { Avatar, Group, Paper, Stack, Table, Text } from '@mantine/core';
 import { IconUsers } from '@tabler/icons-react';
 
 import { ErrorAlert } from '@/components/AppAlert';
 import { AppBadge } from '@/components/AppBadge';
+import { AppButton } from '@/components/AppButton';
 import { AppTable } from '@/components/AppTable';
 import { ClickableTr } from '@/components/ClickableTr';
 import { InactiveVisibilityToggle } from '@/components/InactiveVisibilityToggle';
 import { ListEmptyState, ListNoResultsState } from '@/components/ListEmptyState';
 import { ListHeader } from '@/components/ListHeader';
 import { ListToolbar } from '@/components/ListToolbar';
-import { RowActionsButton } from '@/components/RowActionsButton';
+import mobileClasses from '@/components/MobileListItem.module.css';
 import { SearchInput } from '@/components/SearchInput';
 import { TableRowsSkeleton } from '@/components/TableRowsSkeleton';
 
-import { useActivateUser, useDeactivateUser, useUsers } from '../queries';
+import { useUsers } from '../queries';
 import { USER_ROLE_META } from '../role-meta';
 import type { User } from '../schema';
 import { UserDrawer, type UserDrawerState } from './UserDrawer';
@@ -73,26 +73,40 @@ export function UserList() {
       )}
 
       {visibleUsers.length > 0 && (
-        <AppTable minWidth={640}>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>ユーザー名</Table.Th>
-              <Table.Th w={140}>ロール</Table.Th>
-              <Table.Th>Instructor リンク</Table.Th>
-              <Table.Th w={120}>状態</Table.Th>
-              <Table.Th w={56} />
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {visibleUsers.map((user) => (
-              <UserRow
-                key={user.id}
-                user={user}
-                onEdit={() => setDrawerState({ userId: user.id })}
-              />
-            ))}
-          </Table.Tbody>
-        </AppTable>
+        <>
+          <Stack visibleFrom="sm" gap={0}>
+            <AppTable minWidth={640}>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>ユーザー名</Table.Th>
+                  <Table.Th w={140}>ロール</Table.Th>
+                  <Table.Th>Instructor リンク</Table.Th>
+                  <Table.Th w={72} />
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {visibleUsers.map((user) => (
+                  <UserRow
+                    key={user.id}
+                    user={user}
+                    onEdit={() => setDrawerState({ userId: user.id })}
+                  />
+                ))}
+              </Table.Tbody>
+            </AppTable>
+          </Stack>
+          <Paper hiddenFrom="sm" withBorder p={0}>
+            <Stack gap={0}>
+              {visibleUsers.map((user) => (
+                <UserMobileRow
+                  key={user.id}
+                  user={user}
+                  onEdit={() => setDrawerState({ userId: user.id })}
+                />
+              ))}
+            </Stack>
+          </Paper>
+        </>
       )}
 
       <UserDrawer state={drawerState} onClose={() => setDrawerState(null)} />
@@ -107,26 +121,10 @@ type UserRowProps = {
 
 /** ユーザー一覧の1行。クリックで編集 Drawer を開く。 */
 function UserRow({ user, onEdit }: UserRowProps) {
-  const deactivate = useDeactivateUser(user.id);
-  const activate = useActivateUser(user.id);
-  const isActive = user.isActive;
   const roleMeta = USER_ROLE_META[user.role];
 
-  /** 行メニューからのステータス切り替え（無効⇔有効）を実行する */
-  const handleToggleStatus = () => {
-    const mutation = isActive ? deactivate : activate;
-    mutation.mutate(undefined, {
-      onSuccess: () => {
-        notifications.show({
-          color: 'green',
-          message: `${user.displayName}を${isActive ? '無効' : '有効'}にしました`,
-        });
-      },
-    });
-  };
-
   return (
-    <ClickableTr onClick={onEdit}>
+    <ClickableTr inactive={!user.isActive} onClick={onEdit}>
       <Table.Td>
         <Group gap="sm" wrap="nowrap">
           {user.pictureUrl ? (
@@ -151,25 +149,44 @@ function UserRow({ user, onEdit }: UserRowProps) {
           </Text>
         )}
       </Table.Td>
-      <Table.Td>
-        <AppBadge kind={isActive ? 'active' : 'inactive'}>{isActive ? '有効' : '無効'}</AppBadge>
-      </Table.Td>
       <Table.Td onClick={(e) => e.stopPropagation()}>
-        <Menu position="bottom-end">
-          <Menu.Target>
-            <RowActionsButton />
-          </Menu.Target>
-          <Menu.Dropdown>
-            <Menu.Item onClick={onEdit}>編集</Menu.Item>
-            <Menu.Item
-              onClick={handleToggleStatus}
-              disabled={deactivate.isPending || activate.isPending}
-            >
-              {isActive ? '無効にする' : '有効にする'}
-            </Menu.Item>
-          </Menu.Dropdown>
-        </Menu>
+        <AppButton intent="tertiary" size="xs" onClick={onEdit}>
+          編集
+        </AppButton>
       </Table.Td>
     </ClickableTr>
+  );
+}
+
+/** モバイル幅でユーザーを名簿形式に表示する行。 */
+function UserMobileRow({ user, onEdit }: UserRowProps) {
+  const roleMeta = USER_ROLE_META[user.role];
+
+  return (
+    <div className={`${mobileClasses.row}${!user.isActive ? ` ${mobileClasses.inactive}` : ''}`}>
+      <Group justify="space-between" align="flex-start" wrap="nowrap">
+        <Group gap="sm" wrap="nowrap">
+          {user.pictureUrl ? (
+            <Avatar src={user.pictureUrl} radius="xl" size="sm" />
+          ) : (
+            <Avatar color="initials" name={user.displayName} radius="xl" size="sm" />
+          )}
+          <Stack gap={4}>
+            <Text fw={500} size="sm">
+              {user.displayName}
+            </Text>
+            <Group gap="xs">
+              <AppBadge kind={roleMeta.badgeKind} size="sm">
+                {roleMeta.label}
+              </AppBadge>
+              {user.instructorId && <AppBadge kind="link">リンク済み</AppBadge>}
+            </Group>
+          </Stack>
+        </Group>
+        <AppButton intent="tertiary" size="xs" onClick={onEdit}>
+          編集
+        </AppButton>
+      </Group>
+    </div>
   );
 }

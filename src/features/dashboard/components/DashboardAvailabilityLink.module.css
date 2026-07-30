@@ -1,0 +1,23 @@
+.description {
+  flex: 1;
+}
+
+.button {
+  flex-shrink: 0;
+}
+
+/* 狭い画面では説明と導線を縦に並べ、文言を省略せず操作領域を確保する */
+@media (max-width: 47.999em) {
+  .container {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .guidance {
+    white-space: normal;
+  }
+
+  .button {
+    width: 100%;
+  }
+}

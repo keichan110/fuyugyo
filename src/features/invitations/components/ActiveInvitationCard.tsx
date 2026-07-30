@@ -18,6 +18,7 @@ import { AppButton } from '@/components/AppButton';
 import { buildInviteUrl, formatDateTime, remainingLabel } from '../lib';
 import { useDeactivateInvitation } from '../queries';
 import type { Invitation } from '../schema';
+import classes from './active-invitation-card.module.css';
 
 /** 残り時間の強調表示を切り替える閾値（時間） */
 const EXPIRY_WARNING_HOURS = 24;
@@ -48,17 +49,38 @@ export function ActiveInvitationCard({ invitation }: ActiveInvitationCardProps) 
   return (
     <Paper withBorder radius="md" p="lg">
       <Stack gap="md">
-        <Group justify="space-between" align="flex-start" wrap="nowrap">
-          <Group gap="sm" wrap="wrap">
-            <AppBadge kind="active" size="lg">
-              有効
-            </AppBadge>
-            {invitation.description && <Text fw={500}>{invitation.description}</Text>}
-          </Group>
+        <Group gap="sm" wrap="wrap">
+          <AppBadge kind="active" size="lg">
+            有効
+          </AppBadge>
+          {invitation.description && <Text fw={500}>{invitation.description}</Text>}
+        </Group>
 
+        <div className={classes.invitationActions}>
+          <TextInput className={classes.urlInput} readOnly value={url} />
+          <CopyButton value={url} timeout={2000}>
+            {({ copied, copy }) => (
+              <Button
+                className={classes.copyButton}
+                leftSection={
+                  copied ? (
+                    <IconCheck size={16} stroke={1.5} />
+                  ) : (
+                    <IconCopy size={16} stroke={1.5} />
+                  )
+                }
+                {...(copied ? { color: 'teal' } : {})}
+                onClick={copy}
+              >
+                コピー
+              </Button>
+            )}
+          </CopyButton>
           <Popover width={260} position="bottom-end" withArrow>
             <Popover.Target>
               <AppButton
+                className={classes.deactivateButton}
+                compact
                 intent="danger"
                 emphasis="low"
                 leftSection={<IconBan size={16} stroke={1.5} />}
@@ -83,28 +105,7 @@ export function ActiveInvitationCard({ invitation }: ActiveInvitationCardProps) 
               </Stack>
             </Popover.Dropdown>
           </Popover>
-        </Group>
-
-        <Group gap="sm" wrap="nowrap">
-          <TextInput readOnly value={url} flex={1} />
-          <CopyButton value={url} timeout={2000}>
-            {({ copied, copy }) => (
-              <Button
-                leftSection={
-                  copied ? (
-                    <IconCheck size={16} stroke={1.5} />
-                  ) : (
-                    <IconCopy size={16} stroke={1.5} />
-                  )
-                }
-                {...(copied ? { color: 'teal' } : {})}
-                onClick={copy}
-              >
-                {copied ? 'コピーしました' : 'リンクをコピー'}
-              </Button>
-            )}
-          </CopyButton>
-        </Group>
+        </div>
 
         <Group gap="lg">
           <Tooltip label={formatDateTime(invitation.expiresAt)}>

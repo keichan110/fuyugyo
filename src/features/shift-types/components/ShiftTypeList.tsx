@@ -1,10 +1,9 @@
 import { useMemo, useState, type ReactNode } from 'react';
 
-import { Stack, Table, Text } from '@mantine/core';
+import { Group, Paper, Stack, Table, Text } from '@mantine/core';
 import { IconClock, IconPlus } from '@tabler/icons-react';
 
 import { ErrorAlert } from '@/components/AppAlert';
-import { AppBadge } from '@/components/AppBadge';
 import { AppButton } from '@/components/AppButton';
 import { AppTable } from '@/components/AppTable';
 import { ClickableTr } from '@/components/ClickableTr';
@@ -12,6 +11,7 @@ import { InactiveVisibilityToggle } from '@/components/InactiveVisibilityToggle'
 import { ListEmptyState, ListNoResultsState } from '@/components/ListEmptyState';
 import { ListHeader } from '@/components/ListHeader';
 import { ListToolbar } from '@/components/ListToolbar';
+import mobileClasses from '@/components/MobileListItem.module.css';
 import { SearchInput } from '@/components/SearchInput';
 import { TableRowsSkeleton } from '@/components/TableRowsSkeleton';
 
@@ -111,33 +111,73 @@ export function ShiftTypeList({
       )}
 
       {visibleShiftTypes.length > 0 && (
-        <AppTable minWidth={400}>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>種別名</Table.Th>
-              <Table.Th w={120}>状態</Table.Th>
-              {renderRowAction && <Table.Th w={48}>{rowActionHeader}</Table.Th>}
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {visibleShiftTypes.map((shiftType) => (
-              <ShiftTypeRow
-                key={shiftType.id}
-                shiftType={shiftType}
-                rowAction={renderRowAction?.(shiftType)}
-                onEdit={() =>
-                  onOpenForm
-                    ? onOpenForm({ mode: 'edit', shiftTypeId: shiftType.id })
-                    : setDrawerState({ mode: 'edit', shiftTypeId: shiftType.id })
-                }
-              />
-            ))}
-          </Table.Tbody>
-        </AppTable>
+        <>
+          <Stack visibleFrom="sm" gap={0}>
+            <AppTable minWidth={400}>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>種別名</Table.Th>
+                  {renderRowAction && <Table.Th w={48}>{rowActionHeader}</Table.Th>}
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {visibleShiftTypes.map((shiftType) => (
+                  <ShiftTypeRow
+                    key={shiftType.id}
+                    shiftType={shiftType}
+                    rowAction={renderRowAction?.(shiftType)}
+                    onEdit={() =>
+                      onOpenForm
+                        ? onOpenForm({ mode: 'edit', shiftTypeId: shiftType.id })
+                        : setDrawerState({ mode: 'edit', shiftTypeId: shiftType.id })
+                    }
+                  />
+                ))}
+              </Table.Tbody>
+            </AppTable>
+          </Stack>
+          <Paper hiddenFrom="sm" withBorder p={0}>
+            <Stack gap={0}>
+              {visibleShiftTypes.map((shiftType) => (
+                <ShiftTypeMobileRow
+                  key={shiftType.id}
+                  shiftType={shiftType}
+                  rowAction={renderRowAction?.(shiftType)}
+                  onEdit={() =>
+                    onOpenForm
+                      ? onOpenForm({ mode: 'edit', shiftTypeId: shiftType.id })
+                      : setDrawerState({ mode: 'edit', shiftTypeId: shiftType.id })
+                  }
+                />
+              ))}
+            </Stack>
+          </Paper>
+        </>
       )}
 
       {!onOpenForm && <ShiftTypeDrawer state={drawerState} onClose={() => setDrawerState(null)} />}
     </Stack>
+  );
+}
+
+/** モバイル幅でシフト種別を名簿形式に表示する行。 */
+function ShiftTypeMobileRow({ shiftType, rowAction, onEdit }: ShiftTypeRowProps) {
+  return (
+    <div
+      className={`${mobileClasses.row}${!shiftType.isActive ? ` ${mobileClasses.inactive}` : ''}`}
+    >
+      <Group justify="space-between" align="center" wrap="nowrap">
+        <Text fw={500} size="sm">
+          {shiftType.name}
+        </Text>
+        <Group gap="xs" wrap="nowrap">
+          {rowAction}
+          <AppButton intent="tertiary" size="xs" onClick={onEdit}>
+            編集
+          </AppButton>
+        </Group>
+      </Group>
+    </div>
   );
 }
 
@@ -149,16 +189,12 @@ type ShiftTypeRowProps = {
 
 /** シフト種別一覧の1行。クリックで編集 Drawer を開く。 */
 function ShiftTypeRow({ shiftType, rowAction, onEdit }: ShiftTypeRowProps) {
-  const isActive = shiftType.isActive;
   return (
-    <ClickableTr onClick={onEdit}>
+    <ClickableTr inactive={!shiftType.isActive} onClick={onEdit}>
       <Table.Td>
         <Text fw={500} size="sm">
           {shiftType.name}
         </Text>
-      </Table.Td>
-      <Table.Td>
-        <AppBadge kind={isActive ? 'active' : 'inactive'}>{isActive ? '有効' : '無効'}</AppBadge>
       </Table.Td>
       {rowAction && <Table.Td onClick={(event) => event.stopPropagation()}>{rowAction}</Table.Td>}
     </ClickableTr>

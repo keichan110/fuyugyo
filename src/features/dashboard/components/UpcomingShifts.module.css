@@ -70,6 +70,14 @@
   pointer-events: none;
 }
 
+/* モバイルでは操作ボタンをカレンダーの外へ置き、日付セルとタップ領域を重ねない */
+@media (max-width: 47.999em) {
+  .carouselControls {
+    position: static;
+    margin-top: var(--mantine-spacing-xs);
+  }
+}
+
 /* sm以上は今月・来月が横並びでスワイプ不要になるため、前後矢印を隠す */
 @media (min-width: 48em) {
   .carouselControls {

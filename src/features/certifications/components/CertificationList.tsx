@@ -1,11 +1,9 @@
 import { useMemo, useState } from 'react';
 
-import { Menu, Stack, Table, Text } from '@mantine/core';
-import { notifications } from '@mantine/notifications';
+import { Group, Paper, Stack, Table, Text } from '@mantine/core';
 import { IconCertificate, IconPlus } from '@tabler/icons-react';
 
 import { ErrorAlert } from '@/components/AppAlert';
-import { AppBadge } from '@/components/AppBadge';
 import { AppButton } from '@/components/AppButton';
 import { AppTable } from '@/components/AppTable';
 import { ClickableTr } from '@/components/ClickableTr';
@@ -13,12 +11,12 @@ import { InactiveVisibilityToggle } from '@/components/InactiveVisibilityToggle'
 import { ListEmptyState, ListNoResultsState } from '@/components/ListEmptyState';
 import { ListHeader } from '@/components/ListHeader';
 import { ListToolbar } from '@/components/ListToolbar';
-import { RowActionsButton } from '@/components/RowActionsButton';
+import mobileClasses from '@/components/MobileListItem.module.css';
 import { SearchInput } from '@/components/SearchInput';
 import { TableRowsSkeleton } from '@/components/TableRowsSkeleton';
 import { DepartmentTag } from '@/features/departments/DepartmentTag';
 
-import { useCertifications, useDeactivateCertification } from '../queries';
+import { useCertifications } from '../queries';
 import type { Certification } from '../schema';
 import { CertificationDrawer, type CertificationDrawerState } from './CertificationDrawer';
 
@@ -99,26 +97,40 @@ export function CertificationList() {
       )}
 
       {visibleCertifications.length > 0 && (
-        <AppTable minWidth={720}>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>資格名</Table.Th>
-              <Table.Th>部門</Table.Th>
-              <Table.Th>発行団体</Table.Th>
-              <Table.Th w={100}>状態</Table.Th>
-              <Table.Th w={56} />
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {visibleCertifications.map((cert) => (
-              <CertificationRow
-                key={cert.id}
-                certification={cert}
-                onEdit={() => setDrawerState({ mode: 'edit', certificationId: cert.id })}
-              />
-            ))}
-          </Table.Tbody>
-        </AppTable>
+        <>
+          <Stack visibleFrom="sm" gap={0}>
+            <AppTable minWidth={720}>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>資格名</Table.Th>
+                  <Table.Th>部門</Table.Th>
+                  <Table.Th>発行団体</Table.Th>
+                  <Table.Th w={72} />
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {visibleCertifications.map((cert) => (
+                  <CertificationRow
+                    key={cert.id}
+                    certification={cert}
+                    onEdit={() => setDrawerState({ mode: 'edit', certificationId: cert.id })}
+                  />
+                ))}
+              </Table.Tbody>
+            </AppTable>
+          </Stack>
+          <Paper hiddenFrom="sm" withBorder p={0}>
+            <Stack gap={0}>
+              {visibleCertifications.map((cert) => (
+                <CertificationMobileRow
+                  key={cert.id}
+                  certification={cert}
+                  onEdit={() => setDrawerState({ mode: 'edit', certificationId: cert.id })}
+                />
+              ))}
+            </Stack>
+          </Paper>
+        </>
       )}
 
       <CertificationDrawer state={drawerState} onClose={() => setDrawerState(null)} />
@@ -133,22 +145,8 @@ type CertificationRowProps = {
 
 /** 資格一覧の1行。クリックで編集 Drawer を開く。 */
 function CertificationRow({ certification, onEdit }: CertificationRowProps) {
-  const deactivate = useDeactivateCertification();
-  const isActive = certification.isActive;
-
-  const handleDeactivate = () => {
-    deactivate.mutate(certification.id, {
-      onSuccess: () => {
-        notifications.show({
-          color: 'green',
-          message: `${certification.name}を無効化しました`,
-        });
-      },
-    });
-  };
-
   return (
-    <ClickableTr onClick={onEdit}>
+    <ClickableTr inactive={!certification.isActive} onClick={onEdit}>
       <Table.Td>
         <Text fw={500} size="sm">
           {certification.name}
@@ -163,24 +161,40 @@ function CertificationRow({ certification, onEdit }: CertificationRowProps) {
       <Table.Td>
         <Text size="sm">{certification.organization}</Text>
       </Table.Td>
-      <Table.Td>
-        <AppBadge kind={isActive ? 'active' : 'inactive'}>{isActive ? '有効' : '無効'}</AppBadge>
-      </Table.Td>
       <Table.Td onClick={(e) => e.stopPropagation()}>
-        <Menu position="bottom-end">
-          <Menu.Target>
-            <RowActionsButton />
-          </Menu.Target>
-          <Menu.Dropdown>
-            <Menu.Item onClick={onEdit}>編集</Menu.Item>
-            {isActive && (
-              <Menu.Item onClick={handleDeactivate} disabled={deactivate.isPending}>
-                無効化
-              </Menu.Item>
-            )}
-          </Menu.Dropdown>
-        </Menu>
+        <AppButton intent="tertiary" size="xs" onClick={onEdit}>
+          編集
+        </AppButton>
       </Table.Td>
     </ClickableTr>
+  );
+}
+
+/** モバイル幅で資格を名簿形式に表示する行。 */
+function CertificationMobileRow({ certification, onEdit }: CertificationRowProps) {
+  return (
+    <div
+      className={`${mobileClasses.row}${!certification.isActive ? ` ${mobileClasses.inactive}` : ''}`}
+    >
+      <Group justify="space-between" align="flex-start" wrap="nowrap">
+        <Stack gap={4}>
+          <Text fw={500} size="sm">
+            {certification.name}
+          </Text>
+          <Group gap="xs">
+            <DepartmentTag code={certification.departmentCode} />
+            <Text c="dimmed" size="xs">
+              {certification.shortName}
+            </Text>
+          </Group>
+          <Text c="dimmed" size="sm">
+            {certification.organization}
+          </Text>
+        </Stack>
+        <AppButton intent="tertiary" size="xs" onClick={onEdit}>
+          編集
+        </AppButton>
+      </Group>
+    </div>
   );
 }

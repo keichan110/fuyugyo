@@ -1,0 +1,108 @@
+/*
+ * 印刷用シフト表の紙面スタイル。
+ * A4縦・白黒印刷を前提に、色ではなく罫線と文字で読み取れるようにする。
+ */
+
+.toolbar {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--mantine-spacing-sm);
+  margin-bottom: var(--mantine-spacing-sm);
+}
+
+.sheet {
+  max-width: 210mm;
+  margin: 0 auto;
+  padding: 8mm;
+  color: #000;
+  background: #fff;
+}
+
+.title {
+  margin: 0;
+  font-size: 18pt;
+  font-weight: 700;
+}
+
+.meta {
+  margin: 2mm 0 4mm;
+  font-size: 9pt;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.table th,
+.table td {
+  padding: 1.5mm 2mm;
+  border: 1px solid #000;
+  font-size: 11pt;
+  text-align: left;
+  vertical-align: top;
+}
+
+.table th {
+  font-weight: 700;
+  /* 白黒でも見出し行と本文行を区別できるよう、薄い網掛けを敷く */
+  background: #e6e6e6;
+}
+
+.dateColumn {
+  width: 24mm;
+  white-space: nowrap;
+}
+
+.row {
+  /* 同じ日付の内容がページをまたがないようにする */
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.cell {
+  /* 担当者がいない日でも手書きできる高さを残す */
+  height: 9mm;
+}
+
+.groupLine {
+  margin: 0;
+  line-height: 1.4;
+}
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm;
+  }
+
+  .sheet {
+    max-width: none;
+    padding: 0;
+  }
+
+  /* ページをまたぐときに列見出しを繰り返す */
+  .table thead {
+    display: table-header-group;
+  }
+
+  /*
+   * 紙面から操作ボタンとアプリのナビゲーションを除外する。
+   * Mantine の静的クラス名（`mantine-{Component}-{selector}`）で AppShell の
+   * ヘッダー・サイドバーを、それ以外は印刷対象（`data-print-root`）の兄弟要素を隠す。
+   * 印刷用ページの表示中だけ効くよう、body の属性で範囲を限定する。
+   */
+  :global(body[data-print-layout='shift-table'] .mantine-AppShell-header),
+  :global(body[data-print-layout='shift-table'] .mantine-AppShell-navbar) {
+    display: none !important;
+  }
+
+  :global(body[data-print-layout='shift-table'] .mantine-AppShell-main) {
+    padding: 0 !important;
+  }
+
+  :global(body[data-print-layout='shift-table'] .mantine-AppShell-main > *:not([data-print-root])) {
+    display: none !important;
+  }
+}

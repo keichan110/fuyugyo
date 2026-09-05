@@ -23,7 +23,8 @@
     "db:seed:auth": "node scripts/seed-local.ts",
     "db:seed:demo": "node scripts/seed-dev-data.ts",
     "cf-typegen": "wrangler types",
-    "doctor": "npx react-doctor@latest"
+    "doctor": "npx react-doctor@latest",
+    "worktree:setup": "bash scripts/worktree-setup.sh"
   },
   "engines": {
     "node": ">=26.0.0"

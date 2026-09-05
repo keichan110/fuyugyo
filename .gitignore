@@ -41,3 +41,6 @@ tsconfig.tsbuildinfo
 # Claude Code skills (実体はskills-lock.jsonから再現)
 .agents/
 .claude/skills/
+
+# worktree ごとの dev サーバーポート（scripts/worktree-setup.sh が生成）
+.dev-port

@@ -1,0 +1,6 @@
+.env
+.wrangler
+.agents
+.claude/skills
+.claude/settings.local.json
+.cursor

@@ -42,16 +42,33 @@
   font-size: 11pt;
   text-align: left;
   vertical-align: top;
+  /* 区切りのない長い名前でも欄からはみ出さず、必ず折り返す */
+  overflow-wrap: anywhere;
 }
 
 .table th {
   font-weight: 700;
-  /* 白黒でも見出し行と本文行を区別できるよう、薄い網掛けを敷く */
+}
+
+.table thead th {
+  /*
+   * 白黒でも列見出しと日付行を区別できるようにする。
+   * 網掛けは既定で印刷されないため、太い罫線を識別の主体とし、
+   * 背景色は画面表示と背景あり印刷での補助に留める。
+   */
   background: #e6e6e6;
+  border-bottom-width: 2px;
+}
+
+.headerMonth {
+  display: block;
+  font-size: 8pt;
+  font-weight: 400;
 }
 
 .dateColumn {
-  width: 24mm;
+  /* 「12（月・祝）」を1行で収める幅（11ptで実測し余裕を持たせる） */
+  width: 28mm;
   white-space: nowrap;
 }
 

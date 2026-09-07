@@ -30,6 +30,7 @@ export function PrintableShiftTable({ table }: PrintableShiftTableProps) {
   }, []);
 
   const [year, month] = table.month.split('-');
+  const monthLabel = `${Number(year)}年${Number(month)}月`;
 
   return (
     <>
@@ -45,9 +46,7 @@ export function PrintableShiftTable({ table }: PrintableShiftTableProps) {
       </div>
 
       <div data-print-root className={classes.sheet}>
-        <h1 className={classes.title}>
-          {Number(year)}年{Number(month)}月 シフト表
-        </h1>
+        <h1 className={classes.title}>{monthLabel} シフト表</h1>
         <p className={classes.meta}>
           出力日時 {formatPrintedAt(printedAt)}（シフトの最終更新日時ではありません）
         </p>
@@ -57,6 +56,8 @@ export function PrintableShiftTable({ table }: PrintableShiftTableProps) {
             <tr>
               <th scope="col" className={classes.dateColumn}>
                 日付
+                {/* 2ページ目以降でも対象月が分かるよう、繰り返される列見出しに年月を併記する */}
+                <span className={classes.headerMonth}>{monthLabel}</span>
               </th>
               {table.departments.map((department) => (
                 <th key={department.code} scope="col">

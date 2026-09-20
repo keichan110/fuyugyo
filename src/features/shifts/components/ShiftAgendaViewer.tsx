@@ -16,6 +16,7 @@ import {
 import { useWindowScroll } from '@mantine/hooks';
 import { AgendaView } from '@mantine/schedule';
 import type { ScheduleEventData } from '@mantine/schedule';
+import { IconPrinter } from '@tabler/icons-react';
 
 import { ErrorAlert, InfoAlert } from '@/components/AppAlert';
 import { AppButton } from '@/components/AppButton';
@@ -24,11 +25,13 @@ import { getDepartmentAppearance } from '@/features/departments/appearance';
 import { departmentCodeSchema, type DepartmentCode } from '@/features/departments/schema';
 
 import { containsInstructorAssignment, filterAgendaDaysByInstructor } from '../aggregators';
+import { pickPrintTargetDate } from '../print-target';
 import { fetchShiftAgendaPage, useShiftAgendaFuture } from '../queries';
 import type { ShiftAgendaDay, ShiftAgendaResponse, ShiftViewItem } from '../schema';
 import { addDays, addMonths, getCalendarDayColor, shortDateLabel, toMonth } from '../view-utils';
 import classes from './ShiftAgendaViewer.module.css';
 import { ShiftAttendeeRow } from './ShiftAttendeeRow';
+import { ShiftPrintDialog } from './ShiftPrintDialog';
 
 type ShiftAgendaViewerProps = {
   /** 初回表示の起点日（YYYY-MM-DD） */
@@ -48,6 +51,7 @@ export function ShiftAgendaViewer({ date, onVisibleDateChange }: ShiftAgendaView
   const [pastError, setPastError] = useState<string | null>(null);
   const [departmentCode, setDepartmentCode] = useState<DepartmentCode | null>(null);
   const [showMineOnly, setShowMineOnly] = useState(false);
+  const [printMonth, setPrintMonth] = useState<string | null>(null);
   const me = useMe();
   const [scroll, scrollTo] = useWindowScroll();
   const myInstructorId = me.data?.instructorId ?? null;
@@ -143,31 +147,42 @@ export function ShiftAgendaViewer({ date, onVisibleDateChange }: ShiftAgendaView
       <Stack gap="md">
         <Title order={2}>シフト表</Title>
 
-        <Group align="flex-end" gap="sm">
-          <Select
-            label="部門"
-            data={[
-              { value: 'all', label: 'すべて' },
-              ...departmentCodeSchema.options.map((code) => ({
-                value: code,
-                label: getDepartmentAppearance(code).label,
-              })),
-            ]}
-            value={departmentCode ?? 'all'}
-            onChange={(value) => {
-              const parsed = departmentCodeSchema.safeParse(value);
-              changeDepartment(parsed.success ? parsed.data : null);
-            }}
-            allowDeselect={false}
+        <Group align="flex-end" justify="space-between" gap="sm">
+          <Group align="flex-end" gap="sm">
+            <Select
+              label="部門"
+              data={[
+                { value: 'all', label: 'すべて' },
+                ...departmentCodeSchema.options.map((code) => ({
+                  value: code,
+                  label: getDepartmentAppearance(code).label,
+                })),
+              ]}
+              value={departmentCode ?? 'all'}
+              onChange={(value) => {
+                const parsed = departmentCodeSchema.safeParse(value);
+                changeDepartment(parsed.success ? parsed.data : null);
+              }}
+              allowDeselect={false}
+              size="sm"
+              w={{ base: '100%', sm: 220 }}
+            />
+            <Switch
+              label="自分だけ"
+              checked={effectiveShowMineOnly}
+              disabled={!myInstructorId}
+              onChange={(event) => setShowMineOnly(event.currentTarget.checked)}
+            />
+          </Group>
+          <AppButton
+            intent="tertiary"
+            type="button"
             size="sm"
-            w={{ base: '100%', sm: 220 }}
-          />
-          <Switch
-            label="自分だけ"
-            checked={effectiveShowMineOnly}
-            disabled={!myInstructorId}
-            onChange={(event) => setShowMineOnly(event.currentTarget.checked)}
-          />
+            leftSection={<IconPrinter size={16} />}
+            onClick={() => setPrintMonth(measurePrintTargetMonth(date))}
+          >
+            印刷
+          </AppButton>
         </Group>
 
         <AppButton
@@ -208,6 +223,8 @@ export function ShiftAgendaViewer({ date, onVisibleDateChange }: ShiftAgendaView
         )}
       </Stack>
 
+      <ShiftPrintDialog month={printMonth} onClose={() => setPrintMonth(null)} />
+
       <Affix position={{ bottom: 20, right: 20 }}>
         <Transition transition="slide-up" mounted={scroll.y > 240}>
           {(transitionStyles) => (
@@ -226,6 +243,35 @@ export function ShiftAgendaViewer({ date, onVisibleDateChange }: ShiftAgendaView
         </Transition>
       </Affix>
     </>
+  );
+}
+
+/**
+ * 印刷ダイアログの初期月を、いま画面に見えている日付から決める。
+ * スクロール中に更新される URL の日付は表示割合で選ばれるため、押した時点の表示位置を計測し直す。
+ * @param fallbackDate - 画面に日付が見えないときに使う日付（URL の日付）
+ */
+function measurePrintTargetMonth(fallbackDate: string): string {
+  const rects = Array.from(document.querySelectorAll<HTMLElement>('[data-agenda-date]')).flatMap(
+    (element) => {
+      const date = element.dataset['agendaDate'];
+      if (!date) {
+        return [];
+      }
+      const rect = element.getBoundingClientRect();
+      return [{ date, top: rect.top, bottom: rect.bottom }];
+    },
+  );
+  // 固定ヘッダーの下だけが実際に読める領域のため、その下端を表示領域の上端として扱う
+  const headerBottom = document.querySelector('header')?.getBoundingClientRect().bottom ?? 0;
+
+  return toMonth(
+    pickPrintTargetDate({
+      rects,
+      viewportTop: headerBottom,
+      viewportBottom: window.innerHeight,
+      fallbackDate,
+    }),
   );
 }
 

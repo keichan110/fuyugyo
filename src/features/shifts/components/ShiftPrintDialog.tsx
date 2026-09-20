@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-import { Group, Input, Modal, SegmentedControl, Stack, Text } from '@mantine/core';
+import { Group, Modal, Select, Stack, Text } from '@mantine/core';
 import { MonthPickerInput } from '@mantine/dates';
 import { IconPrinter } from '@tabler/icons-react';
 import { Link } from '@tanstack/react-router';
@@ -21,7 +21,7 @@ const DEPARTMENT_OPTIONS: { value: PrintableDepartmentSelection; label: string }
   { value: 'both', label: '両部門' },
   ...departmentCodeSchema.options.map((code) => ({
     value: code,
-    label: `${DEPARTMENT_LABELS[code]}のみ`,
+    label: DEPARTMENT_LABELS[code],
   })),
 ];
 
@@ -77,23 +77,21 @@ function ShiftPrintForm({ initialMonth, onClose }: ShiftPrintFormProps) {
         popoverProps={{ withinPortal: true }}
       />
 
-      <div>
-        <Input.Label>部門</Input.Label>
-        <SegmentedControl
-          fullWidth
-          data={DEPARTMENT_OPTIONS}
-          value={departments}
-          onChange={(value) => {
-            const parsed = printableDepartmentSelectionSchema.safeParse(value);
-            if (parsed.success) {
-              setDepartments(parsed.data);
-            }
-          }}
-        />
-      </div>
+      <Select
+        label="部門"
+        data={DEPARTMENT_OPTIONS}
+        value={departments}
+        onChange={(value) => {
+          const parsed = printableDepartmentSelectionSchema.safeParse(value);
+          if (parsed.success) {
+            setDepartments(parsed.data);
+          }
+        }}
+        allowDeselect={false}
+      />
 
       <Text size="xs" c="dimmed">
-        別のタブで印刷用ページを開きます。この画面の絞り込みに関わらず、全担当者を表示します。
+        別のタブで印刷用ページを開きます。
       </Text>
 
       <Group justify="flex-end" gap="sm">
@@ -115,7 +113,7 @@ function ShiftPrintForm({ initialMonth, onClose }: ShiftPrintFormProps) {
             />
           )}
         >
-          印刷用ページを開く
+          印刷
         </AppButton>
       </Group>
     </Stack>

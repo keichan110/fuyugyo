@@ -3,13 +3,6 @@
  * A4縦・白黒印刷を前提に、色ではなく罫線と文字で読み取れるようにする。
  */
 
-.toolbar {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--mantine-spacing-sm);
-  margin-bottom: var(--mantine-spacing-sm);
-}
-
 .sheet {
   max-width: 210mm;
   margin: 0 auto;

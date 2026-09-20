@@ -147,33 +147,35 @@ export function ShiftAgendaViewer({ date, onVisibleDateChange }: ShiftAgendaView
       <Stack gap="md">
         <Title order={2}>シフト表</Title>
 
-        <Group align="flex-end" gap="sm">
-          <Select
-            label="部門"
-            data={[
-              { value: 'all', label: 'すべて' },
-              ...departmentCodeSchema.options.map((code) => ({
-                value: code,
-                label: getDepartmentAppearance(code).label,
-              })),
-            ]}
-            value={departmentCode ?? 'all'}
-            onChange={(value) => {
-              const parsed = departmentCodeSchema.safeParse(value);
-              changeDepartment(parsed.success ? parsed.data : null);
-            }}
-            allowDeselect={false}
-            size="sm"
-            w={{ base: '100%', sm: 220 }}
-          />
-          <Switch
-            label="自分だけ"
-            checked={effectiveShowMineOnly}
-            disabled={!myInstructorId}
-            onChange={(event) => setShowMineOnly(event.currentTarget.checked)}
-          />
+        <Group align="flex-end" justify="space-between" gap="sm">
+          <Group align="flex-end" gap="sm">
+            <Select
+              label="部門"
+              data={[
+                { value: 'all', label: 'すべて' },
+                ...departmentCodeSchema.options.map((code) => ({
+                  value: code,
+                  label: getDepartmentAppearance(code).label,
+                })),
+              ]}
+              value={departmentCode ?? 'all'}
+              onChange={(value) => {
+                const parsed = departmentCodeSchema.safeParse(value);
+                changeDepartment(parsed.success ? parsed.data : null);
+              }}
+              allowDeselect={false}
+              size="sm"
+              w={{ base: '100%', sm: 220 }}
+            />
+            <Switch
+              label="自分だけ"
+              checked={effectiveShowMineOnly}
+              disabled={!myInstructorId}
+              onChange={(event) => setShowMineOnly(event.currentTarget.checked)}
+            />
+          </Group>
           <AppButton
-            intent="secondary"
+            intent="tertiary"
             type="button"
             size="sm"
             leftSection={<IconPrinter size={16} />}

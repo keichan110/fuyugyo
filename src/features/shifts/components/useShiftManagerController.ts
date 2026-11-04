@@ -14,9 +14,9 @@ import {
   useShiftCreationContext,
   useUpsertAssignments,
 } from '../queries';
-import { todayString, toMonth } from '../view-utils';
+import { isJapaneseHoliday, todayString, toMonth } from '../view-utils';
 import { countCurrentMonthWorkDays, type CellAssignment } from '../workload';
-import { applyAutoAssignProposals } from './auto-assign-stage';
+import { applyAutoAssignProposals, contextWithStagedAssignments } from './auto-assign-stage';
 import { reconcileShiftManagerSelection } from './shift-manager-selection';
 import type {
   PendingNavigation,
@@ -51,7 +51,7 @@ export function useShiftManagerController() {
   const [autoAssignModalOpened, setAutoAssignModalOpened] = useState(false);
   const [autoAssignShiftTypeId, setAutoAssignShiftTypeId] = useState('');
   const [weekdayRequiredCount, setWeekdayRequiredCount] = useState(2);
-  const [weekendHolidayRequiredCount, setWeekendHolidayRequiredCount] = useState(5);
+  const [weekendHolidayRequiredCount, setWeekendHolidayRequiredCount] = useState(3);
   const [isAutoAssigning, setIsAutoAssigning] = useState(false);
   // 「別の案を出す」で異なる提案を得るための連番。実行のたびに増やす。
   const [autoAssignVariant, setAutoAssignVariant] = useState(0);
@@ -191,13 +191,13 @@ export function useShiftManagerController() {
     setAutoAssignVariant((current) => current + 1);
     try {
       const { proposals } = await autoAssignSolver({
-        context: autoAssignContext.data,
+        context: contextWithStagedAssignments(autoAssignContext.data, stagedCells),
         params: {
           shiftTypeId: autoAssignShiftTypeId,
           weekdayRequiredCount,
           weekendHolidayRequiredCount,
           targetDates: [...autoAssignDates],
-          holidayDates: [],
+          holidayDates: [...autoAssignDates].filter(isJapaneseHoliday),
         },
         variant,
       });

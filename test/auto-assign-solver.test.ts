@@ -33,7 +33,7 @@ function createAutoAssignContext(overrides: Partial<AutoAssignContext> = {}): Au
         shiftTypeId: 'morning',
         certificationTiers: [
           { certificationId: 'basic', tierRank: 1 },
-          { certificationId: 'advanced', tierRank: 2 },
+          { certificationId: 'advanced', tierRank: 3 },
         ],
         eligibleInstructorIds: ['a', 'b', 'c'],
       },
@@ -102,349 +102,6 @@ describe('solveAutoAssignments', () => {
     expect(first.proposals[0]?.shortage.reasons).toEqual([]);
   });
 
-  it('capacity に応じた期待値から、公平性を全候補で評価する', () => {
-    const result = solveAutoAssignments(
-      createAutoAssignContext({
-        existingAssignments: [
-          { date: '2026-01-01', departmentCode: 'ski', shiftTypeId: 'x', instructorIds: ['a'] },
-          { date: '2026-01-02', departmentCode: 'ski', shiftTypeId: 'x', instructorIds: ['a'] },
-        ],
-      }),
-      createExecutionParams({ targetDates: ['2026-01-05', '2026-01-06'] }),
-      4,
-    );
-
-    expect(result.proposals.flatMap((proposal) => proposal.instructorIds)).not.toContain('a');
-  });
-
-  it('既存割当日を capacity から除外して公平性を評価する', () => {
-    const result = solveAutoAssignments(
-      createAutoAssignContext({
-        existingAssignments: [
-          {
-            date: '2026-01-05',
-            departmentCode: 'snowboard',
-            shiftTypeId: 'afternoon',
-            instructorIds: ['a'],
-          },
-        ],
-      }),
-      createExecutionParams({
-        targetDates: ['2026-01-05', '2026-01-06'],
-      }),
-      1,
-    );
-
-    expect(result.proposals).toEqual([
-      expect.objectContaining({ date: '2026-01-05', instructorIds: ['b'] }),
-      expect.objectContaining({ date: '2026-01-06', instructorIds: ['b'] }),
-    ]);
-  });
-
-  it('複数資格保有者は最上位の tier として構成を評価する', () => {
-    const result = solveAutoAssignments(
-      createAutoAssignContext({
-        instructors: [
-          {
-            id: 'both',
-            displayName: 'Both',
-            certificationIds: ['top', 'lower'],
-            availabilityStatus: 'SUBMITTED',
-          },
-          {
-            id: 'lower-a',
-            displayName: 'Lower A',
-            certificationIds: ['lower'],
-            availabilityStatus: 'SUBMITTED',
-          },
-          {
-            id: 'lower-b',
-            displayName: 'Lower B',
-            certificationIds: ['lower'],
-            availabilityStatus: 'SUBMITTED',
-          },
-          {
-            id: 'lower-c',
-            displayName: 'Lower C',
-            certificationIds: ['lower'],
-            availabilityStatus: 'SUBMITTED',
-          },
-        ],
-        frames: [
-          {
-            shiftTypeId: 'morning',
-            certificationTiers: [
-              { certificationId: 'top', tierRank: 1 },
-              { certificationId: 'lower', tierRank: 3 },
-            ],
-            eligibleInstructorIds: ['both', 'lower-a', 'lower-b', 'lower-c'],
-          },
-        ],
-      }),
-      createExecutionParams({ weekdayRequiredCount: 3 }),
-      3,
-    );
-
-    expect(result.proposals[0]?.instructorIds).toContain('both');
-  });
-
-  it('公平性が同じなら異なる tier が揃う構成を選ぶ', () => {
-    const result = solveAutoAssignments(
-      createAutoAssignContext({
-        instructors: [
-          {
-            id: 't1',
-            displayName: 'T1',
-            certificationIds: ['t1'],
-            availabilityStatus: 'SUBMITTED',
-          },
-          {
-            id: 't2',
-            displayName: 'T2',
-            certificationIds: ['t2'],
-            availabilityStatus: 'SUBMITTED',
-          },
-          {
-            id: 't3a',
-            displayName: 'T3A',
-            certificationIds: ['t3'],
-            availabilityStatus: 'SUBMITTED',
-          },
-          {
-            id: 't3b',
-            displayName: 'T3B',
-            certificationIds: ['t3'],
-            availabilityStatus: 'SUBMITTED',
-          },
-        ],
-        frames: [
-          {
-            shiftTypeId: 'morning',
-            certificationTiers: [
-              { certificationId: 't1', tierRank: 1 },
-              { certificationId: 't2', tierRank: 2 },
-              { certificationId: 't3', tierRank: 3 },
-            ],
-            eligibleInstructorIds: ['t1', 't2', 't3a', 't3b'],
-          },
-        ],
-      }),
-      createExecutionParams({ weekdayRequiredCount: 3 }),
-      9,
-    );
-
-    expect(new Set(result.proposals[0]?.instructorIds.map((id) => id.slice(0, 2)))).toEqual(
-      new Set(['t1', 't2', 't3']),
-    );
-  });
-
-  it('AVOID の回避を資格構成の安全性より優先する', () => {
-    const result = solveAutoAssignments(
-      createAutoAssignContext({
-        instructors: [
-          {
-            id: 'top',
-            displayName: 'Top',
-            certificationIds: ['top'],
-            availabilityStatus: 'SUBMITTED',
-          },
-          {
-            id: 'lower',
-            displayName: 'Lower',
-            certificationIds: ['lower'],
-            availabilityStatus: 'SUBMITTED',
-          },
-        ],
-        frames: [
-          {
-            shiftTypeId: 'morning',
-            certificationTiers: [
-              { certificationId: 'top', tierRank: 1 },
-              { certificationId: 'lower', tierRank: 3 },
-            ],
-            eligibleInstructorIds: ['top', 'lower'],
-          },
-        ],
-        availabilities: [{ instructorId: 'top', date: '2026-01-05', type: 'AVOID', note: null }],
-      }),
-      createExecutionParams(),
-      1,
-    );
-
-    expect(result.proposals[0]?.instructorIds).toEqual(['lower']);
-  });
-
-  it('資格構成の安全性を公平性より優先する', () => {
-    const result = solveAutoAssignments(
-      createAutoAssignContext({
-        instructors: [
-          {
-            id: 'top',
-            displayName: 'Top',
-            certificationIds: ['top'],
-            availabilityStatus: 'SUBMITTED',
-          },
-          {
-            id: 'lower',
-            displayName: 'Lower',
-            certificationIds: ['lower'],
-            availabilityStatus: 'SUBMITTED',
-          },
-        ],
-        frames: [
-          {
-            shiftTypeId: 'morning',
-            certificationTiers: [
-              { certificationId: 'top', tierRank: 1 },
-              { certificationId: 'lower', tierRank: 3 },
-            ],
-            eligibleInstructorIds: ['top', 'lower'],
-          },
-        ],
-        existingAssignments: [
-          { date: '2026-01-01', departmentCode: 'ski', shiftTypeId: 'x', instructorIds: ['top'] },
-          { date: '2026-01-02', departmentCode: 'ski', shiftTypeId: 'x', instructorIds: ['top'] },
-        ],
-      }),
-      createExecutionParams(),
-      1,
-    );
-
-    expect(result.proposals[0]?.instructorIds).toEqual(['top']);
-  });
-
-  it('安全性が同じなら公平性をレベルの多様性より優先する', () => {
-    const result = solveAutoAssignments(
-      createAutoAssignContext({
-        instructors: [
-          {
-            id: 'top-a',
-            displayName: 'Top A',
-            certificationIds: ['top'],
-            availabilityStatus: 'SUBMITTED',
-          },
-          {
-            id: 'top-b',
-            displayName: 'Top B',
-            certificationIds: ['top'],
-            availabilityStatus: 'SUBMITTED',
-          },
-          {
-            id: 'middle',
-            displayName: 'Middle',
-            certificationIds: ['middle'],
-            availabilityStatus: 'SUBMITTED',
-          },
-        ],
-        frames: [
-          {
-            shiftTypeId: 'morning',
-            certificationTiers: [
-              { certificationId: 'top', tierRank: 1 },
-              { certificationId: 'middle', tierRank: 2 },
-            ],
-            eligibleInstructorIds: ['top-a', 'top-b', 'middle'],
-          },
-        ],
-        existingAssignments: [
-          {
-            date: '2026-01-01',
-            departmentCode: 'ski',
-            shiftTypeId: 'x',
-            instructorIds: ['middle'],
-          },
-          {
-            date: '2026-01-02',
-            departmentCode: 'ski',
-            shiftTypeId: 'x',
-            instructorIds: ['middle'],
-          },
-        ],
-      }),
-      createExecutionParams({ weekdayRequiredCount: 2 }),
-      1,
-    );
-
-    expect(result.proposals[0]?.instructorIds).not.toContain('middle');
-  });
-
-  it('最上位不在なら level 3 のみより level 2 を含む構成を選ぶ', () => {
-    const result = solveAutoAssignments(
-      createAutoAssignContext({
-        instructors: [
-          {
-            id: 't2',
-            displayName: 'T2',
-            certificationIds: ['t2'],
-            availabilityStatus: 'SUBMITTED',
-          },
-          {
-            id: 't3a',
-            displayName: 'T3A',
-            certificationIds: ['t3'],
-            availabilityStatus: 'SUBMITTED',
-          },
-          {
-            id: 't3b',
-            displayName: 'T3B',
-            certificationIds: ['t3'],
-            availabilityStatus: 'SUBMITTED',
-          },
-          {
-            id: 't3c',
-            displayName: 'T3C',
-            certificationIds: ['t3'],
-            availabilityStatus: 'SUBMITTED',
-          },
-        ],
-        frames: [
-          {
-            shiftTypeId: 'morning',
-            certificationTiers: [
-              { certificationId: 't2', tierRank: 2 },
-              { certificationId: 't3', tierRank: 3 },
-            ],
-            eligibleInstructorIds: ['t2', 't3a', 't3b', 't3c'],
-          },
-        ],
-      }),
-      createExecutionParams({ weekdayRequiredCount: 3 }),
-      2,
-    );
-
-    expect(result.proposals[0]?.instructorIds).toContain('t2');
-  });
-
-  it('5レベル構成でも配置人数まで異なるレベルを揃える', () => {
-    const tierRanks = [1, 2, 3, 4, 5];
-    const result = solveAutoAssignments(
-      createAutoAssignContext({
-        instructors: tierRanks.map((tierRank) => ({
-          id: `t${tierRank}`,
-          displayName: `T${tierRank}`,
-          certificationIds: [`t${tierRank}`],
-          availabilityStatus: 'SUBMITTED' as const,
-        })),
-        frames: [
-          {
-            shiftTypeId: 'morning',
-            certificationTiers: tierRanks.map((tierRank) => ({
-              certificationId: `t${tierRank}`,
-              tierRank,
-            })),
-            eligibleInstructorIds: tierRanks.map((tierRank) => `t${tierRank}`),
-          },
-        ],
-      }),
-      createExecutionParams({ weekdayRequiredCount: 3 }),
-      4,
-    );
-
-    const selectedTiers = result.proposals[0]?.instructorIds.map((id) => Number(id.slice(1)));
-    expect(selectedTiers).toContain(1);
-    expect(new Set(selectedTiers).size).toBe(3);
-  });
-
   it('必要資格がない枠を提案対象から除外する', () => {
     const result = solveAutoAssignments(
       createAutoAssignContext({
@@ -456,4 +113,212 @@ describe('solveAutoAssignments', () => {
 
     expect(result.proposals).toEqual([]);
   });
+  it('勤務可能は勤務日数・資格構成・連勤の不利があっても要調整より優先する', () => {
+    const context = pairContext(20, 2);
+    context.availabilities = [{ instructorId: 'a', date: '2026-01-05', type: 'AVOID', note: null }];
+    const proposal = solveAutoAssignments(context, createExecutionParams(), 1).proposals[0];
+    expect(proposal?.instructorIds).toEqual(['b']);
+    expect(proposal?.reviewReasons).toContain('認定指導員のみの構成');
+  });
+
+  it('3人目も要調整で埋め、確認理由を返す', () => {
+    const context = createAutoAssignContext({
+      availabilities: [{ instructorId: 'c', date: '2026-01-05', type: 'AVOID', note: null }],
+    });
+    const proposal = solveAutoAssignments(
+      context,
+      createExecutionParams({ weekdayRequiredCount: 3 }),
+      1,
+    ).proposals[0];
+    expect(proposal?.instructorIds).toHaveLength(3);
+    expect(proposal?.shortage.count).toBe(0);
+    expect(proposal?.reviewReasons).toContain('要調整の勤務: C');
+  });
+
+  it.each([
+    [6, 5, 'b'],
+    [20, 2, 'b'],
+    [5, 5, 'a'],
+  ])('準指導員%s日・認定%s日なら%sを選ぶ', (upper, certified, expected) => {
+    expect(
+      solveAutoAssignments(pairContext(upper, certified), createExecutionParams(), 1).proposals[0]
+        ?.instructorIds,
+    ).toEqual([expected]);
+  });
+
+  it('出勤可能日数で比例配分せず、対象部門の累計を近づける', () => {
+    const context = pairContext(2, 0);
+    context.availabilities = [
+      { instructorId: 'b', date: '2026-01-06', type: 'UNAVAILABLE', note: null },
+    ];
+    const proposals = solveAutoAssignments(
+      context,
+      createExecutionParams({ targetDates: ['2026-01-05', '2026-01-06'] }),
+      1,
+    ).proposals;
+    expect(proposals[0]?.instructorIds).toEqual(['b']);
+    expect(proposals[1]?.instructorIds).toEqual(['a']);
+  });
+
+  it('他部門の勤務日数と連勤は評価に含めない', () => {
+    const context = pairContext(0, 1);
+    context.existingAssignments.push(
+      ...['2026-01-02', '2026-01-03', '2026-01-04'].map((date) => ({
+        date,
+        departmentCode: 'snowboard' as const,
+        shiftTypeId: 'x',
+        instructorIds: ['a'],
+      })),
+    );
+    expect(
+      solveAutoAssignments(context, createExecutionParams(), 1).proposals[0]?.instructorIds,
+    ).toEqual(['a']);
+  });
+
+  it('4連勤目を勤務日数差より優先して避ける', () => {
+    const context = pairContext(0, 20);
+    context.existingAssignments.push(
+      ...['2026-01-02', '2026-01-03', '2026-01-04'].map((date) => ({
+        date,
+        departmentCode: 'ski' as const,
+        shiftTypeId: 'x',
+        instructorIds: ['a'],
+      })),
+    );
+    expect(
+      solveAutoAssignments(context, createExecutionParams(), 1).proposals[0]?.instructorIds,
+    ).toEqual(['b']);
+  });
+
+  it('3連勤目までは勤務日数を優先する', () => {
+    const context = pairContext(0, 5);
+    context.existingAssignments.push(
+      ...['2026-01-03', '2026-01-04'].map((date) => ({
+        date,
+        departmentCode: 'ski' as const,
+        shiftTypeId: 'x',
+        instructorIds: ['a'],
+      })),
+    );
+    expect(
+      solveAutoAssignments(context, createExecutionParams(), 1).proposals[0]?.instructorIds,
+    ).toEqual(['a']);
+  });
+
+  it('前後の勤務をつないだ4連勤と月境界を判定する', () => {
+    const context = pairContext(0, 10);
+    context.existingAssignments.push(
+      ...['2025-12-30', '2025-12-31', '2026-01-02'].map((date) => ({
+        date,
+        departmentCode: 'ski' as const,
+        shiftTypeId: 'x',
+        instructorIds: ['a'],
+      })),
+    );
+    expect(
+      solveAutoAssignments(context, createExecutionParams({ targetDates: ['2026-01-01'] }), 1)
+        .proposals[0]?.instructorIds,
+    ).toEqual(['b']);
+  });
+
+  it('代わりがいなければ4連勤以上も割り当てる', () => {
+    const context = pairContext(0, 0);
+    context.availabilities = [
+      { instructorId: 'b', date: '2026-01-05', type: 'UNAVAILABLE', note: null },
+    ];
+    context.existingAssignments.push(
+      ...['2026-01-02', '2026-01-03', '2026-01-04'].map((date) => ({
+        date,
+        departmentCode: 'ski' as const,
+        shiftTypeId: 'x',
+        instructorIds: ['a'],
+      })),
+    );
+    expect(
+      solveAutoAssignments(context, createExecutionParams(), 1).proposals[0]?.instructorIds,
+    ).toEqual(['a']);
+  });
+
+  it('対象枠の元の勤務を除去して置換し、別枠の重複は除外する', () => {
+    const context = pairContext(0, 0);
+    context.existingAssignments = [
+      { date: '2026-01-05', departmentCode: 'ski', shiftTypeId: 'morning', instructorIds: ['a'] },
+      { date: '2026-01-05', departmentCode: 'ski', shiftTypeId: 'other', instructorIds: ['b'] },
+    ];
+    expect(
+      solveAutoAssignments(context, createExecutionParams(), 1).proposals[0]?.instructorIds,
+    ).toEqual(['a']);
+  });
+
+  it('未連携・未申告・申告済みで提案と確認理由を変えない', () => {
+    const context = pairContext(0, 0);
+    const submitted = solveAutoAssignments(context, createExecutionParams(), 3);
+    context.instructors[0]!.availabilityStatus = 'NOT_LINKED';
+    context.instructors[1]!.availabilityStatus = 'NOT_SUBMITTED';
+    expect(solveAutoAssignments(context, createExecutionParams(), 3)).toEqual(submitted);
+  });
+
+  it('月全体の割当で4連勤を作らず勤務日数を平準化する', () => {
+    const context = pairContext(0, 0);
+    const proposals = solveAutoAssignments(
+      context,
+      createExecutionParams({
+        targetDates: [
+          '2026-01-01',
+          '2026-01-02',
+          '2026-01-03',
+          '2026-01-04',
+          '2026-01-05',
+          '2026-01-06',
+        ],
+      }),
+      1,
+    ).proposals;
+    expect(proposals.filter((p) => p.instructorIds.includes('a'))).toHaveLength(3);
+    expect(proposals.filter((p) => p.instructorIds.includes('b'))).toHaveLength(3);
+    for (let i = 0; i <= 2; i += 1) {
+      expect(new Set(proposals.slice(i, i + 4).flatMap((p) => p.instructorIds)).size).toBe(2);
+    }
+  });
+
+  it('同点なら2名以上の枠で資格の2区分を混ぜる', () => {
+    const proposals = solveAutoAssignments(
+      createAutoAssignContext(),
+      createExecutionParams({ weekdayRequiredCount: 2 }),
+      1,
+    ).proposals;
+    expect(proposals[0]?.instructorIds).toContain('c');
+    expect(proposals[0]?.reviewReasons).toEqual([]);
+  });
 });
+
+// 既存勤務は1日おきに置き、資格と累計日数の比較に連勤の条件を混ぜない。
+function pairContext(upperDays: number, certifiedDays: number): AutoAssignContext {
+  const context = createAutoAssignContext();
+  context.instructors = [
+    { id: 'a', displayName: 'A', certificationIds: ['upper'], availabilityStatus: 'SUBMITTED' },
+    { id: 'b', displayName: 'B', certificationIds: ['certified'], availabilityStatus: 'SUBMITTED' },
+  ];
+  context.frames = [
+    {
+      shiftTypeId: 'morning',
+      eligibleInstructorIds: ['a', 'b'],
+      certificationTiers: [
+        { certificationId: 'upper', tierRank: 2 },
+        { certificationId: 'certified', tierRank: 3 },
+      ],
+    },
+  ];
+  context.existingAssignments = [
+    ['a', upperDays],
+    ['b', certifiedDays],
+  ].flatMap(([id, count]) =>
+    Array.from({ length: Number(count) }, (_, index) => ({
+      date: new Date(Date.UTC(2025, 10, 1 + index * 2)).toISOString().slice(0, 10),
+      departmentCode: 'ski' as const,
+      shiftTypeId: 'x',
+      instructorIds: [String(id)],
+    })),
+  );
+  return context;
+}

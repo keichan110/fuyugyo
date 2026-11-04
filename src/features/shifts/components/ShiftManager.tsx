@@ -71,16 +71,6 @@ function ShiftManagerContent({ controller, myInstructorId }: ShiftManagerContent
   const selectedCellDateColor = controller.selectedCell
     ? getCalendarDayColor(controller.selectedCell.date)
     : undefined;
-  const availabilityStatusByInstructor = useMemo(
-    () =>
-      new Map(
-        (controller.autoAssignContext.data?.instructors ?? []).map((instructor) => [
-          instructor.id,
-          instructor.availabilityStatus,
-        ]),
-      ),
-    [controller.autoAssignContext.data?.instructors],
-  );
 
   return (
     <Stack gap="md">
@@ -225,7 +215,6 @@ function ShiftManagerContent({ controller, myInstructorId }: ShiftManagerContent
                 conflictLabelById={controller.conflictLabelById}
                 currentMonthWorkDays={controller.currentMonthWorkDays}
                 availabilities={controller.availabilities.data ?? []}
-                availabilityStatusByInstructor={availabilityStatusByInstructor}
               />
             )}
           </Drawer>
@@ -289,6 +278,7 @@ function ShiftManagerContent({ controller, myInstructorId }: ShiftManagerContent
           <Group grow align="flex-start">
             <NumberInput
               label="平日の人数"
+              allowDecimal={false}
               min={0}
               value={controller.weekdayRequiredCount}
               onChange={(value) =>
@@ -297,6 +287,7 @@ function ShiftManagerContent({ controller, myInstructorId }: ShiftManagerContent
             />
             <NumberInput
               label="土日祝の人数"
+              allowDecimal={false}
               min={0}
               value={controller.weekendHolidayRequiredCount}
               onChange={(value) =>
@@ -447,7 +438,7 @@ function ShiftCalendar({
           title: description,
           start: `${day} 00:00:00`,
           end: `${addDays(day, 1)} 00:00:00`,
-          color: 'gray',
+          color: description.includes('要確認:') ? 'orange' : 'gray',
           display: 'background' as const,
           payload: { kind: 'description' as const, date: day, description },
         },
@@ -656,7 +647,6 @@ type AssignmentPanelProps = {
   /** instructorId → 当月の勤務日数（全部門横断・親がステージ済み編集を反映してライブ計算） */
   currentMonthWorkDays: Map<string, number>;
   availabilities: Availability[];
-  availabilityStatusByInstructor: Map<string, 'SUBMITTED' | 'NOT_SUBMITTED' | 'NOT_LINKED'>;
 };
 
 /**
@@ -675,7 +665,6 @@ function AssignmentPanel({
   conflictLabelById,
   currentMonthWorkDays,
   availabilities,
-  availabilityStatusByInstructor,
 }: AssignmentPanelProps) {
   const editData = useShiftAssignmentEditor({ date, departmentCode, shiftTypeId });
 
@@ -819,7 +808,6 @@ function AssignmentPanel({
                   fairShareAverage={fairShareAverage}
                   maxAbsDeviation={maxAbsDeviation}
                   availability={availabilityByInstructor.get(instructor.id)}
-                  availabilityStatus={availabilityStatusByInstructor.get(instructor.id)}
                 />
               ))
             )}
@@ -852,7 +840,6 @@ type InstructorCardProps = {
   /** 候補プール内の |総勤務日数 − 平均| の最大値（偏差バーのスケール基準） */
   maxAbsDeviation: number;
   availability: Availability | undefined;
-  availabilityStatus: 'SUBMITTED' | 'NOT_SUBMITTED' | 'NOT_LINKED' | undefined;
 };
 
 /**
@@ -870,21 +857,16 @@ function InstructorCard({
   fairShareAverage,
   maxAbsDeviation,
   availability,
-  availabilityStatus,
 }: InstructorCardProps) {
   const isConflict = conflictLabel !== undefined;
   const isUnavailable = availability?.type === 'UNAVAILABLE';
   const isDisabled = (isConflict || isUnavailable) && !checked;
   const availabilityLabel =
     availability?.type === 'AVOID'
-      ? `回避希望${availability.note ? `: ${availability.note}` : ''}`
+      ? `要調整${availability.note ? `: ${availability.note}` : ''}`
       : availability?.type === 'UNAVAILABLE'
         ? `勤務不可${availability.note ? `: ${availability.note}` : ''}`
-        : availabilityStatus === 'NOT_LINKED'
-          ? '未連携'
-          : availabilityStatus === 'NOT_SUBMITTED'
-            ? '未入力（userリンク済み・申告なし）'
-            : undefined;
+        : undefined;
 
   return (
     <Tooltip
@@ -920,22 +902,12 @@ function InstructorCard({
                   )}
                   {availability?.type === 'AVOID' && (
                     <AppBadge kind="warning" size="xs">
-                      回避希望
+                      要調整
                     </AppBadge>
                   )}
                   {availability?.type === 'UNAVAILABLE' && (
                     <AppBadge kind="pending" size="xs">
                       勤務不可
-                    </AppBadge>
-                  )}
-                  {!availability && availabilityStatus === 'NOT_SUBMITTED' && (
-                    <AppBadge kind="inactive" size="xs">
-                      未入力
-                    </AppBadge>
-                  )}
-                  {!availability && availabilityStatus === 'NOT_LINKED' && (
-                    <AppBadge kind="inactive" size="xs">
-                      未連携
                     </AppBadge>
                   )}
                 </Group>

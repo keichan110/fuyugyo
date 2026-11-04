@@ -10,9 +10,15 @@ type Cost = [
   certifiedOnlyFrames: number,
   noCertifiedFrames: number,
 ];
-type Frame = { date: string; required: number; candidates: string[]; selected: string[] };
+type Frame = {
+  date: string;
+  day: number;
+  required: number;
+  candidates: Set<string>;
+  selected: string[];
+};
 type Evaluation = {
-  baseline: Map<string, Set<string>>;
+  baseline: Map<string, Set<number>>;
   avoid: Set<string>;
   certifiedOnlyIds: Set<string>;
 };
@@ -74,22 +80,25 @@ export function solveAutoAssignments(
       assignment.instructorIds.map((id) => dateInstructorKey(assignment.date, id)),
     ),
   );
-  const baseline = new Map(qualified.map((instructor) => [instructor.id, new Set<string>()]));
+  const baseline = new Map(qualified.map((instructor) => [instructor.id, new Set<number>()]));
   for (const assignment of context.existingAssignments) {
     if (assignment.departmentCode !== context.departmentCode) continue;
-    for (const id of assignment.instructorIds) baseline.get(id)?.add(assignment.date);
+    for (const id of assignment.instructorIds) baseline.get(id)?.add(dayNumber(assignment.date));
   }
   const evaluation: Evaluation = { baseline, avoid, certifiedOnlyIds };
   const frames: Frame[] = [...new Set(params.targetDates)].sort().map((date) => ({
     date,
+    day: dayNumber(date),
     required: requiredCount(date, params),
-    candidates: qualified
-      .map((instructor) => instructor.id)
-      .filter(
-        (id) =>
-          !unavailable.has(dateInstructorKey(date, id)) &&
-          !occupied.has(dateInstructorKey(date, id)),
-      ),
+    candidates: new Set(
+      qualified
+        .map((instructor) => instructor.id)
+        .filter(
+          (id) =>
+            !unavailable.has(dateInstructorKey(date, id)) &&
+            !occupied.has(dateInstructorKey(date, id)),
+        ),
+    ),
     selected: [],
   }));
   let best = frames;
@@ -100,7 +109,7 @@ export function solveAutoAssignments(
     for (const frame of candidate) {
       while (
         frame.selected.length < frame.required &&
-        frame.selected.length < frame.candidates.length
+        frame.selected.length < frame.candidates.size
       ) {
         let chosen: string | undefined;
         let chosenCost: Cost | undefined;
@@ -169,7 +178,7 @@ function evaluate(frames: Frame[], input: Evaluation): Cost {
   let noCertified = 0;
   for (const frame of frames) {
     for (const id of frame.selected) {
-      dates.get(id)?.add(frame.date);
+      dates.get(id)?.add(frame.day);
       if (input.avoid.has(dateInstructorKey(frame.date, id))) avoid += 1;
     }
     const certifiedCount = frame.selected.filter((id) => input.certifiedOnlyIds.has(id)).length;
@@ -179,10 +188,10 @@ function evaluate(frames: Frame[], input: Evaluation): Cost {
   let consecutiveExcess = 0;
   let fairness = 0;
   for (const days of dates.values()) {
-    let previous: string | undefined;
+    let previous: number | undefined;
     let run = 0;
-    for (const day of [...days].sort()) {
-      run = previous && dayNumber(day) - dayNumber(previous) === 1 ? run + 1 : 1;
+    for (const day of [...days].sort((left, right) => left - right)) {
+      run = previous !== undefined && day - previous === 1 ? run + 1 : 1;
       if (run >= 4) consecutiveExcess += 1;
       previous = day;
     }
@@ -222,6 +231,8 @@ function improve(frames: Frame[], input: Evaluation): void {
       const left = frames[leftIndex];
       if (!left) continue;
       for (const right of frames.slice(leftIndex + 1)) {
+        const leftSelected = new Set(left.selected);
+        const rightSelected = new Set(right.selected);
         for (let a = 0; a < left.selected.length; a += 1) {
           for (let b = 0; b < right.selected.length; b += 1) {
             const leftId = left.selected[a];
@@ -229,10 +240,10 @@ function improve(frames: Frame[], input: Evaluation): void {
             if (
               !leftId ||
               !rightId ||
-              left.selected.includes(rightId) ||
-              right.selected.includes(leftId) ||
-              !left.candidates.includes(rightId) ||
-              !right.candidates.includes(leftId)
+              leftSelected.has(rightId) ||
+              rightSelected.has(leftId) ||
+              !left.candidates.has(rightId) ||
+              !right.candidates.has(leftId)
             )
               continue;
             left.selected[a] = rightId;
@@ -242,6 +253,10 @@ function improve(frames: Frame[], input: Evaluation): void {
             if (compareCost(next, cost) < 0) {
               cost = next;
               changed = true;
+              leftSelected.delete(leftId);
+              leftSelected.add(rightId);
+              rightSelected.delete(rightId);
+              rightSelected.add(leftId);
             } else {
               left.selected[a] = leftId;
               right.selected[b] = rightId;

@@ -2,6 +2,7 @@ import { env } from 'cloudflare:test';
 import { and, eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 
+import { applyAutoAssignProposals } from '../src/features/shifts/components/auto-assign-stage';
 import {
   shiftEditDataSchema,
   shiftFormDataSchema,
@@ -228,6 +229,43 @@ beforeEach(async () => {
 // ─── PUT /api/shifts/assignments ─────────────────────────────────────
 
 describe('PUT /api/shifts/assignments', () => {
+  it('自動割当の要確認備考を保存し再取得できる', async () => {
+    const departmentCode = await seedDepartment();
+    const shiftTypeId = await seedShiftType();
+    const instructorId = await seedInstructor();
+    const token = await seedToken('MANAGER');
+    const staged = applyAutoAssignProposals({
+      stagedCells: new Map(),
+      proposals: [
+        {
+          date: '2026-02-01',
+          shiftTypeId,
+          instructorIds: [instructorId],
+          shortage: { count: 0, reasons: [] },
+          reviewReasons: ['認定指導員のみの構成', '要調整の勤務: 山田'],
+        },
+      ],
+    });
+    const cell = staged.get(`2026-02-01:${shiftTypeId}`);
+    const saved = await app.request(
+      '/api/shifts/assignments',
+      {
+        method: 'PUT',
+        ...authJsonRequest(token, {
+          month: '2026-02',
+          departmentCode,
+          cells: [{ date: '2026-02-01', shiftTypeId, ...cell }],
+        }),
+      },
+      envWith({}),
+    );
+    expect(saved.status).toBe(200);
+    const response = await app.request('/api/shifts', authHeader(token), envWith({}));
+    expect(response.status).toBe(200);
+    const rows = shiftListSchema.parse(await response.json());
+    expect(rows[0]?.description).toBe('要確認: 認定指導員のみの構成\n要確認: 要調整の勤務: 山田');
+  });
+
   it('複数セルをまとめて作成し、それぞれ割り当てと備考が保存される', async () => {
     const deptId = await seedDepartment();
     const stMorning = await seedShiftType('午前');

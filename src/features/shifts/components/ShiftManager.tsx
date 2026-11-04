@@ -438,7 +438,7 @@ function ShiftCalendar({
           title: description,
           start: `${day} 00:00:00`,
           end: `${addDays(day, 1)} 00:00:00`,
-          color: description.includes('要確認:') ? 'orange' : 'gray',
+          color: 'gray',
           display: 'background' as const,
           payload: { kind: 'description' as const, date: day, description },
         },

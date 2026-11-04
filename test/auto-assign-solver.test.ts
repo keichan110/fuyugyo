@@ -75,6 +75,18 @@ describe('solveAutoAssignments', () => {
     );
   });
 
+  it('候補リストにいても必要資格が一致しない人を除外する', () => {
+    const context = createAutoAssignContext();
+    context.instructors[1]!.certificationIds = ['unrelated'];
+    const proposal = solveAutoAssignments(
+      context,
+      createExecutionParams({ weekdayRequiredCount: 3 }),
+      1,
+    ).proposals[0];
+    expect(proposal?.instructorIds).not.toContain('b');
+    expect(proposal?.shortage.count).toBe(1);
+  });
+
   it('必要人数を上限として守り、足りなければ不足人数を返す', () => {
     const result = solveAutoAssignments(
       createAutoAssignContext(),
@@ -114,7 +126,15 @@ describe('solveAutoAssignments', () => {
     expect(result.proposals).toEqual([]);
   });
   it('勤務可能は勤務日数・資格構成・連勤の不利があっても要調整より優先する', () => {
-    const context = pairContext(20, 2);
+    const context = pairContext(2, 20);
+    context.existingAssignments.push(
+      ...['2026-01-02', '2026-01-03', '2026-01-04'].map((date) => ({
+        date,
+        departmentCode: 'ski' as const,
+        shiftTypeId: 'x',
+        instructorIds: ['b'],
+      })),
+    );
     context.availabilities = [{ instructorId: 'a', date: '2026-01-05', type: 'AVOID', note: null }];
     const proposal = solveAutoAssignments(context, createExecutionParams(), 1).proposals[0];
     expect(proposal?.instructorIds).toEqual(['b']);
@@ -280,6 +300,37 @@ describe('solveAutoAssignments', () => {
       expect(new Set(proposals.slice(i, i + 4).flatMap((p) => p.instructorIds)).size).toBe(2);
     }
   });
+
+  it('30人・1か月の案でも人数と平準化を維持する', () => {
+    const context = createAutoAssignContext();
+    context.instructors = Array.from({ length: 30 }, (_, index) => ({
+      id: `person-${index}`,
+      displayName: `候補${index}`,
+      certificationIds: [index % 3 === 0 ? 'advanced' : 'basic'],
+      availabilityStatus: 'SUBMITTED',
+    }));
+    context.frames[0]!.eligibleInstructorIds = context.instructors.map(
+      (instructor) => instructor.id,
+    );
+    const proposals = solveAutoAssignments(
+      context,
+      createExecutionParams({
+        weekdayRequiredCount: 2,
+        weekendHolidayRequiredCount: 3,
+        targetDates: Array.from(
+          { length: 31 },
+          (_, index) => `2026-01-${String(index + 1).padStart(2, '0')}`,
+        ),
+      }),
+      1,
+    ).proposals;
+    expect(proposals).toHaveLength(31);
+    expect(proposals.every((proposal) => proposal.shortage.count === 0)).toBe(true);
+    const counts = context.instructors.map(
+      ({ id }) => proposals.filter((proposal) => proposal.instructorIds.includes(id)).length,
+    );
+    expect(Math.max(...counts) - Math.min(...counts)).toBeLessThanOrEqual(1);
+  }, 15_000);
 
   it('同点なら2名以上の枠で資格の2区分を混ぜる', () => {
     const proposals = solveAutoAssignments(

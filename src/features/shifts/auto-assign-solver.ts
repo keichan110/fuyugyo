@@ -1,3 +1,4 @@
+import { scoreQualificationComposition } from './qualification-composition';
 import type { AutoAssignContext, AutoAssignExecutionParams, AutoAssignProposal } from './schema';
 
 /** 自動割当の実行結果。対象枠の提案、不足人数、要確認の理由を含む。 */
@@ -7,8 +8,8 @@ type Cost = [
   avoidCount: number,
   consecutiveExcess: number,
   fairness: number,
-  certifiedOnlyFrames: number,
-  noCertifiedFrames: number,
+  rankRisk: number,
+  rankDeficit: number,
 ];
 type Frame = {
   date: string;
@@ -20,7 +21,8 @@ type Frame = {
 type Evaluation = {
   baseline: Map<string, Set<number>>;
   avoid: Set<string>;
-  certifiedOnlyIds: Set<string>;
+  rankById: Map<string, number>;
+  configuredRankCount: number;
 };
 
 const MAX_RESTARTS = 20;
@@ -57,7 +59,15 @@ export function solveAutoAssignments(
     (instructor) =>
       eligible.has(instructor.id) && instructor.certificationIds.some((id) => ranks.has(id)),
   );
-  // 指導員・準指導員（ランク1・2）は同等。認定（ランク3以降）とだけ区別する。
+  // 複数資格の人は枠に紐づく資格のうち最上位のランクで評価する。
+  const rankById = new Map(
+    qualified.map((instructor) => [
+      instructor.id,
+      Math.min(...instructor.certificationIds.map((id) => ranks.get(id) ?? Infinity)),
+    ]),
+  );
+  const configuredRankCount = new Set(ranks.values()).size;
+  // 要確認の対象は、認定指導員（ランク3以降）だけで組んだ枠。
   const certifiedOnlyIds = new Set(
     qualified
       .filter(
@@ -85,7 +95,7 @@ export function solveAutoAssignments(
     if (assignment.departmentCode !== context.departmentCode) continue;
     for (const id of assignment.instructorIds) baseline.get(id)?.add(dayNumber(assignment.date));
   }
-  const evaluation: Evaluation = { baseline, avoid, certifiedOnlyIds };
+  const evaluation: Evaluation = { baseline, avoid, rankById, configuredRankCount };
   const frames: Frame[] = [...new Set(params.targetDates)].sort().map((date) => ({
     date,
     day: dayNumber(date),
@@ -174,16 +184,19 @@ export function solveAutoAssignments(
 function evaluate(frames: Frame[], input: Evaluation): Cost {
   const dates = new Map([...input.baseline].map(([id, days]) => [id, new Set(days)]));
   let avoid = 0;
-  let certifiedOnly = 0;
-  let noCertified = 0;
+  let rankRisk = 0;
+  let rankDeficit = 0;
   for (const frame of frames) {
     for (const id of frame.selected) {
       dates.get(id)?.add(frame.day);
       if (input.avoid.has(dateInstructorKey(frame.date, id))) avoid += 1;
     }
-    const certifiedCount = frame.selected.filter((id) => input.certifiedOnlyIds.has(id)).length;
-    if (frame.selected.length && certifiedCount === frame.selected.length) certifiedOnly += 1;
-    if (frame.selected.length >= 2 && certifiedCount === 0) noCertified += 1;
+    const composition = scoreQualificationComposition(
+      frame.selected.map((id) => input.rankById.get(id) ?? Infinity),
+      input.configuredRankCount,
+    );
+    rankRisk += composition.safetyRisk;
+    rankDeficit += composition.diversityDeficit;
   }
   let consecutiveExcess = 0;
   let fairness = 0;
@@ -197,7 +210,7 @@ function evaluate(frames: Frame[], input: Evaluation): Cost {
     }
     fairness += days.size ** 2;
   }
-  return [avoid, consecutiveExcess, fairness, certifiedOnly, noCertified];
+  return [avoid, consecutiveExcess, fairness, rankRisk, rankDeficit];
 }
 
 // 1枠内の置換に加えて日付間の交換も行い、貪欲法だけでは解けない偏りを改善する。

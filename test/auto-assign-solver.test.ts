@@ -332,7 +332,7 @@ describe('solveAutoAssignments', () => {
     expect(Math.max(...counts) - Math.min(...counts)).toBeLessThanOrEqual(1);
   }, 15_000);
 
-  it('同点なら2名以上の枠で資格の2区分を混ぜる', () => {
+  it('同点なら2名以上の枠で異なるランクを混ぜる', () => {
     const proposals = solveAutoAssignments(
       createAutoAssignContext(),
       createExecutionParams({ weekdayRequiredCount: 2 }),

@@ -51,6 +51,21 @@ export function isAutoAssignSelectable(
   return (effectiveRequiredCount(staged, saved, cellKey(date, shiftTypeId)) ?? 0) >= 1;
 }
 
+/** 指定した日のうち、自動割当で選べる日（実効値が1名以上）の数。 */
+export function countAutoAssignSelectableDates({
+  dates,
+  shiftTypeId,
+  staged,
+  saved,
+}: {
+  dates: readonly string[];
+  shiftTypeId: string;
+  staged: StagedRequirements;
+  saved: SavedRequirements;
+}): number {
+  return dates.filter((date) => isAutoAssignSelectable(staged, saved, date, shiftTypeId)).length;
+}
+
 /** 自動割当の対象日と日別の必要人数。実効値が1名以上の日だけを含める。 */
 export type AutoAssignTargets = {
   targetDates: string[];

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   applyBulkRequirements,
   bulkRequirementTargetDates,
+  countAutoAssignSelectableDates,
   effectiveRequiredCount,
   isAutoAssignSelectable,
   planAutoAssignTargets,
@@ -59,6 +60,16 @@ describe('自動割当の対象', () => {
     expect(isAutoAssignSelectable(none, saved, SAT, TYPE)).toBe(true);
     expect(isAutoAssignSelectable(none, saved, TUE, TYPE)).toBe(false);
     expect(isAutoAssignSelectable(none, saved, '2027-01-13', TYPE)).toBe(false);
+  });
+
+  it('選べる日の数を数え、未設定と0名だけなら0日になる', () => {
+    const dates = [SAT, TUE];
+    const base = { dates, shiftTypeId: TYPE, staged: none };
+    expect(countAutoAssignSelectableDates({ ...base, saved: new Map() })).toBe(0);
+    expect(countAutoAssignSelectableDates({ ...base, saved: new Map([[key(SAT), 0]]) })).toBe(0);
+    expect(countAutoAssignSelectableDates({ ...base, saved: new Map([[key(SAT), 2]]) })).toBe(1);
+    const staged = stageRequirement(none, new Map(), key(TUE), 1);
+    expect(countAutoAssignSelectableDates({ ...base, staged, saved: new Map() })).toBe(1);
   });
 
   it('未保存の必要人数が対象判定と人数に反映される', () => {

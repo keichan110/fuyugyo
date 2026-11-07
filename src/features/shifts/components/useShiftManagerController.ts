@@ -22,6 +22,7 @@ import {
   applyBulkRequirements,
   stageRequirement as applyStagedRequirement,
   bulkRequirementTargetDates,
+  countAutoAssignSelectableDates,
   effectiveRequiredCount,
   isAutoAssignSelectable,
   planAutoAssignTargets,
@@ -228,6 +229,16 @@ export function useShiftManagerController() {
       isAutoAssignSelectable(stagedRequirements, savedRequirements, date, activeShiftTypeId),
     [stagedRequirements, savedRequirements, activeShiftTypeId],
   );
+
+  // 必要人数の取得後に、選べる日が1日もないか（取得前は判定しない）
+  const hasNoAutoAssignSelectableDates =
+    requirementsReady &&
+    countAutoAssignSelectableDates({
+      dates: days,
+      shiftTypeId: activeShiftTypeId,
+      staged: stagedRequirements,
+      saved: savedRequirements,
+    }) === 0;
 
   const bulkTargetDates = useMemo(
     () =>
@@ -444,6 +455,7 @@ export function useShiftManagerController() {
     activeShiftTypeId,
     activeShiftTypeMissingCertification,
     isAutoAssignSelectableDate,
+    hasNoAutoAssignSelectableDates,
     applyBulkRequirementCounts,
     bulkModalOpened,
     bulkTargetDates,

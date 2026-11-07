@@ -180,6 +180,7 @@ function ShiftManagerContent({ controller, myInstructorId }: ShiftManagerContent
               !controller.activeShiftTypeMissingCertification
             }
             missingCertification={controller.activeShiftTypeMissingCertification}
+            noSelectableDates={controller.hasNoAutoAssignSelectableDates}
             shortageByCell={controller.shortageByCell}
             stagedRequirements={controller.stagedRequirements}
             requiredByDay={controller.requiredByDay}
@@ -389,6 +390,8 @@ type ShiftCalendarProps = {
   /** 自動割当に必要なデータが揃い、開いている種別に必要資格がある */
   canRunAutoAssign: boolean;
   missingCertification: boolean;
+  /** 必要人数の取得後に、選べる日が1日もない */
+  noSelectableDates: boolean;
   shortageByCell: Map<string, AutoAssignProposal['shortage']>;
   stagedRequirements: StagedRequirements;
   /** 日 → 表示用の必要人数。必要人数の取得前は null（未設定と区別して何も出さない）。 */
@@ -437,6 +440,7 @@ function ShiftCalendar({
   isAutoAssigning,
   canRunAutoAssign,
   missingCertification,
+  noSelectableDates,
   shortageByCell,
   stagedRequirements,
   requiredByDay,
@@ -630,20 +634,29 @@ function ShiftCalendar({
             <AppButton
               intent="secondary"
               size="xs"
-              leftSection={<IconWand size={14} />}
-              disabled={!requiredByDay}
-              onClick={onStartAutoAssign}
-            >
-              自動割当
-            </AppButton>
-            <AppButton
-              intent="secondary"
-              size="xs"
               disabled={!requiredByDay}
               onClick={onOpenBulkModal}
             >
               必要人数を一括設定
             </AppButton>
+            {/* disabled のボタンはホバーを受けないため、Tooltip はラッパー要素に付ける */}
+            <Tooltip
+              label="必要人数が設定された日がありません"
+              disabled={!noSelectableDates}
+              withArrow
+            >
+              <Box>
+                <AppButton
+                  intent="secondary"
+                  size="xs"
+                  leftSection={<IconWand size={14} />}
+                  disabled={!requiredByDay || noSelectableDates}
+                  onClick={onStartAutoAssign}
+                >
+                  自動割当
+                </AppButton>
+              </Box>
+            </Tooltip>
           </Group>
         )}
       </Group>

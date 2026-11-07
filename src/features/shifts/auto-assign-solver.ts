@@ -1,347 +1,301 @@
 import { scoreQualificationComposition } from './qualification-composition';
 import type { AutoAssignContext, AutoAssignExecutionParams, AutoAssignProposal } from './schema';
 
-/** 自動割当の実行結果。提案は対象外の枠を含まない。 */
-export type AutoAssignSolveResult = {
-  proposals: AutoAssignProposal[];
+/** 自動割当の実行結果。対象枠の提案、不足人数、要確認の理由を含む。 */
+export type AutoAssignSolveResult = { proposals: AutoAssignProposal[] };
+
+type Cost = [
+  avoidCount: number,
+  consecutiveExcess: number,
+  fairness: number,
+  rankRisk: number,
+  rankDeficit: number,
+];
+type Frame = {
+  date: string;
+  day: number;
+  required: number;
+  candidates: Set<string>;
+  selected: string[];
+};
+type Evaluation = {
+  baseline: Map<string, Set<number>>;
+  avoid: Set<string>;
+  rankById: Map<string, number>;
+  configuredRankCount: number;
 };
 
 const MAX_RESTARTS = 20;
+const MAX_IMPROVEMENT_EVALUATIONS = 20_000;
 
 /**
- * 集約コンテキストから、保存前の自動割当案を生成する。
- * UNAVAILABLE・資格・同日重複は候補抽出時に除外するため、探索中も破られない。
- * @param context - API が返す候補・可用性・既存割当
- * @param params - 対象日と必要人数
- * @param seed - 再現可能な乱択シード
- * @returns 枠ごとの提案と不足内訳
+ * 勤務可能、4連勤回避、部門内シーズン勤務日数、資格構成の順で割当案を生成する。
+ * 勤務不可・必要資格なし・全部門の同日重複は候補から除外する。
+ * 同一シードで再現でき、探索は回数上限を持つため最適解の保証はしない。
  */
 export function solveAutoAssignments(
   context: AutoAssignContext,
   params: AutoAssignExecutionParams,
   seed: number,
 ): AutoAssignSolveResult {
-  const frame = context.frames.find((item) => item.shiftTypeId === params.shiftTypeId);
-  // 必要資格が未設定の枠は、資格を満たすことを判定できないため提案しない。
-  if (!frame || frame.certificationTiers.length === 0) {
-    return { proposals: [] };
+  // 対象枠は白紙から置き換えるため、元の勤務を重複判定・勤務日数へ二重計上しない。
+  const targets = new Set(params.targetDates);
+  context = {
+    ...context,
+    existingAssignments: context.existingAssignments.filter(
+      (assignment) =>
+        assignment.departmentCode !== context.departmentCode ||
+        assignment.shiftTypeId !== params.shiftTypeId ||
+        !targets.has(assignment.date),
+    ),
+  };
+  const configuration = context.frames.find((frame) => frame.shiftTypeId === params.shiftTypeId);
+  if (!configuration || configuration.certificationTiers.length === 0) return { proposals: [] };
+  const eligible = new Set(configuration.eligibleInstructorIds);
+  const ranks = new Map(
+    configuration.certificationTiers.map((tier) => [tier.certificationId, tier.tierRank]),
+  );
+  const qualified = context.instructors.filter(
+    (instructor) =>
+      eligible.has(instructor.id) && instructor.certificationIds.some((id) => ranks.has(id)),
+  );
+  // 複数資格の人は枠に紐づく資格のうち最上位のランクで評価する。
+  const rankById = new Map(
+    qualified.map((instructor) => [
+      instructor.id,
+      Math.min(...instructor.certificationIds.map((id) => ranks.get(id) ?? Infinity)),
+    ]),
+  );
+  const configuredRankCount = new Set(ranks.values()).size;
+  // 要確認の対象は、認定指導員（ランク3以降）だけで組んだ枠。
+  const certifiedOnlyIds = new Set(
+    qualified
+      .filter(
+        (instructor) => !instructor.certificationIds.some((id) => (ranks.get(id) ?? Infinity) <= 2),
+      )
+      .map((instructor) => instructor.id),
+  );
+  const unavailable = new Set(
+    context.availabilities
+      .filter((item) => item.type === 'UNAVAILABLE')
+      .map((item) => dateInstructorKey(item.date, item.instructorId)),
+  );
+  const avoid = new Set(
+    context.availabilities
+      .filter((item) => item.type === 'AVOID')
+      .map((item) => dateInstructorKey(item.date, item.instructorId)),
+  );
+  const occupied = new Set(
+    context.existingAssignments.flatMap((assignment) =>
+      assignment.instructorIds.map((id) => dateInstructorKey(assignment.date, id)),
+    ),
+  );
+  const baseline = new Map(qualified.map((instructor) => [instructor.id, new Set<number>()]));
+  for (const assignment of context.existingAssignments) {
+    if (assignment.departmentCode !== context.departmentCode) continue;
+    for (const id of assignment.instructorIds) baseline.get(id)?.add(dayNumber(assignment.date));
   }
-
-  const eligibleIds = new Set(frame.eligibleInstructorIds);
-  const qualifiedIds = new Set<string>();
-  for (const instructor of context.instructors) {
-    const isQualified = instructor.certificationIds.some((id) =>
-      frame.certificationTiers.some((tier) => tier.certificationId === id),
-    );
-    if (eligibleIds.has(instructor.id) && isQualified) {
-      qualifiedIds.add(instructor.id);
-    }
-  }
-  const targetDates = [...new Set(params.targetDates)].sort();
-  const unavailable = new Set<string>();
-  const avoid = new Set<string>();
-  for (const item of context.availabilities) {
-    const key = dateInstructorKey(item.date, item.instructorId);
-    if (item.type === 'UNAVAILABLE') {
-      unavailable.add(key);
-    } else if (item.type === 'AVOID') {
-      avoid.add(key);
-    }
-  }
-  const occupied = occupiedDateInstructorKeys(context);
-  const capacity = calculateCapacity(context, targetDates, unavailable, occupied);
-  const tierRanks = effectiveTierRankByInstructor(context, frame.certificationTiers);
-  const configuredTierCount = new Set(frame.certificationTiers.map((tier) => tier.tierRank)).size;
-  const fallbackTierRank = Math.max(...frame.certificationTiers.map((tier) => tier.tierRank)) + 1;
-  const initialCounts = countAssignedDays(context.existingAssignments);
-  let best: CandidateSolution | undefined;
-
+  const evaluation: Evaluation = { baseline, avoid, rankById, configuredRankCount };
+  const frames: Frame[] = [...new Set(params.targetDates)].sort().map((date) => ({
+    date,
+    day: dayNumber(date),
+    required: requiredCount(date, params),
+    candidates: new Set(
+      qualified
+        .map((instructor) => instructor.id)
+        .filter(
+          (id) =>
+            !unavailable.has(dateInstructorKey(date, id)) &&
+            !occupied.has(dateInstructorKey(date, id)),
+        ),
+    ),
+    selected: [],
+  }));
+  let best = frames;
+  let bestCost: Cost | undefined;
   for (let restart = 0; restart < MAX_RESTARTS; restart += 1) {
-    const candidate = createSolution({
-      params,
-      targetDates,
-      qualifiedIds,
-      unavailable,
-      avoid,
-      occupied,
-      capacity,
-      initialCounts,
-      tierRanks,
-      configuredTierCount,
-      fallbackTierRank,
-      random: createRandom(seed + restart),
-    });
-    if (!best || compareCost(candidate.cost, best.cost) < 0) {
+    const random = createRandom(seed + restart);
+    const candidate = frames.map((frame): Frame => ({ ...frame, selected: [] }));
+    for (const frame of candidate) {
+      while (
+        frame.selected.length < frame.required &&
+        frame.selected.length < frame.candidates.size
+      ) {
+        let chosen: string | undefined;
+        let chosenCost: Cost | undefined;
+        for (const id of shuffled([...frame.candidates], random)) {
+          if (frame.selected.includes(id)) continue;
+          frame.selected.push(id);
+          const cost = evaluate(candidate, evaluation);
+          frame.selected.pop();
+          if (!chosenCost || compareCost(cost, chosenCost) < 0) {
+            chosen = id;
+            chosenCost = cost;
+          }
+        }
+        if (chosen === undefined) break;
+        frame.selected.push(chosen);
+      }
+    }
+    const cost = evaluate(candidate, evaluation);
+    if (!bestCost || compareCost(cost, bestCost) < 0) {
       best = candidate;
+      bestCost = cost;
     }
   }
-
-  return { proposals: best?.proposals ?? [] };
-}
-
-type CandidateSolution = { proposals: AutoAssignProposal[]; cost: SolutionCost };
-type SolutionCost = {
-  shortage: number;
-  avoid: number;
-  qualificationSafety: number;
-  fairness: number;
-  qualificationDiversity: number;
-};
-type SolutionInput = {
-  params: AutoAssignExecutionParams;
-  targetDates: string[];
-  qualifiedIds: Set<string>;
-  unavailable: Set<string>;
-  avoid: Set<string>;
-  occupied: Set<string>;
-  capacity: Map<string, number>;
-  initialCounts: Map<string, number>;
-  tierRanks: Map<string, number>;
-  configuredTierCount: number;
-  fallbackTierRank: number;
-  random: () => number;
-};
-
-function createSolution(input: SolutionInput): CandidateSolution {
-  const occupied = new Set(input.occupied);
-  const counts = new Map(input.initialCounts);
-  const proposals: AutoAssignProposal[] = [];
-  let avoidCount = 0;
-
-  for (const date of input.targetDates) {
-    const required = requiredCount(date, input.params);
-    const originallyOccupied = new Set(occupied);
-    const candidates = shuffled([...input.qualifiedIds], input.random).filter(
-      (instructorId) =>
-        !input.unavailable.has(dateInstructorKey(date, instructorId)) &&
-        !occupied.has(dateInstructorKey(date, instructorId)),
-    );
-    const selected: string[] = [];
-    while (selected.length < required && candidates.length > 0) {
-      const instructorId = chooseCandidate({
-        candidates,
-        date,
-        counts,
-        capacity: input.capacity,
-        avoid: input.avoid,
-        selected,
-        tierRanks: input.tierRanks,
-        configuredTierCount: input.configuredTierCount,
-        fallbackTierRank: input.fallbackTierRank,
-        random: input.random,
-      });
-      if (!instructorId) break;
-      candidates.splice(candidates.indexOf(instructorId), 1);
-      selected.push(instructorId);
-      occupied.add(dateInstructorKey(date, instructorId));
-      counts.set(instructorId, (counts.get(instructorId) ?? 0) + 1);
-      if (input.avoid.has(dateInstructorKey(date, instructorId))) avoidCount += 1;
-    }
-    proposals.push({
-      date,
-      shiftTypeId: input.params.shiftTypeId,
-      instructorIds: selected,
-      shortage: {
-        count: required - selected.length,
-        reasons:
-          required > selected.length
-            ? shortageReasons(date, input.qualifiedIds, input.unavailable, originallyOccupied)
-            : [],
-      },
-    });
-  }
-
-  const shortage = proposals.reduce((sum, proposal) => sum + proposal.shortage.count, 0);
-  const qualificationComposition = qualificationCompositionCost(
-    proposals,
-    input.tierRanks,
-    input.configuredTierCount,
-    input.fallbackTierRank,
+  improve(best, evaluation);
+  const names = new Map(
+    context.instructors.map((instructor) => [instructor.id, instructor.displayName]),
   );
   return {
-    proposals,
-    // 充足と AVOID を優先し、資格構成の安全性、公平性、レベルの多様性の順に評価する。
-    cost: {
-      shortage,
-      avoid: avoidCount,
-      qualificationSafety: qualificationComposition.safetyRisk,
-      fairness: fairnessCost(counts, input.capacity),
-      qualificationDiversity: qualificationComposition.diversityDeficit,
-    },
+    proposals: best.map((frame) => {
+      const reasons: string[] = [];
+      const unavailableCount = qualified.filter((instructor) =>
+        unavailable.has(dateInstructorKey(frame.date, instructor.id)),
+      ).length;
+      const occupiedCount = qualified.filter((instructor) =>
+        occupied.has(dateInstructorKey(frame.date, instructor.id)),
+      ).length;
+      if (frame.selected.length < frame.required) {
+        if (unavailableCount) reasons.push(`UNAVAILABLE: ${unavailableCount}名`);
+        if (occupiedCount) reasons.push(`同日割当済み: ${occupiedCount}名`);
+        if (!reasons.length) reasons.push('資格を満たす候補者が不足');
+      }
+      const reviewReasons: string[] = [];
+      if (frame.selected.length && frame.selected.every((id) => certifiedOnlyIds.has(id))) {
+        reviewReasons.push('認定指導員のみの構成');
+      }
+      const avoidNames = frame.selected
+        .filter((id) => avoid.has(dateInstructorKey(frame.date, id)))
+        .map((id) => names.get(id) ?? id);
+      if (avoidNames.length) reviewReasons.push(`要調整の勤務: ${avoidNames.join('、')}`);
+      return {
+        date: frame.date,
+        shiftTypeId: params.shiftTypeId,
+        instructorIds: frame.selected,
+        shortage: { count: frame.required - frame.selected.length, reasons },
+        reviewReasons,
+      };
+    }),
   };
 }
 
-type CandidateSelectionInput = {
-  candidates: string[];
-  date: string;
-  counts: Map<string, number>;
-  capacity: Map<string, number>;
-  avoid: Set<string>;
-  selected: string[];
-  tierRanks: Map<string, number>;
-  configuredTierCount: number;
-  fallbackTierRank: number;
-  random: () => number;
-};
-
-function chooseCandidate(input: CandidateSelectionInput): string | undefined {
-  const {
-    candidates,
-    date,
-    counts,
-    capacity,
-    avoid,
-    selected,
-    tierRanks,
-    configuredTierCount,
-    fallbackTierRank,
-  } = input;
-  const scored = candidates.map((id) => {
+// 全体を同じ尺度で評価し、前後の保存済み勤務と提案中の勤務をつなげて連勤を数える。
+function evaluate(frames: Frame[], input: Evaluation): Cost {
+  const dates = new Map([...input.baseline].map(([id, days]) => [id, new Set(days)]));
+  let avoid = 0;
+  let rankRisk = 0;
+  let rankDeficit = 0;
+  for (const frame of frames) {
+    for (const id of frame.selected) {
+      dates.get(id)?.add(frame.day);
+      if (input.avoid.has(dateInstructorKey(frame.date, id))) avoid += 1;
+    }
     const composition = scoreQualificationComposition(
-      [...selected, id].map((instructorId) => tierRanks.get(instructorId) ?? fallbackTierRank),
-      configuredTierCount,
+      frame.selected.map((id) => input.rankById.get(id) ?? Infinity),
+      input.configuredRankCount,
     );
-    return {
-      id,
-      // 乱数は同点を解消するだけで、AVOID・資格構成・公平性を覆さない。
-      avoid: avoid.has(dateInstructorKey(date, id)) ? 1 : 0,
-      qualificationSafety: composition.safetyRisk,
-      fairness: incrementalFairnessCost(id, counts, capacity),
-      qualificationDiversity: composition.diversityDeficit,
-      tieBreaker: input.random(),
-    };
-  });
-  scored.sort(
-    (left, right) =>
-      left.avoid - right.avoid ||
-      left.qualificationSafety - right.qualificationSafety ||
-      left.fairness - right.fairness ||
-      left.qualificationDiversity - right.qualificationDiversity ||
-      left.tieBreaker - right.tieBreaker,
-  );
-  return scored[0]?.id ?? candidates[0];
+    rankRisk += composition.safetyRisk;
+    rankDeficit += composition.diversityDeficit;
+  }
+  let consecutiveExcess = 0;
+  let fairness = 0;
+  for (const days of dates.values()) {
+    let previous: number | undefined;
+    let run = 0;
+    for (const day of [...days].sort((left, right) => left - right)) {
+      run = previous !== undefined && day - previous === 1 ? run + 1 : 1;
+      if (run >= 4) consecutiveExcess += 1;
+      previous = day;
+    }
+    fairness += days.size ** 2;
+  }
+  return [avoid, consecutiveExcess, fairness, rankRisk, rankDeficit];
 }
 
-function shortageReasons(
-  date: string,
-  qualifiedIds: Set<string>,
-  unavailable: Set<string>,
-  occupied: Set<string>,
-): string[] {
-  const unavailableCount = [...qualifiedIds].filter((id) =>
-    unavailable.has(dateInstructorKey(date, id)),
-  ).length;
-  const occupiedCount = [...qualifiedIds].filter((id) =>
-    occupied.has(dateInstructorKey(date, id)),
-  ).length;
-  const reasons: string[] = [];
-  if (unavailableCount > 0) reasons.push(`UNAVAILABLE: ${unavailableCount}名`);
-  if (occupiedCount > 0) reasons.push(`同日割当済み: ${occupiedCount}名`);
-  if (reasons.length === 0) reasons.push('資格を満たす候補者が不足');
-  return reasons;
-}
-
-function calculateCapacity(
-  context: AutoAssignContext,
-  targetDates: string[],
-  unavailable: Set<string>,
-  occupied: Set<string>,
-): Map<string, number> {
-  return new Map(
-    context.instructors.map((instructor) => [
-      instructor.id,
-      targetDates.filter((date) => {
-        const key = dateInstructorKey(date, instructor.id);
-        return !unavailable.has(key) && !occupied.has(key);
-      }).length,
-    ]),
-  );
-}
-
-function countAssignedDays(
-  assignments: AutoAssignContext['existingAssignments'],
-): Map<string, number> {
-  const datesByInstructor = new Map<string, Set<string>>();
-  for (const assignment of assignments) {
-    for (const instructorId of assignment.instructorIds) {
-      const dates = datesByInstructor.get(instructorId) ?? new Set<string>();
-      dates.add(assignment.date);
-      datesByInstructor.set(instructorId, dates);
+// 1枠内の置換に加えて日付間の交換も行い、貪欲法だけでは解けない偏りを改善する。
+function improve(frames: Frame[], input: Evaluation): void {
+  let cost = evaluate(frames, input);
+  let evaluations = 0;
+  let changed = true;
+  while (changed && evaluations < MAX_IMPROVEMENT_EVALUATIONS) {
+    changed = false;
+    for (const frame of frames) {
+      for (let index = 0; index < frame.selected.length; index += 1) {
+        const original = frame.selected[index];
+        if (original === undefined) continue;
+        for (const id of frame.candidates) {
+          if (frame.selected.includes(id)) continue;
+          frame.selected[index] = id;
+          const next = evaluate(frames, input);
+          evaluations += 1;
+          if (compareCost(next, cost) < 0) {
+            cost = next;
+            changed = true;
+            break;
+          }
+          frame.selected[index] = original;
+          if (evaluations >= MAX_IMPROVEMENT_EVALUATIONS) return;
+        }
+        if (evaluations >= MAX_IMPROVEMENT_EVALUATIONS) return;
+      }
+    }
+    for (let leftIndex = 0; leftIndex < frames.length; leftIndex += 1) {
+      const left = frames[leftIndex];
+      if (!left) continue;
+      for (const right of frames.slice(leftIndex + 1)) {
+        const leftSelected = new Set(left.selected);
+        const rightSelected = new Set(right.selected);
+        for (let a = 0; a < left.selected.length; a += 1) {
+          for (let b = 0; b < right.selected.length; b += 1) {
+            const leftId = left.selected[a];
+            const rightId = right.selected[b];
+            if (
+              !leftId ||
+              !rightId ||
+              leftSelected.has(rightId) ||
+              rightSelected.has(leftId) ||
+              !left.candidates.has(rightId) ||
+              !right.candidates.has(leftId)
+            )
+              continue;
+            left.selected[a] = rightId;
+            right.selected[b] = leftId;
+            const next = evaluate(frames, input);
+            evaluations += 1;
+            if (compareCost(next, cost) < 0) {
+              cost = next;
+              changed = true;
+              leftSelected.delete(leftId);
+              leftSelected.add(rightId);
+              rightSelected.delete(rightId);
+              rightSelected.add(leftId);
+            } else {
+              left.selected[a] = leftId;
+              right.selected[b] = rightId;
+            }
+            if (evaluations >= MAX_IMPROVEMENT_EVALUATIONS) return;
+          }
+        }
+      }
     }
   }
-  return new Map([...datesByInstructor].map(([id, dates]) => [id, dates.size]));
 }
 
-function occupiedDateInstructorKeys(context: AutoAssignContext): Set<string> {
-  return new Set(
-    context.existingAssignments.flatMap((assignment) =>
-      assignment.instructorIds.map((instructorId) =>
-        dateInstructorKey(assignment.date, instructorId),
-      ),
-    ),
-  );
+function dayNumber(date: string): number {
+  return Date.parse(`${date}T00:00:00Z`) / 86_400_000;
 }
 
-function incrementalFairnessCost(
-  instructorId: string,
-  counts: Map<string, number>,
-  capacity: Map<string, number>,
-): number {
-  const totalAssignments = [...counts.values()].reduce((sum, count) => sum + count, 0) + 1;
-  const totalCapacity = [...capacity.values()].reduce((sum, value) => sum + value, 0);
-  if (totalCapacity === 0) return 0;
-  const target = (totalAssignments * (capacity.get(instructorId) ?? 0)) / totalCapacity;
-  return Math.pow((counts.get(instructorId) ?? 0) + 1 - target, 2);
+function dateInstructorKey(date: string, instructorId: string): string {
+  return `${date}:${instructorId}`;
 }
 
-function fairnessCost(counts: Map<string, number>, capacity: Map<string, number>): number {
-  const totalAssignments = [...counts.values()].reduce((sum, count) => sum + count, 0);
-  const totalCapacity = [...capacity.values()].reduce((sum, value) => sum + value, 0);
-  if (totalCapacity === 0) return 0;
-  return [...capacity].reduce((sum, [id, value]) => {
-    const target = (totalAssignments * value) / totalCapacity;
-    return sum + Math.pow((counts.get(id) ?? 0) - target, 2);
-  }, 0);
-}
-
-function qualificationCompositionCost(
-  proposals: AutoAssignProposal[],
-  tierRanks: Map<string, number>,
-  configuredTierCount: number,
-  fallbackTierRank: number,
-): { safetyRisk: number; diversityDeficit: number } {
-  return proposals.reduce(
-    (total, proposal) => {
-      const score = scoreQualificationComposition(
-        proposal.instructorIds.map((id) => tierRanks.get(id) ?? fallbackTierRank),
-        configuredTierCount,
-      );
-      return {
-        safetyRisk: total.safetyRisk + score.safetyRisk,
-        diversityDeficit: total.diversityDeficit + score.diversityDeficit,
-      };
-    },
-    { safetyRisk: 0, diversityDeficit: 0 },
-  );
-}
-
-function effectiveTierRankByInstructor(
-  context: AutoAssignContext,
-  certificationTiers: { certificationId: string; tierRank: number }[],
-): Map<string, number> {
-  const tierRankByCertification = new Map(
-    certificationTiers.map((item) => [item.certificationId, item.tierRank]),
-  );
-  return new Map(
-    context.instructors.map((instructor) => [
-      instructor.id,
-      Math.min(
-        ...instructor.certificationIds
-          .map((id) => tierRankByCertification.get(id))
-          .filter((tierRank): tierRank is number => tierRank !== undefined),
-      ),
-    ]),
-  );
+function compareCost(left: Cost, right: Cost): number {
+  for (let index = 0; index < left.length; index += 1) {
+    const difference = (left[index] ?? 0) - (right[index] ?? 0);
+    if (difference) return difference;
+  }
+  return 0;
 }
 
 function requiredCount(date: string, params: AutoAssignExecutionParams): number {
@@ -372,18 +326,4 @@ function createRandom(seed: number): () => number {
     value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
     return ((value ^ (value >>> 14)) >>> 0) / 4_294_967_296;
   };
-}
-
-function dateInstructorKey(date: string, instructorId: string): string {
-  return `${date}:${instructorId}`;
-}
-
-function compareCost(left: SolutionCost, right: SolutionCost): number {
-  return (
-    left.shortage - right.shortage ||
-    left.avoid - right.avoid ||
-    left.qualificationSafety - right.qualificationSafety ||
-    left.fairness - right.fairness ||
-    left.qualificationDiversity - right.qualificationDiversity
-  );
 }

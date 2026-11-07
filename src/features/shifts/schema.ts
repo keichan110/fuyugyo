@@ -151,6 +151,8 @@ export type AutoAssignProposal = {
   shiftTypeId: string;
   instructorIds: string[];
   shortage: { count: number; reasons: string[] };
+  /** 保存後も勤務枠の備考に残す、管理者の確認が必要な理由。 */
+  reviewReasons?: string[];
 };
 
 // ─── 集約（フォーム）データ ─────────────────────────────────────────────────

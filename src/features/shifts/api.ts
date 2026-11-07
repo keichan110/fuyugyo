@@ -585,12 +585,14 @@ export const shiftsRoute = new Hono<{
           shiftTypeId: departmentShiftTypes.shiftTypeId,
           certificationId: certificationRequirements.certificationId,
           tierRank: certificationRequirements.tierRank,
+          shortName: certifications.shortName,
         })
         .from(departmentShiftTypes)
         .leftJoin(
           certificationRequirements,
           eq(certificationRequirements.departmentShiftTypeId, departmentShiftTypes.id),
         )
+        .leftJoin(certifications, eq(certifications.id, certificationRequirements.certificationId))
         .where(eq(departmentShiftTypes.departmentCode, departmentCode))
         .orderBy(asc(departmentShiftTypes.sortOrder), asc(certificationRequirements.tierRank)),
     ]);
@@ -642,7 +644,7 @@ export const shiftsRoute = new Hono<{
       string,
       {
         shiftTypeId: string;
-        certificationTiers: { certificationId: string; tierRank: number }[];
+        certificationTiers: { certificationId: string; tierRank: number; shortName: string }[];
       }
     >();
     for (const row of frameRows) {
@@ -650,10 +652,11 @@ export const shiftsRoute = new Hono<{
         shiftTypeId: row.shiftTypeId,
         certificationTiers: [],
       };
-      if (row.certificationId !== null && row.tierRank !== null) {
+      if (row.certificationId !== null && row.tierRank !== null && row.shortName !== null) {
         frame.certificationTiers.push({
           certificationId: row.certificationId,
           tierRank: row.tierRank,
+          shortName: row.shortName,
         });
       }
       framesById.set(row.frameId, frame);

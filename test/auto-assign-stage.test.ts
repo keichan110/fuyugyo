@@ -104,7 +104,7 @@ it.each([true, false])('未保存の別枠への追加・削除を重複判定�
       frames: [
         {
           shiftTypeId: 'lesson',
-          certificationTiers: [{ certificationId: 'upper', tierRank: 1 }],
+          certificationTiers: [{ certificationId: 'upper', tierRank: 1, shortName: '上' }],
           eligibleInstructorIds: ['a'],
         },
       ],

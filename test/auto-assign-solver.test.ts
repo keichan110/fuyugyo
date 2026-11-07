@@ -48,8 +48,8 @@ function createAutoAssignContext(overrides: Partial<AutoAssignContext> = {}): Au
       {
         shiftTypeId: 'morning',
         certificationTiers: [
-          { certificationId: 'basic', tierRank: 1 },
-          { certificationId: 'advanced', tierRank: 3 },
+          { certificationId: 'basic', tierRank: 1, shortName: '基' },
+          { certificationId: 'advanced', tierRank: 3, shortName: '上' },
         ],
         eligibleInstructorIds: ['a', 'b', 'c'],
       },
@@ -370,8 +370,8 @@ function pairContext(upperDays: number, certifiedDays: number): AutoAssignContex
       shiftTypeId: 'morning',
       eligibleInstructorIds: ['a', 'b'],
       certificationTiers: [
-        { certificationId: 'upper', tierRank: 2 },
-        { certificationId: 'certified', tierRank: 3 },
+        { certificationId: 'upper', tierRank: 2, shortName: '準指導員' },
+        { certificationId: 'certified', tierRank: 3, shortName: '認定指導員' },
       ],
     },
   ];

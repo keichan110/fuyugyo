@@ -135,6 +135,17 @@ export function useShiftManagerController() {
     if (entries.length > 0) registerInstructorNames(entries);
   }, [monthly.data, registerInstructorNames]);
 
+  // 自動割当の提案は保存済み勤務を持たない人も含むため、候補の表示名を先に登録しておく
+  useEffect(() => {
+    if (!autoAssignContext.data) return;
+    registerInstructorNames(
+      autoAssignContext.data.instructors.map((instructor) => ({
+        id: instructor.id,
+        name: instructor.displayName,
+      })),
+    );
+  }, [autoAssignContext.data, registerInstructorNames]);
+
   useEffect(() => {
     window.localStorage.setItem(DEPARTMENT_STORAGE_KEY, departmentCode);
   }, [departmentCode]);

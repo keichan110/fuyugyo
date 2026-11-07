@@ -554,8 +554,9 @@ function ShiftCalendar({
         const required = requiredByDay.get(day) ?? null;
         const assigned = assignmentsByDay.get(day)?.length ?? 0;
         const status = deriveStaffingStatus(required, assigned);
-        // 開講予定なしは何も表示しない
-        if (status !== 'NOT_PLANNED') {
+        // 未設定で配置0名の日は表示する数字がない
+        const text = formatStaffingText(required, assigned);
+        if (text !== null) {
           const shortage = shortageByCell.get(key);
           // 不足理由は、その後も不足のままの日にだけ補足として続ける
           const reason =
@@ -565,7 +566,7 @@ function ShiftCalendar({
           const label = describeStaffing(required, assigned);
           staffing = {
             status,
-            text: formatStaffingText(required, assigned),
+            text,
             tooltip: reason ? `${label}：${reason}` : label,
           };
         }
@@ -737,15 +738,7 @@ function ShiftCalendar({
               stagedCells.has(cellKey(date, activeShiftTypeId)) ||
               stagedRequirements.has(cellKey(date, activeShiftTypeId)) ||
               undefined,
-            'aria-label': `${Number(date.slice(5, 7))}月${Number(date.slice(8, 10))}日（${weekdayLabel(date)}）の割り当てを編集${
-              requiredByDay &&
-              deriveStaffingStatus(
-                requiredByDay.get(date) ?? null,
-                assignmentsByDay.get(date)?.length ?? 0,
-              ) === 'NOT_PLANNED'
-                ? '（開講予定なし）'
-                : ''
-            }`,
+            'aria-label': `${Number(date.slice(5, 7))}月${Number(date.slice(8, 10))}日（${weekdayLabel(date)}）の割り当てを編集`,
             style: {
               color: calendarDayColor ? `var(--mantine-color-${calendarDayColor}-7)` : undefined,
               backgroundColor:
@@ -811,11 +804,6 @@ function ShiftCalendar({
                         />
                       )}
                       <span className={classes.staffingText}>{payload.staffing.text}</span>
-                      {payload.staffing.status === 'UNSET' && (
-                        <span className={classes.staffingDash} aria-hidden>
-                          –
-                        </span>
-                      )}
                     </UnstyledButton>
                   </Tooltip>
                 )}

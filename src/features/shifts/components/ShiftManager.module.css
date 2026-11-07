@@ -77,10 +77,6 @@
   flex-shrink: 0;
 }
 
-.staffingDash {
-  display: none;
-}
-
 /* MonthView のイベント配置を利用しつつ、人名は色付きイベントではなく一覧として見せる */
 .instructorEvent {
   border: 0;
@@ -148,12 +144,8 @@
     padding-inline: 3px;
   }
 
-  /* モバイルはアイコンだけにし、アイコンのない未設定は控えめな「–」で示す */
+  /* モバイルはアイコンだけにする（アイコンのない状態は何も表示されない） */
   .staffingText {
     display: none;
-  }
-
-  .staffingDash {
-    display: inline;
   }
 }

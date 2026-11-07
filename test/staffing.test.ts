@@ -24,12 +24,12 @@ describe('deriveStaffingStatus', () => {
 });
 
 describe('表示文字列', () => {
-  it('配置/必要の数字だけを返し、未設定は – を使う', () => {
+  it('必要人数があれば配置/必要、未設定は配置人数だけを返し、配置0なら表示しない', () => {
     expect(formatStaffingText(3, 2)).toBe('2/3');
     expect(formatStaffingText(3, 4)).toBe('4/3');
-    expect(formatStaffingText(null, 2)).toBe('2/–');
-    expect(formatStaffingText(null, 0)).toBe('0/–');
     expect(formatStaffingText(0, 0)).toBe('0/0');
+    expect(formatStaffingText(null, 2)).toBe('2');
+    expect(formatStaffingText(null, 0)).toBeNull();
   });
 
   it('aria 用の説明に状態名を含める', () => {

@@ -16,9 +16,13 @@ export function deriveStaffingStatus(required: number | null, assigned: number):
   return assigned < required ? 'SHORT' : 'FILLED';
 }
 
-/** セルに表示する「配置/必要」の文字列（未設定は `2/–`）。 */
-export function formatStaffingText(required: number | null, assigned: number): string {
-  return `${assigned}/${required === null ? '–' : required}`;
+/**
+ * セルに表示する数字。必要人数があれば「配置/必要」（`2/3`、開講予定なしは `0/0`）。
+ * 未設定は配置1名以上のとき配置人数だけ（`2`）を返し、配置0名なら表示しない（null）。
+ */
+export function formatStaffingText(required: number | null, assigned: number): string | null {
+  if (required === null) return assigned > 0 ? `${assigned}` : null;
+  return `${assigned}/${required}`;
 }
 
 /** 充足状況を含むスクリーンリーダー向けの説明文。 */

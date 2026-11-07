@@ -401,6 +401,7 @@ function RequiredCountInputs({
       <NumberInput
         label={weekdayLabel}
         allowDecimal={false}
+        allowNegative={false}
         min={0}
         value={weekday}
         onChange={(value) => onWeekdayChange(typeof value === 'number' ? value : '')}
@@ -408,6 +409,7 @@ function RequiredCountInputs({
       <NumberInput
         label={weekendHolidayLabel}
         allowDecimal={false}
+        allowNegative={false}
         min={0}
         value={weekendHoliday}
         onChange={(value) => onWeekendHolidayChange(typeof value === 'number' ? value : '')}
@@ -974,6 +976,7 @@ function AssignmentPanel({
         label="必要人数"
         description="空欄は未設定です。0名は開講予定なしで、自動割当の対象外です（手動の割り当ては可能です）"
         allowDecimal={false}
+        allowNegative={false}
         min={0}
         disabled={!requirementsReady}
         value={requiredCount ?? ''}

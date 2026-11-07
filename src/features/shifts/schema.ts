@@ -167,6 +167,23 @@ export const autoAssignContextSchema = z.object({
 
 export type AutoAssignContext = z.infer<typeof autoAssignContextSchema>;
 
+/** 人別負荷（instructor-workload）のクエリ。対象 Instructor と表示中の月を指定する。 */
+export const instructorWorkloadQuerySchema = z.object({
+  instructorId: z.string().min(1),
+  month: monthStringSchema,
+});
+
+/**
+ * 人別負荷のレスポンス。表示月を含むシーズン範囲と、その人の保存済み勤務日のうち
+ * 対象月以外（全部門・全種別、重複除去・昇順）を返す。対象月分はクライアントが未保存の編集を含めて合成する。
+ */
+export const instructorWorkloadSchema = z.object({
+  seasonRange: z.object({ from: dateStringSchema, to: dateStringSchema }),
+  workDatesOutsideMonth: z.array(dateStringSchema),
+});
+
+export type InstructorWorkload = z.infer<typeof instructorWorkloadSchema>;
+
 /**
  * 自動割当を実行する対象種別・対象日・日別の必要人数。DB には保存しない一時パラメータ。
  * requiredCountByDate に無い日は必要人数0として扱う。

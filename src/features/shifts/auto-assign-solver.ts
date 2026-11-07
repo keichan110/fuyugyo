@@ -1,4 +1,4 @@
-import { scoreQualificationComposition } from './qualification-composition';
+import { lowestRankOnlyReason, scoreQualificationComposition } from './qualification-composition';
 import type { AutoAssignContext, AutoAssignExecutionParams, AutoAssignProposal } from './schema';
 
 /** 自動割当の実行結果。対象枠の提案、不足人数、要確認の理由を含む。 */
@@ -67,14 +67,6 @@ export function solveAutoAssignments(
     ]),
   );
   const configuredRankCount = new Set(ranks.values()).size;
-  // 要確認の対象は、認定指導員（ランク3以降）だけで組んだ枠。
-  const certifiedOnlyIds = new Set(
-    qualified
-      .filter(
-        (instructor) => !instructor.certificationIds.some((id) => (ranks.get(id) ?? Infinity) <= 2),
-      )
-      .map((instructor) => instructor.id),
-  );
   const unavailable = new Set(
     context.availabilities
       .filter((item) => item.type === 'UNAVAILABLE')
@@ -162,9 +154,12 @@ export function solveAutoAssignments(
         if (!reasons.length) reasons.push('資格を満たす候補者が不足');
       }
       const reviewReasons: string[] = [];
-      if (frame.selected.length && frame.selected.every((id) => certifiedOnlyIds.has(id))) {
-        reviewReasons.push('認定指導員のみの構成');
-      }
+      // 枠の最下位ランクだけで組んだ構成は、画面表示と同じ判定で要確認にする。
+      const compositionReason = lowestRankOnlyReason(
+        frame.selected.map((id) => rankById.get(id) ?? Infinity),
+        configuration.certificationTiers,
+      );
+      if (compositionReason) reviewReasons.push(compositionReason);
       const avoidNames = frame.selected
         .filter((id) => avoid.has(dateInstructorKey(frame.date, id)))
         .map((id) => names.get(id) ?? id);

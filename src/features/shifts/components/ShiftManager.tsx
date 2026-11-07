@@ -158,6 +158,7 @@ function ShiftManagerContent({ controller, myInstructorId }: ShiftManagerContent
               missingCertification={controller.activeShiftTypeMissingCertification}
               noSelectableDates={controller.hasNoAutoAssignSelectableDates}
               shortageByCell={controller.shortageByCell}
+              compositionByDay={controller.compositionByDay}
               stagedRequirements={controller.stagedRequirements}
               requiredByDay={controller.requiredByDay}
               isAutoAssignSelectableDate={controller.isAutoAssignSelectableDate}
@@ -258,6 +259,7 @@ function ShiftManagerContent({ controller, myInstructorId }: ShiftManagerContent
             assignmentsReady={controller.monthly.data !== undefined}
             staffingSummary={controller.staffingSummary}
             shortageByCell={controller.shortageByCell}
+            compositionByDay={controller.compositionByDay}
             navigationDisabled={controller.autoAssignMode || controller.isAutoAssigning}
             requiredByDay={controller.requiredByDay}
             selectedCell={selectedCell}

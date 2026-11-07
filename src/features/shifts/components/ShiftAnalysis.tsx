@@ -1,12 +1,24 @@
-import { useId, useState } from 'react';
+import { Fragment, useId, useState } from 'react';
 
-import { ActionIcon, Box, Card, Collapse, Group, Stack, Tabs, Text, Title } from '@mantine/core';
+import {
+  ActionIcon,
+  Anchor,
+  Box,
+  Card,
+  Collapse,
+  Group,
+  Stack,
+  Tabs,
+  Text,
+  Title,
+} from '@mantine/core';
 import { IconChevronDown, IconChevronUp } from '@tabler/icons-react';
 
 import { AppButton } from '@/components/AppButton';
 import { getDepartmentAppearance } from '@/features/departments/appearance';
 import type { DepartmentCode } from '@/features/departments/schema';
 
+import type { FrameComposition } from '../qualification-composition';
 import type { AutoAssignProposal } from '../schema';
 import { deriveStaffingStatus, describeStaffing, type StaffingMonthlySummary } from '../staffing';
 import { getCalendarDayColor, shortDateLabel, weekdayIndex } from '../view-utils';
@@ -24,6 +36,8 @@ type ShiftAnalysisProps = {
   assignmentsReady: boolean;
   staffingSummary: StaffingMonthlySummary | null;
   shortageByCell: ReadonlyMap<string, AutoAssignProposal['shortage']>;
+  /** 日 → 資格構成の評価。自動割当コンテキストの取得前は null。 */
+  compositionByDay: ReadonlyMap<string, FrameComposition> | null;
   navigationDisabled: boolean;
   requiredByDay: Map<string, number | null> | null;
   selectedCell: SelectedCell | null;
@@ -78,6 +92,7 @@ export function ShiftAnalysis(props: ShiftAnalysisProps) {
                 days={props.days}
                 assignmentsByDay={props.assignmentsByDay}
                 requiredByDay={props.requiredByDay}
+                compositionByDay={props.compositionByDay}
                 staffingSummary={props.staffingSummary}
                 navigationDisabled={props.navigationDisabled}
                 onSelectDate={(date) => {
@@ -92,6 +107,7 @@ export function ShiftAnalysis(props: ShiftAnalysisProps) {
                 assignmentsByDay={props.assignmentsByDay}
                 requiredByDay={props.requiredByDay}
                 shortageByCell={props.shortageByCell}
+                compositionByDay={props.compositionByDay}
                 selectedDescription={props.selectedDescription}
               />
             </Tabs.Panel>
@@ -117,6 +133,7 @@ type MonthlyStaffingAnalysisProps = Pick<
   | 'days'
   | 'assignmentsByDay'
   | 'requiredByDay'
+  | 'compositionByDay'
   | 'staffingSummary'
   | 'navigationDisabled'
   | 'onSelectDate'
@@ -127,6 +144,7 @@ function MonthlyStaffingAnalysis({
   days,
   assignmentsByDay,
   requiredByDay,
+  compositionByDay,
   staffingSummary,
   navigationDisabled,
   onSelectDate,
@@ -144,36 +162,80 @@ function MonthlyStaffingAnalysis({
         assignmentsByDay.get(date)?.length ?? 0,
       ) === 'SHORT',
   );
+  const reviewDates = days.filter((date) => compositionByDay?.get(date)?.needsReview);
+  const requirementUnset = compositionByDay?.values().next().value?.requirementUnset ?? false;
   return (
     <Stack gap="sm">
+      {requirementUnset && <Text size="sm">必要資格未設定</Text>}
       <Text size="sm">
         不足 {staffingSummary.shortDays}日 / 必要人数未設定 {staffingSummary.unsetCount}枠
       </Text>
-      <Group gap="xs">
-        {shortDates.map((date) => (
-          <AppButton
-            key={date}
-            intent="secondary"
-            size="compact-sm"
-            disabled={navigationDisabled}
-            onClick={() => onSelectDate(date)}
-          >
-            {shortDateLabel(date)}の不足を確認
-          </AppButton>
-        ))}
-      </Group>
+      <DateLinkList
+        dates={shortDates}
+        actionLabel="不足を確認"
+        disabled={navigationDisabled}
+        onSelectDate={onSelectDate}
+      />
       {staffingSummary.shortDays === 0 && (
         <Text size="sm" c="dimmed">
           必要人数が設定された枠に不足はありません。
         </Text>
       )}
+      {compositionByDay && !requirementUnset && (
+        <>
+          <Text size="sm">資格構成の要確認 {reviewDates.length}日</Text>
+          <DateLinkList
+            dates={reviewDates}
+            actionLabel="要確認を確認"
+            disabled={navigationDisabled}
+            onSelectDate={onSelectDate}
+          />
+        </>
+      )}
     </Stack>
+  );
+}
+
+type DateLinkListProps = {
+  dates: string[];
+  /** スクリーンリーダー向けに日付へ続ける操作の説明 */
+  actionLabel: string;
+  disabled: boolean;
+  onSelectDate: (date: string) => void;
+};
+
+/** 日付と曜日だけのリンクを「、」区切りで並べ、押した日の枠へ移動する。 */
+function DateLinkList({ dates, actionLabel, disabled, onSelectDate }: DateLinkListProps) {
+  if (dates.length === 0) return null;
+  return (
+    <Text size="sm">
+      {dates.map((date, index) => (
+        <Fragment key={date}>
+          {index > 0 && '、'}
+          <Anchor
+            component="button"
+            type="button"
+            size="sm"
+            disabled={disabled}
+            aria-label={`${shortDateLabel(date)}の${actionLabel}`}
+            onClick={() => onSelectDate(date)}
+          >
+            {shortDateLabel(date)}
+          </Anchor>
+        </Fragment>
+      ))}
+    </Text>
   );
 }
 
 type SelectedSlotAnalysisProps = Pick<
   ShiftAnalysisProps,
-  'selectedCell' | 'assignmentsByDay' | 'requiredByDay' | 'shortageByCell' | 'selectedDescription'
+  | 'selectedCell'
+  | 'assignmentsByDay'
+  | 'requiredByDay'
+  | 'shortageByCell'
+  | 'compositionByDay'
+  | 'selectedDescription'
 >;
 
 /** 選択枠の現在の充足と、まだ不足している場合の自動割当時の理由を示す。 */
@@ -182,6 +244,7 @@ function SelectedSlotAnalysis({
   assignmentsByDay,
   requiredByDay,
   shortageByCell,
+  compositionByDay,
   selectedDescription,
 }: SelectedSlotAnalysisProps) {
   if (!selectedCell)
@@ -194,6 +257,7 @@ function SelectedSlotAnalysis({
   const required = requiredByDay?.get(selectedCell.date) ?? null;
   const isShort =
     requiredByDay !== null && deriveStaffingStatus(required, assigned.length) === 'SHORT';
+  const composition = compositionByDay?.get(selectedCell.date);
   const shortage = isShort
     ? shortageByCell.get(cellKey(selectedCell.date, selectedCell.shiftTypeId))
     : undefined;
@@ -211,9 +275,45 @@ function SelectedSlotAnalysis({
           自動割当時の不足理由：{shortage.reasons.join(' / ')}
         </Text>
       )}
+      {composition && <CompositionDetail composition={composition} />}
       {selectedDescription.trim() && (
         <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>
           備考：{selectedDescription}
+        </Text>
+      )}
+    </Stack>
+  );
+}
+
+/** 選択枠の資格構成（ランク別内訳・要件外の配置・要確認理由）を縦に並べる。 */
+function CompositionDetail({ composition }: { composition: FrameComposition }) {
+  if (composition.requirementUnset) return <Text size="sm">必要資格未設定</Text>;
+  return (
+    <Stack gap={4}>
+      <Text fw={600} size="sm">
+        資格構成
+      </Text>
+      {composition.rankBreakdown.map((rank) => (
+        <Text key={rank.tierRank} size="sm">
+          {rank.certificationNames.join('・')}：{rank.count}名
+          {rank.names.length > 0 && `（${rank.names.join('・')}）`}
+        </Text>
+      ))}
+      <Text size="sm">
+        必要資格を満たす人数 {composition.qualifiedCount} / 配置 {composition.assignedCount}名
+      </Text>
+      {composition.outOfRequirementNames.length > 0 && (
+        <Text size="sm">資格要件外の配置：{composition.outOfRequirementNames.join('・')}</Text>
+      )}
+      {composition.needsReview ? (
+        composition.reasons.map((reason) => (
+          <Text key={reason} size="sm" c="yellow.8">
+            要確認：{reason}
+          </Text>
+        ))
+      ) : (
+        <Text size="sm" c="dimmed">
+          資格構成の要確認はありません
         </Text>
       )}
     </Stack>

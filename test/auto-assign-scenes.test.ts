@@ -35,6 +35,7 @@ function createContext(
         certificationTiers: RANKS.map((rank, index) => ({
           certificationId: rank,
           tierRank: index + 1,
+          shortName: rank,
         })),
         eligibleInstructorIds: staff.map(({ name }) => name),
       },

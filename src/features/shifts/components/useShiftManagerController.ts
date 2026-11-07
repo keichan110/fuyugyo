@@ -8,6 +8,7 @@ import { departmentCodeSchema, type DepartmentCode } from '@/features/department
 
 import type { AutoAssignSolver } from '../auto-assign-solver-port';
 import { createWorkerSolver } from '../auto-assign-worker-solver';
+import { evaluateFrameComposition } from '../qualification-composition';
 import {
   useAutoAssignContext,
   useShiftCalendar,
@@ -469,6 +470,32 @@ export function useShiftManagerController() {
     [requiredByDay, monthly.data, days, assignmentsByDay],
   );
 
+  // 未保存の配置を含めた日ごとの資格構成。自動割当コンテキストの取得前は判定しない。
+  const compositionByDay = useMemo(() => {
+    const context = autoAssignContext.data;
+    if (!context) return null;
+    const frame = context.frames.find((item) => item.shiftTypeId === activeShiftTypeId);
+    const tiers = frame?.certificationTiers ?? [];
+    const eligibleInstructorIds = new Set(frame?.eligibleInstructorIds ?? []);
+    // 候補に居ない人（非ACTIVE・部門資格なし）は資格なし扱いになり、要件外と判定される
+    const certificationsById = new Map(
+      context.instructors.map((instructor) => [instructor.id, instructor.certificationIds]),
+    );
+    return new Map(
+      days.map((date) => [
+        date,
+        evaluateFrameComposition({
+          assigned: (assignmentsByDay.get(date) ?? []).map((person) => ({
+            ...person,
+            certificationIds: certificationsById.get(person.id) ?? [],
+          })),
+          tiers,
+          eligibleInstructorIds,
+        }),
+      ]),
+    );
+  }, [autoAssignContext.data, activeShiftTypeId, days, assignmentsByDay]);
+
   const selectedStagedCell = selectedCell
     ? stagedCells.get(cellKey(selectedCell.date, selectedCell.shiftTypeId))
     : undefined;
@@ -490,6 +517,7 @@ export function useShiftManagerController() {
 
   return {
     assignmentsByDay,
+    compositionByDay,
     shiftByCell,
     staffingSummary,
     activeShiftTypeId,

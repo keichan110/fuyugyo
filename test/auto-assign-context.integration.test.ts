@@ -145,7 +145,13 @@ describe('GET /api/shifts/auto-assign-context', () => {
       frames: [
         {
           shiftTypeId: shiftType!.id,
-          certificationTiers: [{ certificationId: certification!.id, tierRank: 1 }],
+          certificationTiers: [
+            {
+              certificationId: certification!.id,
+              tierRank: 1,
+              shortName: certification!.shortName,
+            },
+          ],
           eligibleInstructorIds: [candidate!.id],
         },
       ],

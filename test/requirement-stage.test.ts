@@ -98,7 +98,7 @@ describe('自動割当の対象', () => {
       frames: [
         {
           shiftTypeId: TYPE,
-          certificationTiers: [{ certificationId: 'cert', tierRank: 1 }],
+          certificationTiers: [{ certificationId: 'cert', tierRank: 1, shortName: '資' }],
           eligibleInstructorIds: ['a', 'b', 'c', 'd'],
         },
       ],

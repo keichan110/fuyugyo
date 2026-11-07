@@ -128,7 +128,11 @@ export const autoAssignInstructorSchema = z.object({
 export const autoAssignFrameSchema = z.object({
   shiftTypeId: z.string(),
   certificationTiers: z.array(
-    z.object({ certificationId: z.string(), tierRank: z.number().int().positive() }),
+    z.object({
+      certificationId: z.string(),
+      tierRank: z.number().int().positive(),
+      shortName: z.string(),
+    }),
   ),
   eligibleInstructorIds: z.array(z.string()),
 });

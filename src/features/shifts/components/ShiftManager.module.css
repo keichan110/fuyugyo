@@ -73,6 +73,49 @@
   font-weight: 600;
 }
 
+/* 充足イベント: 不足=黄、充足=緑、未設定と開講予定なしは色なし */
+.staffingEvent {
+  border: 0;
+  background: transparent;
+  color: var(--mantine-color-text);
+  padding: 1px 6px;
+  overflow: hidden;
+  font-size: var(--mantine-font-size-xs);
+  font-weight: 600;
+  line-height: 1.35;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.staffingEvent[data-staffing='SHORT'] {
+  background-color: var(--mantine-color-yellow-light);
+  color: var(--mantine-color-yellow-light-color);
+}
+
+.staffingEvent[data-staffing='FILLED'] {
+  background-color: var(--mantine-color-green-light);
+  color: var(--mantine-color-green-light-color);
+}
+
+.legend {
+  row-gap: 2px;
+}
+
+.legendSwatch {
+  width: 12px;
+  height: 12px;
+  border: 1px solid var(--mantine-color-default-border);
+  border-radius: 2px;
+}
+
+.legendSwatch[data-staffing='SHORT'] {
+  background-color: var(--mantine-color-yellow-light);
+}
+
+.legendSwatch[data-staffing='FILLED'] {
+  background-color: var(--mantine-color-green-light);
+}
+
 .assignmentDrawerBody {
   padding-top: var(--mantine-spacing-xs);
 }

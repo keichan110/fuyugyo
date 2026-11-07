@@ -12,12 +12,22 @@ import {
   useAutoAssignContext,
   useShiftCalendar,
   useShiftCreationContext,
+  useShiftStaffingRequirements,
   useUpsertAssignments,
 } from '../queries';
-import { resolveInitialRequiredCount } from '../staffing';
 import { todayString, toMonth } from '../view-utils';
 import { countCurrentMonthWorkDays, type CellAssignment } from '../workload';
 import { applyAutoAssignProposals, contextWithStagedAssignments } from './auto-assign-stage';
+import {
+  applyAutoAssignRequirements,
+  applyBulkRequirements,
+  bulkRequirementTargetDates,
+  effectiveRequiredCount,
+  fixedRequiredCount,
+  planAutoAssignRequirements,
+  stageManualRequirement,
+  type StagedRequirements,
+} from './requirement-stage';
 import { reconcileShiftManagerSelection } from './shift-manager-selection';
 import type {
   PendingNavigation,
@@ -51,8 +61,11 @@ export function useShiftManagerController() {
   const [autoAssignDates, setAutoAssignDates] = useState<Set<string>>(new Set());
   const [autoAssignModalOpened, setAutoAssignModalOpened] = useState(false);
   const [autoAssignShiftTypeId, setAutoAssignShiftTypeId] = useState('');
-  const [weekdayRequiredCount, setWeekdayRequiredCount] = useState(2);
-  const [weekendHolidayRequiredCount, setWeekendHolidayRequiredCount] = useState(3);
+  // 自動割当・一括設定で共有する「未設定日の初期値」。空欄は 0 に丸めず '' で保持する。
+  const [weekdayRequiredCount, setWeekdayRequiredCount] = useState<number | ''>(2);
+  const [weekendHolidayRequiredCount, setWeekendHolidayRequiredCount] = useState<number | ''>(3);
+  const [stagedRequirements, setStagedRequirements] = useState<StagedRequirements>(new Map());
+  const [bulkModalOpened, setBulkModalOpened] = useState(false);
   const [isAutoAssigning, setIsAutoAssigning] = useState(false);
   // 「別の案を出す」で異なる提案を得るための連番。実行のたびに増やす。
   const [autoAssignVariant, setAutoAssignVariant] = useState(0);
@@ -66,9 +79,26 @@ export function useShiftManagerController() {
   const monthly = useShiftCalendar(month);
   const autoAssignContext = useAutoAssignContext(departmentCode, month);
   const availabilities = useAvailabilities(`${month}-01`, monthLastDate(month));
+  const requirements = useShiftStaffingRequirements(month);
   const upsertMonthly = useUpsertAssignments();
   const days = useMemo(() => monthDays(month), [month]);
-  const isDirty = stagedCells.size > 0;
+  // 必要人数は取得できるまで未設定と区別できないため、取得完了を ready として扱う
+  const requirementsReady = requirements.data !== undefined;
+  const savedRequirements = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const row of requirements.data ?? []) {
+      if (row.departmentCode === departmentCode) {
+        map.set(cellKey(row.date, row.shiftTypeId), row.requiredCount);
+      }
+    }
+    return map;
+  }, [requirements.data, departmentCode]);
+  const isDirty = stagedCells.size > 0 || stagedRequirements.size > 0;
+  // 同じセルの割り当てと必要人数の両方が未保存でも1件として数える
+  const dirtyCount = useMemo(
+    () => new Set([...stagedCells.keys(), ...stagedRequirements.keys()]).size,
+    [stagedCells, stagedRequirements],
+  );
   const blocker = useBlocker({
     shouldBlockFn: () => isDirty,
     enableBeforeUnload: () => isDirty,
@@ -79,11 +109,11 @@ export function useShiftManagerController() {
   // シフト種別タブに「未保存の編集あり」のドットを出すため、ステージ済みセルの種別IDを集計する
   const stagedShiftTypeIds = useMemo(() => {
     const ids = new Set<string>();
-    for (const key of stagedCells.keys()) {
+    for (const key of [...stagedCells.keys(), ...stagedRequirements.keys()]) {
       ids.add(splitCellKey(key)[1]);
     }
     return ids;
-  }, [stagedCells]);
+  }, [stagedCells, stagedRequirements]);
 
   const registerInstructorNames = useCallback((entries: Array<{ id: string; name: string }>) => {
     setNameById((prev) => {
@@ -135,6 +165,7 @@ export function useShiftManagerController() {
         }));
       }
       setStagedCells(new Map());
+      setStagedRequirements(new Map());
       setDrawerOpened(false);
     },
     [days],
@@ -164,7 +195,101 @@ export function useShiftManagerController() {
   const stageCell = useCallback((cellKeyValue: string, next: StagedCell) => {
     setStagedCells((prev) => new Map(prev).set(cellKeyValue, next));
   }, []);
-  const resetStage = () => setStagedCells(new Map());
+  const resetStage = () => {
+    setStagedCells(new Map());
+    setStagedRequirements(new Map());
+  };
+  const stageRequirement = useCallback(
+    (date: string, shiftTypeId: string, requiredCount: number | null) => {
+      setStagedRequirements((prev) =>
+        stageManualRequirement(prev, savedRequirements, cellKey(date, shiftTypeId), requiredCount),
+      );
+    },
+    [savedRequirements],
+  );
+
+  // 表示中のシフト種別について、日ごとの表示用の必要人数（取得前は null 自体を返さない）
+  const requiredByDay = useMemo(() => {
+    if (!requirementsReady) return null;
+    return new Map(
+      days.map((date) => [
+        date,
+        effectiveRequiredCount(
+          stagedRequirements,
+          savedRequirements,
+          cellKey(date, activeShiftTypeId),
+        ),
+      ]),
+    );
+  }, [requirementsReady, days, stagedRequirements, savedRequirements, activeShiftTypeId]);
+
+  // 確定値が0名の日は自動割当の対象外
+  const isAutoAssignExcludedDate = useCallback(
+    (date: string, shiftTypeId: string) =>
+      fixedRequiredCount(stagedRequirements, savedRequirements, cellKey(date, shiftTypeId)) === 0,
+    [stagedRequirements, savedRequirements],
+  );
+
+  const bulkTargetDates = useMemo(
+    () =>
+      bulkRequirementTargetDates({
+        dates: days,
+        shiftTypeId: activeShiftTypeId,
+        staged: stagedRequirements,
+        saved: savedRequirements,
+      }),
+    [days, activeShiftTypeId, stagedRequirements, savedRequirements],
+  );
+  const applyBulkRequirementCounts = () => {
+    if (weekdayRequiredCount === '' || weekendHolidayRequiredCount === '') return;
+    setStagedRequirements((prev) =>
+      applyBulkRequirements({
+        dates: days,
+        shiftTypeId: activeShiftTypeId,
+        staged: prev,
+        saved: savedRequirements,
+        counts: { weekday: weekdayRequiredCount, weekendHoliday: weekendHolidayRequiredCount },
+      }),
+    );
+    setBulkModalOpened(false);
+  };
+
+  // 自動割当モーダルの「設定済みX日／未設定Y日」。0名の日は含めない。
+  const autoAssignSummary = useMemo(() => {
+    let fixedDays = 0;
+    let unsetDays = 0;
+    const plan =
+      weekdayRequiredCount === '' || weekendHolidayRequiredCount === ''
+        ? null
+        : planAutoAssignRequirements({
+            dates: autoAssignDates,
+            shiftTypeId: autoAssignShiftTypeId,
+            staged: stagedRequirements,
+            saved: savedRequirements,
+            initialCounts: {
+              weekday: weekdayRequiredCount,
+              weekendHoliday: weekendHolidayRequiredCount,
+            },
+          });
+    for (const date of autoAssignDates) {
+      const fixed = fixedRequiredCount(
+        stagedRequirements,
+        savedRequirements,
+        cellKey(date, autoAssignShiftTypeId),
+      );
+      if (fixed === 0) continue;
+      if (fixed === null) unsetDays += 1;
+      else fixedDays += 1;
+    }
+    return { fixedDays, unsetDays, solverTargetCount: plan?.solverDates.length ?? 0 };
+  }, [
+    autoAssignDates,
+    autoAssignShiftTypeId,
+    stagedRequirements,
+    savedRequirements,
+    weekdayRequiredCount,
+    weekendHolidayRequiredCount,
+  ]);
 
   const startAutoAssign = () => {
     setAutoAssignShiftTypeId(activeShiftTypeId);
@@ -172,6 +297,7 @@ export function useShiftManagerController() {
       new Set(
         days.filter(
           (date) =>
+            !isAutoAssignExcludedDate(date, activeShiftTypeId) &&
             !monthly.data?.shifts.some(
               (shift) =>
                 shift.date === date &&
@@ -186,7 +312,24 @@ export function useShiftManagerController() {
   };
 
   const runAutoAssign = async () => {
-    if (!autoAssignContext.data || !autoAssignShiftTypeId || autoAssignDates.size === 0) return;
+    if (
+      !autoAssignContext.data ||
+      !autoAssignShiftTypeId ||
+      !requirementsReady ||
+      weekdayRequiredCount === '' ||
+      weekendHolidayRequiredCount === ''
+    ) {
+      return;
+    }
+    const plan = planAutoAssignRequirements({
+      dates: autoAssignDates,
+      shiftTypeId: autoAssignShiftTypeId,
+      staged: stagedRequirements,
+      saved: savedRequirements,
+      initialCounts: { weekday: weekdayRequiredCount, weekendHoliday: weekendHolidayRequiredCount },
+    });
+    // 対象が空なら既存の割り当てに触れず、ソルバーも呼ばない
+    if (plan.solverDates.length === 0) return;
     setIsAutoAssigning(true);
     const variant = autoAssignVariant;
     setAutoAssignVariant((current) => current + 1);
@@ -195,20 +338,21 @@ export function useShiftManagerController() {
         context: contextWithStagedAssignments(autoAssignContext.data, stagedCells),
         params: {
           shiftTypeId: autoAssignShiftTypeId,
-          targetDates: [...autoAssignDates],
-          requiredCountByDate: Object.fromEntries(
-            [...autoAssignDates].map((date) => [
-              date,
-              resolveInitialRequiredCount(date, {
-                weekday: weekdayRequiredCount,
-                weekendHoliday: weekendHolidayRequiredCount,
-              }),
-            ]),
-          ),
+          targetDates: plan.solverDates,
+          requiredCountByDate: plan.requiredCountByDate,
         },
         variant,
       });
       setStagedCells((current) => applyAutoAssignProposals({ stagedCells: current, proposals }));
+      setStagedRequirements((current) =>
+        applyAutoAssignRequirements({
+          staged: current,
+          saved: savedRequirements,
+          shiftTypeId: autoAssignShiftTypeId,
+          proposals,
+          plan,
+        }),
+      );
       setShortageByCell(
         new Map(
           proposals.map((proposal) => [
@@ -300,7 +444,7 @@ export function useShiftManagerController() {
   }, [monthly.data, stagedCells, departmentCode]);
 
   const saveMonthly = () => {
-    if (stagedCells.size === 0) return;
+    if (!isDirty) return;
     const cells = Array.from(stagedCells.entries()).map(([key, value]) => {
       const [date, shiftTypeId] = splitCellKey(key);
       return {
@@ -310,9 +454,18 @@ export function useShiftManagerController() {
         instructorIds: value.instructorIds,
       };
     });
+    const stagedRequirementInputs = Array.from(stagedRequirements.entries()).map(([key, value]) => {
+      const [date, shiftTypeId] = splitCellKey(key);
+      return { date, shiftTypeId, requiredCount: value.requiredCount };
+    });
     upsertMonthly.mutate(
-      { month, departmentCode, cells, requirements: [] },
-      { onSuccess: () => setStagedCells(new Map()) },
+      { month, departmentCode, cells, requirements: stagedRequirementInputs },
+      {
+        onSuccess: () => {
+          setStagedCells(new Map());
+          setStagedRequirements(new Map());
+        },
+      },
     );
   };
 
@@ -328,8 +481,31 @@ export function useShiftManagerController() {
       )
     : undefined;
 
+  const selectedRequirementKey = selectedCell
+    ? cellKey(selectedCell.date, selectedCell.shiftTypeId)
+    : undefined;
+  const selectedRequiredCount = selectedRequirementKey
+    ? effectiveRequiredCount(stagedRequirements, savedRequirements, selectedRequirementKey)
+    : null;
+
   return {
     activeShiftTypeId,
+    applyBulkRequirementCounts,
+    autoAssignSummary,
+    bulkModalOpened,
+    bulkTargetDates,
+    dirtyCount,
+    isAutoAssignExcludedDate,
+    requiredByDay,
+    requirements,
+    requirementsReady,
+    selectedRequiredCount,
+    selectedStagedRequirement: selectedRequirementKey
+      ? stagedRequirements.get(selectedRequirementKey)
+      : undefined,
+    setBulkModalOpened,
+    stageRequirement,
+    stagedRequirements,
     autoAssignContext,
     autoAssignDates,
     autoAssignMode,

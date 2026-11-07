@@ -126,10 +126,8 @@ it.each([true, false])('未保存の別枠への追加・削除を重複判定�
     context,
     {
       shiftTypeId: 'lesson',
-      weekdayRequiredCount: 1,
-      weekendHolidayRequiredCount: 1,
       targetDates: ['2026-01-10'],
-      holidayDates: [],
+      requiredCountByDate: { '2026-01-10': 1 },
     },
     1,
   ).proposals[0];

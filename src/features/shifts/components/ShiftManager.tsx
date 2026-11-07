@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 
 import {
-  ActionIcon,
   Box,
   Card,
   Checkbox,
@@ -22,7 +21,6 @@ import {
   UnstyledButton,
 } from '@mantine/core';
 import { MonthView, type ScheduleEventData } from '@mantine/schedule';
-import { IconMessage, IconWand } from '@tabler/icons-react';
 
 import 'dayjs/locale/ja';
 
@@ -39,8 +37,18 @@ import { departmentCodeSchema, type DepartmentCode } from '@/features/department
 import { compareInstructorCertification, compareInstructorKana } from '../candidate-display';
 import { useShiftAssignmentEditor } from '../queries';
 import type { AutoAssignProposal, AvailableInstructor, ShiftViewItem } from '../schema';
-import { addDays, getCalendarDayColor, shortDateLabel, toMonth } from '../view-utils';
+import { summarizeStaffing } from '../staffing';
+import { getCalendarDayColor, shortDateLabel, toMonth } from '../view-utils';
 import { calculateFairShare } from '../workload';
+import { AutoAssignToolbar } from './AutoAssignToolbar';
+import {
+  buildCalendarEvents,
+  isHeaderEventPayload,
+  resolveAssignmentsByDay,
+  type AssignmentEventPayload,
+} from './calendar-events';
+import { DayHeaderLayer } from './DayHeaderLayer';
+import type { StagedRequirements } from './requirement-stage';
 import type { SelectedCell, StagedCell } from './shift-manager-types';
 import { cellKey, weekdayLabel } from './shift-manager-utils';
 import classes from './ShiftManager.module.css';
@@ -106,6 +114,11 @@ function ShiftManagerContent({ controller, myInstructorId }: ShiftManagerContent
         </Text>
       )}
       {controller.formData.isError && <ErrorAlert>フォームデータの取得に失敗しました</ErrorAlert>}
+      {controller.requirements.isError && (
+        <ErrorAlert>
+          {controller.requirements.error?.message ?? '必要人数の取得に失敗しました'}
+        </ErrorAlert>
+      )}
       {controller.monthly.isError && (
         <ErrorAlert>
           {controller.monthly.error?.message ?? '月次シフトの取得に失敗しました'}
@@ -116,8 +129,8 @@ function ShiftManagerContent({ controller, myInstructorId }: ShiftManagerContent
         <>
           {controller.isDirty && (
             <UnsavedChangesBar
-              count={controller.stagedCells.size}
-              description="表示中の月のシフト割当をまとめて保存します"
+              count={controller.dirtyCount}
+              description="表示中の月のシフト割当と必要人数をまとめて保存します"
               loading={controller.upsertMonthly.isPending}
               saveLabel="一括保存"
               onCancel={controller.resetStage}
@@ -159,8 +172,20 @@ function ShiftManagerContent({ controller, myInstructorId }: ShiftManagerContent
                 return next;
               })
             }
-            onOpenAutoAssignModal={() => controller.setAutoAssignModalOpened(true)}
+            onRunAutoAssign={controller.runAutoAssign}
+            isAutoAssigning={controller.isAutoAssigning}
+            canRunAutoAssign={
+              !!controller.autoAssignContext.data &&
+              controller.requirementsReady &&
+              !controller.activeShiftTypeMissingCertification
+            }
+            missingCertification={controller.activeShiftTypeMissingCertification}
+            noSelectableDates={controller.hasNoAutoAssignSelectableDates}
             shortageByCell={controller.shortageByCell}
+            stagedRequirements={controller.stagedRequirements}
+            requiredByDay={controller.requiredByDay}
+            isAutoAssignSelectableDate={controller.isAutoAssignSelectableDate}
+            onOpenBulkModal={() => controller.setBulkModalOpened(true)}
           />
 
           {controller.drawerOpened && <Box h={ASSIGNMENT_DRAWER_HEIGHT} aria-hidden />}
@@ -186,7 +211,9 @@ function ShiftManagerContent({ controller, myInstructorId }: ShiftManagerContent
                     <Text size="sm" c="dimmed">
                       {controller.selectedAssignmentCount}名
                     </Text>
-                    {controller.selectedStagedCell && <AppBadge kind="pending">未保存</AppBadge>}
+                    {(controller.selectedStagedCell || controller.selectedStagedRequirement) && (
+                      <AppBadge kind="pending">未保存</AppBadge>
+                    )}
                   </Group>
                 </Group>
               ) : undefined
@@ -211,6 +238,11 @@ function ShiftManagerContent({ controller, myInstructorId }: ShiftManagerContent
                 onStageChange={(next) =>
                   controller.stageCell(cellKey(selectedCell.date, selectedCell.shiftTypeId), next)
                 }
+                requirementsReady={controller.requirementsReady}
+                requiredCount={controller.selectedRequiredCount}
+                onRequiredCountChange={(value) =>
+                  controller.stageRequirement(selectedCell.date, selectedCell.shiftTypeId, value)
+                }
                 onRegisterInstructorNames={controller.registerInstructorNames}
                 conflictLabelById={controller.conflictLabelById}
                 currentMonthWorkDays={controller.currentMonthWorkDays}
@@ -229,7 +261,7 @@ function ShiftManagerContent({ controller, myInstructorId }: ShiftManagerContent
       >
         <Stack gap="md">
           <Text size="sm">
-            未保存の変更が {controller.stagedCells.size} 件あります。 このまま
+            未保存の変更が {controller.dirtyCount} 件あります。 このまま
             {controller.pendingNav?.type === 'department'
               ? '部門を切り替える'
               : controller.pendingNav?.type === 'month'
@@ -251,73 +283,80 @@ function ShiftManagerContent({ controller, myInstructorId }: ShiftManagerContent
       </Modal>
 
       <Modal
-        opened={controller.autoAssignModalOpened}
-        onClose={() => !controller.isAutoAssigning && controller.setAutoAssignModalOpened(false)}
-        title="自動割当の条件"
+        opened={controller.bulkModalOpened}
+        onClose={() => controller.setBulkModalOpened(false)}
+        title="必要人数を一括設定"
         centered
       >
         <Stack gap="md">
           <Text size="sm">
-            {controller.formData.data?.shiftTypes.find(
-              (shiftType) => shiftType.id === controller.autoAssignShiftTypeId,
-            )?.name ?? ''}{' '}
-            を{controller.autoAssignDates.size}日分、現在のステージへ直接反映します。
+            表示中の部門・シフト種別・月の、必要人数が未設定の日にだけ設定します。設定済みの日は上書きしません。
           </Text>
-          <Select
-            label="対象シフト種別"
-            value={controller.autoAssignShiftTypeId}
-            onChange={(value) => value && controller.setAutoAssignShiftTypeId(value)}
-            data={
-              controller.formData.data?.shiftTypes.map((shiftType) => ({
-                value: shiftType.id,
-                label: shiftType.name,
-              })) ?? []
-            }
-            allowDeselect={false}
+          <RequiredCountInputs
+            weekday={controller.weekdayRequiredCount}
+            weekendHoliday={controller.weekendHolidayRequiredCount}
+            onWeekdayChange={controller.setWeekdayRequiredCount}
+            onWeekendHolidayChange={controller.setWeekendHolidayRequiredCount}
+            weekdayLabel="平日の人数"
+            weekendHolidayLabel="土日祝の人数"
           />
-          <Group grow align="flex-start">
-            <NumberInput
-              label="平日の人数"
-              allowDecimal={false}
-              min={0}
-              value={controller.weekdayRequiredCount}
-              onChange={(value) =>
-                controller.setWeekdayRequiredCount(typeof value === 'number' ? value : 0)
-              }
-            />
-            <NumberInput
-              label="土日祝の人数"
-              allowDecimal={false}
-              min={0}
-              value={controller.weekendHolidayRequiredCount}
-              onChange={(value) =>
-                controller.setWeekendHolidayRequiredCount(typeof value === 'number' ? value : 0)
-              }
-            />
-          </Group>
-          <Text size="xs" c="dimmed">
-            必要資格は表示・判定に使用します。変更はシフト種別設定画面で行ってください。
+          <Text size="sm" fw={600}>
+            適用対象: {controller.bulkTargetDates.length}日
           </Text>
-          <AppButton intent="tertiary" component="a" href="/shift-types" size="xs">
-            必要資格設定を開く
-          </AppButton>
-          {controller.autoAssignContext.data?.frames.find(
-            (frame) => frame.shiftTypeId === controller.autoAssignShiftTypeId,
-          )?.certificationTiers.length === 0 && (
-            <ErrorAlert>この種別には必要資格が設定されていないため、提案できません。</ErrorAlert>
-          )}
           <AppButton
-            intent={controller.shortageByCell.size > 0 ? 'secondary' : 'primary'}
-            leftSection={<IconWand size={16} />}
-            onClick={controller.runAutoAssign}
-            loading={controller.isAutoAssigning}
-            disabled={!controller.autoAssignContext.data || controller.autoAssignDates.size === 0}
+            intent="primary"
+            onClick={controller.applyBulkRequirementCounts}
+            disabled={
+              controller.weekdayRequiredCount === '' ||
+              controller.weekendHolidayRequiredCount === '' ||
+              controller.bulkTargetDates.length === 0
+            }
           >
-            {controller.shortageByCell.size > 0 ? '別の案を出す' : '提案をステージへ反映'}
+            適用
           </AppButton>
         </Stack>
       </Modal>
     </Stack>
+  );
+}
+
+type RequiredCountInputsProps = {
+  weekday: number | '';
+  weekendHoliday: number | '';
+  onWeekdayChange: (value: number | '') => void;
+  onWeekendHolidayChange: (value: number | '') => void;
+  weekdayLabel: string;
+  weekendHolidayLabel: string;
+};
+
+/** 平日／土日祝の人数入力。空欄は 0 にせず '' のまま保持し、実行側で無効化する。 */
+function RequiredCountInputs({
+  weekday,
+  weekendHoliday,
+  onWeekdayChange,
+  onWeekendHolidayChange,
+  weekdayLabel,
+  weekendHolidayLabel,
+}: RequiredCountInputsProps) {
+  return (
+    <Group grow align="flex-start">
+      <NumberInput
+        label={weekdayLabel}
+        allowDecimal={false}
+        allowNegative={false}
+        min={0}
+        value={weekday}
+        onChange={(value) => onWeekdayChange(typeof value === 'number' ? value : '')}
+      />
+      <NumberInput
+        label={weekendHolidayLabel}
+        allowDecimal={false}
+        allowNegative={false}
+        min={0}
+        value={weekendHoliday}
+        onChange={(value) => onWeekendHolidayChange(typeof value === 'number' ? value : '')}
+      />
+    </Group>
   );
 }
 
@@ -346,13 +385,20 @@ type ShiftCalendarProps = {
   onStartAutoAssign: () => void;
   onCancelAutoAssign: () => void;
   onToggleAutoAssignDate: (date: string) => void;
-  onOpenAutoAssignModal: () => void;
+  onRunAutoAssign: () => void;
+  isAutoAssigning: boolean;
+  /** 自動割当に必要なデータが揃い、開いている種別に必要資格がある */
+  canRunAutoAssign: boolean;
+  missingCertification: boolean;
+  /** 必要人数の取得後に、選べる日が1日もない */
+  noSelectableDates: boolean;
   shortageByCell: Map<string, AutoAssignProposal['shortage']>;
+  stagedRequirements: StagedRequirements;
+  /** 日 → 表示用の必要人数。必要人数の取得前は null（未設定と区別して何も出さない）。 */
+  requiredByDay: Map<string, number | null> | null;
+  isAutoAssignSelectableDate: (date: string) => boolean;
+  onOpenBulkModal: () => void;
 };
-
-type AssignmentEventPayload =
-  | { kind: 'instructor'; date: string; instructorId: string }
-  | { kind: 'description'; date: string; description: string };
 
 /** 選択中の部門・シフト種別について、担当者を日付ごとに縦表示する月間カレンダー。 */
 function ShiftCalendar({
@@ -375,8 +421,16 @@ function ShiftCalendar({
   onStartAutoAssign,
   onCancelAutoAssign,
   onToggleAutoAssignDate,
-  onOpenAutoAssignModal,
+  onRunAutoAssign,
+  isAutoAssigning,
+  canRunAutoAssign,
+  missingCertification,
+  noSelectableDates,
   shortageByCell,
+  stagedRequirements,
+  requiredByDay,
+  isAutoAssignSelectableDate,
+  onOpenBulkModal,
 }: ShiftCalendarProps) {
   const shiftByCell = useMemo(() => {
     const map = new Map<string, ShiftViewItem>();
@@ -388,83 +442,67 @@ function ShiftCalendar({
     return map;
   }, [departmentCode, shifts]);
 
-  const assignmentsByDay = useMemo(() => {
-    const map = new Map<string, Array<{ id: string; name: string }>>();
-    for (const day of days) {
-      const key = cellKey(day, activeShiftTypeId);
-      const serverShift = shiftByCell.get(key);
-      const staged = stagedCells.get(key);
-      const assigned = staged
-        ? staged.instructorIds.map((id) => ({
-            id,
-            name:
-              serverShift?.assignedInstructors.find((instructor) => instructor.id === id)
-                ?.displayName ??
-              nameById.get(id) ??
-              id,
-          }))
-        : (serverShift?.assignedInstructors ?? []).map((instructor) => ({
-            id: instructor.id,
-            name: instructor.displayName,
-          }));
-      map.set(day, assigned);
+  const assignmentsByDay = useMemo(
+    () =>
+      resolveAssignmentsByDay({
+        days,
+        shiftTypeId: activeShiftTypeId,
+        shiftByCell,
+        stagedCells,
+        nameById,
+      }),
+    [activeShiftTypeId, days, nameById, shiftByCell, stagedCells],
+  );
+
+  const events = useMemo<ScheduleEventData<AssignmentEventPayload>[]>(
+    () =>
+      buildCalendarEvents({
+        days,
+        shiftTypeId: activeShiftTypeId,
+        assignmentsByDay,
+        shiftByCell,
+        stagedCells,
+        stagedRequirements,
+        requiredByDay,
+        shortageByCell,
+      }),
+    [
+      activeShiftTypeId,
+      assignmentsByDay,
+      days,
+      requiredByDay,
+      shiftByCell,
+      shortageByCell,
+      stagedCells,
+      stagedRequirements,
+    ],
+  );
+
+  const staffingSummary = useMemo(
+    () =>
+      requiredByDay
+        ? summarizeStaffing(
+            days.map((day) => ({
+              required: requiredByDay.get(day) ?? null,
+              assigned: assignmentsByDay.get(day)?.length ?? 0,
+            })),
+          )
+        : null,
+    [days, requiredByDay, assignmentsByDay],
+  );
+  const activeShiftTypeName = shiftTypes.find((type) => type.id === activeShiftTypeId)?.name ?? '';
+
+  // 日・イベント共通のクリック処理。自動割当モードでは対象日の切り替えだけを行う。
+  const handleDateClick = (date: string) => {
+    if (autoAssignMode) {
+      // 必要人数が1名以上の日だけ選択できる（未設定と0名は対象外）
+      if (isAutoAssignSelectableDate(date)) onToggleAutoAssignDate(date);
+      return;
     }
-    return map;
-  }, [activeShiftTypeId, days, nameById, shiftByCell, stagedCells]);
+    onSelectCell({ date, shiftTypeId: activeShiftTypeId });
+  };
 
-  const events = useMemo<ScheduleEventData<AssignmentEventPayload>[]>(() => {
-    const instructorEvents = days.flatMap((day) =>
-      (assignmentsByDay.get(day) ?? []).map(
-        (instructor): ScheduleEventData<AssignmentEventPayload> => ({
-          id: `${day}:${activeShiftTypeId}:${instructor.id}`,
-          title: instructor.name,
-          start: `${day} 00:00:00`,
-          end: `${addDays(day, 1)} 00:00:00`,
-          color: 'gray',
-          payload: { kind: 'instructor', date: day, instructorId: instructor.id },
-        }),
-      ),
-    );
-    const descriptionEvents = days.flatMap((day) => {
-      const key = cellKey(day, activeShiftTypeId);
-      const description =
-        stagedCells.get(key)?.description ?? shiftByCell.get(key)?.description ?? '';
-      if (!description.trim()) {
-        return [];
-      }
-      return [
-        {
-          id: `${day}:${activeShiftTypeId}:description`,
-          title: description,
-          start: `${day} 00:00:00`,
-          end: `${addDays(day, 1)} 00:00:00`,
-          color: 'gray',
-          display: 'background' as const,
-          payload: { kind: 'description' as const, date: day, description },
-        },
-      ];
-    });
-    const shortageEvents = days.flatMap((day) => {
-      const shortage = shortageByCell.get(cellKey(day, activeShiftTypeId));
-      if (!shortage || shortage.count === 0) return [];
-      return [
-        {
-          id: `${day}:${activeShiftTypeId}:shortage`,
-          title: `不足 ${shortage.count}名`,
-          start: `${day} 00:00:00`,
-          end: `${addDays(day, 1)} 00:00:00`,
-          color: 'red',
-          payload: {
-            kind: 'description' as const,
-            date: day,
-            description: shortage.reasons.join(' / '),
-          },
-        },
-      ];
-    });
-    return [...instructorEvents, ...descriptionEvents, ...shortageEvents];
-  }, [activeShiftTypeId, assignmentsByDay, days, shiftByCell, shortageByCell, stagedCells]);
-
+  // 背景イベント（ヘッダー層）は MonthView の行数に数えられないため、担当者数だけで決める
   const maxEventsPerDay = Math.min(
     10,
     Math.max(2, ...Array.from(assignmentsByDay.values(), (assigned) => assigned.length)),
@@ -494,36 +532,27 @@ function ShiftCalendar({
         </Tabs.List>
       </Tabs>
 
-      <Group justify="space-between" mb="sm" wrap="wrap">
-        {autoAssignMode ? (
-          <>
-            <Text size="sm" c="blue" fw={600}>
-              自動割当する日を選択（{autoAssignDates.size}日）
-            </Text>
-            <Group gap="xs">
-              <AppButton intent="secondary" size="xs" onClick={onCancelAutoAssign}>
-                キャンセル
-              </AppButton>
-              <AppButton
-                intent="primary"
-                size="xs"
-                disabled={autoAssignDates.size === 0}
-                onClick={onOpenAutoAssignModal}
-              >
-                条件設定
-              </AppButton>
-            </Group>
-          </>
-        ) : (
-          <AppButton
-            intent="secondary"
-            size="xs"
-            leftSection={<IconWand size={14} />}
-            onClick={onStartAutoAssign}
-          >
-            自動割当
-          </AppButton>
-        )}
+      <AutoAssignToolbar
+        autoAssignMode={autoAssignMode}
+        selectedDateCount={autoAssignDates.size}
+        requirementsReady={!!requiredByDay}
+        noSelectableDates={noSelectableDates}
+        canRunAutoAssign={canRunAutoAssign}
+        missingCertification={missingCertification}
+        isAutoAssigning={isAutoAssigning}
+        hasPreviousProposal={shortageByCell.size > 0}
+        onStartAutoAssign={onStartAutoAssign}
+        onCancelAutoAssign={onCancelAutoAssign}
+        onRunAutoAssign={onRunAutoAssign}
+        onOpenBulkModal={onOpenBulkModal}
+      />
+
+      <Group justify="space-between" mb="xs" gap="sm" wrap="wrap">
+        <Text size="sm" fw={600}>
+          {staffingSummary
+            ? `${getDepartmentAppearance(departmentCode).label} / ${activeShiftTypeName} / ${Number(month.slice(0, 4))}年${Number(month.slice(5, 7))}月：不足${staffingSummary.shortDays}日・未設定${staffingSummary.unsetCount}枠`
+            : '必要人数を読み込み中…'}
+        </Text>
       </Group>
 
       <MonthView
@@ -558,8 +587,13 @@ function ShiftCalendar({
           const calendarDayColor = getCalendarDayColor(date);
           return {
             'data-shift-date': date,
+            // 自動割当モードでは、対象にできない日（未設定・0名）をクリック・キー操作から外す
+            disabled: autoAssignMode && !isAutoAssignSelectableDate(date) ? true : undefined,
             'data-selected': selected || undefined,
-            'data-staged': stagedCells.has(cellKey(date, activeShiftTypeId)) || undefined,
+            'data-staged':
+              stagedCells.has(cellKey(date, activeShiftTypeId)) ||
+              stagedRequirements.has(cellKey(date, activeShiftTypeId)) ||
+              undefined,
             'aria-label': `${Number(date.slice(5, 7))}月${Number(date.slice(8, 10))}日（${weekdayLabel(date)}）の割り当てを編集`,
             style: {
               color: calendarDayColor ? `var(--mantine-color-${calendarDayColor}-7)` : undefined,
@@ -574,43 +608,24 @@ function ShiftCalendar({
             },
           };
         }}
-        onDayClick={(date) => {
-          if (autoAssignMode) {
-            onToggleAutoAssignDate(date);
-            return;
-          }
-          onSelectCell({ date, shiftTypeId: activeShiftTypeId });
-        }}
+        onDayClick={handleDateClick}
         onEventClick={(event) => {
           const date = event.payload?.date;
-          if (typeof date === 'string') {
-            onSelectCell({ date, shiftTypeId: activeShiftTypeId });
-          }
+          if (typeof date === 'string') handleDateClick(date);
         }}
         renderEvent={(event, props) => {
           const payload = event.payload;
-          return payload?.kind === 'description' ? (
-            <Box style={props.style} className={classes.descriptionLayer}>
-              <Tooltip label={payload.description} multiline maw={320} withArrow>
-                <ActionIcon
-                  type="button"
-                  variant="subtle"
-                  color="gray"
-                  size="sm"
-                  className={classes.descriptionIcon}
-                  aria-label={`備考: ${payload.description}`}
-                  onClick={() =>
-                    onSelectCell({
-                      date: payload.date,
-                      shiftTypeId: activeShiftTypeId,
-                    })
-                  }
-                >
-                  <IconMessage size={14} stroke={1.75} />
-                </ActionIcon>
-              </Tooltip>
-            </Box>
-          ) : (
+          if (isHeaderEventPayload(payload)) {
+            return (
+              <DayHeaderLayer
+                payload={payload}
+                style={props.style}
+                onSelectDate={(date) => onSelectCell({ date, shiftTypeId: activeShiftTypeId })}
+                onClickDate={handleDateClick}
+              />
+            );
+          }
+          return (
             <UnstyledButton
               {...props}
               className={[props.className, classes.instructorEvent].filter(Boolean).join(' ')}
@@ -647,6 +662,10 @@ type AssignmentPanelProps = {
   /** instructorId → 当月の勤務日数（全部門横断・親がステージ済み編集を反映してライブ計算） */
   currentMonthWorkDays: Map<string, number>;
   availabilities: Availability[];
+  requirementsReady: boolean;
+  /** 表示用の必要人数（未設定は null） */
+  requiredCount: number | null;
+  onRequiredCountChange: (value: number | null) => void;
 };
 
 /**
@@ -665,6 +684,9 @@ function AssignmentPanel({
   conflictLabelById,
   currentMonthWorkDays,
   availabilities,
+  requirementsReady,
+  requiredCount,
+  onRequiredCountChange,
 }: AssignmentPanelProps) {
   const editData = useShiftAssignmentEditor({ date, departmentCode, shiftTypeId });
 
@@ -758,6 +780,17 @@ function AssignmentPanel({
 
   return (
     <Stack gap="md">
+      <NumberInput
+        label="必要人数"
+        description="空欄は未設定です。0名は開講予定なしで、自動割当の対象外です（手動の割り当ては可能です）"
+        allowDecimal={false}
+        allowNegative={false}
+        min={0}
+        disabled={!requirementsReady}
+        value={requiredCount ?? ''}
+        onChange={(value) => onRequiredCountChange(typeof value === 'number' ? value : null)}
+        w={{ base: '100%', sm: 420 }}
+      />
       {editData.isLoading && (
         <Text c="dimmed" size="sm">
           候補を読み込み中…

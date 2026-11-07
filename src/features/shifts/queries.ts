@@ -20,6 +20,7 @@ import {
   shiftFormDataSchema,
   shiftListSchema,
   shiftViewResponseSchema,
+  staffingRequirementListSchema,
   upsertMonthlyAssignmentsResultSchema,
   type AutoAssignContext,
   type SeasonStatsResponse,
@@ -30,6 +31,7 @@ import {
   type ShiftFormData,
   type ShiftListItem,
   type ShiftViewResponse,
+  type StaffingRequirement,
   type UpsertMonthlyAssignmentsInput,
   type UpsertMonthlyAssignmentsResult,
 } from './schema';
@@ -219,6 +221,25 @@ export function useShiftCreationContext(departmentCode: string) {
  * @param departmentCode - 対象部門
  * @param month - 対象月（YYYY-MM）
  */
+/**
+ * 月内の必要人数を全部門分取得する（MANAGER 以上）。行がない枠は未設定。
+ * @param month - 対象月（YYYY-MM）
+ */
+export function useShiftStaffingRequirements(month: string) {
+  return useQuery<StaffingRequirement[]>({
+    queryKey: [...SHIFTS_QUERY_KEY, 'requirements', month],
+    queryFn: async () => {
+      const res = await client.api.shifts.requirements.$get({ query: { month } });
+      if (!res.ok) {
+        const body = apiErrorSchema.parse(await res.json());
+        throw new Error(body.message ?? '必要人数の取得に失敗しました');
+      }
+      return staffingRequirementListSchema.parse(await res.json());
+    },
+    enabled: !!month,
+  });
+}
+
 export function useAutoAssignContext(departmentCode: string, month: string) {
   const from = `${month}-01`;
   const to = new Date(`${from}T00:00:00.000Z`);
@@ -326,6 +347,7 @@ export function useUpsertAssignments() {
       void queryClient.invalidateQueries({ queryKey: [...SHIFTS_QUERY_KEY, 'calendar'] });
       void queryClient.invalidateQueries({ queryKey: [...SHIFTS_QUERY_KEY, 'assignment-editor'] });
       void queryClient.invalidateQueries({ queryKey: [...SHIFTS_QUERY_KEY, 'list'] });
+      void queryClient.invalidateQueries({ queryKey: [...SHIFTS_QUERY_KEY, 'requirements'] });
     },
   });
 }

@@ -2,17 +2,33 @@ import { describe, expect, it } from 'vitest';
 
 import { solveAutoAssignments } from '../src/features/shifts/auto-assign-solver';
 import type { AutoAssignContext, AutoAssignExecutionParams } from '../src/features/shifts/schema';
+import { resolveInitialRequiredCount } from '../src/features/shifts/staffing';
 
-const createExecutionParams = (
-  overrides: Partial<AutoAssignExecutionParams> = {},
-): AutoAssignExecutionParams => ({
-  shiftTypeId: 'morning',
-  weekdayRequiredCount: 1,
-  weekendHolidayRequiredCount: 1,
-  targetDates: ['2026-01-05'],
-  holidayDates: [],
-  ...overrides,
-});
+/** 平日／土日祝の人数指定を日別の必要人数へ展開して実行パラメータを作る。 */
+const createExecutionParams = ({
+  weekdayRequiredCount = 1,
+  weekendHolidayRequiredCount = 1,
+  ...overrides
+}: Partial<AutoAssignExecutionParams> & {
+  weekdayRequiredCount?: number;
+  weekendHolidayRequiredCount?: number;
+} = {}): AutoAssignExecutionParams => {
+  const targetDates = overrides.targetDates ?? ['2026-01-05'];
+  return {
+    shiftTypeId: 'morning',
+    targetDates,
+    requiredCountByDate: Object.fromEntries(
+      targetDates.map((date) => [
+        date,
+        resolveInitialRequiredCount(date, {
+          weekday: weekdayRequiredCount,
+          weekendHoliday: weekendHolidayRequiredCount,
+        }),
+      ]),
+    ),
+    ...overrides,
+  };
+};
 
 function createAutoAssignContext(overrides: Partial<AutoAssignContext> = {}): AutoAssignContext {
   return {
@@ -105,7 +121,6 @@ describe('solveAutoAssignments', () => {
     const executionParams = createExecutionParams({
       targetDates: ['2026-01-12'],
       weekendHolidayRequiredCount: 2,
-      holidayDates: ['2026-01-12'],
     });
     const first = solveAutoAssignments(createAutoAssignContext(), executionParams, 42);
 

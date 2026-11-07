@@ -16,38 +16,71 @@
   color: var(--mantine-color-red-7);
 }
 
-/* 選択中と未保存は人物表示と競合しないよう、セルの面と右上ドットで示す */
+/* 自動割当モードで選べない日は控えめに無効表示にする */
+.calendarDay:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* 選択中はセルの面と枠線で示す（未保存はヘッダー層のドット） */
 .calendarDay[data-selected] {
   background-color: var(--mantine-color-blue-0);
   box-shadow: inset 0 0 0 2px var(--mantine-color-blue-5);
   z-index: 1;
 }
 
-.calendarDay[data-staged]::after {
-  position: absolute;
-  top: 6px;
-  right: 28px;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background-color: var(--mantine-color-orange-6);
-  content: '';
-}
-
-/* MonthView の背景イベント領域を使い、備考アイコンだけを日付セル右上へ重ねる */
-.descriptionLayer {
+/*
+ * MonthView の背景イベント領域を使い、日付セル上部にヘッダー層を重ねる。
+ * 左の padding は Mantine の日付ラベル（セル padding 4px + 幅 1.625rem、1桁・2桁とも同幅）を避ける。
+ * 並びは 未保存ドット → 備考アイコン → （右端）充足表示。
+ */
+.headerLayer {
   position: absolute;
   top: -27px;
-  bottom: -21px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-inline: calc(1.625rem + 4px) 4px;
   overflow: visible;
   pointer-events: none;
 }
 
+.stagedDot {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--mantine-color-orange-6);
+}
+
 .descriptionIcon {
-  position: absolute;
-  top: 1px;
-  right: 3px;
+  flex-shrink: 0;
   pointer-events: auto;
+}
+
+/* 数字は控えめな色にし、状態はアイコンの色だけで表す */
+.staffingBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-inline-start: auto;
+  color: var(--mantine-color-dimmed);
+  font-size: var(--mantine-font-size-xs);
+  line-height: 1;
+  pointer-events: auto;
+}
+
+.staffingBadge[data-staffing='FILLED'] .staffingIcon {
+  color: var(--mantine-color-green-7);
+}
+
+.staffingBadge[data-staffing='SHORT'] .staffingIcon {
+  color: var(--mantine-color-yellow-7);
+}
+
+.staffingIcon {
+  flex-shrink: 0;
 }
 
 /* MonthView のイベント配置を利用しつつ、人名は色付きイベントではなく一覧として見せる */
@@ -115,5 +148,10 @@
 
   .instructorEvent {
     padding-inline: 3px;
+  }
+
+  /* モバイルはアイコンだけにする（アイコンのない状態は何も表示されない） */
+  .staffingText {
+    display: none;
   }
 }

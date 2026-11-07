@@ -163,6 +163,33 @@ export const shifts = sqliteTable(
   ],
 );
 
+/**
+ * 必要人数テーブル（日付 × 部門 × シフト種別ごとの必要人数）。
+ * 行なしは未設定、0 は開講予定なしを表す。shifts とは独立し、Shift が消えても残る。
+ */
+export const shiftStaffingRequirements = sqliteTable(
+  'shift_staffing_requirements',
+  {
+    id: primaryId(),
+    date: integer('date', { mode: 'timestamp' }).notNull(),
+    departmentCode: text('department_code').notNull(),
+    shiftTypeId: text('shift_type_id')
+      .notNull()
+      .references(() => shiftTypes.id),
+    requiredCount: integer('required_count').notNull(),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('unique_shift_staffing_requirement_per_day').on(
+      t.date,
+      t.departmentCode,
+      t.shiftTypeId,
+    ),
+    index('idx_shift_staffing_requirements_date').on(t.date),
+    check('shift_staffing_requirements_required_count_non_negative', sql`${t.requiredCount} >= 0`),
+  ],
+);
+
 /** シフト割り当てテーブル（シフトとインストラクターの多対多関係を管理） */
 export const shiftAssignments = sqliteTable(
   'shift_assignments',

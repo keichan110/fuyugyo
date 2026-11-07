@@ -299,10 +299,7 @@ function compareCost(left: Cost, right: Cost): number {
 }
 
 function requiredCount(date: string, params: AutoAssignExecutionParams): number {
-  const day = new Date(`${date}T00:00:00.000Z`).getUTCDay();
-  return day === 0 || day === 6 || params.holidayDates.includes(date)
-    ? params.weekendHolidayRequiredCount
-    : params.weekdayRequiredCount;
+  return params.requiredCountByDate[date] ?? 0;
 }
 
 function shuffled<T>(items: T[], random: () => number): T[] {

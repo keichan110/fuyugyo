@@ -83,6 +83,16 @@ erDiagram
         datetime assigned_at "割り当て日時"
     }
 
+    ShiftStaffingRequirement {
+        string id PK "必要人数ID"
+        datetime date "日付"
+        string department_code "部門コード"
+        string shift_type_id FK "シフト種類ID"
+        integer required_count "必要人数（0以上）"
+        datetime created_at "作成日時"
+        datetime updated_at "更新日時"
+    }
+
     %% リレーション定義
     Department ||--o{ Certification : "has"
     Department ||--o{ Shift : "has"
@@ -93,6 +103,7 @@ erDiagram
 
     Instructor ||--o{ ShiftAssignment : "assigned to"
     Shift ||--o{ ShiftAssignment : "assigns"
+    ShiftType ||--o{ ShiftStaffingRequirement : "defines"
 ```
 
 ### 関係性の説明
@@ -102,6 +113,7 @@ erDiagram
 - **Instructor ↔ Certification**: 多対多（中間テーブル：InstructorCertification）
 - **Instructor ↔ Shift**: 多対多（中間テーブル：ShiftAssignment）
 - **ShiftType → Shift**: 1 対多（1 シフト種類に複数シフト）
+- **ShiftType → ShiftStaffingRequirement**: 1 対多（Shift とは独立し、Shift の有無に左右されない）
 
 ## テーブル定義
 
@@ -287,6 +299,31 @@ erDiagram
 - INDEX idx_shift_assignments_instructor_id (instructor_id)
 - INDEX idx_shift_assignments_assigned_at (assigned_at)
 
+### 8. ShiftStaffingRequirement（必要人数）テーブル
+
+日付 × 部門 × シフト種別ごとの必要人数を保存する。`shifts` とは独立しており、全員を外して Shift が消えても行は残る（ADR 0015）。
+
+| カラム名        | データ型 | 制約                 | 説明                             |
+| --------------- | -------- | -------------------- | -------------------------------- |
+| id              | TEXT     | PRIMARY KEY          | 必要人数 ID                      |
+| date            | INTEGER  | NOT NULL             | 日付（UTC 0 時のタイムスタンプ） |
+| department_code | TEXT     | NOT NULL             | 部門コード                       |
+| shift_type_id   | TEXT     | NOT NULL             | シフト種類 ID（FK）              |
+| required_count  | INTEGER  | NOT NULL, CHECK >= 0 | 必要人数                         |
+| created_at      | INTEGER  | NOT NULL             | 作成日時                         |
+| updated_at      | INTEGER  | NOT NULL             | 更新日時                         |
+
+行がない枠は未設定、`required_count = 0` は開講予定なしを表す。既存データのバックフィルは行わない。
+
+**外部キー制約:**
+
+- FOREIGN KEY (shift_type_id) REFERENCES shift_types(id)（cascade なし）
+
+**インデックス:**
+
+- UNIQUE INDEX unique_shift_staffing_requirement_per_day (date, department_code, shift_type_id)
+- INDEX idx_shift_staffing_requirements_date (date)
+
 ## パフォーマンス設計
 
 ### 高頻度アクセスパターンとインデックス戦略
@@ -444,18 +481,20 @@ CREATE INDEX idx_assignments_shift_covering ON shift_assignments(shift_id, instr
 - 部門コードの一意性
 - インストラクター・資格関連の重複防止
 - シフト割り当ての重複防止
+- 必要人数の重複防止（日付 × 部門 × シフト種別）
 
 ## API 仕様との対応表
 
-| API エンティティ        | テーブル名                | 主な対応フィールド                               |
-| ----------------------- | ------------------------- | ------------------------------------------------ |
-| Department              | departments               | id, code, name, description, isActive            |
-| Certification           | certifications            | id, departmentId, name, shortName, organization  |
-| Instructor              | instructors               | id, lastName, firstName, status, notes           |
-| InstructorCertification | instructor_certifications | id, instructorId, certificationId                |
-| ShiftType               | shift_types               | id, name, isActive                               |
-| Shift                   | shifts                    | id, date, departmentId, shiftTypeId, description |
-| ShiftAssignment         | shift_assignments         | id, shiftId, instructorId, assignedAt            |
+| API エンティティ         | テーブル名                  | 主な対応フィールド                                   |
+| ------------------------ | --------------------------- | ---------------------------------------------------- |
+| Department               | departments                 | id, code, name, description, isActive                |
+| Certification            | certifications              | id, departmentId, name, shortName, organization      |
+| Instructor               | instructors                 | id, lastName, firstName, status, notes               |
+| InstructorCertification  | instructor_certifications   | id, instructorId, certificationId                    |
+| ShiftType                | shift_types                 | id, name, isActive                                   |
+| Shift                    | shifts                      | id, date, departmentId, shiftTypeId, description     |
+| ShiftAssignment          | shift_assignments           | id, shiftId, instructorId, assignedAt                |
+| ShiftStaffingRequirement | shift_staffing_requirements | id, date, departmentCode, shiftTypeId, requiredCount |
 
 ---
 

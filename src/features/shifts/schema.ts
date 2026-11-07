@@ -65,13 +65,40 @@ export const monthlyAssignmentCellSchema = z.object({
 export type MonthlyAssignmentCell = z.infer<typeof monthlyAssignmentCellSchema>;
 
 /**
+ * 必要人数の保存1件分（日付 × シフト種別）。部門は入力全体の departmentCode を使う。
+ * requiredCount の null は行の削除（未設定に戻す）、数値は 0 以上の整数で upsert する。
+ */
+export const staffingRequirementInputSchema = z.object({
+  date: dateStringSchema,
+  shiftTypeId: z.string().min(1),
+  requiredCount: z.number().int().min(0).nullable(),
+});
+
+export type StaffingRequirementInput = z.infer<typeof staffingRequirementInputSchema>;
+
+/** 必要人数の取得1件（月内の全部門分を返す） */
+export const staffingRequirementSchema = z.object({
+  date: dateStringSchema,
+  departmentCode: departmentCodeSchema,
+  shiftTypeId: z.string(),
+  requiredCount: z.number().int().min(0),
+});
+
+export type StaffingRequirement = z.infer<typeof staffingRequirementSchema>;
+
+/** 必要人数一覧レスポンス */
+export const staffingRequirementListSchema = z.array(staffingRequirementSchema);
+
+/**
  * 月単位で (date × 部門 × シフト種別) の割り当て集合をまとめて upsert する。
  * cells には保存したい変更差分のみを含める（含まれないセルは変更しない）。
+ * requirements は割り当てとは独立した必要人数の差分で、cells と同一バッチで原子的に保存する。
  */
 export const upsertMonthlyAssignmentsSchema = z.object({
   month: monthStringSchema,
   departmentCode: departmentCodeSchema,
   cells: z.array(monthlyAssignmentCellSchema),
+  requirements: z.array(staffingRequirementInputSchema).default([]),
 });
 
 export type UpsertMonthlyAssignmentsInput = z.infer<typeof upsertMonthlyAssignmentsSchema>;
@@ -136,13 +163,14 @@ export const autoAssignContextSchema = z.object({
 
 export type AutoAssignContext = z.infer<typeof autoAssignContextSchema>;
 
-/** 自動割当を実行する対象種別・必要人数・対象日。DB には保存しない一時パラメータ。 */
+/**
+ * 自動割当を実行する対象種別・対象日・日別の必要人数。DB には保存しない一時パラメータ。
+ * requiredCountByDate に無い日は必要人数0として扱う。
+ */
 export type AutoAssignExecutionParams = {
   shiftTypeId: string;
-  weekdayRequiredCount: number;
-  weekendHolidayRequiredCount: number;
   targetDates: string[];
-  holidayDates: string[];
+  requiredCountByDate: Record<string, number>;
 };
 
 /** 自動割当の1枠に対する提案結果。 */

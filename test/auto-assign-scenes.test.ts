@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import { solveAutoAssignments } from '../src/features/shifts/auto-assign-solver';
-import type { AutoAssignContext, AutoAssignExecutionParams } from '../src/features/shifts/schema';
+import type { AutoAssignContext } from '../src/features/shifts/schema';
+import { resolveInitialRequiredCount } from '../src/features/shifts/staffing';
 
 /** docs/design/auto-assignment-rules.md のシーンを、実際のソルバーで検証する。 */
 
@@ -68,17 +69,28 @@ function createContext(
 function solve(
   context: AutoAssignContext,
   required: number,
-  overrides: Partial<AutoAssignExecutionParams> = {},
+  overrides: {
+    weekdayRequiredCount?: number;
+    weekendHolidayRequiredCount?: number;
+    targetDates?: string[];
+  } = {},
 ) {
+  const { weekdayRequiredCount = required, weekendHolidayRequiredCount = required } = overrides;
+  const targetDates = overrides.targetDates ?? ['2027-01-12'];
   return solveAutoAssignments(
     context,
     {
       shiftTypeId: SHIFT,
-      weekdayRequiredCount: required,
-      weekendHolidayRequiredCount: required,
-      targetDates: ['2027-01-12'],
-      holidayDates: [],
-      ...overrides,
+      targetDates,
+      requiredCountByDate: Object.fromEntries(
+        targetDates.map((date) => [
+          date,
+          resolveInitialRequiredCount(date, {
+            weekday: weekdayRequiredCount,
+            weekendHoliday: weekendHolidayRequiredCount,
+          }),
+        ]),
+      ),
     },
     1,
   ).proposals;
@@ -265,7 +277,6 @@ describe('シフト担当者のシーン', () => {
         '2027-01-10',
         '2027-01-11',
       ],
-      holidayDates: ['2027-01-11'],
     });
     expect(
       proposals.map(({ date, instructorIds, shortage, reviewReasons }) => [

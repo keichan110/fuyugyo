@@ -87,6 +87,7 @@ export function evaluateFrameComposition(input: {
     count: 0,
     names: [],
   }));
+  const breakdownByRank = new Map(rankBreakdown.map((item) => [item.tierRank, item]));
   const outOfRequirementNames: string[] = [];
   const qualifiedRanks: number[] = [];
   if (tiers.length > 0) {
@@ -94,7 +95,7 @@ export function evaluateFrameComposition(input: {
       const rank = Math.min(
         ...person.certificationIds.map((id) => rankByCertification.get(id) ?? Infinity),
       );
-      const entry = rankBreakdown.find((item) => item.tierRank === rank);
+      const entry = breakdownByRank.get(rank);
       if (!eligibleInstructorIds.has(person.id) || !entry) {
         outOfRequirementNames.push(person.name);
         continue;

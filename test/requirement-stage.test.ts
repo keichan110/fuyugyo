@@ -1,18 +1,17 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  applyAutoAssignRequirements,
   applyBulkRequirements,
   bulkRequirementTargetDates,
   effectiveRequiredCount,
-  fixedRequiredCount,
-  planAutoAssignRequirements,
-  stageManualRequirement,
+  isAutoAssignSelectable,
+  planAutoAssignTargets,
+  stageRequirement,
   type StagedRequirements,
 } from '@/features/shifts/components/requirement-stage';
 
 import { solveAutoAssignments } from '../src/features/shifts/auto-assign-solver';
-import type { AutoAssignContext, AutoAssignProposal } from '../src/features/shifts/schema';
+import type { AutoAssignContext } from '../src/features/shifts/schema';
 
 const TYPE = 'lesson';
 // 2027-01-09 は土曜、2027-01-12 は火曜（平日）
@@ -22,150 +21,57 @@ const counts = { weekday: 2, weekendHoliday: 3 };
 const key = (date: string) => `${date}:${TYPE}`;
 const none: StagedRequirements = new Map();
 
-describe('stageManualRequirement', () => {
-  it('保存済みと異なる値は manual でステージする', () => {
-    const staged = stageManualRequirement(none, new Map(), key(TUE), 4);
-    expect(staged.get(key(TUE))).toEqual({ requiredCount: 4, source: 'manual' });
+describe('stageRequirement', () => {
+  it('保存済みと異なる値をステージする', () => {
+    const staged = stageRequirement(none, new Map(), key(TUE), 4);
+    expect(staged.get(key(TUE))).toEqual({ requiredCount: 4 });
   });
 
   it('保存済みの値と同じならステージから除く', () => {
     const saved = new Map([[key(TUE), 4]]);
-    const staged = stageManualRequirement(none, saved, key(TUE), 5);
-    expect(stageManualRequirement(staged, saved, key(TUE), 4).size).toBe(0);
+    const staged = stageRequirement(none, saved, key(TUE), 5);
+    expect(stageRequirement(staged, saved, key(TUE), 4).size).toBe(0);
   });
 
   it('未設定の日を未設定に戻す操作はステージしない。保存済みを null にするとステージする', () => {
-    expect(stageManualRequirement(none, new Map(), key(TUE), null).size).toBe(0);
-    const staged = stageManualRequirement(none, new Map([[key(TUE), 2]]), key(TUE), null);
-    expect(staged.get(key(TUE))).toEqual({ requiredCount: null, source: 'manual' });
+    expect(stageRequirement(none, new Map(), key(TUE), null).size).toBe(0);
+    const staged = stageRequirement(none, new Map([[key(TUE), 2]]), key(TUE), null);
+    expect(staged.get(key(TUE))).toEqual({ requiredCount: null });
   });
 });
 
-describe('実効値の解決', () => {
-  const saved = new Map([[key(TUE), 2]]);
-  const defaultStaged: StagedRequirements = new Map([
-    [key(SAT), { requiredCount: 3, source: 'default' }],
-  ]);
-
-  it('表示用はステージ値を保存値より優先する', () => {
-    expect(effectiveRequiredCount(defaultStaged, saved, key(SAT))).toBe(3);
+describe('実効値', () => {
+  it('未保存の値を保存済みの値より優先する', () => {
+    const saved = new Map([[key(TUE), 2]]);
+    const staged = stageRequirement(none, saved, key(TUE), 5);
+    expect(effectiveRequiredCount(staged, saved, key(TUE))).toBe(5);
     expect(effectiveRequiredCount(none, saved, key(TUE))).toBe(2);
     expect(effectiveRequiredCount(none, saved, key(SAT))).toBeNull();
   });
-
-  it('fixed は default のステージを含めず、manual と保存値だけを見る', () => {
-    expect(fixedRequiredCount(defaultStaged, saved, key(SAT))).toBeNull();
-    const manual = stageManualRequirement(none, saved, key(TUE), 0);
-    expect(fixedRequiredCount(manual, saved, key(TUE))).toBe(0);
-  });
 });
 
-describe('planAutoAssignRequirements', () => {
-  it('確定値を優先し、未設定日だけ初期値を使う', () => {
-    const saved = new Map([[key(SAT), 1]]);
-    const plan = planAutoAssignRequirements({
-      dates: [SAT, TUE],
+describe('自動割当の対象', () => {
+  it('実効値が1名以上の日だけ選択でき、未設定と0名は選べない', () => {
+    const saved = new Map([
+      [key(SAT), 3],
+      [key(TUE), 0],
+    ]);
+    expect(isAutoAssignSelectable(none, saved, SAT, TYPE)).toBe(true);
+    expect(isAutoAssignSelectable(none, saved, TUE, TYPE)).toBe(false);
+    expect(isAutoAssignSelectable(none, saved, '2027-01-13', TYPE)).toBe(false);
+  });
+
+  it('未保存の必要人数が対象判定と人数に反映される', () => {
+    const saved = new Map([[key(SAT), 3]]);
+    const staged = stageRequirement(stageRequirement(none, saved, key(TUE), 2), saved, key(SAT), 0);
+    const plan = planAutoAssignTargets({
+      dates: [SAT, TUE, '2027-01-13'],
       shiftTypeId: TYPE,
-      staged: none,
+      staged,
       saved,
-      initialCounts: counts,
     });
-    expect(plan.requiredCountByDate).toEqual({ [SAT]: 1, [TUE]: 2 });
-  });
-
-  it('0名の日と、初期値が0で解決された日をソルバー対象から除く', () => {
-    const saved = new Map([[key(SAT), 0]]);
-    const plan = planAutoAssignRequirements({
-      dates: [SAT, TUE],
-      shiftTypeId: TYPE,
-      staged: none,
-      saved,
-      initialCounts: { weekday: 0, weekendHoliday: 3 },
-    });
-    expect(plan.solverDates).toEqual([]);
-    expect(plan.resolvedByDate.has(SAT)).toBe(false);
-    expect(plan.resolvedByDate.get(TUE)).toBe(0);
-  });
-
-  it('人数を変えて再実行すると default の日だけ再計算され、manual は保たれる', () => {
-    const proposals = (dates: string[]): AutoAssignProposal[] =>
-      dates.map((date) => ({
-        date,
-        shiftTypeId: TYPE,
-        instructorIds: [],
-        shortage: { count: 0, reasons: [] },
-      }));
-    const run = (
-      staged: StagedRequirements,
-      initial: { weekday: number; weekendHoliday: number },
-    ) => {
-      const plan = planAutoAssignRequirements({
-        dates: [SAT, TUE],
-        shiftTypeId: TYPE,
-        staged,
-        saved: new Map(),
-        initialCounts: initial,
-      });
-      return {
-        plan,
-        staged: applyAutoAssignRequirements({
-          staged,
-          saved: new Map(),
-          shiftTypeId: TYPE,
-          proposals: proposals(plan.solverDates),
-          plan,
-        }),
-      };
-    };
-    const manual = stageManualRequirement(none, new Map(), key(SAT), 5);
-    const first = run(manual, counts);
-    expect(first.staged.get(key(TUE))).toEqual({ requiredCount: 2, source: 'default' });
-    expect(first.staged.get(key(SAT))).toEqual({ requiredCount: 5, source: 'manual' });
-
-    const second = run(first.staged, { weekday: 4, weekendHoliday: 6 });
-    expect(second.plan.requiredCountByDate).toEqual({ [SAT]: 5, [TUE]: 4 });
-    expect(second.staged.get(key(TUE))).toEqual({ requiredCount: 4, source: 'default' });
-    expect(second.staged.get(key(SAT))?.requiredCount).toBe(5);
-  });
-
-  it('解決後0名で除外された未設定日も初期値(0)を default でステージする', () => {
-    const plan = planAutoAssignRequirements({
-      dates: [TUE, SAT],
-      shiftTypeId: TYPE,
-      staged: none,
-      saved: new Map(),
-      initialCounts: { weekday: 0, weekendHoliday: 3 },
-    });
-    const staged = applyAutoAssignRequirements({
-      staged: none,
-      saved: new Map(),
-      shiftTypeId: TYPE,
-      proposals: [
-        { date: SAT, shiftTypeId: TYPE, instructorIds: [], shortage: { count: 0, reasons: [] } },
-      ],
-      plan,
-    });
-    expect(staged.get(key(TUE))).toEqual({ requiredCount: 0, source: 'default' });
-    expect(staged.get(key(SAT))).toEqual({ requiredCount: 3, source: 'default' });
-  });
-
-  it('提案が空なら必要人数を一切ステージしない', () => {
-    const plan = planAutoAssignRequirements({
-      dates: [TUE],
-      shiftTypeId: TYPE,
-      staged: none,
-      saved: new Map(),
-      initialCounts: counts,
-    });
-    expect(
-      applyAutoAssignRequirements({
-        staged: none,
-        saved: new Map(),
-        shiftTypeId: TYPE,
-        proposals: [],
-        plan,
-      }).size,
-    ).toBe(0);
+    expect(plan.targetDates).toEqual([TUE]);
+    expect(plan.requiredCountByDate).toEqual({ [TUE]: 2 });
   });
 
   it('日別の人数がソルバーの配置人数に反映される', () => {
@@ -188,23 +94,17 @@ describe('planAutoAssignRequirements', () => {
       availabilities: [],
       existingAssignments: [],
     };
-    const saved = new Map([[key(TUE), 1]]);
-    const plan = planAutoAssignRequirements({
+    const saved = new Map([
+      [key(SAT), 3],
+      [key(TUE), 1],
+    ]);
+    const plan = planAutoAssignTargets({
       dates: [SAT, TUE],
       shiftTypeId: TYPE,
       staged: none,
       saved,
-      initialCounts: counts,
     });
-    const { proposals } = solveAutoAssignments(
-      context,
-      {
-        shiftTypeId: TYPE,
-        targetDates: plan.solverDates,
-        requiredCountByDate: plan.requiredCountByDate,
-      },
-      1,
-    );
+    const { proposals } = solveAutoAssignments(context, { shiftTypeId: TYPE, ...plan }, 1);
     expect(Object.fromEntries(proposals.map((p) => [p.date, p.instructorIds.length]))).toEqual({
       [SAT]: 3,
       [TUE]: 1,
@@ -215,19 +115,18 @@ describe('planAutoAssignRequirements', () => {
 describe('一括設定', () => {
   const dates = [SAT, TUE];
 
-  it('未設定日と default 由来の日だけが対象で、設定済みは上書きしない', () => {
-    const saved = new Map([[key(TUE), 1]]);
-    const staged: StagedRequirements = new Map([
-      [key(SAT), { requiredCount: 9, source: 'default' }],
+  it('実効値が未設定の日だけが対象で、設定済みと0名の日は上書きしない', () => {
+    const saved = new Map([[key(TUE), 0]]);
+    expect(bulkRequirementTargetDates({ dates, shiftTypeId: TYPE, staged: none, saved })).toEqual([
+      SAT,
     ]);
-    expect(bulkRequirementTargetDates({ dates, shiftTypeId: TYPE, staged, saved })).toEqual([SAT]);
-    const next = applyBulkRequirements({ dates, shiftTypeId: TYPE, staged, saved, counts });
-    expect(next.get(key(SAT))).toEqual({ requiredCount: 3, source: 'manual' });
+    const next = applyBulkRequirements({ dates, shiftTypeId: TYPE, staged: none, saved, counts });
+    expect(next.get(key(SAT))).toEqual({ requiredCount: 3 });
     expect(next.has(key(TUE))).toBe(false);
   });
 
-  it('manual でステージ済みの日は対象外', () => {
-    const staged = stageManualRequirement(none, new Map(), key(SAT), 7);
+  it('未保存で設定した日も対象外', () => {
+    const staged = stageRequirement(none, new Map(), key(SAT), 7);
     expect(
       bulkRequirementTargetDates({ dates, shiftTypeId: TYPE, staged, saved: new Map() }),
     ).toEqual([TUE]);

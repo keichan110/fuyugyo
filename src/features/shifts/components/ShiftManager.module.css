@@ -16,6 +16,12 @@
   color: var(--mantine-color-red-7);
 }
 
+/* 自動割当モードで選べない日は控えめに無効表示にする */
+.calendarDay:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 /* 選択中はセルの面と枠線で示す（未保存はヘッダー層のドット） */
 .calendarDay[data-selected] {
   background-color: var(--mantine-color-blue-0);

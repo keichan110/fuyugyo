@@ -172,11 +172,18 @@ function ShiftManagerContent({ controller, myInstructorId }: ShiftManagerContent
                 return next;
               })
             }
-            onOpenAutoAssignModal={() => controller.setAutoAssignModalOpened(true)}
+            onRunAutoAssign={controller.runAutoAssign}
+            isAutoAssigning={controller.isAutoAssigning}
+            canRunAutoAssign={
+              !!controller.autoAssignContext.data &&
+              controller.requirementsReady &&
+              !controller.activeShiftTypeMissingCertification
+            }
+            missingCertification={controller.activeShiftTypeMissingCertification}
             shortageByCell={controller.shortageByCell}
             stagedRequirements={controller.stagedRequirements}
             requiredByDay={controller.requiredByDay}
-            isAutoAssignExcludedDate={controller.isAutoAssignExcludedDate}
+            isAutoAssignSelectableDate={controller.isAutoAssignSelectableDate}
             onOpenBulkModal={() => controller.setBulkModalOpened(true)}
           />
 
@@ -271,72 +278,6 @@ function ShiftManagerContent({ controller, myInstructorId }: ShiftManagerContent
               破棄して移動
             </AppButton>
           </Group>
-        </Stack>
-      </Modal>
-
-      <Modal
-        opened={controller.autoAssignModalOpened}
-        onClose={() => !controller.isAutoAssigning && controller.setAutoAssignModalOpened(false)}
-        title="自動割当の条件"
-        centered
-      >
-        <Stack gap="md">
-          <Text size="sm">
-            {controller.formData.data?.shiftTypes.find(
-              (shiftType) => shiftType.id === controller.autoAssignShiftTypeId,
-            )?.name ?? ''}{' '}
-            を{controller.autoAssignDates.size}日分、現在のステージへ直接反映します。
-          </Text>
-          <Select
-            label="対象シフト種別"
-            value={controller.autoAssignShiftTypeId}
-            onChange={(value) => value && controller.setAutoAssignShiftTypeId(value)}
-            data={
-              controller.formData.data?.shiftTypes.map((shiftType) => ({
-                value: shiftType.id,
-                label: shiftType.name,
-              })) ?? []
-            }
-            allowDeselect={false}
-          />
-          <Text size="xs" c="dimmed">
-            設定済み{controller.autoAssignSummary.fixedDays}日は設定値を使用し、未設定
-            {controller.autoAssignSummary.unsetDays}日は下の初期値を設定して割り当てます
-          </Text>
-          <RequiredCountInputs
-            weekday={controller.weekdayRequiredCount}
-            weekendHoliday={controller.weekendHolidayRequiredCount}
-            onWeekdayChange={controller.setWeekdayRequiredCount}
-            onWeekendHolidayChange={controller.setWeekendHolidayRequiredCount}
-            weekdayLabel="未設定日の初期値（平日）"
-            weekendHolidayLabel="未設定日の初期値（土日祝）"
-          />
-          <Text size="xs" c="dimmed">
-            必要資格は表示・判定に使用します。変更はシフト種別設定画面で行ってください。
-          </Text>
-          <AppButton intent="tertiary" component="a" href="/shift-types" size="xs">
-            必要資格設定を開く
-          </AppButton>
-          {controller.autoAssignContext.data?.frames.find(
-            (frame) => frame.shiftTypeId === controller.autoAssignShiftTypeId,
-          )?.certificationTiers.length === 0 && (
-            <ErrorAlert>この種別には必要資格が設定されていないため、提案できません。</ErrorAlert>
-          )}
-          <AppButton
-            intent={controller.shortageByCell.size > 0 ? 'secondary' : 'primary'}
-            leftSection={<IconWand size={16} />}
-            onClick={controller.runAutoAssign}
-            loading={controller.isAutoAssigning}
-            disabled={
-              !controller.autoAssignContext.data ||
-              !controller.requirementsReady ||
-              controller.weekdayRequiredCount === '' ||
-              controller.weekendHolidayRequiredCount === '' ||
-              controller.autoAssignSummary.solverTargetCount === 0
-            }
-          >
-            {controller.shortageByCell.size > 0 ? '別の案を出す' : '提案をステージへ反映'}
-          </AppButton>
         </Stack>
       </Modal>
 
@@ -443,12 +384,16 @@ type ShiftCalendarProps = {
   onStartAutoAssign: () => void;
   onCancelAutoAssign: () => void;
   onToggleAutoAssignDate: (date: string) => void;
-  onOpenAutoAssignModal: () => void;
+  onRunAutoAssign: () => void;
+  isAutoAssigning: boolean;
+  /** 自動割当に必要なデータが揃い、開いている種別に必要資格がある */
+  canRunAutoAssign: boolean;
+  missingCertification: boolean;
   shortageByCell: Map<string, AutoAssignProposal['shortage']>;
   stagedRequirements: StagedRequirements;
   /** 日 → 表示用の必要人数。必要人数の取得前は null（未設定と区別して何も出さない）。 */
   requiredByDay: Map<string, number | null> | null;
-  isAutoAssignExcludedDate: (date: string, shiftTypeId: string) => boolean;
+  isAutoAssignSelectableDate: (date: string) => boolean;
   onOpenBulkModal: () => void;
 };
 
@@ -488,11 +433,14 @@ function ShiftCalendar({
   onStartAutoAssign,
   onCancelAutoAssign,
   onToggleAutoAssignDate,
-  onOpenAutoAssignModal,
+  onRunAutoAssign,
+  isAutoAssigning,
+  canRunAutoAssign,
+  missingCertification,
   shortageByCell,
   stagedRequirements,
   requiredByDay,
-  isAutoAssignExcludedDate,
+  isAutoAssignSelectableDate,
   onOpenBulkModal,
 }: ShiftCalendarProps) {
   const shiftByCell = useMemo(() => {
@@ -613,8 +561,8 @@ function ShiftCalendar({
   // 日・イベント共通のクリック処理。自動割当モードでは対象日の切り替えだけを行う。
   const handleDateClick = (date: string) => {
     if (autoAssignMode) {
-      // 必要人数0名の日は自動割当の対象外なので選択できない
-      if (!isAutoAssignExcludedDate(date, activeShiftTypeId)) onToggleAutoAssignDate(date);
+      // 必要人数が1名以上の日だけ選択できる（未設定と0名は対象外）
+      if (isAutoAssignSelectableDate(date)) onToggleAutoAssignDate(date);
       return;
     }
     onSelectCell({ date, shiftTypeId: activeShiftTypeId });
@@ -653,20 +601,27 @@ function ShiftCalendar({
       <Group justify="space-between" mb="sm" wrap="wrap">
         {autoAssignMode ? (
           <>
-            <Text size="sm" c="blue" fw={600}>
-              自動割当する日を選択（{autoAssignDates.size}日）
-            </Text>
+            <Stack gap={2}>
+              <Text size="sm" c="blue" fw={600}>
+                自動割当する日を選択（{autoAssignDates.size}日）
+              </Text>
+              <Text size="xs" c="dimmed">
+                必要人数が設定された日だけ選べます
+              </Text>
+            </Stack>
             <Group gap="xs">
               <AppButton intent="secondary" size="xs" onClick={onCancelAutoAssign}>
                 キャンセル
               </AppButton>
               <AppButton
-                intent="primary"
+                intent={shortageByCell.size > 0 ? 'secondary' : 'primary'}
                 size="xs"
-                disabled={autoAssignDates.size === 0}
-                onClick={onOpenAutoAssignModal}
+                leftSection={<IconWand size={14} />}
+                loading={isAutoAssigning}
+                disabled={!canRunAutoAssign || autoAssignDates.size === 0}
+                onClick={onRunAutoAssign}
               >
-                条件設定
+                {shortageByCell.size > 0 ? '別の案を出す' : '割り当て'}
               </AppButton>
             </Group>
           </>
@@ -692,6 +647,12 @@ function ShiftCalendar({
           </Group>
         )}
       </Group>
+
+      {autoAssignMode && missingCertification && (
+        <Box mb="sm">
+          <ErrorAlert>この種別には必要資格が設定されていないため、提案できません。</ErrorAlert>
+        </Box>
+      )}
 
       <Group justify="space-between" mb="xs" gap="sm" wrap="wrap">
         <Text size="sm" fw={600}>
@@ -733,6 +694,8 @@ function ShiftCalendar({
           const calendarDayColor = getCalendarDayColor(date);
           return {
             'data-shift-date': date,
+            // 自動割当モードでは、対象にできない日（未設定・0名）をクリック・キー操作から外す
+            disabled: autoAssignMode && !isAutoAssignSelectableDate(date) ? true : undefined,
             'data-selected': selected || undefined,
             'data-staged':
               stagedCells.has(cellKey(date, activeShiftTypeId)) ||

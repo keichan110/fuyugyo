@@ -304,7 +304,7 @@ export function useShiftManagerController() {
       };
     });
     upsertMonthly.mutate(
-      { month, departmentCode, cells },
+      { month, departmentCode, cells, requirements: [] },
       { onSuccess: () => setStagedCells(new Map()) },
     );
   };

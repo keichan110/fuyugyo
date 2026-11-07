@@ -33,6 +33,7 @@ import {
   instructors,
   shiftAssignments,
   shifts,
+  shiftStaffingRequirements,
   shiftTypes,
   users,
 } from '@/server/db/schema';
@@ -1138,6 +1139,41 @@ export const shiftsRoute = new Hono<{
     });
   })
   /**
+   * 必要人数一覧: `month`（YYYY-MM）の当月に保存された必要人数を全部門分返す。MANAGER 以上。
+   * 行がない枠は未設定であり、返却に含めない。
+   */
+  .get('/requirements', requireAuth, requireRole('MANAGER'), async (c) => {
+    const month = c.req.query('month');
+    if (!(month && monthStringSchema.safeParse(month).success)) {
+      throw new HTTPException(400, {
+        message: 'month は YYYY-MM 形式で指定してください',
+      });
+    }
+
+    // monthStringSchema が形式と月範囲（01〜12）を検証済み
+    const [yearStr, monthStr] = month.split('-');
+    const year = Number(yearStr);
+    const monthNumber = Number(monthStr);
+    const from = new Date(Date.UTC(year, monthNumber - 1, 1));
+    const to = new Date(Date.UTC(year, monthNumber, 0));
+
+    const db = createDb(c.env.DB);
+    const rows = await db
+      .select({
+        date: shiftStaffingRequirements.date,
+        departmentCode: shiftStaffingRequirements.departmentCode,
+        shiftTypeId: shiftStaffingRequirements.shiftTypeId,
+        requiredCount: shiftStaffingRequirements.requiredCount,
+      })
+      .from(shiftStaffingRequirements)
+      .where(
+        and(gte(shiftStaffingRequirements.date, from), lte(shiftStaffingRequirements.date, to)),
+      )
+      .orderBy(asc(shiftStaffingRequirements.date));
+
+    return c.json(rows.map((row) => ({ ...row, date: formatDate(row.date) })));
+  })
+  /**
    * 出勤状況ビュー: `dates`（カンマ区切り・YYYY-MM-DD、1〜7件）で指定した日群の
    * 全出勤者（部門・シフト種別・表示名付き）を返す。MEMBER 以上。
    * 休校日（シフトが0件の日）は要素を持たないだけで、400 にはしない。
@@ -1329,6 +1365,7 @@ export const shiftsRoute = new Hono<{
   })
   /**
    * (month × 部門) の割り当てを月次まとめて upsert する（MANAGER 以上）。
+   * requirements は必要人数の差分で、割り当て（cells）には一切触れない（null は行削除）。
    * cells には変更差分のみを含める。全セル分の書き込みを単一の `db.batch` に集約し、
    * 途中で失敗しても部分コミットが残らない原子性を保証する。
    * instructorIds が空なら該当 Shift を削除する（ShiftAssignment は cascade で消える）。
@@ -1348,25 +1385,31 @@ export const shiftsRoute = new Hono<{
       const input = c.req.valid('json');
       const db = createDb(c.env.DB);
 
-      // 全セルの日付が実在する暦日で、かつ対象月内にあることを検証
-      for (const cell of input.cells) {
-        if (!isValidCalendarDate(cell.date)) {
+      // 全セル・必要人数の日付が実在する暦日で、かつ対象月内にあることを検証
+      for (const item of [...input.cells, ...input.requirements]) {
+        if (!isValidCalendarDate(item.date)) {
           throw new HTTPException(400, {
-            message: `セルの日付 ${cell.date} は実在しない日付です`,
+            message: `セルの日付 ${item.date} は実在しない日付です`,
           });
         }
-        if (!cell.date.startsWith(`${input.month}-`)) {
+        if (!item.date.startsWith(`${input.month}-`)) {
           throw new HTTPException(400, {
-            message: `セルの日付 ${cell.date} は対象月 ${input.month} の範囲外です`,
+            message: `セルの日付 ${item.date} は対象月 ${input.month} の範囲外です`,
           });
         }
       }
 
-      if (input.cells.length === 0) {
+      if (input.cells.length === 0 && input.requirements.length === 0) {
         return c.json({ upsertedCount: 0, deletedCount: 0 });
       }
 
-      const shiftTypeIds = [...new Set(input.cells.map((cell) => cell.shiftTypeId))];
+      // 利用可否の検証対象は cells と requirements の和集合
+      const shiftTypeIds = [
+        ...new Set([
+          ...input.cells.map((cell) => cell.shiftTypeId),
+          ...input.requirements.map((requirement) => requirement.shiftTypeId),
+        ]),
+      ];
       const availableRows = await db
         .select({ shiftTypeId: departmentShiftTypes.shiftTypeId, frameId: departmentShiftTypes.id })
         .from(departmentShiftTypes)
@@ -1533,6 +1576,43 @@ export const shiftsRoute = new Hono<{
           );
           upsertedCount++;
         }
+      }
+
+      // 必要人数は割り当てと独立に保存する。null は行削除、数値は upsert。
+      for (const requirement of input.requirements) {
+        const date = parseShiftDate(requirement.date);
+        if (requirement.requiredCount === null) {
+          batchOps.push(
+            db
+              .delete(shiftStaffingRequirements)
+              .where(
+                and(
+                  eq(shiftStaffingRequirements.date, date),
+                  eq(shiftStaffingRequirements.departmentCode, input.departmentCode),
+                  eq(shiftStaffingRequirements.shiftTypeId, requirement.shiftTypeId),
+                ),
+              ),
+          );
+          continue;
+        }
+        batchOps.push(
+          db
+            .insert(shiftStaffingRequirements)
+            .values({
+              date,
+              departmentCode: input.departmentCode,
+              shiftTypeId: requirement.shiftTypeId,
+              requiredCount: requirement.requiredCount,
+            })
+            .onConflictDoUpdate({
+              target: [
+                shiftStaffingRequirements.date,
+                shiftStaffingRequirements.departmentCode,
+                shiftStaffingRequirements.shiftTypeId,
+              ],
+              set: { requiredCount: requirement.requiredCount, updatedAt: new Date() },
+            }),
+        );
       }
 
       if (batchOps.length === 0) {

@@ -254,6 +254,9 @@ function ShiftManagerContent({ controller, myInstructorId }: ShiftManagerContent
                 (type) => type.id === controller.activeShiftTypeId,
               )?.name ?? ''
             }
+            activeShiftTypeId={controller.activeShiftTypeId}
+            savedAssignments={controller.detailedAssignments.saved}
+            stagedAssignments={controller.detailedAssignments.staged}
             days={controller.days}
             assignmentsByDay={controller.assignmentsByDay}
             assignmentsReady={controller.monthly.data !== undefined}

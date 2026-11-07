@@ -163,13 +163,14 @@ export const autoAssignContextSchema = z.object({
 
 export type AutoAssignContext = z.infer<typeof autoAssignContextSchema>;
 
-/** 自動割当を実行する対象種別・必要人数・対象日。DB には保存しない一時パラメータ。 */
+/**
+ * 自動割当を実行する対象種別・対象日・日別の必要人数。DB には保存しない一時パラメータ。
+ * requiredCountByDate に無い日は必要人数0として扱う。
+ */
 export type AutoAssignExecutionParams = {
   shiftTypeId: string;
-  weekdayRequiredCount: number;
-  weekendHolidayRequiredCount: number;
   targetDates: string[];
-  holidayDates: string[];
+  requiredCountByDate: Record<string, number>;
 };
 
 /** 自動割当の1枠に対する提案結果。 */

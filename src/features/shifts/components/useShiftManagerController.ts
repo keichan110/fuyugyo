@@ -14,7 +14,8 @@ import {
   useShiftCreationContext,
   useUpsertAssignments,
 } from '../queries';
-import { isJapaneseHoliday, todayString, toMonth } from '../view-utils';
+import { resolveInitialRequiredCount } from '../staffing';
+import { todayString, toMonth } from '../view-utils';
 import { countCurrentMonthWorkDays, type CellAssignment } from '../workload';
 import { applyAutoAssignProposals, contextWithStagedAssignments } from './auto-assign-stage';
 import { reconcileShiftManagerSelection } from './shift-manager-selection';
@@ -194,10 +195,16 @@ export function useShiftManagerController() {
         context: contextWithStagedAssignments(autoAssignContext.data, stagedCells),
         params: {
           shiftTypeId: autoAssignShiftTypeId,
-          weekdayRequiredCount,
-          weekendHolidayRequiredCount,
           targetDates: [...autoAssignDates],
-          holidayDates: [...autoAssignDates].filter(isJapaneseHoliday),
+          requiredCountByDate: Object.fromEntries(
+            [...autoAssignDates].map((date) => [
+              date,
+              resolveInitialRequiredCount(date, {
+                weekday: weekdayRequiredCount,
+                weekendHoliday: weekendHolidayRequiredCount,
+              }),
+            ]),
+          ),
         },
         variant,
       });

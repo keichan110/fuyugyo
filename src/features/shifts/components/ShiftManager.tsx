@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 
 import {
-  ActionIcon,
   Box,
   Card,
   Checkbox,
@@ -22,7 +21,6 @@ import {
   UnstyledButton,
 } from '@mantine/core';
 import { MonthView, type ScheduleEventData } from '@mantine/schedule';
-import { IconAlertTriangle, IconCircleCheck, IconMessage, IconWand } from '@tabler/icons-react';
 
 import 'dayjs/locale/ja';
 
@@ -39,15 +37,17 @@ import { departmentCodeSchema, type DepartmentCode } from '@/features/department
 import { compareInstructorCertification, compareInstructorKana } from '../candidate-display';
 import { useShiftAssignmentEditor } from '../queries';
 import type { AutoAssignProposal, AvailableInstructor, ShiftViewItem } from '../schema';
-import {
-  deriveStaffingStatus,
-  describeStaffing,
-  formatStaffingText,
-  summarizeStaffing,
-  type StaffingStatus,
-} from '../staffing';
-import { addDays, getCalendarDayColor, shortDateLabel, toMonth } from '../view-utils';
+import { summarizeStaffing } from '../staffing';
+import { getCalendarDayColor, shortDateLabel, toMonth } from '../view-utils';
 import { calculateFairShare } from '../workload';
+import { AutoAssignToolbar } from './AutoAssignToolbar';
+import {
+  buildCalendarEvents,
+  isHeaderEventPayload,
+  resolveAssignmentsByDay,
+  type AssignmentEventPayload,
+} from './calendar-events';
+import { DayHeaderLayer } from './DayHeaderLayer';
 import type { StagedRequirements } from './requirement-stage';
 import type { SelectedCell, StagedCell } from './shift-manager-types';
 import { cellKey, weekdayLabel } from './shift-manager-utils';
@@ -400,21 +400,6 @@ type ShiftCalendarProps = {
   onOpenBulkModal: () => void;
 };
 
-type AssignmentEventPayload =
-  | { kind: 'instructor'; date: string; instructorId: string }
-  | {
-      /** 日付セル上部に重ねるヘッダー層（未保存ドット・備考アイコン・充足表示） */
-      kind: 'header';
-      date: string;
-      staged: boolean;
-      description: string;
-      staffing: {
-        status: StaffingStatus;
-        text: string;
-        tooltip: string;
-      } | null;
-    };
-
 /** 選択中の部門・シフト種別について、担当者を日付ごとに縦表示する月間カレンダー。 */
 function ShiftCalendar({
   month,
@@ -457,96 +442,41 @@ function ShiftCalendar({
     return map;
   }, [departmentCode, shifts]);
 
-  const assignmentsByDay = useMemo(() => {
-    const map = new Map<string, Array<{ id: string; name: string }>>();
-    for (const day of days) {
-      const key = cellKey(day, activeShiftTypeId);
-      const serverShift = shiftByCell.get(key);
-      const staged = stagedCells.get(key);
-      const assigned = staged
-        ? staged.instructorIds.map((id) => ({
-            id,
-            name:
-              serverShift?.assignedInstructors.find((instructor) => instructor.id === id)
-                ?.displayName ??
-              nameById.get(id) ??
-              id,
-          }))
-        : (serverShift?.assignedInstructors ?? []).map((instructor) => ({
-            id: instructor.id,
-            name: instructor.displayName,
-          }));
-      map.set(day, assigned);
-    }
-    return map;
-  }, [activeShiftTypeId, days, nameById, shiftByCell, stagedCells]);
+  const assignmentsByDay = useMemo(
+    () =>
+      resolveAssignmentsByDay({
+        days,
+        shiftTypeId: activeShiftTypeId,
+        shiftByCell,
+        stagedCells,
+        nameById,
+      }),
+    [activeShiftTypeId, days, nameById, shiftByCell, stagedCells],
+  );
 
-  const events = useMemo<ScheduleEventData<AssignmentEventPayload>[]>(() => {
-    const instructorEvents = days.flatMap((day) =>
-      (assignmentsByDay.get(day) ?? []).map(
-        (instructor): ScheduleEventData<AssignmentEventPayload> => ({
-          id: `${day}:${activeShiftTypeId}:${instructor.id}`,
-          title: instructor.name,
-          start: `${day} 00:00:00`,
-          end: `${addDays(day, 1)} 00:00:00`,
-          color: 'gray',
-          payload: { kind: 'instructor', date: day, instructorId: instructor.id },
-        }),
-      ),
-    );
-    // 日ごとに1つの背景イベントへまとめ、日付セル上部のヘッダー層として描画する。
-    const headerEvents = days.flatMap((day): ScheduleEventData<AssignmentEventPayload>[] => {
-      const key = cellKey(day, activeShiftTypeId);
-      const rawDescription =
-        stagedCells.get(key)?.description ?? shiftByCell.get(key)?.description ?? '';
-      const description = rawDescription.trim() ? rawDescription : '';
-      const staged = stagedCells.has(key) || stagedRequirements.has(key);
-      let staffing: { status: StaffingStatus; text: string; tooltip: string } | null = null;
-      if (requiredByDay) {
-        const required = requiredByDay.get(day) ?? null;
-        const assigned = assignmentsByDay.get(day)?.length ?? 0;
-        const status = deriveStaffingStatus(required, assigned);
-        // 未設定で配置0名の日は表示する数字がない
-        const text = formatStaffingText(required, assigned);
-        if (text !== null) {
-          const shortage = shortageByCell.get(key);
-          // 不足理由は、その後も不足のままの日にだけ補足として続ける
-          const reason =
-            status === 'SHORT' && shortage && shortage.count > 0 && shortage.reasons.length > 0
-              ? shortage.reasons.join(' / ')
-              : undefined;
-          const label = describeStaffing(required, assigned);
-          staffing = {
-            status,
-            text,
-            tooltip: reason ? `${label}：${reason}` : label,
-          };
-        }
-      }
-      if (!(staged || description || staffing)) return [];
-      return [
-        {
-          id: `${day}:${activeShiftTypeId}:header`,
-          title: description,
-          start: `${day} 00:00:00`,
-          end: `${addDays(day, 1)} 00:00:00`,
-          color: 'gray',
-          display: 'background',
-          payload: { kind: 'header', date: day, staged, description, staffing },
-        },
-      ];
-    });
-    return [...instructorEvents, ...headerEvents];
-  }, [
-    activeShiftTypeId,
-    assignmentsByDay,
-    days,
-    requiredByDay,
-    shiftByCell,
-    shortageByCell,
-    stagedCells,
-    stagedRequirements,
-  ]);
+  const events = useMemo<ScheduleEventData<AssignmentEventPayload>[]>(
+    () =>
+      buildCalendarEvents({
+        days,
+        shiftTypeId: activeShiftTypeId,
+        assignmentsByDay,
+        shiftByCell,
+        stagedCells,
+        stagedRequirements,
+        requiredByDay,
+        shortageByCell,
+      }),
+    [
+      activeShiftTypeId,
+      assignmentsByDay,
+      days,
+      requiredByDay,
+      shiftByCell,
+      shortageByCell,
+      stagedCells,
+      stagedRequirements,
+    ],
+  );
 
   const staffingSummary = useMemo(
     () =>
@@ -602,70 +532,20 @@ function ShiftCalendar({
         </Tabs.List>
       </Tabs>
 
-      <Group justify="space-between" mb="sm" wrap="wrap">
-        {autoAssignMode ? (
-          <>
-            <Stack gap={2}>
-              <Text size="sm" c="blue" fw={600}>
-                自動割当する日を選択（{autoAssignDates.size}日）
-              </Text>
-              <Text size="xs" c="dimmed">
-                必要人数が設定された日だけ選べます
-              </Text>
-            </Stack>
-            <Group gap="xs">
-              <AppButton intent="secondary" size="xs" onClick={onCancelAutoAssign}>
-                キャンセル
-              </AppButton>
-              <AppButton
-                intent={shortageByCell.size > 0 ? 'secondary' : 'primary'}
-                size="xs"
-                leftSection={<IconWand size={14} />}
-                loading={isAutoAssigning}
-                disabled={!canRunAutoAssign || autoAssignDates.size === 0}
-                onClick={onRunAutoAssign}
-              >
-                {shortageByCell.size > 0 ? '別の案を出す' : '割り当て'}
-              </AppButton>
-            </Group>
-          </>
-        ) : (
-          <Group gap="xs">
-            <AppButton
-              intent="secondary"
-              size="xs"
-              disabled={!requiredByDay}
-              onClick={onOpenBulkModal}
-            >
-              必要人数を一括設定
-            </AppButton>
-            {/* disabled のボタンはホバーを受けないため、Tooltip はラッパー要素に付ける */}
-            <Tooltip
-              label="必要人数が設定された日がありません"
-              disabled={!noSelectableDates}
-              withArrow
-            >
-              <Box>
-                <AppButton
-                  intent="secondary"
-                  size="xs"
-                  leftSection={<IconWand size={14} />}
-                  disabled={!requiredByDay || noSelectableDates}
-                  onClick={onStartAutoAssign}
-                >
-                  自動割当
-                </AppButton>
-              </Box>
-            </Tooltip>
-          </Group>
-        )}
-      </Group>
-
-      {autoAssignMode && missingCertification && (
-        <Box mb="sm">
-          <ErrorAlert>この種別には必要資格が設定されていないため、提案できません。</ErrorAlert>
-        </Box>
-      )}
+      <AutoAssignToolbar
+        autoAssignMode={autoAssignMode}
+        selectedDateCount={autoAssignDates.size}
+        requirementsReady={!!requiredByDay}
+        noSelectableDates={noSelectableDates}
+        canRunAutoAssign={canRunAutoAssign}
+        missingCertification={missingCertification}
+        isAutoAssigning={isAutoAssigning}
+        hasPreviousProposal={shortageByCell.size > 0}
+        onStartAutoAssign={onStartAutoAssign}
+        onCancelAutoAssign={onCancelAutoAssign}
+        onRunAutoAssign={onRunAutoAssign}
+        onOpenBulkModal={onOpenBulkModal}
+      />
 
       <Group justify="space-between" mb="xs" gap="sm" wrap="wrap">
         <Text size="sm" fw={600}>
@@ -735,55 +615,14 @@ function ShiftCalendar({
         }}
         renderEvent={(event, props) => {
           const payload = event.payload;
-          if (payload?.kind === 'header') {
+          if (isHeaderEventPayload(payload)) {
             return (
-              <Box style={props.style} className={classes.headerLayer}>
-                {payload.staged && (
-                  <Box className={classes.stagedDot} role="img" aria-label="未保存の変更あり" />
-                )}
-                {payload.description && (
-                  <Tooltip label={payload.description} multiline maw={320} withArrow>
-                    <ActionIcon
-                      type="button"
-                      variant="subtle"
-                      color="gray"
-                      size="sm"
-                      className={classes.descriptionIcon}
-                      aria-label={`備考: ${payload.description}`}
-                      onClick={() =>
-                        onSelectCell({
-                          date: payload.date,
-                          shiftTypeId: activeShiftTypeId,
-                        })
-                      }
-                    >
-                      <IconMessage size={14} stroke={1.75} />
-                    </ActionIcon>
-                  </Tooltip>
-                )}
-                {payload.staffing && (
-                  <Tooltip label={payload.staffing.tooltip} multiline maw={320} withArrow>
-                    <UnstyledButton
-                      className={classes.staffingBadge}
-                      data-staffing={payload.staffing.status}
-                      aria-label={payload.staffing.tooltip}
-                      onClick={() => handleDateClick(payload.date)}
-                    >
-                      {payload.staffing.status === 'FILLED' && (
-                        <IconCircleCheck size={14} stroke={1.75} className={classes.staffingIcon} />
-                      )}
-                      {payload.staffing.status === 'SHORT' && (
-                        <IconAlertTriangle
-                          size={14}
-                          stroke={1.75}
-                          className={classes.staffingIcon}
-                        />
-                      )}
-                      <span className={classes.staffingText}>{payload.staffing.text}</span>
-                    </UnstyledButton>
-                  </Tooltip>
-                )}
-              </Box>
+              <DayHeaderLayer
+                payload={payload}
+                style={props.style}
+                onSelectDate={(date) => onSelectCell({ date, shiftTypeId: activeShiftTypeId })}
+                onClickDate={handleDateClick}
+              />
             );
           }
           return (

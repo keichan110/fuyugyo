@@ -56,7 +56,7 @@
 
 .descriptionIcon {
   flex-shrink: 0;
-  pointer-events: auto;
+  pointer-events: none;
 }
 
 /* 数字は控えめな色にし、状態はアイコンの色だけで表す */
@@ -68,7 +68,7 @@
   color: var(--mantine-color-dimmed);
   font-size: var(--mantine-font-size-xs);
   line-height: 1;
-  pointer-events: auto;
+  pointer-events: none;
 }
 
 .staffingBadge[data-staffing='FILLED'] .staffingIcon {
@@ -93,26 +93,14 @@
   font-size: var(--mantine-font-size-xs);
   font-weight: 400;
   line-height: 1.35;
+  pointer-events: none;
   text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.instructorEvent:hover {
-  background-color: var(--mantine-color-gray-1);
-}
-
 .instructorEvent[data-current-user] {
   font-weight: 600;
-}
-
-.assignmentDrawerBody {
-  padding-top: var(--mantine-spacing-xs);
-}
-
-.assignmentDrawerTitle {
-  flex: 1;
-  min-width: 0;
 }
 
 .instructorCard {
@@ -154,4 +142,118 @@
   .staffingText {
     display: none;
   }
+}
+
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--mantine-spacing-md);
+  align-items: start;
+}
+
+.calendarPanel,
+.assignmentForm {
+  min-width: 0;
+}
+
+/* イベント名や人数の上も含め、セル全体をひとつの日付選択領域にする。 */
+.moreEvents {
+  pointer-events: none;
+}
+
+.instructorEvent[data-focused] {
+  background-color: var(--mantine-color-blue-1);
+  color: var(--mantine-color-blue-9);
+  font-weight: 700;
+}
+
+.instructorEvent[data-dimmed] {
+  opacity: 0.35;
+}
+
+.personTimeline {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  padding-block: 4px;
+}
+
+.timelineDay {
+  flex: 1 0 32px;
+  min-height: 48px;
+  padding-inline: 4px;
+}
+
+.timelineDay[data-weekend] {
+  border-color: var(--mantine-color-blue-3);
+}
+
+.timelineDay[data-assigned] {
+  background-color: var(--mantine-primary-color-light);
+  color: var(--mantine-primary-color-light-color);
+}
+
+@media (min-width: 75em) {
+  .workspace[data-panel-opened] {
+    grid-template-columns: minmax(0, 1fr) minmax(320px, 36%);
+  }
+
+  .workspace:not([data-panel-opened]) .assignmentForm {
+    display: none;
+  }
+
+  .assignmentForm {
+    max-height: calc(100dvh - 100px);
+    overflow-y: auto;
+    position: sticky;
+    top: calc(var(--app-shell-header-offset, 60px) + var(--mantine-spacing-md));
+    scrollbar-width: thin;
+  }
+}
+
+.calendarDay[data-focused-instructor] {
+  background-color: var(--mantine-primary-color-light);
+}
+
+@media (max-width: 74.99375em) {
+  /* 縦積みでも、候補が多いときに備考・分析までが遠くなりすぎないようにする。 */
+  .candidateList {
+    max-height: 480px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+  }
+}
+
+/* 標準の最小日幅（84px）を外し、スマホでも7曜日を同時に見渡せるようにする。 */
+.monthView {
+  --min-day-width: 0px;
+}
+
+@media (max-width: 48em) {
+  .headerLayer {
+    padding-inline: 0 2px;
+  }
+
+  .headerLayer .stagedDot {
+    position: absolute;
+    top: 0;
+    right: 2px;
+    width: 5px;
+    height: 5px;
+  }
+
+  .descriptionIcon {
+    display: none;
+  }
+
+  .instructorEvent {
+    font-size: 10px;
+  }
+}
+
+.assignmentFields {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
 }

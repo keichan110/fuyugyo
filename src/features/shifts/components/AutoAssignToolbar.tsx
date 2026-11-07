@@ -55,7 +55,12 @@ export function AutoAssignToolbar({
               </Text>
             </Stack>
             <Group gap="xs">
-              <AppButton intent="secondary" size="xs" onClick={onCancelAutoAssign}>
+              <AppButton
+                intent="secondary"
+                size="xs"
+                disabled={isAutoAssigning}
+                onClick={onCancelAutoAssign}
+              >
                 キャンセル
               </AppButton>
               <AppButton

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { useBlocker } from '@tanstack/react-router';
 
@@ -15,9 +15,12 @@ import {
   useShiftStaffingRequirements,
   useUpsertAssignments,
 } from '../queries';
+import type { ShiftViewItem } from '../schema';
+import { summarizeStaffing } from '../staffing';
 import { todayString, toMonth } from '../view-utils';
 import { countCurrentMonthWorkDays, type CellAssignment } from '../workload';
 import { applyAutoAssignProposals, contextWithStagedAssignments } from './auto-assign-stage';
+import { resolveAssignmentsByDay } from './calendar-events';
 import {
   applyBulkRequirements,
   stageRequirement as applyStagedRequirement,
@@ -54,7 +57,7 @@ export function useShiftManagerController() {
     return parsed.success ? parsed.data : 'ski';
   });
   const [selectedCell, setSelectedCell] = useState<SelectedCell | null>(null);
-  const [drawerOpened, setDrawerOpened] = useState(false);
+  const [assignmentPanelOpened, setAssignmentPanelOpened] = useState(false);
   const [stagedCells, setStagedCells] = useState<Map<string, StagedCell>>(new Map());
   const [pendingNav, setPendingNav] = useState<PendingNavigation | null>(null);
   const [autoAssignMode, setAutoAssignMode] = useState(false);
@@ -68,7 +71,6 @@ export function useShiftManagerController() {
   // 「別の案を出す」で異なる提案を得るための連番。実行のたびに増やす。
   const [autoAssignVariant, setAutoAssignVariant] = useState(0);
   const [shortageByCell, setShortageByCell] = useState<ShortageByCell>(new Map());
-  const selectedDayElementRef = useRef<HTMLElement | null>(null);
   // ステージ済みセルの Instructor 名を解決するためのローカルレジストリ。
   // 月次ビューと編集パネルの候補で見た Instructor を蓄積する。
   const [nameById, setNameById] = useState<Map<string, string>>(new Map());
@@ -175,7 +177,7 @@ export function useShiftManagerController() {
       }
       setStagedCells(new Map());
       setStagedRequirements(new Map());
-      setDrawerOpened(false);
+      setAssignmentPanelOpened(false);
       // 日付選択は表示中の部門・種別・月が前提なので、切り替えたら終了する
       setAutoAssignMode(false);
     },
@@ -185,13 +187,14 @@ export function useShiftManagerController() {
   /** 画面内の表示切り替えを要求する。dirty ならモーダルで確認、そうでなければ即時適用する。 */
   const requestNavigation = useCallback(
     (nav: PendingNavigation) => {
+      if (isAutoAssigning) return;
       if (!isDirty) {
         applyNavigation(nav);
         return;
       }
       setPendingNav(nav);
     },
-    [applyNavigation, isDirty],
+    [applyNavigation, isDirty, isAutoAssigning],
   );
 
   const confirmNavigation = () => {
@@ -352,21 +355,10 @@ export function useShiftManagerController() {
     },
     [activeShiftTypeId, requestNavigation],
   );
-  const openAssignmentDrawer = useCallback((cell: SelectedCell) => {
+  const openAssignmentPanel = useCallback((cell: SelectedCell) => {
     setSelectedCell(cell);
-    selectedDayElementRef.current = document.querySelector<HTMLElement>(
-      `[data-shift-date="${cell.date}"]`,
-    );
-    setDrawerOpened(true);
+    setAssignmentPanelOpened(true);
   }, []);
-
-  // 最終週を選んだ場合も、ボトムドロワーより上に選択行が残る位置まで先に移動する。
-  useLayoutEffect(() => {
-    if (!drawerOpened || !selectedDayElementRef.current) return;
-    const rect = selectedDayElementRef.current.getBoundingClientRect();
-    const visibleBottom = window.innerHeight - window.innerHeight * 0.55 - 16;
-    if (rect.bottom > visibleBottom) window.scrollBy({ top: rect.bottom - visibleBottom });
-  }, [drawerOpened, selectedCell]);
 
   const conflictLabelById = useMemo(() => {
     const map = new Map<string, string>();
@@ -443,6 +435,40 @@ export function useShiftManagerController() {
     );
   };
 
+  const shiftByCell = useMemo(() => {
+    const map = new Map<string, ShiftViewItem>();
+    for (const shift of monthly.data?.shifts ?? []) {
+      if (shift.department.code === departmentCode) {
+        map.set(cellKey(shift.date, shift.shiftType.id), shift);
+      }
+    }
+    return map;
+  }, [monthly.data, departmentCode]);
+  const assignmentsByDay = useMemo(
+    () =>
+      resolveAssignmentsByDay({
+        days,
+        shiftTypeId: activeShiftTypeId,
+        shiftByCell,
+        stagedCells,
+        nameById,
+      }),
+    [days, activeShiftTypeId, shiftByCell, stagedCells, nameById],
+  );
+
+  const staffingSummary = useMemo(
+    () =>
+      requiredByDay && monthly.data
+        ? summarizeStaffing(
+            days.map((date) => ({
+              required: requiredByDay.get(date) ?? null,
+              assigned: assignmentsByDay.get(date)?.length ?? 0,
+            })),
+          )
+        : null,
+    [requiredByDay, monthly.data, days, assignmentsByDay],
+  );
+
   const selectedStagedCell = selectedCell
     ? stagedCells.get(cellKey(selectedCell.date, selectedCell.shiftTypeId))
     : undefined;
@@ -463,6 +489,9 @@ export function useShiftManagerController() {
     : null;
 
   return {
+    assignmentsByDay,
+    shiftByCell,
+    staffingSummary,
     activeShiftTypeId,
     activeShiftTypeMissingCertification,
     isAutoAssignSelectableDate,
@@ -493,14 +522,14 @@ export function useShiftManagerController() {
     currentMonthWorkDays,
     days,
     departmentCode,
-    drawerOpened,
+    assignmentPanelOpened,
     formData,
     isAutoAssigning,
     isDirty,
     month,
     monthly,
     nameById,
-    openAssignmentDrawer,
+    openAssignmentPanel,
     pendingNav,
     registerInstructorNames,
     requestNavigation,
@@ -515,7 +544,7 @@ export function useShiftManagerController() {
     selectedStagedCell,
     setAutoAssignDates,
     setAutoAssignMode,
-    setDrawerOpened,
+    setAssignmentPanelOpened,
     setWeekdayRequiredCount,
     setWeekendHolidayRequiredCount,
     shortageByCell,

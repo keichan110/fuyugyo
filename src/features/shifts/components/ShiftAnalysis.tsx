@@ -1,6 +1,7 @@
 import { useId, useState } from 'react';
 
-import { Box, Card, Collapse, Group, Stack, Tabs, Text, Title } from '@mantine/core';
+import { ActionIcon, Box, Card, Collapse, Group, Stack, Tabs, Text, Title } from '@mantine/core';
+import { IconChevronDown, IconChevronUp } from '@tabler/icons-react';
 
 import { AppButton } from '@/components/AppButton';
 import { getDepartmentAppearance } from '@/features/departments/appearance';
@@ -44,15 +45,16 @@ export function ShiftAnalysis(props: ShiftAnalysisProps) {
         <Title order={3} size="h4">
           配置の分析
         </Title>
-        <AppButton
-          intent="secondary"
-          size="compact-sm"
+        <ActionIcon
+          variant="subtle"
+          color="gray"
+          aria-label={opened ? '分析を閉じる' : '分析を開く'}
           aria-expanded={opened}
           aria-controls={contentId}
           onClick={() => setOpened((value) => !value)}
         >
-          {opened ? '分析を閉じる' : '分析を開く'}
-        </AppButton>
+          {opened ? <IconChevronUp size={18} /> : <IconChevronDown size={18} />}
+        </ActionIcon>
       </Group>
       <Collapse expanded={opened} id={contentId}>
         <Text size="xs" c="dimmed" mb="sm">
@@ -240,7 +242,7 @@ function InstructorPlacementAnalysis({
   if (!focusedInstructor)
     return (
       <Text size="sm" c="dimmed">
-        編集フォームの「配置を分析」から人を選択してください。
+        編集フォームの「分析」から人を選択してください。
       </Text>
     );
   return (

@@ -5,6 +5,7 @@ import { MonthView, type ScheduleEventData } from '@mantine/schedule';
 
 import 'dayjs/locale/ja';
 
+import { AppButton } from '@/components/AppButton';
 import { getDepartmentAppearance } from '@/features/departments/appearance';
 import type { DepartmentCode } from '@/features/departments/schema';
 
@@ -41,6 +42,7 @@ type ShiftCalendarProps = {
   shiftByCell: Map<string, ShiftViewItem>;
   assignmentsByDay: DayAssignments;
   focusedInstructor: { id: string; name: string } | null;
+  onClearInstructor: () => void;
   staffingSummary: StaffingMonthlySummary | null;
   stagedCells: Map<string, StagedCell>;
   selectedCell: SelectedCell | null;
@@ -79,6 +81,7 @@ export function ShiftCalendar({
   shiftByCell,
   assignmentsByDay,
   focusedInstructor,
+  onClearInstructor,
   staffingSummary,
   stagedCells,
   selectedCell,
@@ -193,9 +196,14 @@ export function ShiftCalendar({
       </Group>
 
       {focusedInstructor && (
-        <Text size="xs" c="blue" mb="xs">
-          {focusedInstructor.name}の配置日を強調中（未保存の編集を含む）
-        </Text>
+        <Group gap="xs" mb="xs" wrap="wrap">
+          <Text size="xs" c="blue">
+            {focusedInstructor.name}の配置日を強調中
+          </Text>
+          <AppButton intent="tertiary" size="compact-xs" onClick={onClearInstructor}>
+            分析を解除
+          </AppButton>
+        </Group>
       )}
       <MonthView
         className={classes.monthView}

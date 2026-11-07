@@ -212,7 +212,7 @@ export function AssignmentPanel({
               </Text>
             ) : (
               candidates.map((instructor) => (
-                <Box key={instructor.id}>
+                <Box key={instructor.id} className={classes.candidateRow}>
                   <InstructorCard
                     instructor={instructor}
                     departmentCode={departmentCode}
@@ -226,14 +226,15 @@ export function AssignmentPanel({
                   />
                   <AppButton
                     intent="secondary"
-                    size="compact-xs"
-                    mt={4}
+                    size="xs"
+                    px="xs"
+                    aria-label={`${instructor.displayName}の分析${focusedInstructorId === instructor.id ? 'を解除' : 'を表示'}`}
                     aria-pressed={focusedInstructorId === instructor.id}
                     onClick={() =>
                       onAnalyzeInstructor({ id: instructor.id, name: instructor.displayName })
                     }
                   >
-                    {instructor.displayName}の配置を分析
+                    {focusedInstructorId === instructor.id ? '解除' : '分析'}
                   </AppButton>
                 </Box>
               ))
@@ -301,7 +302,7 @@ function InstructorCard({
       disabled={!isConflict && !availabilityLabel}
       withArrow
     >
-      <Box h="100%">
+      <Box miw={0}>
         <Checkbox.Card
           checked={checked}
           onClick={onToggle}
@@ -309,8 +310,8 @@ function InstructorCard({
           className={classes.instructorCard}
           h="100%"
         >
-          <Group justify="space-between" gap="sm" wrap="wrap" align="flex-start">
-            <Group gap="sm" wrap="nowrap" align="flex-start" flex={1} miw={0}>
+          <Group justify="space-between" gap="xs" wrap="nowrap" align="center">
+            <Group gap="xs" wrap="nowrap" align="center" flex={1} miw={0}>
               <Checkbox.Indicator />
               <InstructorDetails
                 instructor={instructor}
@@ -330,54 +331,49 @@ function InstructorCard({
   );
 }
 
-/** 候補者の氏名・資格・申告状態をまとめて表示する。 */
+/** 候補者の氏名・資格・注意を1行で表示し、長い情報は補足で確認できるようにする。 */
 function InstructorDetails({
   instructor,
   departmentCode,
   availability,
 }: Pick<InstructorCardProps, 'instructor' | 'departmentCode' | 'availability'>) {
+  const warnings = [
+    instructor.hasQualificationWarning ? '資格外' : '',
+    availability?.type === 'AVOID' ? '要調整' : '',
+    availability?.type === 'UNAVAILABLE' ? '勤務不可' : '',
+  ]
+    .filter(Boolean)
+    .join('・');
+  const certifications = instructor.certifications.map((cert) => cert.shortName).join('・');
+
   return (
-    <Stack gap={4} flex={1} miw={0}>
-      <Group gap={4} wrap="wrap">
-        <Text size="sm" fw={500}>
+    <Group gap={4} wrap="nowrap" flex={1} miw={0}>
+      <Tooltip
+        label={[instructor.displayName, instructor.displayNameKana].filter(Boolean).join(' / ')}
+        withArrow
+      >
+        <Text size="sm" fw={500} truncate flex={1} miw={0}>
           {instructor.displayName}
         </Text>
-        {instructor.displayNameKana && (
-          <Text size="xs" c="dimmed">
-            {instructor.displayNameKana}
-          </Text>
-        )}
-        {instructor.hasQualificationWarning && (
-          <AppBadge kind="warning" size="xs">
-            資格要件外の既存割当
+      </Tooltip>
+      {certifications && (
+        <Tooltip label={certifications} withArrow>
+          <AppBadge
+            kind="certification"
+            departmentCode={departmentCode}
+            size="xs"
+            className={classes.candidateCertifications}
+          >
+            {certifications}
           </AppBadge>
-        )}
-        {availability?.type === 'AVOID' && (
-          <AppBadge kind="warning" size="xs">
-            要調整
-          </AppBadge>
-        )}
-        {availability?.type === 'UNAVAILABLE' && (
-          <AppBadge kind="pending" size="xs">
-            勤務不可
-          </AppBadge>
-        )}
-      </Group>
-      {instructor.certifications.length > 0 && (
-        <Group gap={4} wrap="wrap">
-          {instructor.certifications.map((cert) => (
-            <AppBadge
-              key={`${cert.shortName}:${cert.tierRank}`}
-              kind="certification"
-              departmentCode={departmentCode}
-              size="xs"
-            >
-              {cert.shortName}
-            </AppBadge>
-          ))}
-        </Group>
+        </Tooltip>
       )}
-    </Stack>
+      {warnings && (
+        <Text component="span" size="xs" c="yellow.8" style={{ flexShrink: 0 }}>
+          {warnings}
+        </Text>
+      )}
+    </Group>
   );
 }
 
@@ -402,7 +398,7 @@ function WorkloadDeviationBar({ load, average, maxAbsDeviation }: WorkloadDeviat
 
   return (
     <Tooltip label={tooltip} withArrow>
-      <Box pos="relative" w={100} h={8} bg="gray.2" bdrs={4} className={classes.deviationBarTrack}>
+      <Box pos="relative" w={40} h={8} bg="gray.2" bdrs={4} className={classes.deviationBarTrack}>
         <Box pos="absolute" top={0} bottom={0} left="50%" w={1} bg="gray.5" />
         <Box
           pos="absolute"

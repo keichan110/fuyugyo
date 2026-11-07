@@ -1,10 +1,9 @@
 import { useState } from 'react';
 
-import { Box, Card, Group, Select, Stack, Text, Title } from '@mantine/core';
+import { Box, Card, CloseButton, Group, Select, Stack, Text, Title } from '@mantine/core';
 
 import { ErrorAlert } from '@/components/AppAlert';
 import { AppBadge } from '@/components/AppBadge';
-import { AppButton } from '@/components/AppButton';
 import { UnsavedChangesBar } from '@/components/UnsavedChangesBar';
 import { useMe } from '@/features/auth/queries';
 import { getDepartmentAppearance } from '@/features/departments/appearance';
@@ -113,16 +112,6 @@ function ShiftManagerContent({ controller, myInstructorId }: ShiftManagerContent
             </ErrorAlert>
           )}
 
-          <Group justify="flex-end" visibleFrom="lg">
-            <AppButton
-              intent="secondary"
-              onClick={() => controller.setAssignmentPanelOpened(!controller.assignmentPanelOpened)}
-            >
-              {controller.assignmentPanelOpened
-                ? 'フォームを閉じて月を広く表示'
-                : '編集フォームを表示'}
-            </AppButton>
-          </Group>
           <Box
             className={classes.workspace}
             data-panel-opened={controller.assignmentPanelOpened || undefined}
@@ -142,6 +131,7 @@ function ShiftManagerContent({ controller, myInstructorId }: ShiftManagerContent
               assignmentsByDay={controller.assignmentsByDay}
               staffingSummary={controller.staffingSummary}
               focusedInstructor={focusedInstructor}
+              onClearInstructor={() => setFocusedInstructor(null)}
               stagedCells={controller.stagedCells}
               selectedCell={controller.selectedCell}
               myInstructorId={myInstructorId}
@@ -194,11 +184,15 @@ function ShiftManagerContent({ controller, myInstructorId }: ShiftManagerContent
                     }
                   </Text>
                 </Stack>
-                <Group gap="xs">
+                <Group gap="xs" wrap="nowrap">
                   <Text size="sm">{controller.selectedAssignmentCount}名</Text>
                   {(controller.selectedStagedCell || controller.selectedStagedRequirement) && (
                     <AppBadge kind="pending">未保存</AppBadge>
                   )}
+                  <CloseButton
+                    aria-label="編集フォームを閉じる"
+                    onClick={() => controller.setAssignmentPanelOpened(false)}
+                  />
                 </Group>
               </Group>
               {controller.autoAssignMode && (

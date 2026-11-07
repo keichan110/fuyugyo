@@ -9,6 +9,7 @@ import { AppButton } from '@/components/AppButton';
 import { getDepartmentAppearance } from '@/features/departments/appearance';
 import type { DepartmentCode } from '@/features/departments/schema';
 
+import type { FrameComposition } from '../qualification-composition';
 import type { AutoAssignProposal, ShiftViewItem } from '../schema';
 import type { StaffingMonthlySummary } from '../staffing';
 import { getCalendarDayColor } from '../view-utils';
@@ -63,6 +64,8 @@ type ShiftCalendarProps = {
   /** 必要人数の取得後に、選べる日が1日もない */
   noSelectableDates: boolean;
   shortageByCell: Map<string, AutoAssignProposal['shortage']>;
+  /** 日 → 資格構成の評価。自動割当コンテキストの取得前は null。 */
+  compositionByDay: ReadonlyMap<string, FrameComposition> | null;
   stagedRequirements: StagedRequirements;
   /** 日 → 表示用の必要人数。必要人数の取得前は null（未設定と区別して何も出さない）。 */
   requiredByDay: Map<string, number | null> | null;
@@ -100,12 +103,15 @@ export function ShiftCalendar({
   missingCertification,
   noSelectableDates,
   shortageByCell,
+  compositionByDay,
   stagedRequirements,
   requiredByDay,
   isAutoAssignSelectableDate,
   onOpenBulkModal,
 }: ShiftCalendarProps) {
   const focusedInstructorId = focusedInstructor?.id ?? null;
+  // 自動割当コンテキストの取得後に、必要資格が未設定の種別かを判定する
+  const requirementUnset = compositionByDay?.values().next().value?.requirementUnset ?? false;
   const events = useMemo<ScheduleEventData<AssignmentEventPayload>[]>(
     () =>
       buildCalendarEvents({
@@ -117,10 +123,12 @@ export function ShiftCalendar({
         stagedRequirements,
         requiredByDay,
         shortageByCell,
+        compositionByDay,
       }),
     [
       activeShiftTypeId,
       assignmentsByDay,
+      compositionByDay,
       days,
       requiredByDay,
       shiftByCell,
@@ -202,7 +210,7 @@ export function ShiftCalendar({
       <Group justify="space-between" mb="xs" gap="sm" wrap="wrap">
         <Text size="sm" fw={600}>
           {staffingSummary
-            ? `${getDepartmentAppearance(departmentCode).label} / ${activeShiftTypeName} / ${Number(month.slice(0, 4))}年${Number(month.slice(5, 7))}月：不足${staffingSummary.shortDays}日・未設定${staffingSummary.unsetCount}枠`
+            ? `${getDepartmentAppearance(departmentCode).label} / ${activeShiftTypeName} / ${Number(month.slice(0, 4))}年${Number(month.slice(5, 7))}月：不足${staffingSummary.shortDays}日・未設定${staffingSummary.unsetCount}枠${requirementUnset ? '・必要資格未設定' : ''}`
             : '必要人数を読み込み中…'}
         </Text>
       </Group>

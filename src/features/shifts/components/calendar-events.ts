@@ -1,5 +1,6 @@
 import type { ScheduleEventData } from '@mantine/schedule';
 
+import type { FrameComposition } from '../qualification-composition';
 import type { AutoAssignProposal, ShiftViewItem } from '../schema';
 import {
   deriveStaffingStatus,
@@ -17,6 +18,8 @@ export type StaffingDisplay = {
   status: StaffingStatus;
   text: string;
   tooltip: string;
+  /** 表示するアイコン。不足または資格構成の要確認なら警告、充足なら充足、それ以外は出さない。 */
+  icon: 'warning' | 'filled' | null;
 };
 
 /** カレンダーイベントのペイロード。担当者イベントと、日付セル上部のヘッダー層に分かれる。 */
@@ -92,10 +95,13 @@ function buildStaffingDisplay({
   required,
   assigned,
   shortage,
+  needsReview,
 }: {
   required: number | null;
   assigned: number;
   shortage: AutoAssignProposal['shortage'] | undefined;
+  /** 資格構成の要確認があるか（自動割当コンテキスト未取得の間は false） */
+  needsReview: boolean;
 }): StaffingDisplay | null {
   const text = formatStaffingText(required, assigned);
   if (text === null) return null;
@@ -105,8 +111,11 @@ function buildStaffingDisplay({
     status === 'SHORT' && shortage && shortage.count > 0 && shortage.reasons.length > 0
       ? shortage.reasons.join(' / ')
       : undefined;
-  const label = describeStaffing(required, assigned);
-  return { status, text, tooltip: reason ? `${label}：${reason}` : label };
+  const described = describeStaffing(required, assigned);
+  const label = needsReview ? `${described}、資格構成の確認が必要` : described;
+  const icon =
+    status === 'SHORT' || needsReview ? 'warning' : status === 'FILLED' ? 'filled' : null;
+  return { status, text, tooltip: reason ? `${label}：${reason}` : label, icon };
 }
 
 /**
@@ -123,6 +132,7 @@ export function buildCalendarEvents({
   stagedRequirements,
   requiredByDay,
   shortageByCell,
+  compositionByDay,
 }: {
   days: readonly string[];
   shiftTypeId: string;
@@ -133,6 +143,8 @@ export function buildCalendarEvents({
   /** 日 → 表示用の必要人数。取得前は null（充足表示を出さない）。 */
   requiredByDay: ReadonlyMap<string, number | null> | null;
   shortageByCell: ReadonlyMap<string, AutoAssignProposal['shortage']>;
+  /** 日 → 資格構成の評価。自動割当コンテキストの取得前は null（要確認を判定しない）。 */
+  compositionByDay: ReadonlyMap<string, FrameComposition> | null;
 }): ScheduleEventData<AssignmentEventPayload>[] {
   const instructorEvents = days.flatMap((day) =>
     (assignmentsByDay.get(day) ?? []).map(
@@ -157,6 +169,7 @@ export function buildCalendarEvents({
           required: requiredByDay.get(day) ?? null,
           assigned: assignmentsByDay.get(day)?.length ?? 0,
           shortage: shortageByCell.get(key),
+          needsReview: compositionByDay?.get(day)?.needsReview ?? false,
         })
       : null;
     if (!(staged || description || staffing)) return [];

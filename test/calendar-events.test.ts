@@ -57,6 +57,7 @@ function build(
     stagedRequirements: noStagedRequirements,
     requiredByDay: overrides.required ? new Map(overrides.required) : null,
     shortageByCell: noShortage,
+    compositionByDay: null,
     ...overrides,
   });
 }
@@ -197,5 +198,65 @@ describe('buildCalendarEvents', () => {
     expect(result[0]?.staffing?.tooltip).toBe('配置1名、必要2名、不足：UNAVAILABLE: 1名');
     // D2 は充足済みなので理由は付かない
     expect(result[1]?.staffing?.tooltip).toBe('配置2名、必要2名、充足');
+  });
+
+  describe('資格構成の要確認', () => {
+    const review = (needsReview: boolean) =>
+      new Map([
+        [
+          D1,
+          {
+            requirementUnset: false,
+            rankBreakdown: [],
+            qualifiedCount: 0,
+            assignedCount: 0,
+            outOfRequirementNames: [],
+            reasons: needsReview ? ['x'] : [],
+            needsReview,
+          },
+        ],
+      ]);
+    const staffingOf = (required: number | null, assigned: number, needsReview: boolean) => {
+      const shiftByCell = new Map([
+        [
+          key(D1),
+          shift(
+            D1,
+            Array.from({ length: assigned }, (_, i): [string, string] => [`i${i}`, `名${i}`]),
+          ),
+        ],
+      ]);
+      return headers(
+        build({ shiftByCell, required: [[D1, required]], compositionByDay: review(needsReview) }),
+      )[0]?.staffing;
+    };
+
+    it('不足のみなら警告アイコン', () => {
+      expect(staffingOf(2, 1, false)?.icon).toBe('warning');
+    });
+
+    it('要確認のみなら警告アイコンで、説明に資格構成の確認が必要を足す', () => {
+      const staffing = staffingOf(2, 2, true);
+      expect(staffing?.icon).toBe('warning');
+      expect(staffing?.tooltip).toBe('配置2名、必要2名、充足、資格構成の確認が必要');
+    });
+
+    it('不足と要確認の両方でも警告アイコン', () => {
+      expect(staffingOf(3, 1, true)?.icon).toBe('warning');
+    });
+
+    it('どちらもなく充足なら充足アイコン', () => {
+      expect(staffingOf(2, 2, false)?.icon).toBe('filled');
+    });
+
+    it('必要人数未設定でも配置があり要確認なら警告アイコン', () => {
+      expect(staffingOf(null, 2, true)?.icon).toBe('warning');
+    });
+
+    it('コンテキスト未取得（null）の間は要確認を判定しない', () => {
+      const shiftByCell = new Map([[key(D1), shift(D1, [['a', '山田']])]]);
+      const staffing = headers(build({ shiftByCell, required: [[D1, 1]] }))[0]?.staffing;
+      expect(staffing?.icon).toBe('filled');
+    });
   });
 });

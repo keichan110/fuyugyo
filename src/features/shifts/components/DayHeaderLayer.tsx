@@ -29,14 +29,14 @@ export function DayHeaderLayer({ payload, style }: DayHeaderLayerProps) {
         <Box
           component="span"
           className={classes.staffingBadge}
-          data-staffing={payload.staffing.status}
+          data-staffing={payload.staffing.icon === 'warning' ? 'SHORT' : payload.staffing.status}
           role="img"
           aria-label={payload.staffing.tooltip}
         >
-          {payload.staffing.status === 'FILLED' && (
+          {payload.staffing.icon === 'filled' && (
             <IconCircleCheck size={14} stroke={1.75} className={classes.staffingIcon} />
           )}
-          {payload.staffing.status === 'SHORT' && (
+          {payload.staffing.icon === 'warning' && (
             <IconAlertTriangle size={14} stroke={1.75} className={classes.staffingIcon} />
           )}
           <span className={classes.staffingText}>{payload.staffing.text}</span>

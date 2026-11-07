@@ -75,10 +75,10 @@ export function ShiftDateList({
                 <Text
                   component="span"
                   size="xs"
-                  c={staffing?.status === 'SHORT' ? 'yellow.8' : 'dimmed'}
+                  c={staffing?.icon === 'warning' ? 'yellow.8' : 'dimmed'}
                 >
                   {staffing
-                    ? `${staffing.text} ${staffingLabels[staffing.status]}`
+                    ? `${staffing.text} ${staffingLabels[staffing.status]}${staffing.status !== 'SHORT' && staffing.icon === 'warning' ? '・資格構成の確認が必要' : ''}`
                     : requirementsReady
                       ? '必要人数未設定'
                       : '必要人数を読み込み中…'}

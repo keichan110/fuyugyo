@@ -270,3 +270,74 @@
   max-width: 40%;
   flex-shrink: 1;
 }
+
+.dateList {
+  display: none;
+}
+
+@media (max-width: 48em) {
+  /* 月移動のヘッダーは共有し、モバイルの配置は日付リストで読む。 */
+  .calendarScrollArea {
+    display: none;
+  }
+
+  .dateList {
+    display: flex;
+    max-height: 560px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    margin-top: var(--mantine-spacing-xs);
+    border: 1px solid var(--mantine-color-default-border);
+    border-radius: var(--mantine-radius-sm);
+  }
+}
+
+.dateListDay {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  gap: var(--mantine-spacing-xs);
+  align-items: start;
+  flex-shrink: 0;
+  width: 100%;
+  min-height: 64px;
+  padding: var(--mantine-spacing-sm) var(--mantine-spacing-xs);
+  border-bottom: 1px solid var(--mantine-color-default-border);
+}
+
+.dateListDay:last-child {
+  border-bottom: 0;
+}
+
+.dateListDay:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.dateListDay[data-focused-instructor] {
+  background-color: var(--mantine-primary-color-light);
+}
+
+.dateListDay[data-selected] {
+  box-shadow: inset 0 0 0 2px var(--mantine-color-blue-5);
+  background-color: var(--mantine-color-blue-0);
+}
+
+.dateListNames {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px var(--mantine-spacing-xs);
+}
+
+.dateListName {
+  overflow-wrap: anywhere;
+}
+
+.dateListName[data-focused] {
+  background-color: var(--mantine-color-blue-1);
+  color: var(--mantine-color-blue-9);
+  font-weight: 700;
+}
+
+.dateListName[data-dimmed] {
+  opacity: 0.35;
+}

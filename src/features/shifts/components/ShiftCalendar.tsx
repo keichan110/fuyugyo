@@ -18,11 +18,13 @@ import {
   isHeaderEventPayload,
   type AssignmentEventPayload,
   type DayAssignments,
+  type HeaderEventPayload,
 } from './calendar-events';
 import { DayHeaderLayer } from './DayHeaderLayer';
 import type { StagedRequirements } from './requirement-stage';
 import type { SelectedCell, StagedCell } from './shift-manager-types';
 import { cellKey, weekdayLabel } from './shift-manager-utils';
+import { ShiftDateList } from './ShiftDateList';
 import classes from './ShiftManager.module.css';
 
 type ShiftTypeOption = {
@@ -68,7 +70,7 @@ type ShiftCalendarProps = {
   onOpenBulkModal: () => void;
 };
 
-/** 選択中の部門・シフト種別について、担当者を日付ごとに縦表示する月間カレンダー。 */
+/** 選択中の部門・種別の月間配置を、PCではカレンダー、モバイルでは日付リストで表示する。 */
 export function ShiftCalendar({
   month,
   onMonthChange,
@@ -127,6 +129,16 @@ export function ShiftCalendar({
       stagedRequirements,
     ],
   );
+
+  const headersByDay = useMemo(() => {
+    const headers = new Map<string, HeaderEventPayload>();
+    for (const event of events) {
+      if (isHeaderEventPayload(event.payload)) headers.set(event.payload.date, event.payload);
+    }
+    return headers;
+  }, [events]);
+  const isDateDisabled = (date: string) =>
+    autoAssignMode && (isAutoAssigning || !isAutoAssignSelectableDate(date));
 
   const activeShiftTypeName = shiftTypes.find((type) => type.id === activeShiftTypeId)?.name ?? '';
 
@@ -247,10 +259,7 @@ export function ShiftCalendar({
                 assignmentsByDay.get(date)?.some((person) => person.id === focusedInstructorId)) ||
               undefined,
             // 自動割当モードでは、対象にできない日（未設定・0名）をクリック・キー操作から外す
-            disabled:
-              autoAssignMode && (isAutoAssigning || !isAutoAssignSelectableDate(date))
-                ? true
-                : undefined,
+            disabled: isDateDisabled(date) || undefined,
             'data-selected': selected || undefined,
             'data-staged':
               stagedCells.has(cellKey(date, activeShiftTypeId)) ||
@@ -305,6 +314,19 @@ export function ShiftCalendar({
           monthViewWeekday: classes.calendarWeekday,
           monthViewScrollArea: classes.calendarScrollArea,
         }}
+      />
+      <ShiftDateList
+        days={days}
+        assignmentsByDay={assignmentsByDay}
+        headersByDay={headersByDay}
+        requirementsReady={requiredByDay !== null}
+        selectedDate={selectedCell?.shiftTypeId === activeShiftTypeId ? selectedCell.date : null}
+        focusedInstructorId={focusedInstructorId}
+        myInstructorId={myInstructorId}
+        autoAssignMode={autoAssignMode}
+        autoAssignDates={autoAssignDates}
+        isDateDisabled={isDateDisabled}
+        onSelectDate={handleDateClick}
       />
     </Card>
   );

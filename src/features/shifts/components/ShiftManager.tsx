@@ -22,7 +22,7 @@ import {
   UnstyledButton,
 } from '@mantine/core';
 import { MonthView, type ScheduleEventData } from '@mantine/schedule';
-import { IconMessage, IconWand } from '@tabler/icons-react';
+import { IconAlertTriangle, IconCircleCheck, IconMessage, IconWand } from '@tabler/icons-react';
 
 import 'dayjs/locale/ja';
 
@@ -454,13 +454,17 @@ type ShiftCalendarProps = {
 
 type AssignmentEventPayload =
   | { kind: 'instructor'; date: string; instructorId: string }
-  | { kind: 'description'; date: string; description: string }
   | {
-      kind: 'staffing';
+      /** 日付セル上部に重ねるヘッダー層（未保存ドット・備考アイコン・充足表示） */
+      kind: 'header';
       date: string;
-      status: StaffingStatus;
-      ariaLabel: string;
-      reason: string | undefined;
+      staged: boolean;
+      description: string;
+      staffing: {
+        status: StaffingStatus;
+        text: string;
+        tooltip: string;
+      } | null;
     };
 
 /** 選択中の部門・シフト種別について、担当者を日付ごとに縦表示する月間カレンダー。 */
@@ -538,54 +542,48 @@ function ShiftCalendar({
         }),
       ),
     );
-    const descriptionEvents = days.flatMap((day) => {
+    // 日ごとに1つの背景イベントへまとめ、日付セル上部のヘッダー層として描画する。
+    const headerEvents = days.flatMap((day): ScheduleEventData<AssignmentEventPayload>[] => {
       const key = cellKey(day, activeShiftTypeId);
-      const description =
+      const rawDescription =
         stagedCells.get(key)?.description ?? shiftByCell.get(key)?.description ?? '';
-      if (!description.trim()) {
-        return [];
-      }
-      return [
-        {
-          id: `${day}:${activeShiftTypeId}:description`,
-          title: description,
-          start: `${day} 00:00:00`,
-          end: `${addDays(day, 1)} 00:00:00`,
-          color: 'gray',
-          display: 'background' as const,
-          payload: { kind: 'description' as const, date: day, description },
-        },
-      ];
-    });
-    // 充足イベントは全日に1件。担当者より上に並ぶよう配列の先頭に置く。
-    const staffingEvents = requiredByDay
-      ? days.map((day): ScheduleEventData<AssignmentEventPayload> => {
-          const required = requiredByDay.get(day) ?? null;
-          const assigned = assignmentsByDay.get(day)?.length ?? 0;
-          const status = deriveStaffingStatus(required, assigned);
-          const shortage = shortageByCell.get(cellKey(day, activeShiftTypeId));
-          // 不足理由は、その後も不足のままの日にだけ補足として出す
+      const description = rawDescription.trim() ? rawDescription : '';
+      const staged = stagedCells.has(key) || stagedRequirements.has(key);
+      let staffing: { status: StaffingStatus; text: string; tooltip: string } | null = null;
+      if (requiredByDay) {
+        const required = requiredByDay.get(day) ?? null;
+        const assigned = assignmentsByDay.get(day)?.length ?? 0;
+        const status = deriveStaffingStatus(required, assigned);
+        // 開講予定なしは何も表示しない
+        if (status !== 'NOT_PLANNED') {
+          const shortage = shortageByCell.get(key);
+          // 不足理由は、その後も不足のままの日にだけ補足として続ける
           const reason =
             status === 'SHORT' && shortage && shortage.count > 0 && shortage.reasons.length > 0
               ? shortage.reasons.join(' / ')
               : undefined;
-          return {
-            id: `${day}:${activeShiftTypeId}:staffing`,
-            title: formatStaffingText(required, assigned),
-            start: `${day} 00:00:00`,
-            end: `${addDays(day, 1)} 00:00:00`,
-            color: 'gray',
-            payload: {
-              kind: 'staffing',
-              date: day,
-              status,
-              ariaLabel: describeStaffing(required, assigned),
-              reason,
-            },
+          const label = describeStaffing(required, assigned);
+          staffing = {
+            status,
+            text: formatStaffingText(required, assigned),
+            tooltip: reason ? `${label}：${reason}` : label,
           };
-        })
-      : [];
-    return [...staffingEvents, ...instructorEvents, ...descriptionEvents];
+        }
+      }
+      if (!(staged || description || staffing)) return [];
+      return [
+        {
+          id: `${day}:${activeShiftTypeId}:header`,
+          title: description,
+          start: `${day} 00:00:00`,
+          end: `${addDays(day, 1)} 00:00:00`,
+          color: 'gray',
+          display: 'background',
+          payload: { kind: 'header', date: day, staged, description, staffing },
+        },
+      ];
+    });
+    return [...instructorEvents, ...headerEvents];
   }, [
     activeShiftTypeId,
     assignmentsByDay,
@@ -594,6 +592,7 @@ function ShiftCalendar({
     shiftByCell,
     shortageByCell,
     stagedCells,
+    stagedRequirements,
   ]);
 
   const staffingSummary = useMemo(
@@ -620,10 +619,10 @@ function ShiftCalendar({
     onSelectCell({ date, shiftTypeId: activeShiftTypeId });
   };
 
-  // 充足イベントの1行分を加えた上限
+  // 背景イベント（ヘッダー層）は MonthView の行数に数えられないため、担当者数だけで決める
   const maxEventsPerDay = Math.min(
-    11,
-    Math.max(2, ...Array.from(assignmentsByDay.values(), (assigned) => assigned.length + 1)),
+    10,
+    Math.max(2, ...Array.from(assignmentsByDay.values(), (assigned) => assigned.length)),
   );
 
   return (
@@ -699,11 +698,6 @@ function ShiftCalendar({
             ? `${getDepartmentAppearance(departmentCode).label} / ${activeShiftTypeName} / ${Number(month.slice(0, 4))}年${Number(month.slice(5, 7))}月：不足${staffingSummary.shortDays}日・未設定${staffingSummary.unsetCount}枠`
             : '必要人数を読み込み中…'}
         </Text>
-        <Group gap="sm" className={classes.legend}>
-          <LegendItem status="SHORT" label="不足" />
-          <LegendItem status="FILLED" label="充足" />
-          <LegendItem status="UNSET" label="未設定（–）または開講予定なし（0/0）" />
-        </Group>
       </Group>
 
       <MonthView
@@ -743,7 +737,15 @@ function ShiftCalendar({
               stagedCells.has(cellKey(date, activeShiftTypeId)) ||
               stagedRequirements.has(cellKey(date, activeShiftTypeId)) ||
               undefined,
-            'aria-label': `${Number(date.slice(5, 7))}月${Number(date.slice(8, 10))}日（${weekdayLabel(date)}）の割り当てを編集`,
+            'aria-label': `${Number(date.slice(5, 7))}月${Number(date.slice(8, 10))}日（${weekdayLabel(date)}）の割り当てを編集${
+              requiredByDay &&
+              deriveStaffingStatus(
+                requiredByDay.get(date) ?? null,
+                assignmentsByDay.get(date)?.length ?? 0,
+              ) === 'NOT_PLANNED'
+                ? '（開講予定なし）'
+                : ''
+            }`,
             style: {
               color: calendarDayColor ? `var(--mantine-color-${calendarDayColor}-7)` : undefined,
               backgroundColor:
@@ -764,48 +766,63 @@ function ShiftCalendar({
         }}
         renderEvent={(event, props) => {
           const payload = event.payload;
-          if (payload?.kind === 'staffing') {
+          if (payload?.kind === 'header') {
             return (
-              <Tooltip
-                label={payload.reason}
-                disabled={!payload.reason}
-                multiline
-                maw={320}
-                withArrow
-              >
-                <UnstyledButton
-                  {...props}
-                  className={[props.className, classes.staffingEvent].filter(Boolean).join(' ')}
-                  data-staffing={payload.status}
-                  aria-label={payload.ariaLabel}
-                >
-                  {event.title}
-                </UnstyledButton>
-              </Tooltip>
+              <Box style={props.style} className={classes.headerLayer}>
+                {payload.staged && (
+                  <Box className={classes.stagedDot} role="img" aria-label="未保存の変更あり" />
+                )}
+                {payload.description && (
+                  <Tooltip label={payload.description} multiline maw={320} withArrow>
+                    <ActionIcon
+                      type="button"
+                      variant="subtle"
+                      color="gray"
+                      size="sm"
+                      className={classes.descriptionIcon}
+                      aria-label={`備考: ${payload.description}`}
+                      onClick={() =>
+                        onSelectCell({
+                          date: payload.date,
+                          shiftTypeId: activeShiftTypeId,
+                        })
+                      }
+                    >
+                      <IconMessage size={14} stroke={1.75} />
+                    </ActionIcon>
+                  </Tooltip>
+                )}
+                {payload.staffing && (
+                  <Tooltip label={payload.staffing.tooltip} multiline maw={320} withArrow>
+                    <UnstyledButton
+                      className={classes.staffingBadge}
+                      data-staffing={payload.staffing.status}
+                      aria-label={payload.staffing.tooltip}
+                      onClick={() => handleDateClick(payload.date)}
+                    >
+                      {payload.staffing.status === 'FILLED' && (
+                        <IconCircleCheck size={14} stroke={1.75} className={classes.staffingIcon} />
+                      )}
+                      {payload.staffing.status === 'SHORT' && (
+                        <IconAlertTriangle
+                          size={14}
+                          stroke={1.75}
+                          className={classes.staffingIcon}
+                        />
+                      )}
+                      <span className={classes.staffingText}>{payload.staffing.text}</span>
+                      {payload.staffing.status === 'UNSET' && (
+                        <span className={classes.staffingDash} aria-hidden>
+                          –
+                        </span>
+                      )}
+                    </UnstyledButton>
+                  </Tooltip>
+                )}
+              </Box>
             );
           }
-          return payload?.kind === 'description' ? (
-            <Box style={props.style} className={classes.descriptionLayer}>
-              <Tooltip label={payload.description} multiline maw={320} withArrow>
-                <ActionIcon
-                  type="button"
-                  variant="subtle"
-                  color="gray"
-                  size="sm"
-                  className={classes.descriptionIcon}
-                  aria-label={`備考: ${payload.description}`}
-                  onClick={() =>
-                    onSelectCell({
-                      date: payload.date,
-                      shiftTypeId: activeShiftTypeId,
-                    })
-                  }
-                >
-                  <IconMessage size={14} stroke={1.75} />
-                </ActionIcon>
-              </Tooltip>
-            </Box>
-          ) : (
+          return (
             <UnstyledButton
               {...props}
               className={[props.className, classes.instructorEvent].filter(Boolean).join(' ')}
@@ -827,18 +844,6 @@ function ShiftCalendar({
         }}
       />
     </Card>
-  );
-}
-
-/** 凡例の1項目。色はセルの充足イベントと同じ CSS で揃える。 */
-function LegendItem({ status, label }: { status: StaffingStatus; label: string }) {
-  return (
-    <Group gap={4} wrap="nowrap">
-      <Box className={classes.legendSwatch} data-staffing={status} aria-hidden />
-      <Text size="xs" c="dimmed">
-        {label}
-      </Text>
-    </Group>
   );
 }
 

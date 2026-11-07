@@ -608,6 +608,16 @@ function ShiftCalendar({
   );
   const activeShiftTypeName = shiftTypes.find((type) => type.id === activeShiftTypeId)?.name ?? '';
 
+  // 日・イベント共通のクリック処理。自動割当モードでは対象日の切り替えだけを行う。
+  const handleDateClick = (date: string) => {
+    if (autoAssignMode) {
+      // 必要人数0名の日は自動割当の対象外なので選択できない
+      if (!isAutoAssignExcludedDate(date, activeShiftTypeId)) onToggleAutoAssignDate(date);
+      return;
+    }
+    onSelectCell({ date, shiftTypeId: activeShiftTypeId });
+  };
+
   // 充足イベントの1行分を加えた上限
   const maxEventsPerDay = Math.min(
     11,
@@ -745,19 +755,10 @@ function ShiftCalendar({
             },
           };
         }}
-        onDayClick={(date) => {
-          if (autoAssignMode) {
-            // 必要人数0名の日は自動割当の対象外なので選択できない
-            if (!isAutoAssignExcludedDate(date, activeShiftTypeId)) onToggleAutoAssignDate(date);
-            return;
-          }
-          onSelectCell({ date, shiftTypeId: activeShiftTypeId });
-        }}
+        onDayClick={handleDateClick}
         onEventClick={(event) => {
           const date = event.payload?.date;
-          if (typeof date === 'string') {
-            onSelectCell({ date, shiftTypeId: activeShiftTypeId });
-          }
+          if (typeof date === 'string') handleDateClick(date);
         }}
         renderEvent={(event, props) => {
           const payload = event.payload;

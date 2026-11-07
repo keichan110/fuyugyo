@@ -24,6 +24,7 @@ erDiagram
     instructors ||--o{ shift_assignments : has
     shift_types ||--o{ shifts : has
     shifts ||--o{ shift_assignments : has
+    shift_types ||--o{ shift_staffing_requirements : has
 
     departments {
         int id PK
@@ -75,7 +76,19 @@ erDiagram
         int instructor_id FK
         datetime assigned_at
     }
+
+    shift_staffing_requirements {
+        string id PK
+        datetime date
+        string department_code
+        string shift_type_id FK "cascade なし"
+        int required_count "0以上。行なし=未設定、0=開講予定なし"
+        datetime created_at
+        datetime updated_at
+    }
 ```
+
+`shift_staffing_requirements` は日付 × 部門 × シフト種別ごとの必要人数で、`shifts` とは独立している（ADR 0015）。`(date, department_code, shift_type_id)` に UNIQUE、`date` に INDEX、`required_count >= 0` の CHECK を持つ。
 
 ## 3. 認証システム拡張スキーマ
 
@@ -644,8 +657,8 @@ model InvitationToken {
 
 ```typescript
 // prisma/seed-auth.ts
-import { PrismaClient } from '@prisma/client';
 import { cuid } from '@paralleldrive/cuid2';
+import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 

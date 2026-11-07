@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted
+accepted（「休校/開講は割り当ての有無と常に一致する」の部分は [ADR 0015](./0015-shift-staffing-requirements.md) で一部更新。Shift のライフサイクル自体は変わらない）
 
 ## Context
 

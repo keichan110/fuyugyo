@@ -266,6 +266,7 @@ function ShiftManagerContent({ controller, myInstructorId }: ShiftManagerContent
             navigationDisabled={controller.autoAssignMode || controller.isAutoAssigning}
             requiredByDay={controller.requiredByDay}
             selectedCell={selectedCell}
+            streakBaseDate={controller.assignmentPanelOpened ? (selectedCell?.date ?? null) : null}
             selectedDescription={
               controller.selectedStagedCell?.description ??
               controller.shiftByCell.get(

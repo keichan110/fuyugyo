@@ -56,6 +56,11 @@ type ShiftAnalysisProps = {
   navigationDisabled: boolean;
   requiredByDay: Map<string, number | null> | null;
   selectedCell: SelectedCell | null;
+  /**
+   * 連勤・連続勤務週数の基準日。利用者が日付を選んで枠を開いているときだけ渡し、
+   * 未選択（既定で補われた選択のみ）の場合は null とする。
+   */
+  streakBaseDate: string | null;
   selectedDescription: string;
   focusedInstructor: { id: string; name: string } | null;
   onClearInstructor: () => void;
@@ -133,7 +138,7 @@ export function ShiftAnalysis(props: ShiftAnalysisProps) {
                 activeShiftTypeId={props.activeShiftTypeId}
                 savedAssignments={props.savedAssignments}
                 stagedAssignments={props.stagedAssignments}
-                selectedCell={props.selectedCell}
+                streakBaseDate={props.streakBaseDate}
                 focusedInstructor={props.focusedInstructor}
                 days={props.days}
                 assignmentsByDay={props.assignmentsByDay}
@@ -348,7 +353,7 @@ type InstructorPlacementAnalysisProps = Pick<
   | 'activeShiftTypeId'
   | 'savedAssignments'
   | 'stagedAssignments'
-  | 'selectedCell'
+  | 'streakBaseDate'
   | 'focusedInstructor'
   | 'days'
   | 'assignmentsByDay'
@@ -410,7 +415,7 @@ function FocusedInstructorAnalysis({
   activeShiftTypeId,
   savedAssignments,
   stagedAssignments,
-  selectedCell,
+  streakBaseDate,
   focusedInstructor,
   days,
   navigationDisabled,
@@ -433,11 +438,11 @@ function FocusedInstructorAnalysis({
             monthWork,
             workDatesOutsideMonth: workload.data.workDatesOutsideMonth,
             season: workload.data.seasonRange,
-            selectedDate: selectedCell?.date ?? null,
+            selectedDate: streakBaseDate,
             current,
           })
         : null,
-    [workload.data, monthWork, selectedCell?.date, current],
+    [workload.data, monthWork, streakBaseDate, current],
   );
   const seasonRange = workload.data?.seasonRange;
   const additionPrefix = summary?.isAddition ? 'この枠に追加した場合：' : '';
@@ -467,7 +472,7 @@ function FocusedInstructorAnalysis({
             連勤：
             {summary.streak
               ? `${additionPrefix}${summary.streak.days}連勤（${rangeLabel(summary.streak.from, summary.streak.to, monthDayLabel)}）`
-              : '枠を選択すると表示'}
+              : '日付を選択すると、その日の前後で表示'}
           </Text>
           <Text size="sm">
             シーズン勤務日数：{summary.seasonDays}日
@@ -487,7 +492,7 @@ function FocusedInstructorAnalysis({
             連続勤務週数：
             {summary.weekStreak
               ? `${additionPrefix}${summary.weekStreak.weeks}週連続（${monthDayLabel(summary.weekStreak.fromWeekStart)}の週${summary.weekStreak.weeks > 1 ? `〜${monthDayLabel(summary.weekStreak.toWeekStart)}の週` : ''}）`
-              : '枠を選択すると表示'}
+              : '日付を選択すると、その日の前後で表示'}
           </Text>
         </Stack>
       )}

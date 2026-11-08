@@ -27,9 +27,11 @@ export type DemoAvailability = {
   note: string | null;
 };
 
+const demoDateFormatter = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Tokyo' });
+
 /** 日本時間の今日を、DBの日付表現に合わせたUTC午前0時で返す。 */
 export function demoToday(now = new Date()): Date {
-  const date = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Tokyo' }).format(now);
+  const date = demoDateFormatter.format(now);
   return new Date(`${date}T00:00:00Z`);
 }
 

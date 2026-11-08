@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
 import { Box, Card, CloseButton, Group, Select, Stack, Text, Title } from '@mantine/core';
 
@@ -42,6 +42,7 @@ type ShiftManagerContentProps = {
 /** シフト管理画面の表示と各編集コントロールを組み立てる。 */
 function ShiftManagerContent({ controller, myInstructorId }: ShiftManagerContentProps) {
   const selectedCell = controller.selectedCell;
+  const assignmentHeadingRef = useRef<HTMLHeadingElement>(null);
   const [focusedInstructor, setFocusedInstructor] = useState<{ id: string; name: string } | null>(
     null,
   );
@@ -205,7 +206,14 @@ function ShiftManagerContent({ controller, myInstructorId }: ShiftManagerContent
               <Box className={classes.assignmentFormHeader}>
                 <Group justify="space-between" mb="sm" align="flex-start">
                   <Stack gap={2}>
-                    <Title order={3} size="h4" c={selectedCellDateColor ?? 'inherit'}>
+                    <Title
+                      ref={assignmentHeadingRef}
+                      tabIndex={-1}
+                      style={{ scrollMarginTop: 80 }}
+                      order={3}
+                      size="h4"
+                      c={selectedCellDateColor ?? 'inherit'}
+                    >
                       {selectedCell ? shortDateLabel(selectedCell.date) : '枠の編集'}
                     </Title>
                     <Text size="xs" c="dimmed">
@@ -302,6 +310,14 @@ function ShiftManagerContent({ controller, myInstructorId }: ShiftManagerContent
               )?.name ?? ''
             }
             activeShiftTypeId={controller.activeShiftTypeId}
+            context={controller.autoAssignContext.data}
+            availabilities={controller.availabilities.data}
+            reviewFailed={
+              controller.autoAssignContext.isError ||
+              controller.availabilities.isError ||
+              controller.requirements.isError
+            }
+            nameById={controller.nameById}
             savedAssignments={controller.detailedAssignments.saved}
             stagedAssignments={controller.detailedAssignments.staged}
             days={controller.days}
@@ -323,9 +339,13 @@ function ShiftManagerContent({ controller, myInstructorId }: ShiftManagerContent
             }
             focusedInstructor={focusedInstructor}
             onClearInstructor={() => setFocusedInstructor(null)}
-            onSelectDate={(date) =>
-              controller.openAssignmentPanel({ date, shiftTypeId: controller.activeShiftTypeId })
-            }
+            onSelectDate={(date) => {
+              controller.openAssignmentPanel({ date, shiftTypeId: controller.activeShiftTypeId });
+              requestAnimationFrame(() => {
+                assignmentHeadingRef.current?.focus({ preventScroll: true });
+                assignmentHeadingRef.current?.scrollIntoView({ block: 'start' });
+              });
+            }}
           />
         </>
       )}

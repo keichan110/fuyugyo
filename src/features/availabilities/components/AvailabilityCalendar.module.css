@@ -1,19 +1,9 @@
-/* shifts/manage と同じく MonthView の表示形式切替を隠し、月間表示に固定する。 */
-.calendarHeader > :nth-child(3),
-.calendarHeader > :nth-child(4) {
-  display: none !important;
-}
-
 .calendarWeekday:nth-child(6) {
   color: var(--mantine-color-blue-7);
 }
 
 .calendarWeekday:nth-child(7) {
   color: var(--mantine-color-red-7);
-}
-
-.calendarDay[data-disabled] {
-  background-color: var(--mantine-color-gray-1);
 }
 
 .calendarDay[data-availability='AVAILABLE'] {
@@ -26,6 +16,24 @@
 
 .calendarDay[data-availability='AVOID'] {
   background-color: var(--mantine-color-yellow-0);
+}
+
+.calendarDay[data-disabled][data-availability],
+.calendarDay[data-disabled] {
+  background-color: var(--mantine-color-gray-1);
+}
+
+/* 編集不可日は灰色背景を状態色より優先し、状態アイコンは残しつつ控えめに見せる（日付数字は TSX 側で薄くする）。 */
+.calendarDay[data-disabled] .availabilityEvent {
+  opacity: 0.45;
+}
+
+/*
+ * 標準の最小日幅（84px）だとスマホで横スクロールが大きいため縮める。
+ * セル内はアイコン程度なので、タップ領域の目安（44px）を下限として残す。
+ */
+.monthView {
+  --min-day-width: 44px;
 }
 
 .calendarDay[data-staged]::after {
@@ -65,4 +73,20 @@
   position: absolute;
   right: 4px;
   bottom: 2px;
+}
+
+/* 狭い画面では右上寄りの変更済みドットが日付数字と重なるため、左下へ逃がす。 */
+@media (max-width: 48em) {
+  .calendarDay[data-staged]::after {
+    top: auto;
+    right: auto;
+    bottom: 4px;
+    left: 4px;
+  }
+}
+
+/* 狭い画面でもヘッダー右端の一括設定ボタンが縮んで改行しないようにする。 */
+.bulkButton {
+  flex-shrink: 0;
+  white-space: nowrap;
 }

@@ -131,22 +131,38 @@ function MonthlyPublicationControl({
               </Text>
             )}
             {publication.isError && <ErrorAlert>{publication.error.message}</ErrorAlert>}
-            <Group justify="flex-end">
-              <AppButton intent="secondary" disabled={publication.isPending} onClick={close}>
-                キャンセル
-              </AppButton>
+            <Group justify="space-between" gap="xs">
               <AppButton
-                intent={
-                  changes.publishCount === 0 && changes.unpublishCount > 0 ? 'danger' : 'primary'
-                }
-                disabled={
-                  disabled || hasUnsaved || changes.publishCount + changes.unpublishCount === 0
-                }
-                loading={publication.isPending}
-                onClick={() => publication.mutate(input, { onSuccess: () => setDraft(null) })}
+                intent="danger"
+                size="xs"
+                disabled={publication.isPending}
+                onClick={() => selectThrough(null)}
               >
-                公開範囲を更新
+                全て非公開
               </AppButton>
+              <Group gap="xs" ml="auto">
+                <AppButton
+                  intent="secondary"
+                  size="xs"
+                  disabled={publication.isPending}
+                  onClick={close}
+                >
+                  キャンセル
+                </AppButton>
+                <AppButton
+                  size="xs"
+                  intent={
+                    changes.publishCount === 0 && changes.unpublishCount > 0 ? 'danger' : 'primary'
+                  }
+                  disabled={
+                    disabled || hasUnsaved || changes.publishCount + changes.unpublishCount === 0
+                  }
+                  loading={publication.isPending}
+                  onClick={() => publication.mutate(input, { onSuccess: () => setDraft(null) })}
+                >
+                  公開範囲を更新
+                </AppButton>
+              </Group>
             </Group>
           </Stack>
         )}
@@ -202,26 +218,6 @@ function PublicationCalendar({
           mx="auto"
         />
       </Box>
-      <Group justify="space-between" gap="xs">
-        <AppButton
-          intent="secondary"
-          size="compact-xs"
-          disabled={pending}
-          aria-label="表示月をすべて非公開にする"
-          onClick={() => onChange(null)}
-        >
-          非公開
-        </AppButton>
-        <AppButton
-          intent="secondary"
-          size="compact-xs"
-          disabled={pending}
-          aria-label="月末まで公開する"
-          onClick={() => onChange(days.at(-1) ?? null)}
-        >
-          月末
-        </AppButton>
-      </Group>
       <Text size="sm" fw={600} aria-live="polite">
         {through
           ? `公開期間：${formatPublicationDate(days[0] ?? `${month}-01`)} 〜 ${formatPublicationDate(through)}`

@@ -44,6 +44,7 @@ import type { Env } from '@/server/types';
 import { groupShiftsByWorkingDay, summarizeShifts } from './aggregators';
 import {
   dateStringSchema,
+  instructorWorkloadQuerySchema,
   monthStringSchema,
   shiftAgendaDirectionSchema,
   upsertMonthlyAssignmentsSchema,
@@ -769,6 +770,47 @@ export const shiftsRoute = new Hono<{
         totalShiftTypes: shiftTypeRows.length,
       },
     });
+  })
+  /**
+   * 1人分の月外勤務日: 表示月を含むシーズン内・全部門・全種別の保存済み勤務日のうち、
+   * 対象月以外を重複除去・昇順で返す。連勤・連続勤務週数・シーズン勤務日数の月またぎ分に使う。MANAGER 以上。
+   */
+  .get('/instructor-workload', requireAuth, requireRole('MANAGER'), async (c) => {
+    const parsed = instructorWorkloadQuerySchema.safeParse({
+      instructorId: c.req.query('instructorId'),
+      month: c.req.query('month'),
+    });
+    if (!parsed.success) {
+      throw new HTTPException(400, {
+        message: 'instructorId と month（YYYY-MM）は必須です',
+      });
+    }
+    const { instructorId, month } = parsed.data;
+    const seasonRange = seasonRangeForDate(`${month}-01`);
+
+    const db = createDb(c.env.DB);
+    const rows = await db
+      .select({ date: shifts.date })
+      .from(shiftAssignments)
+      .innerJoin(shifts, eq(shifts.id, shiftAssignments.shiftId))
+      .where(
+        and(
+          eq(shiftAssignments.instructorId, instructorId),
+          gte(shifts.date, parseShiftDate(seasonRange.from)),
+          lte(shifts.date, parseShiftDate(seasonRange.to)),
+        ),
+      );
+
+    // 同日に複数枠へ入っていても1日として数えるため Set で重複除去し、対象月を除く
+    const dates = new Set<string>();
+    for (const row of rows) {
+      const date = formatDate(row.date);
+      if (date.slice(0, 7) !== month) {
+        dates.add(date);
+      }
+    }
+
+    return c.json({ seasonRange, workDatesOutsideMonth: Array.from(dates).sort() });
   })
   /**
    * シフト編集フォームの集約データを返す（1リクエスト・N+1 なし）。

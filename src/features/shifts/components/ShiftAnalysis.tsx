@@ -1,4 +1,4 @@
-import { Fragment, useId, useState } from 'react';
+import { Fragment, useId, useMemo, useState } from 'react';
 
 import {
   ActionIcon,
@@ -19,9 +19,22 @@ import { getDepartmentAppearance } from '@/features/departments/appearance';
 import type { DepartmentCode } from '@/features/departments/schema';
 
 import type { FrameComposition } from '../qualification-composition';
+import { useInstructorWorkload } from '../queries';
 import type { AutoAssignProposal } from '../schema';
 import { deriveStaffingStatus, describeStaffing, type StaffingMonthlySummary } from '../staffing';
 import { getCalendarDayColor, shortDateLabel, weekdayIndex } from '../view-utils';
+import {
+  classifyWorkDay,
+  composeInstructorMonthWork,
+  summarizeInstructorWorkload,
+  type DetailedCellAssignment,
+  type InstructorWorkloadSummary,
+  type SeasonRange,
+  type WorkDayKind,
+  type WorkEntry,
+  type WorkStreak,
+  type WorkWeekStreak,
+} from '../workload';
 import type { DayAssignments } from './calendar-events';
 import type { SelectedCell } from './shift-manager-types';
 import { cellKey } from './shift-manager-utils';
@@ -31,6 +44,12 @@ type ShiftAnalysisProps = {
   month: string;
   departmentCode: DepartmentCode;
   shiftTypeName: string;
+  /** 表示中の種別 ID（タイムラインの ● と連勤の基準枠） */
+  activeShiftTypeId: string;
+  /** 当月の保存済み割り当て（全部門） */
+  savedAssignments: DetailedCellAssignment[];
+  /** 現部門のステージ済み（未保存）セル */
+  stagedAssignments: DetailedCellAssignment[];
   days: string[];
   assignmentsByDay: DayAssignments;
   assignmentsReady: boolean;
@@ -41,6 +60,11 @@ type ShiftAnalysisProps = {
   navigationDisabled: boolean;
   requiredByDay: Map<string, number | null> | null;
   selectedCell: SelectedCell | null;
+  /**
+   * 連勤・連続勤務週数の基準日。利用者が日付を選んで枠を開いているときだけ渡し、
+   * 未選択（既定で補われた選択のみ）の場合は null とする。
+   */
+  streakBaseDate: string | null;
   selectedDescription: string;
   focusedInstructor: { id: string; name: string } | null;
   onClearInstructor: () => void;
@@ -113,6 +137,12 @@ export function ShiftAnalysis(props: ShiftAnalysisProps) {
             </Tabs.Panel>
             <Tabs.Panel value="person" pt="md">
               <InstructorPlacementAnalysis
+                month={props.month}
+                departmentCode={props.departmentCode}
+                activeShiftTypeId={props.activeShiftTypeId}
+                savedAssignments={props.savedAssignments}
+                stagedAssignments={props.stagedAssignments}
+                streakBaseDate={props.streakBaseDate}
                 focusedInstructor={props.focusedInstructor}
                 days={props.days}
                 assignmentsByDay={props.assignmentsByDay}
@@ -322,6 +352,12 @@ function CompositionDetail({ composition }: { composition: FrameComposition }) {
 
 type InstructorPlacementAnalysisProps = Pick<
   ShiftAnalysisProps,
+  | 'month'
+  | 'departmentCode'
+  | 'activeShiftTypeId'
+  | 'savedAssignments'
+  | 'stagedAssignments'
+  | 'streakBaseDate'
   | 'focusedInstructor'
   | 'days'
   | 'assignmentsByDay'
@@ -330,68 +366,237 @@ type InstructorPlacementAnalysisProps = Pick<
   | 'onSelectDate'
 >;
 
-/** 選んだ人だけの当月の配置日を並べ、連日・週末の配置を見比べられるようにする。 */
-function InstructorPlacementAnalysis({
-  focusedInstructor,
-  days,
-  assignmentsByDay,
-  navigationDisabled,
-  onClearInstructor,
-  onSelectDate,
-}: InstructorPlacementAnalysisProps) {
+/** 選んだ人の負荷（勤務日数・連勤・連続勤務週数）と、当月の配置を全部門・全種別で見比べる。 */
+function InstructorPlacementAnalysis(props: InstructorPlacementAnalysisProps) {
+  const { focusedInstructor } = props;
   if (!focusedInstructor)
     return (
       <Text size="sm" c="dimmed">
         編集フォームの「分析」から人を選択してください。
       </Text>
     );
+  return <FocusedInstructorAnalysis {...props} focusedInstructor={focusedInstructor} />;
+}
+
+type FocusedInstructorAnalysisProps = Omit<
+  InstructorPlacementAnalysisProps,
+  'focusedInstructor'
+> & {
+  focusedInstructor: { id: string; name: string };
+};
+
+/** 「M/D」形式の短い日付 */
+function monthDayLabel(date: string): string {
+  return `${Number(date.slice(5, 7))}/${Number(date.slice(8))}`;
+}
+
+/** 「YYYY/M/D」形式の日付 */
+function fullDateLabel(date: string): string {
+  return `${date.slice(0, 4)}/${monthDayLabel(date)}`;
+}
+
+/** 期間を「始点〜終点」で表す。同日なら1日だけ表示する */
+function rangeLabel(from: string, to: string, format: (date: string) => string): string {
+  return from === to ? format(from) : `${format(from)}〜${format(to)}`;
+}
+
+/** 勤務1件を「部門 / 種別」で表す */
+function workEntryLabel(entry: WorkEntry): string {
+  const department = getDepartmentAppearance(entry.departmentCode, entry.departmentName).label;
+  return `${department} / ${entry.shiftTypeName}`;
+}
+
+/** タイムラインの代表アイコンの文字 */
+const TIMELINE_ICON: Record<WorkDayKind, string> = {
+  current: '●',
+  sameDepartmentOtherType: '○',
+  otherDepartment: '◆',
+};
+
+function FocusedInstructorAnalysis({
+  month,
+  departmentCode,
+  activeShiftTypeId,
+  savedAssignments,
+  stagedAssignments,
+  streakBaseDate,
+  focusedInstructor,
+  days,
+  navigationDisabled,
+  onClearInstructor,
+  onSelectDate,
+}: FocusedInstructorAnalysisProps) {
+  const workload = useInstructorWorkload(focusedInstructor.id, month);
+  const current = useMemo(
+    () => ({ departmentCode, shiftTypeId: activeShiftTypeId }),
+    [departmentCode, activeShiftTypeId],
+  );
+  const monthWork = useMemo(
+    () => composeInstructorMonthWork(savedAssignments, stagedAssignments, focusedInstructor.id),
+    [savedAssignments, stagedAssignments, focusedInstructor.id],
+  );
+  const summary = useMemo(
+    () =>
+      workload.data
+        ? summarizeInstructorWorkload({
+            monthWork,
+            workDatesOutsideMonth: workload.data.workDatesOutsideMonth,
+            season: workload.data.seasonRange,
+            selectedDate: streakBaseDate,
+            current,
+          })
+        : null,
+    [workload.data, monthWork, streakBaseDate, current],
+  );
+
   return (
     <Stack gap="sm">
       <Group justify="space-between">
         <Text fw={600} size="sm">
-          {focusedInstructor.name}の当月の配置
+          {focusedInstructor.name}の負荷
         </Text>
         <AppButton intent="secondary" size="compact-sm" onClick={onClearInstructor}>
           人の選択を解除
         </AppButton>
       </Group>
+      {workload.isError ? (
+        <Text size="sm" c="red">
+          勤務日の取得に失敗しました。月外の勤務を含む数値を表示できません。
+        </Text>
+      ) : summary && workload.data ? (
+        <WorkloadMetrics summary={summary} seasonRange={workload.data.seasonRange} month={month} />
+      ) : (
+        <Text size="sm" c="dimmed">
+          勤務日を読み込み中…
+        </Text>
+      )}
+      <Text size="xs" c="dimmed">
+        対象範囲は全部門・全種別で、未保存の編集を含みます。週は月曜始まりで、1日でも勤務があれば勤務週です。連勤・連続勤務週数はシーズン内で数え、月をまたいでつなげます。自動割当は表示中の部門内の勤務日数で公平性を評価します。
+      </Text>
       <Box
         className={classes.personTimeline}
         role="group"
-        aria-label={`${focusedInstructor.name}の当月の配置日。日付を押すと枠を編集できます`}
+        aria-label={`${focusedInstructor.name}の当月の勤務日。日付を押すと枠を編集できます`}
       >
-        {days.map((date) => {
-          const assigned =
-            assignmentsByDay.get(date)?.some((person) => person.id === focusedInstructor.id) ??
-            false;
-          const weekday = weekdayIndex(date);
-          return (
-            <AppButton
-              key={date}
-              intent="secondary"
-              className={classes.timelineDay}
-              data-assigned={assigned || undefined}
-              data-weekend={weekday === 0 || weekday === 6 || undefined}
-              aria-label={`${shortDateLabel(date)}、${assigned ? '配置あり' : '配置なし'}の枠を編集`}
-              disabled={navigationDisabled}
-              onClick={() => onSelectDate(date)}
-            >
-              <Stack gap={2} align="center">
-                <Text component="span" size="xs" c={getCalendarDayColor(date) ?? 'dimmed'}>
-                  {Number(date.slice(8))}
-                </Text>
-                <Text component="span" size="xs">
-                  {assigned ? '●' : '―'}
-                </Text>
-              </Stack>
-            </AppButton>
-          );
-        })}
+        {days.map((date) => (
+          <TimelineDay
+            key={date}
+            date={date}
+            entries={monthWork.get(date)}
+            current={current}
+            disabled={navigationDisabled}
+            onSelectDate={onSelectDate}
+          />
+        ))}
       </Box>
       <Text size="xs" c="dimmed">
-        ●
-        は表示中の部門・種別への配置です。当月内の並びを示しています。月をまたぐ連勤や、他部門・他種別での勤務は含みません。
+        ● 表示中の部門・種別 / ○ 同部門の別種別 / ◆ 別部門（部門色） / ―
+        勤務なし。同日に複数ある場合は ● &gt; ◆ &gt; ○ の順で代表を表示します。
       </Text>
     </Stack>
   );
+}
+
+/** 基準日がないときに連勤・連続勤務週数の代わりに示す案内 */
+const STREAK_PLACEHOLDER = '日付を選択すると、その日の前後で表示';
+
+/** 連勤を「N連勤（期間）」で表す */
+function streakText(streak: WorkStreak): string {
+  return `${streak.days}連勤（${rangeLabel(streak.from, streak.to, monthDayLabel)}）`;
+}
+
+/** 連続勤務週数を「N週連続（M/Dの週〜M/Dの週）」で表す。1週だけなら範囲を付けない */
+function weekStreakText(weekStreak: WorkWeekStreak): string {
+  const toLabel = weekStreak.weeks > 1 ? `〜${monthDayLabel(weekStreak.toWeekStart)}の週` : '';
+  return `${weekStreak.weeks}週連続（${monthDayLabel(weekStreak.fromWeekStart)}の週${toLabel}）`;
+}
+
+type WorkloadMetricsProps = {
+  summary: InstructorWorkloadSummary;
+  seasonRange: SeasonRange;
+  month: string;
+};
+
+/** 連勤・シーズン勤務日数・当月勤務日数・連続勤務週数を、対象期間つきで縦に並べる。 */
+function WorkloadMetrics({ summary, seasonRange, month }: WorkloadMetricsProps) {
+  const additionPrefix = summary.isAddition ? 'この枠に追加した場合：' : '';
+  const additionNote = summary.isAddition ? `（この枠に追加すると +${summary.addedDays}日）` : '';
+  return (
+    <Stack gap={4}>
+      <Text size="sm">
+        連勤：
+        {summary.streak ? `${additionPrefix}${streakText(summary.streak)}` : STREAK_PLACEHOLDER}
+      </Text>
+      <Text size="sm">
+        シーズン勤務日数：{summary.seasonDays}日{additionNote}
+        <Text component="span" size="xs" c="dimmed">
+          {' '}
+          シーズン {fullDateLabel(seasonRange.from)}〜{fullDateLabel(seasonRange.to)}
+        </Text>
+      </Text>
+      <Text size="sm">
+        当月勤務日数：{summary.monthDays}日（{Number(month.slice(5, 7))}月）{additionNote}
+      </Text>
+      <Text size="sm">
+        連続勤務週数：
+        {summary.weekStreak
+          ? `${additionPrefix}${weekStreakText(summary.weekStreak)}`
+          : STREAK_PLACEHOLDER}
+      </Text>
+    </Stack>
+  );
+}
+
+type TimelineDayProps = {
+  date: string;
+  entries: WorkEntry[] | undefined;
+  current: { departmentCode: string; shiftTypeId: string };
+  disabled: boolean;
+  onSelectDate: (date: string) => void;
+};
+
+/** タイムラインの1日分。代表アイコンで勤務の種類を示し、読み上げでは全件の部門・種別を伝える。 */
+function TimelineDay({ date, entries, current, disabled, onSelectDate }: TimelineDayProps) {
+  const kind = classifyWorkDay(entries, current);
+  const weekday = weekdayIndex(date);
+  const workLabels =
+    entries?.map((entry) =>
+      classifyWorkDay([entry], current) === 'current'
+        ? '配置あり'
+        : `${workEntryLabel(entry)}に勤務`,
+    ) ?? [];
+  return (
+    <AppButton
+      intent="secondary"
+      className={classes.timelineDay}
+      data-assigned={kind === 'current' || undefined}
+      data-weekend={weekday === 0 || weekday === 6 || undefined}
+      aria-label={`${shortDateLabel(date)}、${workLabels.join('、') || '配置なし'}の枠を編集`}
+      disabled={disabled}
+      onClick={() => onSelectDate(date)}
+    >
+      <Stack gap={2} align="center">
+        <Text component="span" size="xs" c={getCalendarDayColor(date) ?? 'dimmed'}>
+          {Number(date.slice(8))}
+        </Text>
+        <Text component="span" size="xs" c={timelineIconColor(kind, entries, current)}>
+          {kind ? TIMELINE_ICON[kind] : '―'}
+        </Text>
+      </Stack>
+    </AppButton>
+  );
+}
+
+/** 別部門の勤務を代表とする日は、その部門の色でアイコンを描く */
+function timelineIconColor(
+  kind: WorkDayKind | null,
+  entries: WorkEntry[] | undefined,
+  current: { departmentCode: string },
+): string {
+  const otherDepartmentEntry = entries?.find((e) => e.departmentCode !== current.departmentCode);
+  if (kind !== 'otherDepartment' || !otherDepartmentEntry) return 'inherit';
+  return getDepartmentAppearance(
+    otherDepartmentEntry.departmentCode,
+    otherDepartmentEntry.departmentName,
+  ).color;
 }

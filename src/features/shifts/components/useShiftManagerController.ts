@@ -19,7 +19,11 @@ import {
 import type { ShiftViewItem } from '../schema';
 import { summarizeStaffing } from '../staffing';
 import { todayString, toMonth } from '../view-utils';
-import { countCurrentMonthWorkDays, type CellAssignment } from '../workload';
+import {
+  countCurrentMonthWorkDays,
+  type CellAssignment,
+  type DetailedCellAssignment,
+} from '../workload';
 import { applyAutoAssignProposals, contextWithStagedAssignments } from './auto-assign-stage';
 import { resolveAssignmentsByDay } from './calendar-events';
 import {
@@ -410,6 +414,34 @@ export function useShiftManagerController() {
     return countCurrentMonthWorkDays(savedAssignments, stagedAssignments);
   }, [monthly.data, stagedCells, departmentCode]);
 
+  /** 人別の負荷表示用に、当月の保存済み（全部門）とステージ済み（現部門）を部門・種別名つきで渡す */
+  const detailedAssignments = useMemo(() => {
+    const typeNameById = new Map(
+      (formData.data?.shiftTypes ?? []).map((type) => [type.id, type.name]),
+    );
+    const saved: DetailedCellAssignment[] = (monthly.data?.shifts ?? []).map((shift) => ({
+      date: shift.date,
+      departmentCode: shift.department.code,
+      departmentName: shift.department.name,
+      shiftTypeId: shift.shiftType.id,
+      shiftTypeName: shift.shiftType.name,
+      instructorIds: shift.assignedInstructors.map((instructor) => instructor.id),
+    }));
+    const staged: DetailedCellAssignment[] = Array.from(stagedCells.entries()).map(
+      ([key, cell]) => {
+        const [date, shiftTypeId] = splitCellKey(key);
+        return {
+          date,
+          departmentCode,
+          shiftTypeId,
+          shiftTypeName: typeNameById.get(shiftTypeId) ?? '',
+          instructorIds: cell.instructorIds,
+        };
+      },
+    );
+    return { saved, staged };
+  }, [monthly.data, stagedCells, departmentCode, formData.data]);
+
   const saveMonthly = () => {
     if (!isDirty) return;
     const cells = Array.from(stagedCells.entries()).map(([key, value]) => {
@@ -550,6 +582,7 @@ export function useShiftManagerController() {
     currentMonthWorkDays,
     days,
     departmentCode,
+    detailedAssignments,
     assignmentPanelOpened,
     formData,
     isAutoAssigning,

@@ -13,6 +13,7 @@ import { client } from '@/lib/rpc';
 
 import {
   autoAssignContextSchema,
+  instructorWorkloadSchema,
   seasonStatsResponseSchema,
   shiftAgendaResponseSchema,
   shiftAttendanceSchema,
@@ -23,6 +24,7 @@ import {
   staffingRequirementListSchema,
   upsertMonthlyAssignmentsResultSchema,
   type AutoAssignContext,
+  type InstructorWorkload,
   type SeasonStatsResponse,
   type ShiftAgendaDirection,
   type ShiftAgendaResponse,
@@ -240,6 +242,33 @@ export function useShiftStaffingRequirements(month: string) {
   });
 }
 
+/**
+ * 1人分の月外勤務日（表示月を含むシーズン内・全部門・全種別の保存済み）を取得する。
+ * 当月分は未保存の編集を含めてクライアントが合成するため、ここには含まれない。
+ * @param instructorId - 対象 Instructor。null なら取得しない
+ * @param month - 表示月（YYYY-MM）
+ */
+export function useInstructorWorkload(instructorId: string | null, month: string) {
+  return useQuery<InstructorWorkload>({
+    queryKey: [...SHIFTS_QUERY_KEY, 'instructor-workload', instructorId, month],
+    queryFn: async () => {
+      const res = await client.api.shifts['instructor-workload'].$get({
+        query: { instructorId: instructorId ?? '', month },
+      });
+      if (!res.ok) {
+        const body = apiErrorSchema.safeParse(await res.json());
+        throw new Error(
+          body.success
+            ? (body.data.message ?? '勤務日の取得に失敗しました')
+            : '勤務日の取得に失敗しました',
+        );
+      }
+      return instructorWorkloadSchema.parse(await res.json());
+    },
+    enabled: instructorId !== null && !!month,
+  });
+}
+
 export function useAutoAssignContext(departmentCode: string, month: string) {
   const from = `${month}-01`;
   const to = new Date(`${from}T00:00:00.000Z`);
@@ -348,6 +377,9 @@ export function useUpsertAssignments() {
       void queryClient.invalidateQueries({ queryKey: [...SHIFTS_QUERY_KEY, 'assignment-editor'] });
       void queryClient.invalidateQueries({ queryKey: [...SHIFTS_QUERY_KEY, 'list'] });
       void queryClient.invalidateQueries({ queryKey: [...SHIFTS_QUERY_KEY, 'requirements'] });
+      void queryClient.invalidateQueries({
+        queryKey: [...SHIFTS_QUERY_KEY, 'instructor-workload'],
+      });
     },
   });
 }

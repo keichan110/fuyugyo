@@ -2,7 +2,7 @@ import { useState } from 'react';
 
 import { Box, Group, Modal, Stack, Switch, Text } from '@mantine/core';
 import { DatePicker } from '@mantine/dates';
-import { IconWorld } from '@tabler/icons-react';
+import { IconEye } from '@tabler/icons-react';
 
 import { ErrorAlert } from '@/components/AppAlert';
 import { AppButton } from '@/components/AppButton';
@@ -87,9 +87,9 @@ function MonthlyPublicationControl({
   return (
     <>
       <AppButton
-        intent="primary"
+        intent="secondary"
         size="xs"
-        leftSection={<IconWorld size={14} aria-hidden />}
+        leftSection={<IconEye size={14} aria-hidden />}
         disabled={disabled}
         onClick={open}
       >

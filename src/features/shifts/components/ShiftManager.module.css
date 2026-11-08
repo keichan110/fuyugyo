@@ -26,8 +26,8 @@
 .calendarDay[data-published],
 .dateListDay[data-published] {
   background-color: light-dark(
-    color-mix(in srgb, var(--mantine-color-teal-6) 5%, var(--mantine-color-body)),
-    color-mix(in srgb, var(--mantine-color-teal-6) 8%, var(--mantine-color-body))
+    color-mix(in srgb, var(--mantine-color-teal-6) 10%, var(--mantine-color-body)),
+    color-mix(in srgb, var(--mantine-color-teal-6) 15%, var(--mantine-color-body))
   );
 }
 

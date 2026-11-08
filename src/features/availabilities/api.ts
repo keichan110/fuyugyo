@@ -125,7 +125,7 @@ export const availabilitiesRoute = new Hono<{ Bindings: Env; Variables: AuthVari
       lockedDates: lockedRows.map((row) => formatDate(row.date)),
     });
   })
-  /** 本人の申告を差分で更新する。type: null の変更は削除として扱う。 */
+  /** 本人の申告を差分で更新する。全件を upsert し、未入力への解除は受け付けない。 */
   .put(
     '/me',
     requireAuth,
@@ -168,16 +168,6 @@ export const availabilitiesRoute = new Hono<{ Bindings: Env; Variables: AuthVari
 
       const operations: BatchItem<'sqlite'>[] = input.changes.map((change) => {
         const date = parseDate(change.date);
-        if (change.type === null) {
-          return db
-            .delete(instructorAvailabilities)
-            .where(
-              and(
-                eq(instructorAvailabilities.instructorId, instructorId),
-                eq(instructorAvailabilities.date, date),
-              ),
-            );
-        }
         return db
           .insert(instructorAvailabilities)
           .values({

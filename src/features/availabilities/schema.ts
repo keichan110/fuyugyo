@@ -2,8 +2,8 @@ import { z } from 'zod';
 
 import { dateStringSchema } from '@/features/shifts/schema';
 
-/** 勤務可否の種別。勤務不可と要調整の二段階で申告する。 */
-export const availabilityTypeSchema = z.enum(['UNAVAILABLE', 'AVOID']);
+/** 勤務可否の種別。勤務可・要調整・勤務不可の3状態で申告する。未入力は行が存在しない状態で表す。 */
+export const availabilityTypeSchema = z.enum(['AVAILABLE', 'AVOID', 'UNAVAILABLE']);
 
 /** インストラクター1名・1日分の勤務可否申告。 */
 export const availabilitySchema = z.object({
@@ -24,10 +24,10 @@ export const availabilityListResponseSchema = z.object({
   lockedDates: z.array(dateStringSchema),
 });
 
-/** 差分更新の1日分。`type: null` はその日の申告を削除する。 */
+/** 差分更新の1日分。一度申告した日は未入力に戻せないため、type は必須。 */
 export const availabilityChangeSchema = z.object({
   date: dateStringSchema,
-  type: availabilityTypeSchema.nullable(),
+  type: availabilityTypeSchema,
   note: z.string().max(500).nullable().optional(),
 });
 

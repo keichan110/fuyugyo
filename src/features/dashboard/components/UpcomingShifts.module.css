@@ -28,6 +28,11 @@
   line-height: 1;
 }
 
+.calendarDay[data-availability='AVAILABLE']::after {
+  color: var(--mantine-color-green-7);
+  content: '○';
+}
+
 .calendarDay[data-availability='UNAVAILABLE']::after {
   color: var(--mantine-color-red-7);
   content: '×';
@@ -46,6 +51,7 @@
   flex-shrink: 0;
 }
 
+.availableLegend,
 .unavailableLegend,
 .avoidLegend {
   width: 12px;
@@ -53,6 +59,10 @@
   font-weight: 700;
   line-height: 1;
   text-align: center;
+}
+
+.availableLegend {
+  color: var(--mantine-color-green-7);
 }
 
 .unavailableLegend {

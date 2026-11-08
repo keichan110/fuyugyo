@@ -9,14 +9,14 @@ import type { StagedAvailability } from '@/features/availabilities/editor';
 import type { Availability } from '@/features/availabilities/schema';
 
 describe('stageAvailability', () => {
-  it('指定を解除すると、その日のステージ値を削除として扱う', () => {
-    const staged = stageAvailability(
-      new Map([['2026-01-10', { type: 'UNAVAILABLE', note: '私用' }]]),
-      '2026-01-10',
-      null,
-    );
+  it('指定日のステージ値を置き換え、元の Map は変更しない', () => {
+    const current = new Map<string, StagedAvailability>([
+      ['2026-01-10', { type: 'UNAVAILABLE', note: '私用' }],
+    ]);
+    const staged = stageAvailability(current, '2026-01-10', { type: 'AVAILABLE', note: '私用' });
 
-    expect(staged.get('2026-01-10')).toBeNull();
+    expect(staged.get('2026-01-10')).toEqual({ type: 'AVAILABLE', note: '私用' });
+    expect(current.get('2026-01-10')).toEqual({ type: 'UNAVAILABLE', note: '私用' });
   });
 });
 
@@ -28,15 +28,28 @@ describe('buildAvailabilityChanges', () => {
     ]);
     const staged = new Map<string, StagedAvailability>([
       ['2026-01-10', { type: 'UNAVAILABLE', note: '通院' }],
-      ['2026-01-11', null],
-      ['2026-01-12', { type: 'AVOID', note: null }],
+      ['2026-01-11', { type: 'AVAILABLE', note: null }],
+      ['2026-01-12', { type: 'AVAILABLE', note: null }],
+      ['2026-01-13', { type: 'AVOID', note: null }],
     ]);
 
     expect(buildAvailabilityChanges(saved, staged)).toEqual([
       { date: '2026-01-10', type: 'UNAVAILABLE', note: '通院' },
-      { date: '2026-01-11', type: null },
-      { date: '2026-01-12', type: 'AVOID', note: null },
+      { date: '2026-01-11', type: 'AVAILABLE', note: null },
+      { date: '2026-01-12', type: 'AVAILABLE', note: null },
+      { date: '2026-01-13', type: 'AVOID', note: null },
     ]);
+  });
+
+  it('保存値と同じ内容のステージ値は差分に含めない', () => {
+    const saved = new Map<string, Pick<Availability, 'type' | 'note'>>([
+      ['2026-01-10', { type: 'AVAILABLE', note: null }],
+    ]);
+    const staged = new Map<string, StagedAvailability>([
+      ['2026-01-10', { type: 'AVAILABLE', note: null }],
+    ]);
+
+    expect(buildAvailabilityChanges(saved, staged)).toEqual([]);
   });
 });
 

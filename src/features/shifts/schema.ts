@@ -158,7 +158,7 @@ export const autoAssignContextSchema = z.object({
     z.object({
       instructorId: z.string(),
       date: dateStringSchema,
-      type: z.enum(['UNAVAILABLE', 'AVOID']),
+      type: z.enum(['AVAILABLE', 'UNAVAILABLE', 'AVOID']),
       note: z.string().nullable(),
     }),
   ),

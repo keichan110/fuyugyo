@@ -16,6 +16,10 @@
   background-color: var(--mantine-color-gray-1);
 }
 
+.calendarDay[data-availability='AVAILABLE'] {
+  background-color: var(--mantine-color-green-0);
+}
+
 .calendarDay[data-availability='UNAVAILABLE'] {
   background-color: var(--mantine-color-red-0);
 }

@@ -224,7 +224,7 @@ export const instructorAvailabilities = sqliteTable(
       .notNull()
       .references(() => instructors.id, { onDelete: 'cascade' }),
     date: integer('date', { mode: 'timestamp' }).notNull(),
-    type: text('type', { enum: ['UNAVAILABLE', 'AVOID'] }).notNull(),
+    type: text('type', { enum: ['AVAILABLE', 'UNAVAILABLE', 'AVOID'] }).notNull(),
     note: text('note'),
   },
   (t) => [

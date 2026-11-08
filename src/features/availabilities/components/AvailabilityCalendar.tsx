@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import {
   Box,
   Group,
+  List,
   Menu,
   Modal,
   Stack,
@@ -14,6 +15,7 @@ import {
 import { MonthView, type ScheduleEventData } from '@mantine/schedule';
 import {
   IconAlertTriangleFilled,
+  IconCircleCheckFilled,
   IconCircleXFilled,
   IconLock,
   IconNote,
@@ -37,7 +39,7 @@ import { useMyAvailabilities, useUpdateMyAvailabilities } from '../queries';
 import type { Availability } from '../schema';
 import classes from './AvailabilityCalendar.module.css';
 
-/** 本人が月間カレンダー上で勤務不可・回避希望日をまとめて申告する画面。 */
+/** 本人が月間カレンダー上で勤務可・要調整・勤務不可をまとめて申告する画面。 */
 export function AvailabilityCalendar({ initialMonth }: { initialMonth?: string }) {
   const [month, setMonth] = useState(() => initialMonth ?? todayString().slice(0, 7));
   const availabilityQuery = useMyAvailabilities(month);
@@ -77,11 +79,9 @@ export function AvailabilityCalendar({ initialMonth }: { initialMonth?: string }
 
   const getValue = (date: string): StagedAvailability | undefined =>
     staged.get(date) ?? saved.get(date);
-  const changeType = (date: string, type: Availability['type'] | null) => {
+  const changeType = (date: string, type: Availability['type']) => {
     const current = getValue(date);
-    setStaged((value) =>
-      stageAvailability(value, date, type ? { type, note: current?.note ?? null } : null),
-    );
+    setStaged((value) => stageAvailability(value, date, { type, note: current?.note ?? null }));
   };
   const openNote = (date: string) => {
     setNoteDate(date);
@@ -101,7 +101,7 @@ export function AvailabilityCalendar({ initialMonth }: { initialMonth?: string }
     await updateMutation.mutateAsync({ changes });
     setStaged(new Map());
   };
-  const changeTypeAndCloseMenu = (date: string, type: Availability['type'] | null) => {
+  const changeTypeAndCloseMenu = (date: string, type: Availability['type']) => {
     changeType(date, type);
     setMenu(null);
   };
@@ -129,9 +129,19 @@ export function AvailabilityCalendar({ initialMonth }: { initialMonth?: string }
   return (
     <>
       <Stack gap="md">
-        <Text size="sm" c="dimmed">
-          勤務できない日があれば選択してください。
-        </Text>
+        <Stack gap={4}>
+          <Text size="sm" c="dimmed">
+            日付を選んで勤務の可否を入力してください。
+          </Text>
+          <List size="sm" c="dimmed">
+            <List.Item>勤務可：勤務できる日</List.Item>
+            <List.Item>要調整：勤務はできるが、できれば避けてほしい日</List.Item>
+            <List.Item>勤務不可：勤務できない日</List.Item>
+          </List>
+          <Text size="sm" c="dimmed">
+            未入力の日も自動割当の対象になります。
+          </Text>
+        </Stack>
         {availabilityQuery.isError && <ErrorAlert>{availabilityQuery.error.message}</ErrorAlert>}
         {updateMutation.isError && <ErrorAlert>{updateMutation.error.message}</ErrorAlert>}
         {availabilityQuery.isLoading ? (
@@ -167,11 +177,11 @@ export function AvailabilityCalendar({ initialMonth }: { initialMonth?: string }
           <Menu.Dropdown>
             <Menu.Item
               leftSection={
-                <IconCircleXFilled size={16} color="var(--mantine-color-red-6)" aria-hidden />
+                <IconCircleCheckFilled size={16} color="var(--mantine-color-green-6)" aria-hidden />
               }
-              onClick={() => changeTypeAndCloseMenu(menu.date, 'UNAVAILABLE')}
+              onClick={() => changeTypeAndCloseMenu(menu.date, 'AVAILABLE')}
             >
-              勤務不可にする
+              勤務可にする
             </Menu.Item>
             <Menu.Item
               leftSection={
@@ -185,22 +195,24 @@ export function AvailabilityCalendar({ initialMonth }: { initialMonth?: string }
             >
               要調整にする
             </Menu.Item>
+            <Menu.Item
+              leftSection={
+                <IconCircleXFilled size={16} color="var(--mantine-color-red-6)" aria-hidden />
+              }
+              onClick={() => changeTypeAndCloseMenu(menu.date, 'UNAVAILABLE')}
+            >
+              勤務不可にする
+            </Menu.Item>
             {getValue(menu.date) && (
-              <>
-                <Menu.Item
-                  leftSection={<IconNote size={15} />}
-                  onClick={() => {
-                    openNote(menu.date);
-                    setMenu(null);
-                  }}
-                >
-                  メモを編集
-                </Menu.Item>
-                <Menu.Divider />
-                <Menu.Item color="red" onClick={() => changeTypeAndCloseMenu(menu.date, null)}>
-                  指定を解除
-                </Menu.Item>
-              </>
+              <Menu.Item
+                leftSection={<IconNote size={15} />}
+                onClick={() => {
+                  openNote(menu.date);
+                  setMenu(null);
+                }}
+              >
+                メモを編集
+              </Menu.Item>
             )}
           </Menu.Dropdown>
         </Menu>
@@ -270,6 +282,34 @@ function formatDateLabel(date: string): string {
   return `${date.slice(0, 4)}年${Number(date.slice(5, 7))}月${Number(date.slice(8, 10))}日`;
 }
 
+/** 申告状態ごとのカレンダー表示（ラベル・イベント色・アイコン）。 */
+const AVAILABILITY_DISPLAY = {
+  AVAILABLE: {
+    title: '勤務可',
+    color: 'green',
+    Icon: IconCircleCheckFilled,
+    iconColor: 'var(--mantine-color-green-6)',
+  },
+  AVOID: {
+    title: '要調整',
+    color: 'yellow',
+    Icon: IconAlertTriangleFilled,
+    iconColor: 'var(--mantine-color-yellow-8)',
+  },
+  UNAVAILABLE: {
+    title: '勤務不可',
+    color: 'red',
+    Icon: IconCircleXFilled,
+    iconColor: 'var(--mantine-color-red-6)',
+  },
+} satisfies Record<Availability['type'], unknown>;
+
+/** 申告状態に対応するカレンダー上のアイコン。 */
+function AvailabilityIcon({ type }: { type: Availability['type'] }) {
+  const { Icon, iconColor } = AVAILABILITY_DISPLAY[type];
+  return <Icon size={28} color={iconColor} aria-hidden />;
+}
+
 type AvailabilityEventPayload =
   | { kind: 'availability'; date: string; type: Availability['type']; note: string | null }
   | { kind: 'locked'; date: string };
@@ -302,10 +342,10 @@ function AvailabilityMonthView({
       if (!value) continue;
       calendarEvents.push({
         id: date,
-        title: value.type === 'UNAVAILABLE' ? '勤務不可' : '要調整',
+        title: AVAILABILITY_DISPLAY[value.type].title,
         start: `${date} 00:00:00`,
         end: `${addDays(date, 1)} 00:00:00`,
-        color: value.type === 'UNAVAILABLE' ? 'red' : 'yellow',
+        color: AVAILABILITY_DISPLAY[value.type].color,
         payload: {
           kind: 'availability',
           date,
@@ -400,14 +440,8 @@ function AvailabilityMonthView({
         ) : (
           <UnstyledButton {...props} className={classes.availabilityEvent} aria-label={event.title}>
             <Stack gap={0} align="center">
-              {event.payload?.type === 'UNAVAILABLE' ? (
-                <IconCircleXFilled size={28} color="var(--mantine-color-red-6)" aria-hidden />
-              ) : (
-                <IconAlertTriangleFilled
-                  size={28}
-                  color="var(--mantine-color-yellow-8)"
-                  aria-hidden
-                />
+              {event.payload?.kind === 'availability' && (
+                <AvailabilityIcon type={event.payload.type} />
               )}
               {event.payload?.note && (
                 <Tooltip label={event.payload.note} multiline maw={320} withArrow>

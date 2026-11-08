@@ -2,7 +2,6 @@ import { useMemo } from 'react';
 
 import { Box, Card, Group, Tabs, Text } from '@mantine/core';
 import { MonthView, type ScheduleEventData } from '@mantine/schedule';
-import { IconEye } from '@tabler/icons-react';
 
 import 'dayjs/locale/ja';
 
@@ -219,15 +218,6 @@ export function ShiftCalendar({
         </Text>
       </Group>
 
-      <Group gap="md" mb="xs" aria-label="公開状態の凡例">
-        <Group gap={4}>
-          <IconEye size={12} aria-hidden />
-          <Text size="xs">公開済み（編集・自動割当から保護）</Text>
-        </Group>
-        <Group gap={4}>
-          <Text size="xs">アイコンなし：未公開</Text>
-        </Group>
-      </Group>
       {focusedInstructor && (
         <Group gap="xs" mb="xs" wrap="wrap">
           <Text size="xs" c="blue">

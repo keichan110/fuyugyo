@@ -202,89 +202,93 @@ function ShiftManagerContent({ controller, myInstructorId }: ShiftManagerContent
               component="section"
               aria-label="枠の編集"
             >
-              <Group justify="space-between" mb="md" align="flex-start">
-                <Stack gap={2}>
-                  <Title order={3} size="h4" c={selectedCellDateColor ?? 'inherit'}>
-                    {selectedCell ? shortDateLabel(selectedCell.date) : '枠の編集'}
-                  </Title>
-                  <Text size="xs" c="dimmed">
-                    {
-                      controller.formData.data.shiftTypes.find(
-                        (type) => type.id === controller.activeShiftTypeId,
-                      )?.name
-                    }
-                  </Text>
-                </Stack>
-                <Group gap="xs" wrap="nowrap">
-                  <Text size="sm">{controller.selectedAssignmentCount}名</Text>
-                  {(controller.selectedStagedCell || controller.selectedStagedRequirement) && (
-                    <AppBadge kind="pending">未保存</AppBadge>
-                  )}
-                  <CloseButton
-                    aria-label="編集フォームを閉じる"
-                    onClick={() => controller.setAssignmentPanelOpened(false)}
-                  />
-                </Group>
-              </Group>
-              {selectedCell && (
-                <ShiftPublicationControls
-                  key={`single:${selectedCell.date}:${controller.departmentCode}:${selectedCell.shiftTypeId}`}
-                  {...publicationProps}
-                  date={selectedCell.date}
-                />
-              )}
-              {selectedPublished && (
-                <Text size="sm" c="dimmed" mb="sm">
-                  公開済みのため編集できません。変更するには公開を取り消してください。
-                </Text>
-              )}
-              {controller.autoAssignMode && (
-                <Text size="sm" c="dimmed" mb="sm">
-                  自動割当の日付選択中は手動編集できません。編集するには自動割当をキャンセルしてください。
-                </Text>
-              )}
-              <Box
-                component="fieldset"
-                disabled={controller.autoAssignMode || controller.isAutoAssigning}
-                className={classes.assignmentFields}
-              >
-                {selectedCell && (
-                  <AssignmentPanel
-                    key={`${selectedCell.date}-${controller.departmentCode}-${selectedCell.shiftTypeId}`}
-                    readOnly={selectedPublished}
-                    date={selectedCell.date}
-                    departmentCode={controller.departmentCode}
-                    shiftTypeId={selectedCell.shiftTypeId}
-                    stagedCell={controller.stagedCells.get(
-                      cellKey(selectedCell.date, selectedCell.shiftTypeId),
+              <Box className={classes.assignmentFormHeader}>
+                <Group justify="space-between" mb="sm" align="flex-start">
+                  <Stack gap={2}>
+                    <Title order={3} size="h4" c={selectedCellDateColor ?? 'inherit'}>
+                      {selectedCell ? shortDateLabel(selectedCell.date) : '枠の編集'}
+                    </Title>
+                    <Text size="xs" c="dimmed">
+                      {
+                        controller.formData.data.shiftTypes.find(
+                          (type) => type.id === controller.activeShiftTypeId,
+                        )?.name
+                      }
+                    </Text>
+                  </Stack>
+                  <Group gap="xs" wrap="nowrap">
+                    <Text size="sm">{controller.selectedAssignmentCount}名</Text>
+                    {(controller.selectedStagedCell || controller.selectedStagedRequirement) && (
+                      <AppBadge kind="pending">未保存</AppBadge>
                     )}
-                    onStageChange={(next) =>
-                      controller.stageCell(
-                        cellKey(selectedCell.date, selectedCell.shiftTypeId),
-                        next,
-                      )
-                    }
-                    requirementsReady={controller.requirementsReady}
-                    requiredCount={controller.selectedRequiredCount}
-                    onRequiredCountChange={(value) =>
-                      controller.stageRequirement(
-                        selectedCell.date,
-                        selectedCell.shiftTypeId,
-                        value,
-                      )
-                    }
-                    onRegisterInstructorNames={controller.registerInstructorNames}
-                    conflictLabelById={controller.conflictLabelById}
-                    currentMonthWorkDays={controller.currentMonthWorkDays}
-                    availabilities={controller.availabilities.data ?? []}
-                    focusedInstructorId={focusedInstructor?.id ?? null}
-                    onAnalyzeInstructor={(instructor) =>
-                      setFocusedInstructor((current) =>
-                        current?.id === instructor.id ? null : instructor,
-                      )
-                    }
+                    <CloseButton
+                      aria-label="編集フォームを閉じる"
+                      onClick={() => controller.setAssignmentPanelOpened(false)}
+                    />
+                  </Group>
+                </Group>
+                {selectedCell && (
+                  <ShiftPublicationControls
+                    key={`single:${selectedCell.date}:${controller.departmentCode}:${selectedCell.shiftTypeId}`}
+                    {...publicationProps}
+                    date={selectedCell.date}
                   />
                 )}
+              </Box>
+              <Box className={classes.assignmentFormBody}>
+                {selectedPublished && (
+                  <Text size="sm" c="dimmed" mb="sm">
+                    公開済みのため編集できません。変更するには公開を取り消してください。
+                  </Text>
+                )}
+                {controller.autoAssignMode && (
+                  <Text size="sm" c="dimmed" mb="sm">
+                    自動割当の日付選択中は手動編集できません。編集するには自動割当をキャンセルしてください。
+                  </Text>
+                )}
+                <Box
+                  component="fieldset"
+                  disabled={controller.autoAssignMode || controller.isAutoAssigning}
+                  className={classes.assignmentFields}
+                >
+                  {selectedCell && (
+                    <AssignmentPanel
+                      key={`${selectedCell.date}-${controller.departmentCode}-${selectedCell.shiftTypeId}`}
+                      readOnly={selectedPublished}
+                      date={selectedCell.date}
+                      departmentCode={controller.departmentCode}
+                      shiftTypeId={selectedCell.shiftTypeId}
+                      stagedCell={controller.stagedCells.get(
+                        cellKey(selectedCell.date, selectedCell.shiftTypeId),
+                      )}
+                      onStageChange={(next) =>
+                        controller.stageCell(
+                          cellKey(selectedCell.date, selectedCell.shiftTypeId),
+                          next,
+                        )
+                      }
+                      requirementsReady={controller.requirementsReady}
+                      requiredCount={controller.selectedRequiredCount}
+                      onRequiredCountChange={(value) =>
+                        controller.stageRequirement(
+                          selectedCell.date,
+                          selectedCell.shiftTypeId,
+                          value,
+                        )
+                      }
+                      onRegisterInstructorNames={controller.registerInstructorNames}
+                      conflictLabelById={controller.conflictLabelById}
+                      currentMonthWorkDays={controller.currentMonthWorkDays}
+                      availabilities={controller.availabilities.data ?? []}
+                      focusedInstructorId={focusedInstructor?.id ?? null}
+                      onAnalyzeInstructor={(instructor) =>
+                        setFocusedInstructor((current) =>
+                          current?.id === instructor.id ? null : instructor,
+                        )
+                      }
+                    />
+                  )}
+                </Box>
               </Box>
             </Card>
           </Box>

@@ -467,6 +467,7 @@ export const publishShiftsSchema = z.object({
     .array(
       z.object({
         date: dateStringSchema,
+        status: shiftStatusSchema.optional(),
         expectedRevision: z.number().int().min(0).nullable(),
         expectedShiftId: z.string().nullable().optional(),
       }),

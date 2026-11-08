@@ -2,6 +2,8 @@ import { env } from 'cloudflare:test';
 import { and, eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 
+import { planPublicationWindow } from '../src/features/shifts/components/publication-plan';
+import { monthDays } from '../src/features/shifts/components/shift-manager-utils';
 import {
   shiftAgendaResponseSchema,
   shiftAttendanceSchema,
@@ -352,6 +354,75 @@ describe('下書きと公開', () => {
       (await db.select().from(shifts)).find((row) => row.id === first.id)?.description,
     ).toBeNull();
     expect(await db.select().from(shiftAssignments)).toHaveLength(2);
+  });
+});
+
+describe('月の公開範囲の置き換え', () => {
+  async function windowInput(manager: string, shiftTypeId: string, through: string | null) {
+    const response = await request('shifts/calendar?month=2027-01', manager);
+    const calendar = shiftViewResponseSchema.parse(await response.json());
+    const saved = new Map(
+      calendar.shifts
+        .filter((shift) => shift.department.code === 'ski')
+        .map((shift) => [`${shift.date}:${shift.shiftType.id}`, shift]),
+    );
+    return planPublicationWindow(
+      { month: '2027-01', departmentCode: 'ski', shiftTypeId },
+      monthDays('2027-01'),
+      through,
+      saved,
+    );
+  }
+
+  it('月初から終了日までを公開し、期間外の公開済み配置を保持したまま非公開に戻す', async () => {
+    const { manager, instructorId, shiftTypeId, save, publish } = await setup();
+    await save([
+      { date, instructorIds: [instructorId] },
+      { date: nextDate, instructorIds: [instructorId] },
+    ]);
+    await publish([nextDate]);
+    const input = await windowInput(manager, shiftTypeId, date);
+    const response = await request('shifts/publication', manager, input);
+    expect(response.status).toBe(200);
+    const rows = await db.select().from(shifts);
+    expect(rows.filter((row) => row.status === 'PUBLISHED')).toHaveLength(10);
+    expect(rows.find((row) => row.date.toISOString().startsWith(nextDate))?.status).toBe('DRAFT');
+    expect(await db.select().from(shiftAssignments)).toHaveLength(2);
+    const allPrivate = await windowInput(manager, shiftTypeId, null);
+    expect((await request('shifts/publication', manager, allPrivate)).status).toBe(200);
+    expect((await db.select().from(shifts)).every((row) => row.status === 'DRAFT')).toBe(true);
+    expect(await db.select().from(shifts)).toHaveLength(2);
+  });
+
+  it('新たに公開する枠が勤務不可なら、期間外の公開取り消しも含め全体を拒否する', async () => {
+    const { manager, instructorId, shiftTypeId, save, publish } = await setup();
+    await save([
+      { date, instructorIds: [instructorId] },
+      { date: nextDate, instructorIds: [instructorId] },
+    ]);
+    await publish([nextDate]);
+    await db
+      .insert(instructorAvailabilities)
+      .values({ instructorId, date: new Date(`${date}T00:00:00Z`), type: 'UNAVAILABLE' });
+    const input = await windowInput(manager, shiftTypeId, date);
+    expect((await request('shifts/publication', manager, input)).status).toBe(409);
+    expect(
+      (await db.select().from(shifts)).find((row) => row.date.toISOString().startsWith(nextDate))
+        ?.status,
+    ).toBe('PUBLISHED');
+  });
+
+  it('期間外で非公開の枠に勤務不可の配置があっても、公開範囲の更新を妨げない', async () => {
+    const { manager, instructorId, shiftTypeId, save } = await setup();
+    await save([{ date: nextDate, instructorIds: [instructorId] }]);
+    await db
+      .insert(instructorAvailabilities)
+      .values({ instructorId, date: new Date(`${nextDate}T00:00:00Z`), type: 'UNAVAILABLE' });
+    const input = await windowInput(manager, shiftTypeId, date);
+    expect((await request('shifts/publication', manager, input)).status).toBe(200);
+    expect(
+      (await db.select().from(shifts)).filter((row) => row.status === 'PUBLISHED'),
+    ).toHaveLength(10);
   });
 });
 

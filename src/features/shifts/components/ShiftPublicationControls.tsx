@@ -1,6 +1,8 @@
 import { useState } from 'react';
 
-import { Group, Modal, Stack, Text, TextInput } from '@mantine/core';
+import { Box, Group, Modal, Stack, Switch, Text } from '@mantine/core';
+import { DatePicker } from '@mantine/dates';
+import { IconWorld } from '@tabler/icons-react';
 
 import { ErrorAlert } from '@/components/AppAlert';
 import { AppButton } from '@/components/AppButton';
@@ -8,9 +10,14 @@ import { DEPARTMENT_LABELS, type DepartmentCode } from '@/features/departments/s
 
 import { usePublishShifts } from '../queries';
 import type { PublishShiftsInput, ShiftViewItem } from '../schema';
+import {
+  formatPublicationDate,
+  planPublicationWindow,
+  summarizePublicationChanges,
+} from './publication-plan';
 import type { StagedRequirements } from './requirement-stage';
 import type { StagedCell } from './shift-manager-types';
-import { cellKey } from './shift-manager-utils';
+import { cellKey, monthLastDate } from './shift-manager-utils';
 
 type Props = {
   month: string;
@@ -25,156 +32,273 @@ type Props = {
   disabled: boolean;
 };
 
-/** 指定日まで、または選択枠の保存済み計画を確認して公開・公開取り消しする。 */
-export function ShiftPublicationControls({
+type MonthDraft = { through: string | null; saved: ReadonlyMap<string, ShiftViewItem> };
+
+/** 月の公開範囲の設定、または選択枠の公開トグルを表示する。 */
+export function ShiftPublicationControls(props: Props) {
+  return props.date ? (
+    <SinglePublicationControl {...props} date={props.date} />
+  ) : (
+    <MonthlyPublicationControl {...props} />
+  );
+}
+
+/** 公開ボタンから月の終了日を選び、範囲外の公開取り消しもまとめて確認する。 */
+function MonthlyPublicationControl({
   month,
   departmentCode,
   shiftTypeId,
   shiftTypeName,
   days,
-  date,
   shiftByCell,
   stagedCells,
   stagedRequirements,
   disabled,
 }: Props) {
-  const [through, setThrough] = useState(days.at(-1) ?? '');
+  const [draft, setDraft] = useState<MonthDraft | null>(null);
+  const publication = usePublishShifts();
+  const input = draft
+    ? planPublicationWindow(
+        { month, departmentCode, shiftTypeId },
+        days,
+        draft.through,
+        draft.saved,
+      )
+    : null;
+  const changes = input && draft ? summarizePublicationChanges(input, draft.saved) : null;
+  const hasUnsaved = days.some(
+    (date) =>
+      stagedCells.has(cellKey(date, shiftTypeId)) ||
+      stagedRequirements.has(cellKey(date, shiftTypeId)),
+  );
+  const open = () => {
+    publication.reset();
+    const through =
+      days
+        .filter((date) => shiftByCell.get(cellKey(date, shiftTypeId))?.status === 'PUBLISHED')
+        .at(-1) ?? null;
+    setDraft({ through, saved: new Map(shiftByCell) });
+  };
+  const selectThrough = (through: string | null) =>
+    setDraft((current) => (current ? { ...current, through } : current));
+  const close = () => {
+    if (!publication.isPending) setDraft(null);
+  };
+  return (
+    <>
+      <AppButton
+        intent="primary"
+        size="xs"
+        leftSection={<IconWorld size={14} aria-hidden />}
+        disabled={disabled}
+        onClick={open}
+      >
+        公開
+      </AppButton>
+      <Modal
+        opened={draft !== null}
+        onClose={close}
+        title="シフトの公開範囲"
+        centered
+        closeOnClickOutside={!publication.isPending}
+        closeOnEscape={!publication.isPending}
+        withCloseButton={!publication.isPending}
+      >
+        {draft && input && changes && (
+          <Stack gap="md">
+            <Text fw={600}>
+              {DEPARTMENT_LABELS[departmentCode]} / {shiftTypeName}
+            </Text>
+            <Text size="sm">
+              公開する最終日を選んでください。月初から選択日までを公開し、それより後の日は非公開に戻します。
+            </Text>
+            <Group gap="xs">
+              <AppButton
+                intent="secondary"
+                size="xs"
+                disabled={publication.isPending}
+                onClick={() => selectThrough(days.at(-1) ?? null)}
+              >
+                月末まで
+              </AppButton>
+              <AppButton
+                intent="danger"
+                size="xs"
+                disabled={publication.isPending}
+                onClick={() => selectThrough(null)}
+              >
+                すべて非公開
+              </AppButton>
+            </Group>
+            <PublicationCalendar
+              month={month}
+              days={days}
+              through={draft.through}
+              pending={publication.isPending}
+              onChange={selectThrough}
+            />
+            <PublicationSummary
+              publishCount={changes.publishCount}
+              unpublishCount={changes.unpublishCount}
+              zeroCount={changes.zeroCount}
+              shortCount={changes.shortCount}
+            />
+            {hasUnsaved && (
+              <Text size="sm" c="yellow.8">
+                この月・種別に未保存の変更があります。先に保存するか、変更を破棄してください。
+              </Text>
+            )}
+            {publication.isError && <ErrorAlert>{publication.error.message}</ErrorAlert>}
+            <Group justify="flex-end">
+              <AppButton intent="secondary" disabled={publication.isPending} onClick={close}>
+                キャンセル
+              </AppButton>
+              <AppButton
+                intent={
+                  changes.publishCount === 0 && changes.unpublishCount > 0 ? 'danger' : 'primary'
+                }
+                disabled={
+                  disabled || hasUnsaved || changes.publishCount + changes.unpublishCount === 0
+                }
+                loading={publication.isPending}
+                onClick={() => publication.mutate(input, { onSuccess: () => setDraft(null) })}
+              >
+                公開範囲を更新
+              </AppButton>
+            </Group>
+          </Stack>
+        )}
+      </Modal>
+    </>
+  );
+}
+
+/** 公開する最終日を月のカレンダー上で選び、月初からの範囲を示す。 */
+function PublicationCalendar({
+  month,
+  days,
+  through,
+  pending,
+  onChange,
+}: {
+  month: string;
+  days: string[];
+  through: string | null;
+  pending: boolean;
+  onChange: (date: string | null) => void;
+}) {
+  return (
+    <>
+      <Box component="fieldset" disabled={pending} bd={0} p={0} m={0}>
+        <DatePicker
+          aria-label="公開する最終日"
+          value={through}
+          onChange={onChange}
+          date={`${month}-01`}
+          minDate={days[0] ?? `${month}-01`}
+          maxDate={days.at(-1) ?? monthLastDate(month)}
+          maxLevel="month"
+          locale="ja"
+          firstDayOfWeek={1}
+          hideOutsideDates
+          monthLabelFormat="YYYY年M月"
+          getDayAriaLabel={(date) =>
+            `${formatPublicationDate(date)}${through !== null && date <= through ? ' 公開する期間' : ' 非公開'}`
+          }
+          getDayProps={(date) => ({
+            inRange: through !== null && date <= through,
+            firstInRange: date === days[0] && through !== null,
+            lastInRange: date === through,
+          })}
+          mx="auto"
+        />
+      </Box>
+      <Text size="sm" fw={600} aria-live="polite">
+        {through
+          ? `公開期間：${formatPublicationDate(days[0] ?? `${month}-01`)} 〜 ${formatPublicationDate(through)}`
+          : '表示月のすべての枠を非公開にします'}
+      </Text>
+    </>
+  );
+}
+
+/** 選択枠の公開状態を一行で示し、切り替えは確認後に反映する。 */
+function SinglePublicationControl({
+  month,
+  departmentCode,
+  shiftTypeId,
+  shiftTypeName,
+  date,
+  shiftByCell,
+  stagedCells,
+  stagedRequirements,
+  disabled,
+}: Props & { date: string }) {
   const [confirmation, setConfirmation] = useState<PublishShiftsInput | null>(null);
   const publication = usePublishShifts();
-  const selectedDays = date ? [date] : days.filter((day) => day <= through);
-  const invalidThrough = !date && !days.includes(through);
-  const hasUnsaved = selectedDays.some(
-    (day) =>
-      stagedCells.has(cellKey(day, shiftTypeId)) ||
-      stagedRequirements.has(cellKey(day, shiftTypeId)),
-  );
-  const published = date
-    ? shiftByCell.get(cellKey(date, shiftTypeId))?.status === 'PUBLISHED'
-    : false;
-  const targetDays = (status: 'DRAFT' | 'PUBLISHED') =>
-    selectedDays.filter((day) => {
-      const shift = shiftByCell.get(cellKey(day, shiftTypeId));
-      return status === 'PUBLISHED' ? shift?.status !== 'PUBLISHED' : shift?.status === 'PUBLISHED';
-    });
-  const openConfirmation = (status: 'DRAFT' | 'PUBLISHED') => {
+  const shift = shiftByCell.get(cellKey(date, shiftTypeId));
+  const published = shift?.status === 'PUBLISHED';
+  const hasUnsaved =
+    stagedCells.has(cellKey(date, shiftTypeId)) ||
+    stagedRequirements.has(cellKey(date, shiftTypeId));
+  const open = () => {
     publication.reset();
     setConfirmation({
       month,
       departmentCode,
       shiftTypeId,
-      status,
-      dates: targetDays(status).map((day) => ({
-        date: day,
-        expectedRevision: shiftByCell.get(cellKey(day, shiftTypeId))?.revision ?? null,
-        expectedShiftId: shiftByCell.get(cellKey(day, shiftTypeId))?.id ?? null,
-      })),
+      status: published ? 'DRAFT' : 'PUBLISHED',
+      dates: [
+        { date, expectedRevision: shift?.revision ?? null, expectedShiftId: shift?.id ?? null },
+      ],
     });
   };
-  const confirmedShifts =
-    confirmation?.dates.map((item) => shiftByCell.get(cellKey(item.date, shiftTypeId))) ?? [];
-  const zeroCount = confirmedShifts.filter((shift) => !shift?.assignedInstructors.length).length;
-  const shortCount = confirmedShifts.filter(
-    (shift) =>
-      shift?.requiredCount !== null &&
-      shift?.requiredCount !== undefined &&
-      shift.assignedInstructors.length < shift.requiredCount,
-  ).length;
-  const blocked = disabled || publication.isPending || hasUnsaved || invalidThrough;
-
+  const close = () => {
+    if (!publication.isPending) setConfirmation(null);
+  };
+  const changes = confirmation ? summarizePublicationChanges(confirmation, shiftByCell) : null;
   return (
-    <Stack gap="xs" mb="sm">
-      <Group align="flex-end" gap="xs" wrap="wrap">
-        {!date && (
-          <TextInput
-            type="date"
-            label="公開期限（表示月の初日から）"
-            min={days[0]}
-            max={days.at(-1)}
-            value={through}
-            disabled={disabled || publication.isPending}
-            onChange={(event) => setThrough(event.currentTarget.value)}
-          />
-        )}
-        {date ? (
-          <>
-            <Text size="sm" fw={600}>
-              {published ? '公開済み' : '下書き'}
-            </Text>
-            <AppButton
-              intent={published ? 'danger' : 'secondary'}
-              disabled={blocked}
-              onClick={() => openConfirmation(published ? 'DRAFT' : 'PUBLISHED')}
-            >
-              {published ? '公開を取り消して編集' : '公開する'}
-            </AppButton>
-          </>
-        ) : (
-          <>
-            <AppButton
-              intent="secondary"
-              disabled={blocked || targetDays('PUBLISHED').length === 0}
-              onClick={() => openConfirmation('PUBLISHED')}
-            >
-              この日まで公開
-            </AppButton>
-            <AppButton
-              intent="danger"
-              disabled={blocked || targetDays('DRAFT').length === 0}
-              onClick={() => openConfirmation('DRAFT')}
-            >
-              この日までの公開を取り消す
-            </AppButton>
-          </>
-        )}
+    <>
+      <Group justify="space-between" wrap="nowrap" gap="xs">
+        <Switch
+          label={published ? '公開済み' : '非公開'}
+          labelPosition="left"
+          checked={published}
+          disabled={disabled || hasUnsaved || publication.isPending}
+          onChange={open}
+          aria-label="この枠をメンバーに公開"
+        />
+        <Text size="xs" c="dimmed">
+          {published ? '確定・編集ロック中' : 'メンバーには非表示'}
+        </Text>
       </Group>
       {hasUnsaved && (
         <Text size="xs" c="dimmed">
-          対象枠に未保存の変更があります。先に保存するか、変更を破棄してください。
+          公開するには先に保存してください。
         </Text>
       )}
       <Modal
         opened={confirmation !== null}
-        onClose={() => !publication.isPending && setConfirmation(null)}
+        onClose={close}
+        title={
+          confirmation?.status === 'PUBLISHED'
+            ? 'この枠を公開しますか？'
+            : '公開を取り消して編集しますか？'
+        }
+        centered
         closeOnClickOutside={!publication.isPending}
         closeOnEscape={!publication.isPending}
         withCloseButton={!publication.isPending}
-        title={
-          confirmation?.status === 'PUBLISHED' ? 'シフトを公開しますか？' : '公開を取り消しますか？'
-        }
-        centered
       >
-        {confirmation && (
+        {confirmation && changes && (
           <Stack gap="md">
             <Text>
-              {DEPARTMENT_LABELS[departmentCode]} / {shiftTypeName}
+              {formatPublicationDate(date)} / {DEPARTMENT_LABELS[departmentCode]} / {shiftTypeName}
             </Text>
-            <Text>
-              {confirmation.dates[0]?.date} 〜 {confirmation.dates.at(-1)?.date}：
-              {confirmation.dates.length}枠（配置0名 {zeroCount}枠）
-            </Text>
-            {confirmation.status === 'PUBLISHED' ? (
-              <>
-                <Text size="sm">
-                  メンバーに表示し、配置・必要人数・備考を確定します。配置0名の日も自動割当から保護します。
-                </Text>
-                {shortCount > 0 && (
-                  <Text size="sm" c="yellow.8">
-                    必要人数に対して不足している枠が{shortCount}枠あります。
-                  </Text>
-                )}
-              </>
-            ) : (
-              <Text size="sm">
-                配置と必要人数は保持します。再公開までメンバーには表示されず、自動割当の対象に戻ります。
-              </Text>
-            )}
+            <PublicationSummary {...changes} />
             {publication.isError && <ErrorAlert>{publication.error.message}</ErrorAlert>}
             <Group justify="flex-end">
-              <AppButton
-                intent="secondary"
-                disabled={publication.isPending}
-                onClick={() => setConfirmation(null)}
-              >
+              <AppButton intent="secondary" disabled={publication.isPending} onClick={close}>
                 キャンセル
               </AppButton>
               <AppButton
@@ -190,6 +314,37 @@ export function ShiftPublicationControls({
           </Stack>
         )}
       </Modal>
+    </>
+  );
+}
+
+/** 公開と取り消しの影響を実行前に示す。 */
+function PublicationSummary({
+  publishCount,
+  unpublishCount,
+  zeroCount,
+  shortCount,
+}: ReturnType<typeof summarizePublicationChanges>) {
+  return (
+    <Stack gap="xs" aria-live="polite">
+      <Text size="sm">
+        新たに公開 {publishCount}枠（配置0名 {zeroCount}枠）・公開取り消し {unpublishCount}枠
+      </Text>
+      {publishCount > 0 && (
+        <Text size="sm">
+          公開した枠はメンバーに表示し、配置・必要人数・備考を確定します。配置0名の枠も自動割当から保護します。
+        </Text>
+      )}
+      {unpublishCount > 0 && (
+        <Text size="sm" c="yellow.8">
+          公開を取り消す枠はメンバーから見えなくなり、編集・自動割当が可能になります。配置と必要人数は保持します。
+        </Text>
+      )}
+      {shortCount > 0 && (
+        <Text size="sm" c="yellow.8">
+          必要人数に対して不足している枠が{shortCount}枠あります。
+        </Text>
+      )}
     </Stack>
   );
 }

@@ -200,7 +200,7 @@
 
   .assignmentForm {
     max-height: calc(100dvh - 100px);
-    overflow-y: auto;
+    overflow: hidden;
     position: sticky;
     top: calc(var(--app-shell-header-offset, 60px) + var(--mantine-spacing-md));
     scrollbar-width: thin;
@@ -359,4 +359,23 @@
 .publicationIcon {
   flex-shrink: 0;
   color: var(--mantine-color-dimmed);
+}
+
+.assignmentForm {
+  display: flex;
+  flex-direction: column;
+}
+
+.assignmentFormHeader {
+  flex-shrink: 0;
+  padding-bottom: var(--mantine-spacing-sm);
+  border-bottom: 1px solid var(--mantine-color-default-border);
+}
+
+.assignmentFormBody {
+  min-height: 0;
+  overflow-y: auto;
+  max-height: 65dvh;
+  padding-top: var(--mantine-spacing-sm);
+  scrollbar-width: thin;
 }

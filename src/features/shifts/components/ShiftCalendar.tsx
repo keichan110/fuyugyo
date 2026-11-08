@@ -195,8 +195,8 @@ export function ShiftCalendar({
         </Tabs.List>
       </Tabs>
 
-      {publicationControls}
       <AutoAssignToolbar
+        publicationControls={publicationControls}
         autoAssignMode={autoAssignMode}
         selectedDateCount={autoAssignDates.size}
         requirementsReady={!!requiredByDay}

@@ -1528,7 +1528,10 @@ export const shiftsRoute = new Hono<{
             ),
           ),
         );
-      if (input.status === 'PUBLISHED') {
+      const publishingDates = input.dates
+        .filter((item) => (item.status ?? input.status) === 'PUBLISHED')
+        .map((item) => parseShiftDate(item.date));
+      if (publishingDates.length > 0) {
         const unavailable = await db
           .select({
             date: shifts.date,
@@ -1551,10 +1554,7 @@ export const shiftsRoute = new Hono<{
               eq(shifts.shiftTypeId, input.shiftTypeId),
               eq(shifts.status, 'DRAFT'),
               eq(instructorAvailabilities.type, 'UNAVAILABLE'),
-              inArray(
-                shifts.date,
-                input.dates.map((item) => parseShiftDate(item.date)),
-              ),
+              inArray(shifts.date, publishingDates),
             ),
           )
           .orderBy(asc(shifts.date), asc(instructors.lastName), asc(instructors.firstName));
@@ -1566,10 +1566,14 @@ export const shiftsRoute = new Hono<{
       }
       const savedByDate = new Map(savedRows.map((row) => [formatDate(row.date), row]));
       const operations: BatchItem<'sqlite'>[] = [];
+      const replacesStatuses = input.dates.some((item) => item.status !== undefined);
       for (const item of input.dates) {
         const saved = savedByDate.get(item.date);
         checkShiftRevision(saved, item.expectedRevision, item.expectedShiftId);
-        if (saved?.status === input.status || (!saved && input.status === 'DRAFT')) continue;
+        const status = item.status ?? input.status;
+        // 状態をまとめて揃える操作では変更不要の枠も検証し、途中の競合による範囲のずれを防ぐ。
+        if (!replacesStatuses && (saved?.status === status || (!saved && status === 'DRAFT')))
+          continue;
         const guard = guardShiftWrite(
           db,
           {
@@ -1581,9 +1585,9 @@ export const shiftsRoute = new Hono<{
         );
         operations.push(
           guard.operation,
-          db.update(shifts).set({ status: input.status }).where(eq(shifts.id, guard.id)),
+          db.update(shifts).set({ status }).where(eq(shifts.id, guard.id)),
         );
-        if (input.status === 'DRAFT') {
+        if (status === 'DRAFT') {
           // 公開解除後に何も残らない枠だけ削除する。必要人数0は明示した計画なので残す。
           operations.push(
             db
@@ -1613,8 +1617,8 @@ export const shiftsRoute = new Hono<{
             ? 0
             : input.dates.filter(
                 (item) =>
-                  savedByDate.get(item.date)?.status !== input.status &&
-                  (savedByDate.has(item.date) || input.status === 'PUBLISHED'),
+                  savedByDate.get(item.date)?.status !== (item.status ?? input.status) &&
+                  (savedByDate.has(item.date) || (item.status ?? input.status) === 'PUBLISHED'),
               ).length,
       });
     },

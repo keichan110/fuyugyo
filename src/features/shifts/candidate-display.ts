@@ -49,7 +49,7 @@ export type CandidateSortMode = 'certification' | 'kana' | 'workload';
 const CANDIDATE_GROUPS = [
   { type: 'AVAILABLE', label: '勤務可' },
   { type: 'NOT_ENTERED', label: '未入力' },
-  { type: 'AVOID', label: '要調整（勤務回避希望）' },
+  { type: 'AVOID', label: '要調整' },
   { type: 'UNAVAILABLE', label: '勤務不可' },
 ] as const;
 

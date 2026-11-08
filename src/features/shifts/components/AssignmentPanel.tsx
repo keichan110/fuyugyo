@@ -13,7 +13,13 @@ import {
   Tooltip,
   VisuallyHidden,
 } from '@mantine/core';
-import { IconMessage } from '@tabler/icons-react';
+import {
+  IconAlertTriangleFilled,
+  IconCircleCheckFilled,
+  IconCircleDashed,
+  IconCircleXFilled,
+  IconMessage,
+} from '@tabler/icons-react';
 
 import { ErrorAlert } from '@/components/AppAlert';
 import { AppBadge } from '@/components/AppBadge';
@@ -212,9 +218,12 @@ export function AssignmentPanel({
                   role="group"
                   aria-label={`${group.label} ${group.candidates.length}名`}
                 >
-                  <Text component="h3" size="sm" fw={700} m={0}>
-                    {group.label}（{group.candidates.length}名）
-                  </Text>
+                  <Group gap={6} wrap="nowrap">
+                    <CandidateGroupIcon type={group.type} />
+                    <Text component="h3" size="sm" fw={700} m={0}>
+                      {group.label}（{group.candidates.length}名）
+                    </Text>
+                  </Group>
                   {group.candidates.map((instructor) => (
                     <Box key={instructor.id} className={classes.candidateRow}>
                       <InstructorCard
@@ -258,6 +267,18 @@ export function AssignmentPanel({
       )}
     </Stack>
   );
+}
+
+/** 本人の申告画面と同じアイコン・色でグループを示す。未入力は中立色にする。 */
+function CandidateGroupIcon({ type }: { type: Availability['type'] | 'NOT_ENTERED' }) {
+  const appearance = {
+    AVAILABLE: { Icon: IconCircleCheckFilled, color: 'var(--mantine-color-green-6)' },
+    NOT_ENTERED: { Icon: IconCircleDashed, color: 'var(--mantine-color-dimmed)' },
+    AVOID: { Icon: IconAlertTriangleFilled, color: 'var(--mantine-color-yellow-8)' },
+    UNAVAILABLE: { Icon: IconCircleXFilled, color: 'var(--mantine-color-red-6)' },
+  };
+  const { Icon, color } = appearance[type];
+  return <Icon size={16} color={color} aria-hidden style={{ flexShrink: 0 }} />;
 }
 
 type InstructorCardProps = {

@@ -28,8 +28,12 @@ import {
   composeInstructorMonthWork,
   summarizeInstructorWorkload,
   type DetailedCellAssignment,
+  type InstructorWorkloadSummary,
+  type SeasonRange,
   type WorkDayKind,
   type WorkEntry,
+  type WorkStreak,
+  type WorkWeekStreak,
 } from '../workload';
 import type { DayAssignments } from './calendar-events';
 import type { SelectedCell } from './shift-manager-types';
@@ -444,9 +448,6 @@ function FocusedInstructorAnalysis({
         : null,
     [workload.data, monthWork, streakBaseDate, current],
   );
-  const seasonRange = workload.data?.seasonRange;
-  const additionPrefix = summary?.isAddition ? 'この枠に追加した場合：' : '';
-  const monthNumber = Number(month.slice(5, 7));
 
   return (
     <Stack gap="sm">
@@ -462,39 +463,12 @@ function FocusedInstructorAnalysis({
         <Text size="sm" c="red">
           勤務日の取得に失敗しました。月外の勤務を含む数値を表示できません。
         </Text>
-      ) : !summary ? (
+      ) : summary && workload.data ? (
+        <WorkloadMetrics summary={summary} seasonRange={workload.data.seasonRange} month={month} />
+      ) : (
         <Text size="sm" c="dimmed">
           勤務日を読み込み中…
         </Text>
-      ) : (
-        <Stack gap={4}>
-          <Text size="sm">
-            連勤：
-            {summary.streak
-              ? `${additionPrefix}${summary.streak.days}連勤（${rangeLabel(summary.streak.from, summary.streak.to, monthDayLabel)}）`
-              : '日付を選択すると、その日の前後で表示'}
-          </Text>
-          <Text size="sm">
-            シーズン勤務日数：{summary.seasonDays}日
-            {summary.isAddition && `（この枠に追加すると +${summary.addedDays}日）`}
-            {seasonRange && (
-              <Text component="span" size="xs" c="dimmed">
-                {' '}
-                シーズン {fullDateLabel(seasonRange.from)}〜{fullDateLabel(seasonRange.to)}
-              </Text>
-            )}
-          </Text>
-          <Text size="sm">
-            当月勤務日数：{summary.monthDays}日（{monthNumber}月）
-            {summary.isAddition && `（この枠に追加すると +${summary.addedDays}日）`}
-          </Text>
-          <Text size="sm">
-            連続勤務週数：
-            {summary.weekStreak
-              ? `${additionPrefix}${summary.weekStreak.weeks}週連続（${monthDayLabel(summary.weekStreak.fromWeekStart)}の週${summary.weekStreak.weeks > 1 ? `〜${monthDayLabel(summary.weekStreak.toWeekStart)}の週` : ''}）`
-              : '日付を選択すると、その日の前後で表示'}
-          </Text>
-        </Stack>
       )}
       <Text size="xs" c="dimmed">
         対象範囲は全部門・全種別で、未保存の編集を含みます。週は月曜始まりで、1日でも勤務があれば勤務週です。連勤・連続勤務週数はシーズン内で数え、月をまたいでつなげます。自動割当は表示中の部門内の勤務日数で公平性を評価します。
@@ -504,50 +478,16 @@ function FocusedInstructorAnalysis({
         role="group"
         aria-label={`${focusedInstructor.name}の当月の勤務日。日付を押すと枠を編集できます`}
       >
-        {days.map((date) => {
-          const entries = monthWork.get(date);
-          const kind = classifyWorkDay(entries, current);
-          const weekday = weekdayIndex(date);
-          const otherDepartmentEntry = entries?.find((e) => e.departmentCode !== departmentCode);
-          const workLabels =
-            entries?.map((entry) =>
-              classifyWorkDay([entry], current) === 'current'
-                ? '配置あり'
-                : `${workEntryLabel(entry)}に勤務`,
-            ) ?? [];
-          return (
-            <AppButton
-              key={date}
-              intent="secondary"
-              className={classes.timelineDay}
-              data-assigned={kind === 'current' || undefined}
-              data-weekend={weekday === 0 || weekday === 6 || undefined}
-              aria-label={`${shortDateLabel(date)}、${workLabels.length > 0 ? workLabels.join('、') : '配置なし'}の枠を編集`}
-              disabled={navigationDisabled}
-              onClick={() => onSelectDate(date)}
-            >
-              <Stack gap={2} align="center">
-                <Text component="span" size="xs" c={getCalendarDayColor(date) ?? 'dimmed'}>
-                  {Number(date.slice(8))}
-                </Text>
-                <Text
-                  component="span"
-                  size="xs"
-                  c={
-                    kind === 'otherDepartment' && otherDepartmentEntry
-                      ? getDepartmentAppearance(
-                          otherDepartmentEntry.departmentCode,
-                          otherDepartmentEntry.departmentName,
-                        ).color
-                      : 'inherit'
-                  }
-                >
-                  {kind ? TIMELINE_ICON[kind] : '―'}
-                </Text>
-              </Stack>
-            </AppButton>
-          );
-        })}
+        {days.map((date) => (
+          <TimelineDay
+            key={date}
+            date={date}
+            entries={monthWork.get(date)}
+            current={current}
+            disabled={navigationDisabled}
+            onSelectDate={onSelectDate}
+          />
+        ))}
       </Box>
       <Text size="xs" c="dimmed">
         ● 表示中の部門・種別 / ○ 同部門の別種別 / ◆ 別部門（部門色） / ―
@@ -555,4 +495,108 @@ function FocusedInstructorAnalysis({
       </Text>
     </Stack>
   );
+}
+
+/** 基準日がないときに連勤・連続勤務週数の代わりに示す案内 */
+const STREAK_PLACEHOLDER = '日付を選択すると、その日の前後で表示';
+
+/** 連勤を「N連勤（期間）」で表す */
+function streakText(streak: WorkStreak): string {
+  return `${streak.days}連勤（${rangeLabel(streak.from, streak.to, monthDayLabel)}）`;
+}
+
+/** 連続勤務週数を「N週連続（M/Dの週〜M/Dの週）」で表す。1週だけなら範囲を付けない */
+function weekStreakText(weekStreak: WorkWeekStreak): string {
+  const toLabel = weekStreak.weeks > 1 ? `〜${monthDayLabel(weekStreak.toWeekStart)}の週` : '';
+  return `${weekStreak.weeks}週連続（${monthDayLabel(weekStreak.fromWeekStart)}の週${toLabel}）`;
+}
+
+type WorkloadMetricsProps = {
+  summary: InstructorWorkloadSummary;
+  seasonRange: SeasonRange;
+  month: string;
+};
+
+/** 連勤・シーズン勤務日数・当月勤務日数・連続勤務週数を、対象期間つきで縦に並べる。 */
+function WorkloadMetrics({ summary, seasonRange, month }: WorkloadMetricsProps) {
+  const additionPrefix = summary.isAddition ? 'この枠に追加した場合：' : '';
+  const additionNote = summary.isAddition ? `（この枠に追加すると +${summary.addedDays}日）` : '';
+  return (
+    <Stack gap={4}>
+      <Text size="sm">
+        連勤：
+        {summary.streak ? `${additionPrefix}${streakText(summary.streak)}` : STREAK_PLACEHOLDER}
+      </Text>
+      <Text size="sm">
+        シーズン勤務日数：{summary.seasonDays}日{additionNote}
+        <Text component="span" size="xs" c="dimmed">
+          {' '}
+          シーズン {fullDateLabel(seasonRange.from)}〜{fullDateLabel(seasonRange.to)}
+        </Text>
+      </Text>
+      <Text size="sm">
+        当月勤務日数：{summary.monthDays}日（{Number(month.slice(5, 7))}月）{additionNote}
+      </Text>
+      <Text size="sm">
+        連続勤務週数：
+        {summary.weekStreak
+          ? `${additionPrefix}${weekStreakText(summary.weekStreak)}`
+          : STREAK_PLACEHOLDER}
+      </Text>
+    </Stack>
+  );
+}
+
+type TimelineDayProps = {
+  date: string;
+  entries: WorkEntry[] | undefined;
+  current: { departmentCode: string; shiftTypeId: string };
+  disabled: boolean;
+  onSelectDate: (date: string) => void;
+};
+
+/** タイムラインの1日分。代表アイコンで勤務の種類を示し、読み上げでは全件の部門・種別を伝える。 */
+function TimelineDay({ date, entries, current, disabled, onSelectDate }: TimelineDayProps) {
+  const kind = classifyWorkDay(entries, current);
+  const weekday = weekdayIndex(date);
+  const workLabels =
+    entries?.map((entry) =>
+      classifyWorkDay([entry], current) === 'current'
+        ? '配置あり'
+        : `${workEntryLabel(entry)}に勤務`,
+    ) ?? [];
+  return (
+    <AppButton
+      intent="secondary"
+      className={classes.timelineDay}
+      data-assigned={kind === 'current' || undefined}
+      data-weekend={weekday === 0 || weekday === 6 || undefined}
+      aria-label={`${shortDateLabel(date)}、${workLabels.join('、') || '配置なし'}の枠を編集`}
+      disabled={disabled}
+      onClick={() => onSelectDate(date)}
+    >
+      <Stack gap={2} align="center">
+        <Text component="span" size="xs" c={getCalendarDayColor(date) ?? 'dimmed'}>
+          {Number(date.slice(8))}
+        </Text>
+        <Text component="span" size="xs" c={timelineIconColor(kind, entries, current)}>
+          {kind ? TIMELINE_ICON[kind] : '―'}
+        </Text>
+      </Stack>
+    </AppButton>
+  );
+}
+
+/** 別部門の勤務を代表とする日は、その部門の色でアイコンを描く */
+function timelineIconColor(
+  kind: WorkDayKind | null,
+  entries: WorkEntry[] | undefined,
+  current: { departmentCode: string },
+): string {
+  const otherDepartmentEntry = entries?.find((e) => e.departmentCode !== current.departmentCode);
+  if (kind !== 'otherDepartment' || !otherDepartmentEntry) return 'inherit';
+  return getDepartmentAppearance(
+    otherDepartmentEntry.departmentCode,
+    otherDepartmentEntry.departmentName,
+  ).color;
 }

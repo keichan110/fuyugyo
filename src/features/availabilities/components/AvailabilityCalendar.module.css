@@ -28,6 +28,14 @@
   opacity: 0.45;
 }
 
+/*
+ * 標準の最小日幅（84px）だとスマホで横スクロールが大きいため縮める。
+ * セル内はアイコン程度なので、タップ領域の目安（44px）を下限として残す。
+ */
+.monthView {
+  --min-day-width: 44px;
+}
+
 .calendarDay[data-staged]::after {
   position: absolute;
   top: 6px;
@@ -65,4 +73,20 @@
   position: absolute;
   right: 4px;
   bottom: 2px;
+}
+
+/* 狭い画面では右上寄りの変更済みドットが日付数字と重なるため、左下へ逃がす。 */
+@media (max-width: 48em) {
+  .calendarDay[data-staged]::after {
+    top: auto;
+    right: auto;
+    bottom: 4px;
+    left: 4px;
+  }
+}
+
+/* 狭い画面でもヘッダー右端の一括設定ボタンが縮んで改行しないようにする。 */
+.bulkButton {
+  flex-shrink: 0;
+  white-space: nowrap;
 }

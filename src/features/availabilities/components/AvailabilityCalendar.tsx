@@ -346,8 +346,13 @@ function AvailabilityMonthView({
             onClick={() => onMonthChange(`${addMonths(month, 1)}-01`)}
           />
         </Group>
-        <ScheduleHeader.Today labels={CALENDAR_LABELS} onClick={() => onMonthChange(today)} />
-        <AppButton intent="secondary" size="xs" ml="auto" onClick={onOpenBulk}>
+        <AppButton
+          intent="secondary"
+          size="xs"
+          ml="auto"
+          className={classes.bulkButton}
+          onClick={onOpenBulk}
+        >
           一括設定
         </AppButton>
       </ScheduleHeader>
@@ -434,6 +439,7 @@ function AvailabilityMonthView({
           )
         }
         classNames={{
+          monthView: classes.monthView,
           monthViewDay: classes.calendarDay,
           monthViewWeekday: classes.calendarWeekday,
         }}

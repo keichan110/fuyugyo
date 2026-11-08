@@ -15,6 +15,7 @@ import {
 } from '@mantine/core';
 import {
   IconAlertTriangleFilled,
+  IconCalendarCheck,
   IconCircleCheckFilled,
   IconCircleDashed,
   IconCircleXFilled,
@@ -121,6 +122,7 @@ export function AssignmentPanel({
       groupAssignmentCandidates({
         candidates: editData.data?.availableInstructors ?? [],
         availabilityByInstructor,
+        conflictLabelById,
         search,
         sortMode,
         loadByInstructor,
@@ -128,6 +130,7 @@ export function AssignmentPanel({
     [
       editData.data?.availableInstructors,
       availabilityByInstructor,
+      conflictLabelById,
       search,
       sortMode,
       loadByInstructor,
@@ -159,6 +162,32 @@ export function AssignmentPanel({
       description: value,
     });
   };
+
+  const renderCandidate = (instructor: AvailableInstructor) => (
+    <Box key={instructor.id} className={classes.candidateRow}>
+      <InstructorCard
+        instructor={instructor}
+        departmentCode={departmentCode}
+        checked={selectedSet.has(instructor.id)}
+        onToggle={() => toggle(instructor.id)}
+        conflictLabel={conflictLabelById.get(instructor.id)}
+        load={loadByInstructor.get(instructor.id) ?? 0}
+        fairShareAverage={fairShareAverage}
+        maxAbsDeviation={maxAbsDeviation}
+        availability={availabilityByInstructor.get(instructor.id)}
+      />
+      <AppButton
+        intent="secondary"
+        size="xs"
+        px="xs"
+        aria-label={`${instructor.displayName}の分析${focusedInstructorId === instructor.id ? 'を解除' : 'を表示'}`}
+        aria-pressed={focusedInstructorId === instructor.id}
+        onClick={() => onAnalyzeInstructor({ id: instructor.id, name: instructor.displayName })}
+      >
+        {focusedInstructorId === instructor.id ? '解除' : '分析'}
+      </AppButton>
+    </Box>
+  );
 
   return (
     <Stack gap="md">
@@ -224,33 +253,22 @@ export function AssignmentPanel({
                       {group.label}（{group.candidates.length}名）
                     </Text>
                   </Group>
-                  {group.candidates.map((instructor) => (
-                    <Box key={instructor.id} className={classes.candidateRow}>
-                      <InstructorCard
-                        instructor={instructor}
-                        departmentCode={departmentCode}
-                        checked={selectedSet.has(instructor.id)}
-                        onToggle={() => toggle(instructor.id)}
-                        conflictLabel={conflictLabelById.get(instructor.id)}
-                        load={loadByInstructor.get(instructor.id) ?? 0}
-                        fairShareAverage={fairShareAverage}
-                        maxAbsDeviation={maxAbsDeviation}
-                        availability={availabilityByInstructor.get(instructor.id)}
-                      />
-                      <AppButton
-                        intent="secondary"
-                        size="xs"
-                        px="xs"
-                        aria-label={`${instructor.displayName}の分析${focusedInstructorId === instructor.id ? 'を解除' : 'を表示'}`}
-                        aria-pressed={focusedInstructorId === instructor.id}
-                        onClick={() =>
-                          onAnalyzeInstructor({ id: instructor.id, name: instructor.displayName })
-                        }
-                      >
-                        {focusedInstructorId === instructor.id ? '解除' : '分析'}
-                      </AppButton>
-                    </Box>
-                  ))}
+                  {group.type === 'ASSIGNED'
+                    ? group.blocks.map((block) => (
+                        <Stack
+                          key={block.label}
+                          gap="xs"
+                          pl="xs"
+                          role="group"
+                          aria-label={`${block.label} ${block.candidates.length}名`}
+                        >
+                          <Text component="h4" size="xs" fw={600} m={0} c="dimmed">
+                            {block.label}（{block.candidates.length}名）
+                          </Text>
+                          {block.candidates.map(renderCandidate)}
+                        </Stack>
+                      ))
+                    : group.candidates.map(renderCandidate)}
                 </Stack>
               ))
             )}
@@ -270,8 +288,9 @@ export function AssignmentPanel({
 }
 
 /** 本人の申告画面と同じアイコン・色でグループを示す。未入力は中立色にする。 */
-function CandidateGroupIcon({ type }: { type: Availability['type'] | 'NOT_ENTERED' }) {
+function CandidateGroupIcon({ type }: { type: Availability['type'] | 'NOT_ENTERED' | 'ASSIGNED' }) {
   const appearance = {
+    ASSIGNED: { Icon: IconCalendarCheck, color: 'var(--mantine-color-dimmed)' },
     AVAILABLE: { Icon: IconCircleCheckFilled, color: 'var(--mantine-color-green-6)' },
     NOT_ENTERED: { Icon: IconCircleDashed, color: 'var(--mantine-color-dimmed)' },
     AVOID: { Icon: IconAlertTriangleFilled, color: 'var(--mantine-color-yellow-8)' },
@@ -366,7 +385,7 @@ function InstructorCard({
                 </Text>
               </Group>
             )}
-            {isConflict && <Text size="xs">同日配置済み: {conflictLabel}</Text>}
+            {isConflict && <VisuallyHidden>同日配置済み: {conflictLabel}</VisuallyHidden>}
           </Stack>
         )}
       </Stack>

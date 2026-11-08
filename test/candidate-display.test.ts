@@ -68,6 +68,7 @@ describe('勤務可用性による候補のグループ表示', () => {
   const input = {
     candidates,
     availabilityByInstructor,
+    conflictLabelById: new Map<string, string>(),
     search: '',
     loadByInstructor: new Map([
       ['available-a', 3],
@@ -75,7 +76,7 @@ describe('勤務可用性による候補のグループ表示', () => {
     ]),
   };
 
-  it('競合の有無によらず勤務可・未入力・要調整・勤務不可の順でまとめる', () => {
+  it('勤務可・未入力・要調整・勤務不可の順でまとめる', () => {
     const groups = groupAssignmentCandidates({ ...input, sortMode: 'certification' });
     expect(groups.map((group) => group.type)).toEqual([
       'AVAILABLE',
@@ -108,5 +109,56 @@ describe('勤務可用性による候補のグループ表示', () => {
       groupAssignmentCandidates({ ...input, sortMode: 'kana', search: '該当しない名前' }),
     ).toEqual([]);
     expect(groupAssignmentCandidates({ ...input, candidates: [], sortMode: 'kana' })).toEqual([]);
+  });
+
+  it('他枠の配置者を末尾へ移し、同じ部門・種別にまとめてグループ内で並べる', () => {
+    const conflictLabelById = new Map([
+      ['available-b', 'スキー / 団体レッスン'],
+      ['available-a', 'スキー / 団体レッスン'],
+      ['unavailable', 'スノーボード / 一般レッスン'],
+    ]);
+    const groups = groupAssignmentCandidates({ ...input, conflictLabelById, sortMode: 'kana' });
+    expect(groups.map((group) => group.type)).toEqual(['NOT_ENTERED', 'AVOID', 'ASSIGNED']);
+    const assigned = groups.at(-1);
+    expect(assigned?.candidates).toHaveLength(3);
+    if (assigned?.type !== 'ASSIGNED') throw new Error('配置済みグループがありません');
+    expect(
+      assigned.blocks.map((block) => ({
+        label: block.label,
+        ids: block.candidates.map((candidate) => candidate.id),
+      })),
+    ).toEqual([
+      { label: 'スキー / 団体レッスン', ids: ['available-a', 'available-b'] },
+      { label: 'スノーボード / 一般レッスン', ids: ['unavailable'] },
+    ]);
+  });
+
+  it('配置済みも名前検索で絞り込み、競合解除後は可用性グループへ戻す', () => {
+    const conflictLabelById = new Map([['available-b', 'スキー / 団体レッスン']]);
+    const groups = groupAssignmentCandidates({
+      ...input,
+      conflictLabelById,
+      sortMode: 'kana',
+      search: ' イ ',
+    });
+    expect(groups.map((group) => group.type)).toEqual(['ASSIGNED']);
+    expect(groups[0]?.candidates.map((candidate) => candidate.id)).toEqual(['available-b']);
+    expect(
+      groupAssignmentCandidates({
+        ...input,
+        conflictLabelById,
+        sortMode: 'kana',
+        search: ' ア ',
+      }).map((group) => group.type),
+    ).toEqual(['AVAILABLE']);
+    conflictLabelById.clear();
+    expect(
+      groupAssignmentCandidates({
+        ...input,
+        conflictLabelById,
+        sortMode: 'kana',
+        search: ' イ ',
+      }).map((group) => group.type),
+    ).toEqual(['AVAILABLE']);
   });
 });

@@ -55,19 +55,21 @@ const CANDIDATE_GROUPS = [
 
 /**
  * 検索結果を勤務可用性の順にまとめ、各グループ内だけを指定の順序で並べる。
- * 選択状態・競合は分類に影響させず、空グループは返さない。
+ * 同日他枠の配置者は末尾に分け、部門・種別ごとのブロックにまとめる。空グループは返さない。
  */
 export function groupAssignmentCandidates<
   T extends CertificationSortableCandidate & { id: string },
 >({
   candidates,
   availabilityByInstructor,
+  conflictLabelById,
   search,
   sortMode,
   loadByInstructor,
 }: {
   candidates: readonly T[];
   availabilityByInstructor: ReadonlyMap<string, Pick<Availability, 'type'>>;
+  conflictLabelById: ReadonlyMap<string, string>;
   search: string;
   sortMode: CandidateSortMode;
   loadByInstructor: ReadonlyMap<string, number>;
@@ -78,23 +80,46 @@ export function groupAssignmentCandidates<
       .toLocaleLowerCase('ja-JP')
       .includes(query),
   );
-  return CANDIDATE_GROUPS.map((group) => ({
+  const compare = (a: T, b: T) => {
+    if (sortMode === 'workload') {
+      return (
+        (loadByInstructor.get(a.id) ?? 0) - (loadByInstructor.get(b.id) ?? 0) ||
+        compareInstructorKana(a, b)
+      );
+    }
+    return sortMode === 'certification'
+      ? compareInstructorCertification(a, b)
+      : compareInstructorKana(a, b);
+  };
+  const groups = CANDIDATE_GROUPS.map((group) => ({
     ...group,
     candidates: matched
       .filter(
         (candidate) =>
+          !conflictLabelById.has(candidate.id) &&
           (availabilityByInstructor.get(candidate.id)?.type ?? 'NOT_ENTERED') === group.type,
       )
-      .sort((a, b) => {
-        if (sortMode === 'workload') {
-          return (
-            (loadByInstructor.get(a.id) ?? 0) - (loadByInstructor.get(b.id) ?? 0) ||
-            compareInstructorKana(a, b)
-          );
-        }
-        return sortMode === 'certification'
-          ? compareInstructorCertification(a, b)
-          : compareInstructorKana(a, b);
-      }),
+      .sort(compare),
   })).filter((group) => group.candidates.length > 0);
+  const byDestination = new Map<string, T[]>();
+  for (const candidate of matched) {
+    const label = conflictLabelById.get(candidate.id);
+    if (label === undefined) continue;
+    const people = byDestination.get(label) ?? [];
+    people.push(candidate);
+    byDestination.set(label, people);
+  }
+  const blocks = [...byDestination]
+    .sort(([a], [b]) => a.localeCompare(b, 'ja-JP'))
+    .map(([label, people]) => ({ label, candidates: people.sort(compare) }));
+  if (blocks.length === 0) return groups;
+  return [
+    ...groups,
+    {
+      type: 'ASSIGNED' as const,
+      label: '配置済み',
+      candidates: blocks.flatMap((block) => block.candidates),
+      blocks,
+    },
+  ];
 }

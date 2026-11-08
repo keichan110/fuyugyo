@@ -5,13 +5,13 @@
  * 認証まわり（users / invitation_tokens）は対象外（`pnpm run db:seed:auth` で別途管理）。
  *
  * 「今シーズン」を起点に前・今・次の3シーズン分の勤務実績（シフト・アサイン・勤務可否申告）を
- * 生成する。ダッシュボードのシーズン統計（Issue #203）を実データで検証できるよう、
+ * 通年で生成する。過去月は配置済み、今月は編集途中、未来月は未配置とする。
+ * 勤務可用性を先に投入し、勤務不可には配置しない。統計の偏りも確認できるよう、
  * 割当は全員均等ではなく「活動度ランク」による重み付きランダムでまばらに行う。
  */
 import { fakerJA as faker } from '@faker-js/faker';
 import { createClient } from '@libsql/client';
 import { drizzle } from 'drizzle-orm/libsql';
-import JapaneseHolidays from 'japanese-holidays';
 
 import {
   certificationRequirements,
@@ -22,18 +22,22 @@ import {
   instructors,
   shiftAssignments,
   shifts,
+  shiftStaffingRequirements,
   shiftTypes,
 } from '../src/server/db/schema.ts';
+import {
+  buildDemoAvailabilities,
+  buildDemoFrames,
+  buildDemoSeasons,
+  demoToday,
+  type DemoAvailability,
+  type DemoFrame,
+} from './lib/demo-schedule.ts';
 import { getLocalD1Path } from './lib/get-local-d1-path.ts';
 
 const INSTRUCTOR_COUNT = 100;
 const ACTIVE_RATIO = 0.9; // 90%がアクティブ、残り10%が休職(INACTIVE)
 const DEPARTMENT_CODES = { ski: 'ski', snowboard: 'snowboard' } as const;
-// シーズン開始月（1〜12）。`src/features/shifts/season.ts` の SEASON_START_MONTH と同じ値。
-// このスクリプトは `node` で直接実行するため、拡張子省略の内部 import を含む src 側モジュール
-// （season.ts 経由）を直接 import できず、値のみここに複製している。
-const SEASON_START_MONTH = 9;
-
 // 資格の shortName に対応する対象資格設定。
 // 外側の配列が資格ランク、内側の配列が同一ランクに属する資格を表す。
 const GENERAL_LESSON_CERTIFICATION_TIERS: readonly (readonly string[])[] = [
@@ -128,7 +132,7 @@ async function seedCertificationRequirements(
   shiftTypeRows: Awaited<ReturnType<typeof seedShiftTypes>>,
   certs: { skiCertifications: CertRow[]; snowboardCertifications: CertRow[] },
 ) {
-  const certificationRowsByDepartment = {
+  const certificationRowsByDepartment: Record<string, CertRow[]> = {
     [DEPARTMENT_CODES.ski]: certs.skiCertifications,
     [DEPARTMENT_CODES.snowboard]: certs.snowboardCertifications,
   };
@@ -152,7 +156,9 @@ async function seedCertificationRequirements(
 
     return certificationShortNamesByTier.flatMap((certificationShortNames, tierIndex) =>
       certificationShortNames.map((shortName) => {
-        const matchedCertifications = certificationRows.filter((row) => row.shortName === shortName);
+        const matchedCertifications = certificationRows.filter(
+          (row) => row.shortName === shortName,
+        );
         if (matchedCertifications.length !== 1) {
           throw new Error(`対象資格「${shortName}」を一意に特定できません`);
         }
@@ -171,6 +177,7 @@ async function seedCertificationRequirements(
 
   await db.insert(certificationRequirements).values(rows);
   console.log(`対象資格設定: ${rows.length}件作成`);
+  return certificationShortNamesByTierByShiftTypeId;
 }
 
 /** 資格データ（部門ごとに6件ずつ）を投入する */
@@ -297,233 +304,61 @@ async function seedInstructorCertifications(
   return rows;
 }
 
-type ShiftSeed = { id: string; date: Date; departmentCode: string; shiftTypeId: string };
+/** 必要人数と配置数の生成計画を持つ勤務枠。未配置枠はShiftを作らない。 */
+type ShiftSeed = DemoFrame & { id: string };
 
-/** シーズン単位のシフト生成仕様（12/1 startYear 〜 endDate） */
-type SeasonSpec = { startYear: number; endDate: Date; label: string };
-
-/** シーズンラベル（例: 2025-26）を返す */
-function formatSeasonLabel(startYear: number): string {
-  return `${startYear}-${String((startYear + 1) % 100).padStart(2, '0')}`;
-}
-
-/**
- * 実行日を基準に「前・今・次」3シーズン分の生成仕様を返す。
- * ダッシュボードのシーズン統計（9月始まり〜翌8月）に対する「今シーズン」を実行日から求め、
- * その前後1シーズンずつを加えた3シーズン分を対象にする。前・今シーズンは完全な期間
- * （12/1〜翌3/31）、次シーズンは進行中を模した部分データ（12/1〜翌2/20）として打ち切る。
- */
-function buildSeasonSpecs(): SeasonSpec[] {
-  const today = new Date();
-  const currentYear = today.getUTCFullYear();
-  const currentMonth = today.getUTCMonth() + 1;
-  // シーズン開始月（9月）より前なら、今シーズンの開始年は前年
-  const anchorStartYear = currentMonth >= SEASON_START_MONTH ? currentYear : currentYear - 1;
-
-  const fullSeasonEnd = (startYear: number) =>
-    new Date(Date.UTC(startYear + 1, 2, 31, 23, 59, 59, 999));
-
-  return [
-    {
-      startYear: anchorStartYear - 1,
-      endDate: fullSeasonEnd(anchorStartYear - 1),
-      label: `${formatSeasonLabel(anchorStartYear - 1)}（前シーズン）`,
-    },
-    {
-      startYear: anchorStartYear,
-      endDate: fullSeasonEnd(anchorStartYear),
-      label: `${formatSeasonLabel(anchorStartYear)}（今シーズン）`,
-    },
-    {
-      startYear: anchorStartYear + 1,
-      // 次シーズンは 2/20 で打ち切り、シーズン進行中の見た目にする
-      endDate: new Date(Date.UTC(anchorStartYear + 2, 1, 20, 23, 59, 59, 999)),
-      label: `${formatSeasonLabel(anchorStartYear + 1)}（次シーズン・進行中）`,
-    },
-  ];
-}
-
-/** 指定年月内で「第n週の指定曜日」に該当する日付（YYYY-MM-DD）を列挙する */
-function collectNthWeekdayDates(
-  year: number,
-  month: number,
-  weeks: number[],
-  dayOfWeek: number,
-): string[] {
-  const lastDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
-  const dates: string[] = [];
-  for (let d = 1; d <= lastDay; d++) {
-    const date = new Date(Date.UTC(year, month, d));
-    const week = Math.ceil(d / 7);
-    if (weeks.includes(week) && date.getUTCDay() === dayOfWeek) {
-      dates.push(date.toISOString().split('T')[0]!);
-    }
-  }
-  return dates;
-}
-
-/**
- * 1シーズン分（12/1 startYear 〜 endDate）のシフト投入用データを組み立てる。
- * 平日はスキー一般レッスンのみ、週末・祝日はスキー＋スノーボード一般レッスンに加え、
- * 翌年1・2月の特定日に団体レッスン・バッジテスト・県連事業を配置する。
- */
-function buildSeasonShiftValues(
-  startYear: number,
-  endDate: Date,
-  shiftTypeIds: { general: string; group: string; badgeTest: string; prefectureEvent: string },
-): { date: Date; departmentCode: string; shiftTypeId: string; description: string }[] {
-  const startDate = new Date(Date.UTC(startYear, 11, 1));
-  const eventYear = startYear + 1;
-
-  // 1月の団体レッスン日（第2土曜日）
-  const groupLessonDates = collectNthWeekdayDates(eventYear, 0, [2], 6);
-  // バッジテスト日（1月・2月の第2・第4土曜日）
-  const badgeTestDates = [
-    ...collectNthWeekdayDates(eventYear, 0, [2, 4], 6),
-    ...collectNthWeekdayDates(eventYear, 1, [2, 4], 6),
-  ];
-  // 県連事業日（1月・2月の第1・第3日曜日）
-  const prefectureEventDates = [
-    ...collectNthWeekdayDates(eventYear, 0, [1, 3], 0),
-    ...collectNthWeekdayDates(eventYear, 1, [1, 3], 0),
-  ];
-
-  const values: { date: Date; departmentCode: string; shiftTypeId: string; description: string }[] =
-    [];
-
-  for (
-    const current = new Date(startDate);
-    current <= endDate;
-    current.setUTCDate(current.getUTCDate() + 1)
-  ) {
-    const dateString = current.toISOString().split('T')[0]!;
-    const checkDate = new Date(`${dateString}T00:00:00Z`);
-    const dayOfWeek = checkDate.getUTCDay();
-    const isWeekendOrHoliday =
-      dayOfWeek === 0 || dayOfWeek === 6 || !!JapaneseHolidays.isHoliday(checkDate);
-
-    if (isWeekendOrHoliday) {
-      values.push({
-        date: checkDate,
-        departmentCode: DEPARTMENT_CODES.ski,
-        shiftTypeId: shiftTypeIds.general,
-        description: 'スキー一般レッスン',
-      });
-      values.push({
-        date: checkDate,
-        departmentCode: DEPARTMENT_CODES.snowboard,
-        shiftTypeId: shiftTypeIds.general,
-        description: 'スノーボード一般レッスン',
-      });
-
-      if (groupLessonDates.includes(dateString)) {
-        values.push({
-          date: checkDate,
-          departmentCode: DEPARTMENT_CODES.ski,
-          shiftTypeId: shiftTypeIds.group,
-          description: 'スキー団体レッスン',
-        });
-        values.push({
-          date: checkDate,
-          departmentCode: DEPARTMENT_CODES.snowboard,
-          shiftTypeId: shiftTypeIds.group,
-          description: 'スノーボード団体レッスン',
-        });
-      }
-
-      if (badgeTestDates.includes(dateString)) {
-        values.push({
-          date: checkDate,
-          departmentCode: DEPARTMENT_CODES.ski,
-          shiftTypeId: shiftTypeIds.badgeTest,
-          description: 'スキーバッジテスト',
-        });
-      }
-
-      if (prefectureEventDates.includes(dateString)) {
-        values.push({
-          date: checkDate,
-          departmentCode: DEPARTMENT_CODES.snowboard,
-          shiftTypeId: shiftTypeIds.prefectureEvent,
-          description: '県連事業',
-        });
-      }
-    } else {
-      values.push({
-        date: checkDate,
-        departmentCode: DEPARTMENT_CODES.ski,
-        shiftTypeId: shiftTypeIds.general,
-        description: 'スキー一般レッスン',
-      });
-    }
-  }
-
-  return values;
-}
-
-/** シーズン単位で生成されたシフト行のまとまり */
-type SeasonShiftGroup = { label: string; shifts: ShiftSeed[] };
-
-/** 前・今・次の3シーズン分のシフトデータを作成する */
+/** 通年3シーズンの必要人数と、配置対象のシフトを作成する。 */
 async function seedShifts(
   db: Db,
-  shiftTypeIds: { general: string; group: string; badgeTest: string; prefectureEvent: string },
-): Promise<SeasonShiftGroup[]> {
-  const specs = buildSeasonSpecs();
-  const groups: SeasonShiftGroup[] = [];
-
-  for (const spec of specs) {
-    const values = buildSeasonShiftValues(spec.startYear, spec.endDate, shiftTypeIds);
-
-    const created: ShiftSeed[] = [];
-    for (const batch of chunk(values, 50)) {
-      const rows = await db.insert(shifts).values(batch).returning();
-      created.push(...rows);
+  shiftTypeIds: Parameters<typeof buildDemoFrames>[2],
+  today: Date,
+) {
+  const seasons = buildDemoSeasons(today);
+  const groups: { label: string; shifts: ShiftSeed[] }[] = [];
+  for (const season of seasons) {
+    const frames = buildDemoFrames(season, today, shiftTypeIds);
+    for (const batch of chunk(frames, 50)) {
+      await db.insert(shiftStaffingRequirements).values(
+        batch.map((frame) => ({
+          date: frame.date,
+          departmentCode: frame.departmentCode,
+          shiftTypeId: frame.shiftTypeId,
+          requiredCount: frame.requiredCount,
+        })),
+      );
     }
-
-    const weekendCount = created.filter((s) => {
-      const day = s.date.getUTCDay();
-      return day === 0 || day === 6;
-    }).length;
-    console.log(
-      `  [${spec.label}] シフト: ${created.length}件作成 (平日${created.length - weekendCount}件、土日${weekendCount}件)`,
-    );
-    groups.push({ label: spec.label, shifts: created });
+    const created: ShiftSeed[] = [];
+    for (const batch of chunk(
+      frames.filter((frame) => frame.assignmentCount > 0),
+      50,
+    )) {
+      // returningの順序に依存せず日付・部門・種別で生成計画と対応させる。
+      const inserted = await db
+        .insert(shifts)
+        .values(
+          batch.map((frame) => ({
+            date: frame.date,
+            departmentCode: frame.departmentCode,
+            shiftTypeId: frame.shiftTypeId,
+            description: frame.description,
+          })),
+        )
+        .returning();
+      for (const frame of batch) {
+        const row = inserted.find(
+          (row) =>
+            row.date.getTime() === frame.date.getTime() &&
+            row.departmentCode === frame.departmentCode &&
+            row.shiftTypeId === frame.shiftTypeId,
+        );
+        if (!row) throw new Error('生成計画に対応するシフトが見つかりません');
+        created.push({ ...frame, id: row.id });
+      }
+    }
+    groups.push({ label: season.label, shifts: created });
+    console.log(`  [${season.label}] 必要人数: ${frames.length}枠、配置対象: ${created.length}枠`);
   }
-
-  const total = groups.reduce((sum, g) => sum + g.shifts.length, 0);
-  console.log(`シフト合計: ${total}件作成`);
-  return groups;
-}
-
-/** シフト種類・日付・部門ごとの必要人数を返す */
-function getRequiredInstructorCount(
-  shift: ShiftSeed,
-  shiftTypeIds: { general: string; group: string; badgeTest: string; prefectureEvent: string },
-): number {
-  const dayOfWeek = shift.date.getUTCDay();
-  const isWeekendOrHoliday =
-    dayOfWeek === 0 || dayOfWeek === 6 || !!JapaneseHolidays.isHoliday(shift.date);
-
-  if (shift.departmentCode === DEPARTMENT_CODES.ski && shift.shiftTypeId === shiftTypeIds.general) {
-    return isWeekendOrHoliday ? 5 : 3;
-  }
-  if (
-    shift.departmentCode === DEPARTMENT_CODES.snowboard &&
-    shift.shiftTypeId === shiftTypeIds.general
-  ) {
-    return 3;
-  }
-  if (shift.shiftTypeId === shiftTypeIds.badgeTest) {
-    return 3;
-  }
-  if (shift.shiftTypeId === shiftTypeIds.group) {
-    return Math.floor(Math.random() * 3) + 2; // 2〜4
-  }
-  if (shift.shiftTypeId === shiftTypeIds.prefectureEvent) {
-    return Math.floor(Math.random() * 2) + 1; // 1〜2
-  }
-  return 1;
+  return { seasons, groups };
 }
 
 /** 活動度ランク（勤務頻度の傾向）。シーズンごとに ACTIVE 各人へ重み付き抽選で割り当てる */
@@ -543,7 +378,7 @@ function pickActivityRank(): (typeof ACTIVITY_RANKS)[number] {
     }
     random -= rank.probability;
   }
-  return ACTIVITY_RANKS[ACTIVITY_RANKS.length - 1];
+  return ACTIVITY_RANKS[3];
 }
 
 /**
@@ -589,21 +424,16 @@ function pickWeightedWithoutReplacement(
   return picked;
 }
 
-/**
- * アクティブなインストラクターをシフトに割り当てる（1日1シフトまで、部門の資格保持者のみ）。
- * シーズンごとに活動度ランクを再抽選し、その重みに応じた weighted-random で割当先を選ぶことで、
- * 「よく働く人・たまにの人・ほぼ休みの人」がシーズンをまたいで自然に混ざるようにする。
- * 戻り値は最後（＝最新）のシーズンの Instructor 別割当済み日。可否申告の候補日から
- * 除外するために `seedInstructorAvailabilities` へ渡す。
- */
+/** 勤務可用性・資格・同日重複を考慮し、生成計画の人数まで重み付き抽選で配置する。 */
 async function seedShiftAssignments(
   db: Db,
-  seasonGroups: SeasonShiftGroup[],
+  seasonGroups: { label: string; shifts: ShiftSeed[] }[],
   instructorRows: Awaited<ReturnType<typeof seedInstructors>>,
   instructorCertRows: { instructorId: string; certificationId: string }[],
   certs: { skiCertifications: CertRow[]; snowboardCertifications: CertRow[] },
-  shiftTypeIds: { general: string; group: string; badgeTest: string; prefectureEvent: string },
-): Promise<Map<string, Set<string>>> {
+  certificationTiersByShiftTypeId: Map<string, readonly (readonly string[])[]>,
+  availabilityRows: DemoAvailability[],
+) {
   const activeInstructors = instructorRows.filter((i) => i.status === 'ACTIVE');
 
   const skiCertIds = new Set(certs.skiCertifications.map((c) => c.id));
@@ -619,10 +449,21 @@ async function seedShiftAssignments(
   const skiInstructors = activeInstructors.filter((i) => skiInstructorIds.has(i.id));
   const snowboardInstructors = activeInstructors.filter((i) => snowboardInstructorIds.has(i.id));
 
+  const unavailableByDate = new Map<string, Set<string>>();
+  for (const row of availabilityRows) {
+    if (row.type !== 'UNAVAILABLE') continue;
+    const key = row.date.toISOString().slice(0, 10);
+    const ids = unavailableByDate.get(key) ?? new Set<string>();
+    ids.add(row.instructorId);
+    unavailableByDate.set(key, ids);
+  }
+  const certificationIdsByInstructor = new Map<string, Set<string>>();
+  for (const row of instructorCertRows) {
+    const ids = certificationIdsByInstructor.get(row.instructorId) ?? new Set<string>();
+    ids.add(row.certificationId);
+    certificationIdsByInstructor.set(row.instructorId, ids);
+  }
   let totalAssignments = 0;
-  // 最後（＝最新）のシーズンの Instructor 別割当済み日。ループの度に上書きされ、
-  // 最終的に `seasonGroups` の最後の要素（次シーズン）分だけが残る。
-  let lastSeasonAssignedDates = new Map<string, Set<string>>();
 
   for (const season of seasonGroups) {
     const activityWeight = assignSeasonActivityWeights(activeInstructors);
@@ -644,24 +485,37 @@ async function seedShiftAssignments(
     }
 
     const assignments: { shiftId: string; instructorId: string }[] = [];
-    const assignedDatesByInstructor = new Map<string, Set<string>>();
 
     for (const [dateString, dateShifts] of shiftsByDate) {
-      const assignedToday = new Set<string>();
+      const assignedToday = new Set(unavailableByDate.get(dateString));
 
       for (const shift of dateShifts) {
-        const requiredCount = getRequiredInstructorCount(shift, shiftTypeIds);
-        const pool = shift.departmentCode === DEPARTMENT_CODES.ski ? skiPool : snowboardPool;
+        const departmentPool =
+          shift.departmentCode === DEPARTMENT_CODES.ski ? skiPool : snowboardPool;
+        const departmentCerts =
+          shift.departmentCode === DEPARTMENT_CODES.ski
+            ? certs.skiCertifications
+            : certs.snowboardCertifications;
+        const tiers = certificationTiersByShiftTypeId.get(shift.shiftTypeId);
+        if (!tiers) throw new Error('シフト種別の対象資格設定が見つかりません');
+        const qualifiedIds = new Set(
+          departmentCerts
+            .filter((cert) => tiers.flat().includes(cert.shortName))
+            .map((cert) => cert.id),
+        );
+        const pool = departmentPool.filter(
+          (instructor) =>
+            tiers.length === 0 ||
+            [...(certificationIdsByInstructor.get(instructor.id) ?? [])].some((id) =>
+              qualifiedIds.has(id),
+            ),
+        );
         if (pool.length === 0) continue;
 
-        const assigned = pickWeightedWithoutReplacement(pool, requiredCount, assignedToday);
+        const assigned = pickWeightedWithoutReplacement(pool, shift.assignmentCount, assignedToday);
         for (const instructorId of assigned) {
           assignedToday.add(instructorId);
           assignments.push({ shiftId: shift.id, instructorId });
-
-          const dates = assignedDatesByInstructor.get(instructorId) ?? new Set<string>();
-          dates.add(dateString);
-          assignedDatesByInstructor.set(instructorId, dates);
         }
       }
     }
@@ -672,79 +526,20 @@ async function seedShiftAssignments(
 
     totalAssignments += assignments.length;
     console.log(`  [${season.label}] シフトアサイン: ${assignments.length}件`);
-    lastSeasonAssignedDates = assignedDatesByInstructor;
   }
 
   console.log(`シフトアサイン合計: ${totalAssignments}件作成`);
   console.log(`   - スキー担当: ${skiInstructors.length}名`);
   console.log(`   - スノーボード担当: ${snowboardInstructors.length}名`);
-
-  return lastSeasonAssignedDates;
 }
 
-/** 勤務可否申告に使う中立的な理由メモ（「休み」系の表現は避ける） */
-const AVAILABILITY_NOTES = ['所用のため', '他業務のため', '通院のため', '研修参加のため'];
-
-/**
- * 次シーズン（進行中）の未来日に対し、ACTIVE の一部インストラクターへ
- * 勤務可否申告（UNAVAILABLE/AVOID）をまばらに投入する。
- * デフォルト勤務可・例外のみ申告という opt-out 設計に合わせ、対象は一部の人・一部の日のみ。
- * 既にシフト割当済みの日は、申告と割当が同日に矛盾して存在しないよう候補から除外する。
- */
-async function seedInstructorAvailabilities(
-  db: Db,
-  instructorRows: Awaited<ReturnType<typeof seedInstructors>>,
-  nextSeasonShifts: ShiftSeed[],
-  assignedDatesByInstructor: Map<string, Set<string>>,
-) {
-  const activeInstructors = instructorRows.filter((i) => i.status === 'ACTIVE');
-
-  // 対象日は次シーズンのシフトが存在する日付（重複除去）
-  const candidateDates = [
-    ...new Set(nextSeasonShifts.map((s) => s.date.toISOString().split('T')[0]!)),
-  ];
-  if (candidateDates.length === 0) {
-    console.log('勤務可否申告: 次シーズンのシフトが無いためスキップ');
-    return;
-  }
-
-  // ACTIVE の 2〜3割にだけ申告を付与する
-  const declaringInstructors = activeInstructors.filter(() => Math.random() < 0.25);
-
-  const rows: { instructorId: string; date: Date; type: 'UNAVAILABLE' | 'AVOID'; note: string }[] =
-    [];
-  let skippedNoCandidateCount = 0;
-
-  for (const instructor of declaringInstructors) {
-    // 既にシフト割当済みの日を除外してから申告日を選ぶ（割当と申告が同日に矛盾しないように）
-    const assignedDates = assignedDatesByInstructor.get(instructor.id) ?? new Set<string>();
-    const availableCandidates = candidateDates.filter((d) => !assignedDates.has(d));
-    if (availableCandidates.length === 0) {
-      skippedNoCandidateCount++;
-      continue;
-    }
-
-    // 1人あたり1〜3日、重複なく申告日を選ぶ
-    const dayCount = Math.min(Math.floor(Math.random() * 3) + 1, availableCandidates.length);
-    const shuffled = [...availableCandidates].sort(() => Math.random() - 0.5);
-    const pickedDates = shuffled.slice(0, dayCount);
-
-    for (const dateString of pickedDates) {
-      rows.push({
-        instructorId: instructor.id,
-        date: new Date(`${dateString}T00:00:00Z`),
-        type: Math.random() < 0.5 ? 'UNAVAILABLE' : 'AVOID',
-        note: AVAILABILITY_NOTES[Math.floor(Math.random() * AVAILABILITY_NOTES.length)]!,
-      });
-    }
-  }
-
+/** 割当より先に3状態の申告を投入し、未回答は行なしで保持する。 */
+async function seedInstructorAvailabilities(db: Db, rows: DemoAvailability[]) {
   for (const batch of chunk(rows, 100)) {
     await db.insert(instructorAvailabilities).values(batch);
   }
-
   console.log(
-    `勤務可否申告: ${rows.length}件作成 (対象${declaringInstructors.length}名、全日割当済みで対象外${skippedNoCandidateCount}名)`,
+    `勤務可用性: ${rows.length}件作成（勤務可・要調整・勤務不可、月後半／全月未回答を含む）`,
   );
 }
 
@@ -754,6 +549,7 @@ async function clearExistingData(db: Db) {
   await db.delete(instructorAvailabilities);
   await db.delete(shiftAssignments);
   await db.delete(shifts);
+  await db.delete(shiftStaffingRequirements);
   await db.delete(certificationRequirements);
   await db.delete(instructorCertifications);
   await db.delete(instructors);
@@ -781,29 +577,36 @@ async function main() {
     };
 
     const certs = await seedCertifications(db);
-    await seedCertificationRequirements(db, shiftTypeRows, certs);
+    const certificationTiersByShiftTypeId = await seedCertificationRequirements(
+      db,
+      shiftTypeRows,
+      certs,
+    );
     const instructorRows = await seedInstructors(db);
     const instructorCertRows = await seedInstructorCertifications(db, instructorRows, certs);
 
-    const seasonGroups = await seedShifts(db, shiftTypeIds);
-    const nextSeasonAssignedDates = await seedShiftAssignments(
+    const today = demoToday();
+    const { seasons, groups } = await seedShifts(db, shiftTypeIds, today);
+    const availabilityRows = buildDemoAvailabilities(
+      instructorRows
+        .filter((instructor) => instructor.status === 'ACTIVE')
+        .map((instructor) => instructor.id),
+      seasons,
+    );
+    await seedInstructorAvailabilities(db, availabilityRows);
+    await seedShiftAssignments(
       db,
-      seasonGroups,
+      groups,
       instructorRows,
       instructorCertRows,
       certs,
-      shiftTypeIds,
+      certificationTiersByShiftTypeId,
+      availabilityRows,
     );
-
-    const nextSeason = seasonGroups[seasonGroups.length - 1];
-    if (nextSeason) {
-      await seedInstructorAvailabilities(
-        db,
-        instructorRows,
-        nextSeason.shifts,
-        nextSeasonAssignedDates,
-      );
-    }
+    console.log(
+      `開発対象月: ${today.toISOString().slice(0, 7)}（日付の3日周期で配置済み・一部配置・未配置）`,
+    );
+    console.log('過去月は配置済み、未来月は必要人数と申告のみです。');
 
     console.log('\n初期データ投入完了！');
   } finally {

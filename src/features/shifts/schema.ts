@@ -23,6 +23,9 @@ export const monthStringSchema = z
     return month >= 1 && month <= 12;
   }, '月は 01〜12 で指定してください');
 
+/** シフトの公開状態。公開は編集・自動割当からの保護を兼ねる。 */
+export const shiftStatusSchema = z.enum(['DRAFT', 'PUBLISHED']);
+
 /** Shift の単一レコード */
 export const shiftSchema = z.object({
   id: z.string(),
@@ -30,6 +33,9 @@ export const shiftSchema = z.object({
   departmentCode: departmentCodeSchema,
   shiftTypeId: z.string(),
   description: z.string().nullable(),
+  requiredCount: z.number().int().min(0).nullable(),
+  status: shiftStatusSchema,
+  revision: z.number().int().min(0),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
 });
@@ -60,18 +66,22 @@ export const monthlyAssignmentCellSchema = z.object({
   shiftTypeId: z.string().min(1),
   description: z.string().max(500).nullable().optional(),
   instructorIds: z.array(z.string().min(1)).default([]),
+  expectedRevision: z.number().int().min(0).nullable().optional(),
+  expectedShiftId: z.string().nullable().optional(),
 });
 
 export type MonthlyAssignmentCell = z.infer<typeof monthlyAssignmentCellSchema>;
 
 /**
  * 必要人数の保存1件分（日付 × シフト種別）。部門は入力全体の departmentCode を使う。
- * requiredCount の null は行の削除（未設定に戻す）、数値は 0 以上の整数で upsert する。
+ * requiredCount の null は未設定に戻す操作、数値は 0 以上の整数で保存する。
  */
 export const staffingRequirementInputSchema = z.object({
   date: dateStringSchema,
   shiftTypeId: z.string().min(1),
   requiredCount: z.number().int().min(0).nullable(),
+  expectedRevision: z.number().int().min(0).nullable().optional(),
+  expectedShiftId: z.string().nullable().optional(),
 });
 
 export type StaffingRequirementInput = z.infer<typeof staffingRequirementInputSchema>;
@@ -92,7 +102,7 @@ export const staffingRequirementListSchema = z.array(staffingRequirementSchema);
 /**
  * 月単位で (date × 部門 × シフト種別) の割り当て集合をまとめて upsert する。
  * cells には保存したい変更差分のみを含める（含まれないセルは変更しない）。
- * requirements は割り当てとは独立した必要人数の差分で、cells と同一バッチで原子的に保存する。
+ * requirements は必要人数だけの変更差分で、cells と同一の Shift に原子的に保存する。
  */
 export const upsertMonthlyAssignmentsSchema = z.object({
   month: monthStringSchema,
@@ -163,6 +173,15 @@ export const autoAssignContextSchema = z.object({
     }),
   ),
   existingAssignments: z.array(autoAssignExistingAssignmentSchema),
+  publishedSlots: z
+    .array(
+      z.object({
+        date: dateStringSchema,
+        departmentCode: departmentCodeSchema,
+        shiftTypeId: z.string(),
+      }),
+    )
+    .default([]),
 });
 
 export type AutoAssignContext = z.infer<typeof autoAssignContextSchema>;
@@ -280,6 +299,8 @@ export const shiftEditDataSchema = z.object({
       departmentCode: departmentCodeSchema,
       shiftTypeId: z.string(),
       description: z.string().nullable(),
+      status: shiftStatusSchema,
+      revision: z.number().int().min(0),
       assignedInstructorIds: z.array(z.string()),
     })
     .nullable(),
@@ -306,6 +327,9 @@ export const shiftViewItemSchema = z.object({
   /** 勤務日（YYYY-MM-DD・UTC 基準） */
   date: dateStringSchema,
   description: z.string().nullable(),
+  status: shiftStatusSchema,
+  revision: z.number().int().min(0),
+  requiredCount: z.number().int().min(0).nullable(),
   department: z.object({
     name: z.string(),
     code: departmentCodeSchema,
@@ -432,3 +456,24 @@ export const seasonStatsResponseSchema = z.object({
 });
 
 export type SeasonStatsResponse = z.infer<typeof seasonStatsResponseSchema>;
+
+/** 単一枠または月初から指定日までの公開状態変更。確認した更新世代を同梱する。 */
+export const publishShiftsSchema = z.object({
+  month: monthStringSchema,
+  departmentCode: departmentCodeSchema,
+  shiftTypeId: z.string().min(1),
+  status: shiftStatusSchema,
+  dates: z
+    .array(
+      z.object({
+        date: dateStringSchema,
+        status: shiftStatusSchema.optional(),
+        expectedRevision: z.number().int().min(0).nullable(),
+        expectedShiftId: z.string().nullable().optional(),
+      }),
+    )
+    .min(1)
+    .max(31),
+});
+
+export type PublishShiftsInput = z.infer<typeof publishShiftsSchema>;

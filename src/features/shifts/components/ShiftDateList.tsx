@@ -59,6 +59,7 @@ export function ShiftDateList({
             key={date}
             className={classes.dateListDay}
             data-shift-list-date={date}
+            data-published={header?.status === 'PUBLISHED' || undefined}
             data-selected={selected || undefined}
             data-focused-instructor={focused || undefined}
             disabled={isDateDisabled(date)}
@@ -83,6 +84,16 @@ export function ShiftDateList({
                       ? '必要人数未設定'
                       : '必要人数を読み込み中…'}
                 </Text>
+                {header?.status && (
+                  <Text
+                    component="span"
+                    size="xs"
+                    fw={600}
+                    c={header.status === 'PUBLISHED' ? 'teal' : 'dimmed'}
+                  >
+                    {header.status === 'PUBLISHED' ? '公開済み' : '下書き'}
+                  </Text>
+                )}
                 {header?.staged && (
                   <AppBadge kind="pending" size="xs">
                     未保存

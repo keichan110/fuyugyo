@@ -333,7 +333,7 @@ function AvailabilityMonthView({
   onOpenMenu: (date: string, target: HTMLElement) => void;
 }) {
   const today = todayString();
-  // 可否表示と、割当済み日の日付見出しへ重ねるロック表示を同じ MonthView のイベントとして合成する。
+  // 可否表示と、公開済みシフト日の日付見出しへ重ねるロック表示を同じ MonthView のイベントとして合成する。
   const events = useMemo<ScheduleEventData<AvailabilityEventPayload>[]>(() => {
     const calendarEvents: ScheduleEventData<AvailabilityEventPayload>[] = [];
     for (const date of availabilityDates) {
@@ -358,7 +358,7 @@ function AvailabilityMonthView({
       if (!date.startsWith(month)) continue;
       calendarEvents.push({
         id: `lock:${date}`,
-        title: '割当済み',
+        title: '公開済みシフト',
         start: `${date} 00:00:00`,
         end: `${addDays(date, 1)} 00:00:00`,
         color: 'gray',
@@ -412,7 +412,11 @@ function AvailabilityMonthView({
           'data-locked': editability === 'locked' || undefined,
           'data-staged': changedDates.has(date) || undefined,
           'aria-label': `${formatDateLabel(date)}${
-            editability === 'locked' ? '（割当済みのため編集不可）' : disabled ? '（編集不可）' : ''
+            editability === 'locked'
+              ? '（公開済みシフトのため編集不可）'
+              : disabled
+                ? '（編集不可）'
+                : ''
           }`,
           title: disabledReason,
           disabled,
@@ -435,7 +439,7 @@ function AvailabilityMonthView({
       renderEvent={(event, props) =>
         event.payload?.kind === 'locked' ? (
           <Box style={props.style} className={classes.lockLayer}>
-            <IconLock size={15} className={classes.lockIcon} aria-label="割当済み" />
+            <IconLock size={15} className={classes.lockIcon} aria-label="公開済みシフト" />
           </Box>
         ) : (
           <UnstyledButton {...props} className={classes.availabilityEvent} aria-label={event.title}>

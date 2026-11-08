@@ -22,7 +22,6 @@ import {
   instructors,
   shiftAssignments,
   shifts,
-  shiftStaffingRequirements,
   shiftTypes,
 } from '../src/server/db/schema.ts';
 import {
@@ -304,7 +303,7 @@ async function seedInstructorCertifications(
   return rows;
 }
 
-/** 必要人数と配置数の生成計画を持つ勤務枠。未配置枠はShiftを作らない。 */
+/** 必要人数と配置数の生成計画を持つ勤務枠。未配置枠も下書きShiftとして保持する。 */
 type ShiftSeed = DemoFrame & { id: string };
 
 /** 通年3シーズンの必要人数と、配置対象のシフトを作成する。 */
@@ -317,21 +316,8 @@ async function seedShifts(
   const groups: { label: string; shifts: ShiftSeed[] }[] = [];
   for (const season of seasons) {
     const frames = buildDemoFrames(season, today, shiftTypeIds);
-    for (const batch of chunk(frames, 50)) {
-      await db.insert(shiftStaffingRequirements).values(
-        batch.map((frame) => ({
-          date: frame.date,
-          departmentCode: frame.departmentCode,
-          shiftTypeId: frame.shiftTypeId,
-          requiredCount: frame.requiredCount,
-        })),
-      );
-    }
     const created: ShiftSeed[] = [];
-    for (const batch of chunk(
-      frames.filter((frame) => frame.assignmentCount > 0),
-      50,
-    )) {
+    for (const batch of chunk(frames, 50)) {
       // returningの順序に依存せず日付・部門・種別で生成計画と対応させる。
       const inserted = await db
         .insert(shifts)
@@ -341,6 +327,8 @@ async function seedShifts(
             departmentCode: frame.departmentCode,
             shiftTypeId: frame.shiftTypeId,
             description: frame.description,
+            requiredCount: frame.requiredCount,
+            status: frame.assignmentCount > 0 ? 'PUBLISHED' : 'DRAFT',
           })),
         )
         .returning();
@@ -549,7 +537,6 @@ async function clearExistingData(db: Db) {
   await db.delete(instructorAvailabilities);
   await db.delete(shiftAssignments);
   await db.delete(shifts);
-  await db.delete(shiftStaffingRequirements);
   await db.delete(certificationRequirements);
   await db.delete(instructorCertifications);
   await db.delete(instructors);

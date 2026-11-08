@@ -55,6 +55,7 @@ function createAutoAssignContext(overrides: Partial<AutoAssignContext> = {}): Au
       },
     ],
     availabilities: [],
+    publishedSlots: [],
     existingAssignments: [],
     ...overrides,
   };
@@ -67,6 +68,7 @@ describe('solveAutoAssignments', () => {
         availabilities: [
           { instructorId: 'a', date: '2026-01-05', type: 'UNAVAILABLE', note: null },
         ],
+        publishedSlots: [],
         existingAssignments: [
           {
             date: '2026-01-05',
@@ -401,3 +403,24 @@ function pairContext(upperDays: number, certifiedDays: number): AutoAssignContex
   );
   return context;
 }
+
+it('公開済みの枠は0名でも再計算せず、その配置は同日重複と勤務日数の判断に残す', () => {
+  const context = createAutoAssignContext({
+    publishedSlots: [
+      { date: '2026-01-05', departmentCode: 'ski', shiftTypeId: 'morning' },
+      { date: '2026-01-06', departmentCode: 'ski', shiftTypeId: 'morning' },
+      { date: '2026-01-07', departmentCode: 'ski', shiftTypeId: 'afternoon' },
+    ],
+    existingAssignments: [
+      { date: '2026-01-05', departmentCode: 'ski', shiftTypeId: 'morning', instructorIds: ['a'] },
+      { date: '2026-01-07', departmentCode: 'ski', shiftTypeId: 'afternoon', instructorIds: ['a'] },
+    ],
+  });
+  const result = solveAutoAssignments(
+    context,
+    createExecutionParams({ targetDates: ['2026-01-05', '2026-01-06', '2026-01-07'] }),
+    1,
+  );
+  expect(result.proposals.map((proposal) => proposal.date)).toEqual(['2026-01-07']);
+  expect(result.proposals[0]?.instructorIds).not.toContain('a');
+});

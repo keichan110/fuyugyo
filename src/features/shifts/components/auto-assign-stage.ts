@@ -4,6 +4,8 @@ import type { AutoAssignContext, AutoAssignProposal } from '../schema';
 export type AutoAssignStagedCell = {
   instructorIds: string[];
   description: string;
+  expectedRevision?: number | null;
+  expectedShiftId?: string | null;
 };
 
 /**

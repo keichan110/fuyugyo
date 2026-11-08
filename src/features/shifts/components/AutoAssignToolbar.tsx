@@ -5,6 +5,7 @@ import { ErrorAlert } from '@/components/AppAlert';
 import { AppButton } from '@/components/AppButton';
 
 type AutoAssignToolbarProps = {
+  publicationControls: React.ReactNode;
   autoAssignMode: boolean;
   selectedDateCount: number;
   /** 必要人数の取得前は false（ボタンを無効にする） */
@@ -28,6 +29,7 @@ type AutoAssignToolbarProps = {
  * 自動割当モード中は対象日の案内・キャンセル・実行ボタンと、必要資格なしのエラーを表示する。
  */
 export function AutoAssignToolbar({
+  publicationControls,
   autoAssignMode,
   selectedDateCount,
   requirementsReady,
@@ -76,34 +78,37 @@ export function AutoAssignToolbar({
             </Group>
           </>
         ) : (
-          <Group gap="xs">
-            <AppButton
-              intent="secondary"
-              size="xs"
-              disabled={!requirementsReady}
-              onClick={onOpenBulkModal}
-            >
-              必要人数を一括設定
-            </AppButton>
-            {/* disabled のボタンはホバーを受けないため、Tooltip はラッパー要素に付ける */}
-            <Tooltip
-              label="必要人数が設定された日がありません"
-              disabled={!noSelectableDates}
-              withArrow
-            >
-              <Box>
-                <AppButton
-                  intent="secondary"
-                  size="xs"
-                  leftSection={<IconWand size={14} />}
-                  disabled={!requirementsReady || noSelectableDates}
-                  onClick={onStartAutoAssign}
-                >
-                  自動割当
-                </AppButton>
-              </Box>
-            </Tooltip>
-          </Group>
+          <>
+            <Group gap="xs">
+              <AppButton
+                intent="secondary"
+                size="xs"
+                disabled={!requirementsReady}
+                onClick={onOpenBulkModal}
+              >
+                必要人数を一括設定
+              </AppButton>
+              {/* disabled のボタンはホバーを受けないため、Tooltip はラッパー要素に付ける */}
+              <Tooltip
+                label="必要人数が設定された日がありません"
+                disabled={!noSelectableDates}
+                withArrow
+              >
+                <Box>
+                  <AppButton
+                    intent="secondary"
+                    size="xs"
+                    leftSection={<IconWand size={14} />}
+                    disabled={!requirementsReady || noSelectableDates}
+                    onClick={onStartAutoAssign}
+                  >
+                    自動割当
+                  </AppButton>
+                </Box>
+              </Tooltip>
+            </Group>
+            <Box ml="auto">{publicationControls}</Box>
+          </>
         )}
       </Group>
 

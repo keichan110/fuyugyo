@@ -23,7 +23,6 @@ import { DEPARTMENT_LABELS, departmentCodeSchema } from '@/features/departments/
 import { selectInstructorIdsWithFrameCertification } from '@/server/db/certification-requirements';
 import { createDb } from '@/server/db/client';
 import type { Database } from '@/server/db/client';
-import { isUniqueViolation } from '@/server/db/errors';
 import {
   certificationRequirements,
   certifications,
@@ -33,10 +32,14 @@ import {
   instructors,
   shiftAssignments,
   shifts,
-  shiftStaffingRequirements,
   shiftTypes,
   users,
 } from '@/server/db/schema';
+import {
+  checkShiftRevision,
+  guardShiftWrite,
+  rethrowShiftWriteError,
+} from '@/server/db/shift-writes';
 import { requireAuth, requireRole, type AuthVariables } from '@/server/middleware/auth';
 import { readRateLimit } from '@/server/middleware/rate-limit';
 import type { Env } from '@/server/types';
@@ -46,6 +49,7 @@ import {
   dateStringSchema,
   instructorWorkloadQuerySchema,
   monthStringSchema,
+  publishShiftsSchema,
   shiftAgendaDirectionSchema,
   upsertMonthlyAssignmentsSchema,
   type ShiftViewItem,
@@ -312,17 +316,39 @@ function sortAssignedInstructors(assigned: RankedAssignedInstructor[]): void {
   );
 }
 
+/** MEMBERの閲覧は公開済みで配置のある枠だけに限定する。集計前・ページング前に適用する。 */
+function shiftVisibility(db: Database, role: string): SQL | undefined {
+  if (role === 'MANAGER' || role === 'ADMIN') return undefined;
+  return and(
+    eq(shifts.status, 'PUBLISHED'),
+    exists(
+      db
+        .select({ id: shiftAssignments.id })
+        .from(shiftAssignments)
+        .where(eq(shiftAssignments.shiftId, shifts.id)),
+    ),
+  );
+}
+
 /**
  * 指定期間 [from, to]（両端含む）のシフトを表示ビュー用に整形する（3クエリ・N+1 なし）。
  * shifts × shiftTypes を JOIN し、割り当てを別クエリでまとめて付与する。
  * カレンダービュー（月次）が使う読み取りロジック。
  */
-async function loadShiftView(db: Database, from: Date, to: Date): Promise<ShiftViewItem[]> {
+async function loadShiftView(
+  db: Database,
+  from: Date,
+  to: Date,
+  role: string,
+): Promise<ShiftViewItem[]> {
   const shiftRows = await db
     .select({
       id: shifts.id,
       date: shifts.date,
       description: shifts.description,
+      status: shifts.status,
+      revision: shifts.revision,
+      requiredCount: shifts.requiredCount,
       departmentCode: shifts.departmentCode,
       shiftTypeId: shiftTypes.id,
       shiftTypeName: shiftTypes.name,
@@ -336,7 +362,7 @@ async function loadShiftView(db: Database, from: Date, to: Date): Promise<ShiftV
         eq(departmentShiftTypes.shiftTypeId, shifts.shiftTypeId),
       ),
     )
-    .where(and(gte(shifts.date, from), lte(shifts.date, to)))
+    .where(and(gte(shifts.date, from), lte(shifts.date, to), shiftVisibility(db, role)))
     .orderBy(...shiftViewOrder);
 
   // 割り当ては shiftId の inArray ではなく、シフト本体と同じ日付範囲条件で shifts へ
@@ -355,14 +381,17 @@ async function loadShiftView(db: Database, from: Date, to: Date): Promise<ShiftV
           .from(shiftAssignments)
           .innerJoin(instructors, eq(instructors.id, shiftAssignments.instructorId))
           .innerJoin(shifts, eq(shifts.id, shiftAssignments.shiftId))
-          .where(and(gte(shifts.date, from), lte(shifts.date, to)))
+          .where(and(gte(shifts.date, from), lte(shifts.date, to), shiftVisibility(db, role)))
       : [];
 
   // 枠の資格要件と保有資格が一致する担当者だけを集計し、各担当者の最上位ランクを取得する。
   // 要件外資格しか持たない担当者は結果に含めず、後段で資格なしとしてかな順に並べる。
   const certificationTierRows =
     shiftRows.length > 0
-      ? await loadCertificationTierRows(db, and(gte(shifts.date, from), lte(shifts.date, to)))
+      ? await loadCertificationTierRows(
+          db,
+          and(gte(shifts.date, from), lte(shifts.date, to), shiftVisibility(db, role)),
+        )
       : [];
 
   const tierRankByAssignment = indexBestCertificationTier(certificationTierRows);
@@ -388,6 +417,9 @@ async function loadShiftView(db: Database, from: Date, to: Date): Promise<ShiftV
       id: s.id,
       date: formatDate(s.date),
       description: s.description,
+      status: s.status,
+      revision: s.revision,
+      requiredCount: s.requiredCount,
       department: {
         name: DEPARTMENT_LABELS[code],
         code,
@@ -409,12 +441,13 @@ async function loadShiftViewByDates(
   db: Database,
   dates: Date[],
   departmentCode: string | undefined,
+  role: string,
 ): Promise<ShiftViewItem[]> {
   if (dates.length === 0) {
     return [];
   }
 
-  const conditions = [inArray(shifts.date, dates)];
+  const conditions = [inArray(shifts.date, dates), shiftVisibility(db, role)];
   if (departmentCode) {
     conditions.push(eq(shifts.departmentCode, departmentCode));
   }
@@ -424,6 +457,9 @@ async function loadShiftViewByDates(
       id: shifts.id,
       date: shifts.date,
       description: shifts.description,
+      status: shifts.status,
+      revision: shifts.revision,
+      requiredCount: shifts.requiredCount,
       departmentCode: shifts.departmentCode,
       shiftTypeId: shiftTypes.id,
       shiftTypeName: shiftTypes.name,
@@ -485,6 +521,9 @@ async function loadShiftViewByDates(
       id: s.id,
       date: formatDate(s.date),
       description: s.description,
+      status: s.status,
+      revision: s.revision,
+      requiredCount: s.requiredCount,
       department: {
         name: DEPARTMENT_LABELS[code],
         code,
@@ -710,7 +749,22 @@ export const shiftsRoute = new Hono<{
       assignmentsByShift.set(key, assignment);
     }
 
+    const publishedSlots = await db
+      .select({
+        date: shifts.date,
+        departmentCode: shifts.departmentCode,
+        shiftTypeId: shifts.shiftTypeId,
+      })
+      .from(shifts)
+      .where(
+        and(
+          eq(shifts.status, 'PUBLISHED'),
+          gte(shifts.date, parseShiftDate(from)),
+          lte(shifts.date, parseShiftDate(to)),
+        ),
+      );
     return c.json({
+      publishedSlots: publishedSlots.map((slot) => ({ ...slot, date: formatDate(slot.date) })),
       departmentCode,
       period: { from, to },
       instructors: [...instructorById.values()].map((instructor) => ({
@@ -1083,6 +1137,8 @@ export const shiftsRoute = new Hono<{
             departmentCode: existingShift.departmentCode,
             shiftTypeId: existingShift.shiftTypeId,
             description: existingShift.description,
+            status: existingShift.status,
+            revision: existingShift.revision,
             assignedInstructorIds,
           }
         : null,
@@ -1119,6 +1175,7 @@ export const shiftsRoute = new Hono<{
     const db = createDb(c.env.DB);
     const cursorDate = parseShiftDate(cursor);
     const dateConditions = [
+      shiftVisibility(db, c.get('user').role),
       direction === 'future' ? gte(shifts.date, cursorDate) : lt(shifts.date, cursorDate),
     ];
     if (departmentCode) {
@@ -1137,7 +1194,12 @@ export const shiftsRoute = new Hono<{
       direction === 'future'
         ? dateRows.map((row) => row.date)
         : dateRows.map((row) => row.date).reverse();
-    const shiftsView = await loadShiftViewByDates(db, pageDates, departmentCode);
+    const shiftsView = await loadShiftViewByDates(
+      db,
+      pageDates,
+      departmentCode,
+      c.get('user').role,
+    );
     const days = groupShiftsByWorkingDay(shiftsView);
     const firstDay = days[0];
     const lastDay = days.at(-1);
@@ -1174,7 +1236,7 @@ export const shiftsRoute = new Hono<{
     const from = new Date(Date.UTC(year, monthNumber - 1, 1));
     const to = new Date(Date.UTC(year, monthNumber, 0));
 
-    const shiftsView = await loadShiftView(db, from, to);
+    const shiftsView = await loadShiftView(db, from, to, c.get('user').role);
     return c.json({
       shifts: shiftsView,
       summary: summarizeShifts(shiftsView, {
@@ -1205,16 +1267,16 @@ export const shiftsRoute = new Hono<{
     const db = createDb(c.env.DB);
     const rows = await db
       .select({
-        date: shiftStaffingRequirements.date,
-        departmentCode: shiftStaffingRequirements.departmentCode,
-        shiftTypeId: shiftStaffingRequirements.shiftTypeId,
-        requiredCount: shiftStaffingRequirements.requiredCount,
+        date: shifts.date,
+        departmentCode: shifts.departmentCode,
+        shiftTypeId: shifts.shiftTypeId,
+        requiredCount: shifts.requiredCount,
       })
-      .from(shiftStaffingRequirements)
+      .from(shifts)
       .where(
-        and(gte(shiftStaffingRequirements.date, from), lte(shiftStaffingRequirements.date, to)),
+        and(gte(shifts.date, from), lte(shifts.date, to), sql`${shifts.requiredCount} IS NOT NULL`),
       )
-      .orderBy(asc(shiftStaffingRequirements.date));
+      .orderBy(asc(shifts.date));
 
     return c.json(rows.map((row) => ({ ...row, date: formatDate(row.date) })));
   })
@@ -1247,7 +1309,7 @@ export const shiftsRoute = new Hono<{
 
     const db = createDb(c.env.DB);
     const dates = dateStrings.map((d) => parseShiftDate(d));
-    const shiftsView = await loadShiftViewByDates(db, dates, departmentCode);
+    const shiftsView = await loadShiftViewByDates(db, dates, departmentCode, c.get('user').role);
     return c.json(shiftsView);
   })
   /**
@@ -1264,7 +1326,7 @@ export const shiftsRoute = new Hono<{
     const instructorId = c.req.query('instructorId');
     const limit = parseListLimit(c.req.query('limit'));
 
-    const conditions = [];
+    const conditions = [shiftVisibility(db, c.get('user').role)];
     if (dateFrom && dateStringSchema.safeParse(dateFrom).success) {
       conditions.push(gte(shifts.date, parseShiftDate(dateFrom)));
     }
@@ -1296,6 +1358,9 @@ export const shiftsRoute = new Hono<{
         departmentCode: shifts.departmentCode,
         shiftTypeId: shifts.shiftTypeId,
         description: shifts.description,
+        status: shifts.status,
+        revision: shifts.revision,
+        requiredCount: shifts.requiredCount,
         createdAt: shifts.createdAt,
         updatedAt: shifts.updatedAt,
         shiftTypeName: shiftTypes.name,
@@ -1327,7 +1392,13 @@ export const shiftsRoute = new Hono<{
               instructorId: shiftAssignments.instructorId,
             })
             .from(shiftAssignments)
-            .where(inArray(shiftAssignments.shiftId, chunk)),
+            .innerJoin(shifts, eq(shifts.id, shiftAssignments.shiftId))
+            .where(
+              and(
+                inArray(shiftAssignments.shiftId, chunk),
+                shiftVisibility(db, c.get('user').role),
+              ),
+            ),
         ),
       )
     ).flat();
@@ -1390,6 +1461,7 @@ export const shiftsRoute = new Hono<{
       .where(
         and(
           eq(shiftAssignments.instructorId, me.instructorId),
+          eq(shifts.status, 'PUBLISHED'),
           gte(shifts.date, parseShiftDate(previousSeasonRange.from)),
           lte(shifts.date, parseShiftDate(currentSeasonRange.to)),
         ),
@@ -1408,12 +1480,152 @@ export const shiftsRoute = new Hono<{
 
     return c.json(stats);
   })
+  /** 指定した保存済みの枠を原子的に公開・公開取り消しする（MANAGER以上）。 */
+  .put(
+    '/publication',
+    requireAuth,
+    requireRole('MANAGER'),
+    validator('json', (value, c) => {
+      const parsed = publishShiftsSchema.safeParse(value);
+      if (!parsed.success) return c.json({ message: parsed.error.message }, 400);
+      return parsed.data;
+    }),
+    async (c) => {
+      const input = c.req.valid('json');
+      if (
+        new Set(input.dates.map((item) => item.date)).size !== input.dates.length ||
+        input.dates.some(
+          (item) => !isValidCalendarDate(item.date) || !item.date.startsWith(`${input.month}-`),
+        )
+      ) {
+        throw new HTTPException(400, {
+          message: '対象日は重複のない対象月内の実在日を指定してください',
+        });
+      }
+      const db = createDb(c.env.DB);
+      const available = await db
+        .select()
+        .from(departmentShiftTypes)
+        .where(
+          and(
+            eq(departmentShiftTypes.departmentCode, input.departmentCode),
+            eq(departmentShiftTypes.shiftTypeId, input.shiftTypeId),
+          ),
+        )
+        .limit(1);
+      if (available.length === 0)
+        throw new HTTPException(400, { message: '部門で利用できないシフト種別です' });
+      const savedRows = await db
+        .select()
+        .from(shifts)
+        .where(
+          and(
+            eq(shifts.departmentCode, input.departmentCode),
+            eq(shifts.shiftTypeId, input.shiftTypeId),
+            inArray(
+              shifts.date,
+              input.dates.map((item) => parseShiftDate(item.date)),
+            ),
+          ),
+        );
+      const publishingDates = input.dates
+        .filter((item) => (item.status ?? input.status) === 'PUBLISHED')
+        .map((item) => parseShiftDate(item.date));
+      if (publishingDates.length > 0) {
+        const unavailable = await db
+          .select({
+            date: shifts.date,
+            lastName: instructors.lastName,
+            firstName: instructors.firstName,
+          })
+          .from(shifts)
+          .innerJoin(shiftAssignments, eq(shiftAssignments.shiftId, shifts.id))
+          .innerJoin(instructors, eq(instructors.id, shiftAssignments.instructorId))
+          .innerJoin(
+            instructorAvailabilities,
+            and(
+              eq(instructorAvailabilities.instructorId, shiftAssignments.instructorId),
+              eq(instructorAvailabilities.date, shifts.date),
+            ),
+          )
+          .where(
+            and(
+              eq(shifts.departmentCode, input.departmentCode),
+              eq(shifts.shiftTypeId, input.shiftTypeId),
+              eq(shifts.status, 'DRAFT'),
+              eq(instructorAvailabilities.type, 'UNAVAILABLE'),
+              inArray(shifts.date, publishingDates),
+            ),
+          )
+          .orderBy(asc(shifts.date), asc(instructors.lastName), asc(instructors.firstName));
+        if (unavailable.length > 0) {
+          throw new HTTPException(409, {
+            message: `勤務不可の担当者が含まれるため公開できません：${unavailable.map((row) => `${formatDate(row.date)} ${formatName(row.lastName, row.firstName)}`).join('、')}`,
+          });
+        }
+      }
+      const savedByDate = new Map(savedRows.map((row) => [formatDate(row.date), row]));
+      const operations: BatchItem<'sqlite'>[] = [];
+      const replacesStatuses = input.dates.some((item) => item.status !== undefined);
+      for (const item of input.dates) {
+        const saved = savedByDate.get(item.date);
+        checkShiftRevision(saved, item.expectedRevision, item.expectedShiftId);
+        const status = item.status ?? input.status;
+        // 状態をまとめて揃える操作では変更不要の枠も検証し、途中の競合による範囲のずれを防ぐ。
+        if (!replacesStatuses && (saved?.status === status || (!saved && status === 'DRAFT')))
+          continue;
+        const guard = guardShiftWrite(
+          db,
+          {
+            date: parseShiftDate(item.date),
+            departmentCode: input.departmentCode,
+            shiftTypeId: input.shiftTypeId,
+          },
+          saved,
+        );
+        operations.push(
+          guard.operation,
+          db.update(shifts).set({ status }).where(eq(shifts.id, guard.id)),
+        );
+        if (status === 'DRAFT') {
+          // 公開解除後に何も残らない枠だけ削除する。必要人数0は明示した計画なので残す。
+          operations.push(
+            db
+              .delete(shifts)
+              .where(
+                and(
+                  eq(shifts.id, guard.id),
+                  sql`${shifts.requiredCount} IS NULL`,
+                  sql`${shifts.description} IS NULL`,
+                  sql`NOT EXISTS (SELECT 1 FROM shift_assignments WHERE shift_id = ${guard.id})`,
+                ),
+              ),
+          );
+        }
+      }
+      const [head, ...rest] = operations;
+      if (head) {
+        try {
+          await db.batch([head, ...rest]);
+        } catch (error) {
+          rethrowShiftWriteError(error);
+        }
+      }
+      return c.json({
+        changedCount:
+          operations.length === 0
+            ? 0
+            : input.dates.filter(
+                (item) =>
+                  savedByDate.get(item.date)?.status !== (item.status ?? input.status) &&
+                  (savedByDate.has(item.date) || (item.status ?? input.status) === 'PUBLISHED'),
+              ).length,
+      });
+    },
+  )
   /**
-   * (month × 部門) の割り当てを月次まとめて upsert する（MANAGER 以上）。
-   * requirements は必要人数の差分で、割り当て（cells）には一切触れない（null は行削除）。
-   * cells には変更差分のみを含める。全セル分の書き込みを単一の `db.batch` に集約し、
-   * 途中で失敗しても部分コミットが残らない原子性を保証する。
-   * instructorIds が空なら該当 Shift を削除する（ShiftAssignment は cascade で消える）。
+   * 月内の配置・備考・必要人数の差分を下書きとして原子的に保存する。
+   * 公開済みの枠は変更できない。何も残らない下書きだけ削除する。
    */
   .put(
     '/assignments',
@@ -1487,11 +1699,7 @@ export const shiftsRoute = new Hono<{
       const monthTo = new Date(Date.UTC(year, monthNumber, 0));
 
       const existingRows = await db
-        .select({
-          id: shifts.id,
-          date: shifts.date,
-          shiftTypeId: shifts.shiftTypeId,
-        })
+        .select()
         .from(shifts)
         .where(
           and(
@@ -1579,85 +1787,68 @@ export const shiftsRoute = new Hono<{
       // D1 の batch API は全ステートメントが単一トランザクションで実行される。
       const batchOps: BatchItem<'sqlite'>[] = [];
 
-      for (const cell of input.cells) {
-        const key = `${cell.date}:${cell.shiftTypeId}`;
-        const existingId = existingByKey.get(key);
-        const uniqueIds = [...new Set(cell.instructorIds)];
-        const description = cell.description?.trim() || null;
-
-        if (uniqueIds.length === 0) {
-          if (existingId) {
-            batchOps.push(db.delete(shifts).where(eq(shifts.id, existingId)));
-            deletedCount++;
-          }
-          continue;
-        }
-
-        if (existingId) {
-          // 既存 Shift: 備考更新 → 旧割り当て全削除 → 新割り当て挿入。
-          batchOps.push(
-            db.update(shifts).set({ description }).where(eq(shifts.id, existingId)),
-            db.delete(shiftAssignments).where(eq(shiftAssignments.shiftId, existingId)),
-            ...uniqueIds.map((instructorId) =>
-              db.insert(shiftAssignments).values({ shiftId: existingId, instructorId }),
-            ),
-          );
-          upsertedCount++;
-        } else {
-          // 新規 Shift: 本体挿入 → 割り当て挿入。
-          const date = parseShiftDate(cell.date);
-          const shiftId = crypto.randomUUID();
-          batchOps.push(
-            db.insert(shifts).values({
-              id: shiftId,
-              date,
-              departmentCode: input.departmentCode,
-              shiftTypeId: cell.shiftTypeId,
-              description,
-            }),
-            ...uniqueIds.map((instructorId) =>
-              db.insert(shiftAssignments).values({ shiftId, instructorId }),
-            ),
-          );
-          upsertedCount++;
-        }
+      const cellsByKey = new Map(
+        input.cells.map((cell) => [`${cell.date}:${cell.shiftTypeId}`, cell]),
+      );
+      const requirementsByKey = new Map(
+        input.requirements.map((item) => [`${item.date}:${item.shiftTypeId}`, item]),
+      );
+      if (
+        cellsByKey.size !== input.cells.length ||
+        requirementsByKey.size !== input.requirements.length
+      ) {
+        throw new HTTPException(400, { message: '同じ枠が重複しています' });
       }
-
-      // 必要人数は割り当てと独立に保存する。null は行削除、数値は upsert。
-      for (const requirement of input.requirements) {
-        const date = parseShiftDate(requirement.date);
-        if (requirement.requiredCount === null) {
-          batchOps.push(
-            db
-              .delete(shiftStaffingRequirements)
-              .where(
-                and(
-                  eq(shiftStaffingRequirements.date, date),
-                  eq(shiftStaffingRequirements.departmentCode, input.departmentCode),
-                  eq(shiftStaffingRequirements.shiftTypeId, requirement.shiftTypeId),
-                ),
-              ),
-          );
+      const savedByKey = new Map(
+        existingRows.map((row) => [`${formatDate(row.date)}:${row.shiftTypeId}`, row]),
+      );
+      for (const key of new Set([...cellsByKey.keys(), ...requirementsByKey.keys()])) {
+        const cell = cellsByKey.get(key);
+        const requirement = requirementsByKey.get(key);
+        const item = cell ?? requirement;
+        if (!item) continue;
+        const saved = savedByKey.get(key);
+        checkShiftRevision(saved, cell?.expectedRevision, cell?.expectedShiftId);
+        checkShiftRevision(saved, requirement?.expectedRevision, requirement?.expectedShiftId);
+        if (saved?.status === 'PUBLISHED') {
+          throw new HTTPException(409, {
+            message: `${item.date} は公開済みです。公開を取り消してから編集してください`,
+          });
+        }
+        const uniqueIds = cell
+          ? [...new Set(cell.instructorIds)]
+          : [...(existingInstructorIdsByShiftId.get(saved?.id ?? '') ?? [])];
+        const description = cell ? cell.description?.trim() || null : (saved?.description ?? null);
+        const requiredCount = requirement
+          ? requirement.requiredCount
+          : (saved?.requiredCount ?? null);
+        const guard = guardShiftWrite(
+          db,
+          {
+            date: parseShiftDate(item.date),
+            departmentCode: input.departmentCode,
+            shiftTypeId: item.shiftTypeId,
+          },
+          saved,
+        );
+        batchOps.push(guard.operation);
+        if (uniqueIds.length === 0 && !description && requiredCount === null) {
+          batchOps.push(db.delete(shifts).where(eq(shifts.id, guard.id)));
+          if (saved) deletedCount++;
           continue;
         }
         batchOps.push(
-          db
-            .insert(shiftStaffingRequirements)
-            .values({
-              date,
-              departmentCode: input.departmentCode,
-              shiftTypeId: requirement.shiftTypeId,
-              requiredCount: requirement.requiredCount,
-            })
-            .onConflictDoUpdate({
-              target: [
-                shiftStaffingRequirements.date,
-                shiftStaffingRequirements.departmentCode,
-                shiftStaffingRequirements.shiftTypeId,
-              ],
-              set: { requiredCount: requirement.requiredCount, updatedAt: new Date() },
-            }),
+          db.update(shifts).set({ description, requiredCount }).where(eq(shifts.id, guard.id)),
         );
+        if (cell) {
+          batchOps.push(
+            db.delete(shiftAssignments).where(eq(shiftAssignments.shiftId, guard.id)),
+            ...uniqueIds.map((instructorId) =>
+              db.insert(shiftAssignments).values({ shiftId: guard.id, instructorId }),
+            ),
+          );
+        }
+        upsertedCount++;
       }
 
       if (batchOps.length === 0) {
@@ -1674,12 +1865,7 @@ export const shiftsRoute = new Hono<{
       try {
         await db.batch([head, ...rest]);
       } catch (err) {
-        if (isUniqueViolation(err)) {
-          throw new HTTPException(409, {
-            message: 'Shift uniqueness violated during monthly upsert',
-          });
-        }
-        throw err;
+        rethrowShiftWriteError(err);
       }
 
       return c.json({ upsertedCount, deletedCount });

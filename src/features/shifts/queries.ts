@@ -25,6 +25,7 @@ import {
   upsertMonthlyAssignmentsResultSchema,
   type AutoAssignContext,
   type InstructorWorkload,
+  type PublishShiftsInput,
   type SeasonStatsResponse,
   type ShiftAgendaDirection,
   type ShiftAgendaResponse,
@@ -372,14 +373,28 @@ export function useUpsertAssignments() {
       }
       return upsertMonthlyAssignmentsResultSchema.parse(await res.json());
     },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: [...SHIFTS_QUERY_KEY, 'calendar'] });
-      void queryClient.invalidateQueries({ queryKey: [...SHIFTS_QUERY_KEY, 'assignment-editor'] });
-      void queryClient.invalidateQueries({ queryKey: [...SHIFTS_QUERY_KEY, 'list'] });
-      void queryClient.invalidateQueries({ queryKey: [...SHIFTS_QUERY_KEY, 'requirements'] });
-      void queryClient.invalidateQueries({
-        queryKey: [...SHIFTS_QUERY_KEY, 'instructor-workload'],
-      });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: SHIFTS_QUERY_KEY });
+      await queryClient.invalidateQueries({ queryKey: ['availabilities'] });
+    },
+  });
+}
+
+/** 保存済みの枠を公開・公開取り消しし、閲覧と編集に使う情報を更新する。 */
+export function usePublishShifts() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: PublishShiftsInput) => {
+      const response = await client.api.shifts.publication.$put({ json: input });
+      if (!response.ok) {
+        const body = apiErrorSchema.parse(await response.json());
+        throw new Error(body.message ?? '公開状態の変更に失敗しました');
+      }
+      return z.object({ changedCount: z.number() }).parse(await response.json());
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: SHIFTS_QUERY_KEY });
+      await queryClient.invalidateQueries({ queryKey: ['availabilities'] });
     },
   });
 }

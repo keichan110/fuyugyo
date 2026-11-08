@@ -26,11 +26,11 @@ import {
 import { assignmentConflictLabels } from './assignment-conflicts';
 import { applyAutoAssignProposals, contextWithStagedAssignments } from './auto-assign-stage';
 import { resolveAssignmentsByDay } from './calendar-events';
+import { preserveStagedVersions, stageAssignment } from './edit-version';
 import {
   applyBulkRequirements,
   stageRequirement as applyStagedRequirement,
   bulkRequirementTargetDates,
-  countAutoAssignSelectableDates,
   effectiveRequiredCount,
   isAutoAssignSelectable,
   planAutoAssignTargets,
@@ -211,20 +211,36 @@ export function useShiftManagerController() {
     setPendingNav(null);
     blocker.reset?.();
   };
-  const stageCell = useCallback((cellKeyValue: string, next: StagedCell) => {
-    setStagedCells((prev) => new Map(prev).set(cellKeyValue, next));
-  }, []);
+  const shiftByCell = useMemo(() => {
+    const map = new Map<string, ShiftViewItem>();
+    for (const shift of monthly.data?.shifts ?? []) {
+      if (shift.department.code === departmentCode) {
+        map.set(cellKey(shift.date, shift.shiftType.id), shift);
+      }
+    }
+    return map;
+  }, [monthly.data, departmentCode]);
+  const stageCell = useCallback(
+    (cellKeyValue: string, next: StagedCell) => {
+      if (shiftByCell.get(cellKeyValue)?.status === 'PUBLISHED') return;
+      setStagedCells((prev) => stageAssignment(prev, cellKeyValue, next, shiftByCell));
+    },
+    [shiftByCell],
+  );
   const resetStage = () => {
     setStagedCells(new Map());
     setStagedRequirements(new Map());
   };
   const stageRequirement = useCallback(
     (date: string, shiftTypeId: string, requiredCount: number | null) => {
-      setStagedRequirements((prev) =>
-        applyStagedRequirement(prev, savedRequirements, cellKey(date, shiftTypeId), requiredCount),
-      );
+      if (shiftByCell.get(cellKey(date, shiftTypeId))?.status === 'PUBLISHED') return;
+      setStagedRequirements((prev) => {
+        const key = cellKey(date, shiftTypeId);
+        const next = applyStagedRequirement(prev, savedRequirements, key, requiredCount);
+        return preserveStagedVersions(next, prev, shiftByCell);
+      });
     },
-    [savedRequirements],
+    [savedRequirements, shiftByCell],
   );
 
   // 表示中のシフト種別について、日ごとの表示用の必要人数（取得前は null 自体を返さない）
@@ -245,41 +261,41 @@ export function useShiftManagerController() {
   // 自動割当で選べるのは、実効値が1名以上の日だけ（未設定と0名は対象外）
   const isAutoAssignSelectableDate = useCallback(
     (date: string) =>
+      shiftByCell.get(cellKey(date, activeShiftTypeId))?.status !== 'PUBLISHED' &&
       isAutoAssignSelectable(stagedRequirements, savedRequirements, date, activeShiftTypeId),
-    [stagedRequirements, savedRequirements, activeShiftTypeId],
+    [stagedRequirements, savedRequirements, activeShiftTypeId, shiftByCell],
   );
 
   // 必要人数の取得後に、選べる日が1日もないか（取得前は判定しない）
   const hasNoAutoAssignSelectableDates =
-    requirementsReady &&
-    countAutoAssignSelectableDates({
-      dates: days,
-      shiftTypeId: activeShiftTypeId,
-      staged: stagedRequirements,
-      saved: savedRequirements,
-    }) === 0;
+    requirementsReady && !days.some(isAutoAssignSelectableDate);
 
   const bulkTargetDates = useMemo(
     () =>
       bulkRequirementTargetDates({
-        dates: days,
+        dates: days.filter(
+          (date) => shiftByCell.get(cellKey(date, activeShiftTypeId))?.status !== 'PUBLISHED',
+        ),
         shiftTypeId: activeShiftTypeId,
         staged: stagedRequirements,
         saved: savedRequirements,
       }),
-    [days, activeShiftTypeId, stagedRequirements, savedRequirements],
+    [days, activeShiftTypeId, stagedRequirements, savedRequirements, shiftByCell],
   );
   const applyBulkRequirementCounts = () => {
     if (weekdayRequiredCount === '' || weekendHolidayRequiredCount === '') return;
-    setStagedRequirements((prev) =>
-      applyBulkRequirements({
-        dates: days,
+    setStagedRequirements((prev) => {
+      const next = applyBulkRequirements({
+        dates: days.filter(
+          (date) => shiftByCell.get(cellKey(date, activeShiftTypeId))?.status !== 'PUBLISHED',
+        ),
         shiftTypeId: activeShiftTypeId,
         staged: prev,
         saved: savedRequirements,
         counts: { weekday: weekdayRequiredCount, weekendHoliday: weekendHolidayRequiredCount },
-      }),
-    );
+      });
+      return preserveStagedVersions(next, prev, shiftByCell);
+    });
     setBulkModalOpened(false);
   };
 
@@ -319,7 +335,7 @@ export function useShiftManagerController() {
     }
     // 選択済みの日のうち、実効値が1名以上の日だけを対象にする
     const targets = planAutoAssignTargets({
-      dates: autoAssignDates,
+      dates: [...autoAssignDates].filter(isAutoAssignSelectableDate),
       shiftTypeId: activeShiftTypeId,
       staged: stagedRequirements,
       saved: savedRequirements,
@@ -335,7 +351,14 @@ export function useShiftManagerController() {
         params: { shiftTypeId: activeShiftTypeId, ...targets },
         variant,
       });
-      setStagedCells((current) => applyAutoAssignProposals({ stagedCells: current, proposals }));
+      setStagedCells((current) => {
+        const safeProposals = proposals.filter(
+          (proposal) =>
+            shiftByCell.get(cellKey(proposal.date, proposal.shiftTypeId))?.status !== 'PUBLISHED',
+        );
+        const next = applyAutoAssignProposals({ stagedCells: current, proposals: safeProposals });
+        return preserveStagedVersions(next, current, shiftByCell);
+      });
       setShortageByCell(
         new Map(
           proposals.map((proposal) => [
@@ -429,11 +452,19 @@ export function useShiftManagerController() {
         shiftTypeId,
         description: value.description.trim() || null,
         instructorIds: value.instructorIds,
+        expectedRevision: value.expectedRevision,
+        expectedShiftId: value.expectedShiftId,
       };
     });
     const stagedRequirementInputs = Array.from(stagedRequirements.entries()).map(([key, value]) => {
       const [date, shiftTypeId] = splitCellKey(key);
-      return { date, shiftTypeId, requiredCount: value.requiredCount };
+      return {
+        date,
+        shiftTypeId,
+        requiredCount: value.requiredCount,
+        expectedRevision: value.expectedRevision,
+        expectedShiftId: value.expectedShiftId,
+      };
     });
     upsertMonthly.mutate(
       { month, departmentCode, cells, requirements: stagedRequirementInputs },
@@ -446,15 +477,6 @@ export function useShiftManagerController() {
     );
   };
 
-  const shiftByCell = useMemo(() => {
-    const map = new Map<string, ShiftViewItem>();
-    for (const shift of monthly.data?.shifts ?? []) {
-      if (shift.department.code === departmentCode) {
-        map.set(cellKey(shift.date, shift.shiftType.id), shift);
-      }
-    }
-    return map;
-  }, [monthly.data, departmentCode]);
   const assignmentsByDay = useMemo(
     () =>
       resolveAssignmentsByDay({

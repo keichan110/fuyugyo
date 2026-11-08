@@ -7,6 +7,7 @@ import { validator } from 'hono/validator';
 import { dateStringSchema } from '@/features/shifts/schema';
 import { createDb } from '@/server/db/client';
 import { instructorAvailabilities, shiftAssignments, shifts, users } from '@/server/db/schema';
+import { rethrowShiftWriteError } from '@/server/db/shift-writes';
 import { requireAuth, requireRole, type AuthVariables } from '@/server/middleware/auth';
 import type { Env } from '@/server/types';
 
@@ -83,7 +84,7 @@ function today(): Date {
  * 本人の書き込みは未来の未割当日のみ許可し、全変更を単一 batch で原子的に反映する。
  */
 export const availabilitiesRoute = new Hono<{ Bindings: Env; Variables: AuthVariables }>()
-  /** 本人の申告一覧と、その期間中に割当済みで編集不能な日を返す。 */
+  /** 本人の申告一覧と、その期間中に公開済みの本人配置があり編集不能な日を返す。 */
   .get('/me', requireAuth, async (c) => {
     const db = createDb(c.env.DB);
     const instructorId = await resolveInstructorId(db, c.get('user').userId);
@@ -108,6 +109,7 @@ export const availabilitiesRoute = new Hono<{ Bindings: Env; Variables: AuthVari
         .where(
           and(
             eq(shiftAssignments.instructorId, instructorId),
+            eq(shifts.status, 'PUBLISHED'),
             gte(shifts.date, range.from),
             lte(shifts.date, range.to),
           ),
@@ -158,11 +160,14 @@ export const availabilitiesRoute = new Hono<{ Bindings: Env; Variables: AuthVari
           .where(
             and(
               eq(shiftAssignments.instructorId, instructorId),
+              eq(shifts.status, 'PUBLISHED'),
               inArray(shifts.date, requestedDates),
             ),
           );
         if (lockedRows.length > 0) {
-          throw new HTTPException(409, { message: '割当済み日の勤務可否は変更できません' });
+          throw new HTTPException(409, {
+            message: '公開済みシフトに割り当てられた日の勤務可否は変更できません',
+          });
         }
       }
 
@@ -183,7 +188,13 @@ export const availabilitiesRoute = new Hono<{ Bindings: Env; Variables: AuthVari
       });
 
       const [first, ...rest] = operations;
-      if (first) await db.batch([first, ...rest]);
+      if (first) {
+        try {
+          await db.batch([first, ...rest]);
+        } catch (error) {
+          rethrowShiftWriteError(error);
+        }
+      }
       return c.json({ updatedCount: input.changes.length });
     },
   )

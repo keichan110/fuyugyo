@@ -20,6 +20,9 @@ function shift(date: string, names: Array<[string, string]>, description: string
     id: `shift-${date}`,
     date,
     description,
+    status: 'PUBLISHED',
+    revision: 0,
+    requiredCount: null,
     department: { name: 'スキー', code: 'ski' },
     shiftType: { id: TYPE, name: '一般レッスン' },
     assignedInstructors: names.map(([id, displayName]) => ({ id, displayName })),
@@ -110,7 +113,7 @@ describe('buildCalendarEvents', () => {
   it('担当者イベントを日ごとに作る', () => {
     const shiftByCell = new Map([[key(D1), shift(D1, [['a', '山田']])]]);
     const events = build({ shiftByCell });
-    expect(events).toHaveLength(1);
+    expect(events.filter((event) => event.payload?.kind === 'instructor')).toHaveLength(1);
     expect(events[0]).toMatchObject({ id: `${D1}:${TYPE}:a`, title: '山田' });
   });
 
@@ -166,7 +169,9 @@ describe('buildCalendarEvents', () => {
 
   it('必要人数の取得前（requiredByDay が null）は充足表示を出さない', () => {
     const shiftByCell = new Map([[key(D1), shift(D1, [['a', 'A']])]]);
-    expect(headers(build({ shiftByCell }))).toEqual([]);
+    expect(headers(build({ shiftByCell }))).toEqual([
+      expect.objectContaining({ staffing: null, status: 'PUBLISHED' }),
+    ]);
   });
 
   it('不足理由は、現在も SHORT の日にだけ Tooltip へ続ける', () => {

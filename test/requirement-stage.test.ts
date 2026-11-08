@@ -103,6 +103,7 @@ describe('自動割当の対象', () => {
         },
       ],
       availabilities: [],
+      publishedSlots: [],
       existingAssignments: [],
     };
     const saved = new Map([

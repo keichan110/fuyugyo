@@ -36,6 +36,7 @@ import type { StagedCell } from './shift-manager-types';
 import classes from './ShiftManager.module.css';
 
 type AssignmentPanelProps = {
+  readOnly: boolean;
   date: string;
   departmentCode: DepartmentCode;
   shiftTypeId: string;
@@ -62,6 +63,7 @@ type AssignmentPanelProps = {
  * セル切替やサーバー再取得のたびに props に確実に追随する。
  */
 export function AssignmentPanel({
+  readOnly,
   date,
   departmentCode,
   shiftTypeId,
@@ -168,6 +170,7 @@ export function AssignmentPanel({
       <InstructorCard
         instructor={instructor}
         departmentCode={departmentCode}
+        readOnly={readOnly}
         checked={selectedSet.has(instructor.id)}
         onToggle={() => toggle(instructor.id)}
         conflictLabel={conflictLabelById.get(instructor.id)}
@@ -197,7 +200,7 @@ export function AssignmentPanel({
         allowDecimal={false}
         allowNegative={false}
         min={0}
-        disabled={!requirementsReady}
+        disabled={readOnly || !requirementsReady}
         value={requiredCount ?? ''}
         onChange={(value) => onRequiredCountChange(typeof value === 'number' ? value : null)}
       />
@@ -275,6 +278,7 @@ export function AssignmentPanel({
           </Stack>
 
           <Textarea
+            readOnly={readOnly}
             label="備考"
             value={displayedDescription}
             onChange={(e) => changeDescription(e.currentTarget.value)}
@@ -301,6 +305,7 @@ function CandidateGroupIcon({ type }: { type: Availability['type'] | 'NOT_ENTERE
 }
 
 type InstructorCardProps = {
+  readOnly: boolean;
   instructor: AvailableInstructor;
   departmentCode: DepartmentCode;
   checked: boolean;
@@ -322,6 +327,7 @@ type InstructorCardProps = {
  * 新規の二重割り当てを防ぐ（既存の割り当て解除はできるよう checked 時は除外）。
  */
 function InstructorCard({
+  readOnly,
   instructor,
   departmentCode,
   checked,
@@ -334,7 +340,7 @@ function InstructorCard({
 }: InstructorCardProps) {
   const isConflict = conflictLabel !== undefined;
   const isUnavailable = availability?.type === 'UNAVAILABLE';
-  const isDisabled = (isConflict || isUnavailable) && !checked;
+  const isDisabled = readOnly || ((isConflict || isUnavailable) && !checked);
   const descriptionId = useId();
   const qualificationId = useId();
   const hasNote = Boolean(availability?.note?.trim());
@@ -342,7 +348,7 @@ function InstructorCard({
   return (
     <Checkbox.Card
       checked={checked}
-      onClick={onToggle}
+      onClick={isDisabled ? undefined : onToggle}
       disabled={isDisabled}
       aria-label={instructor.displayName}
       aria-describedby={[qualificationId, hasNote || isConflict ? descriptionId : null]

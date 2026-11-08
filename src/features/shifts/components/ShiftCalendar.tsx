@@ -34,6 +34,7 @@ type ShiftTypeOption = {
 };
 
 type ShiftCalendarProps = {
+  publicationControls: React.ReactNode;
   month: string;
   onMonthChange: (month: string) => void;
   days: string[];
@@ -75,6 +76,7 @@ type ShiftCalendarProps = {
 
 /** 選択中の部門・種別の月間配置を、PCではカレンダー、モバイルでは日付リストで表示する。 */
 export function ShiftCalendar({
+  publicationControls,
   month,
   onMonthChange,
   days,
@@ -193,6 +195,7 @@ export function ShiftCalendar({
       </Tabs>
 
       <AutoAssignToolbar
+        publicationControls={publicationControls}
         autoAssignMode={autoAssignMode}
         selectedDateCount={autoAssignDates.size}
         requirementsReady={!!requiredByDay}
@@ -262,6 +265,9 @@ export function ShiftCalendar({
           const calendarDayColor = getCalendarDayColor(date);
           return {
             'data-shift-date': date,
+            'data-published':
+              shiftByCell.get(cellKey(date, activeShiftTypeId))?.status === 'PUBLISHED' ||
+              undefined,
             'data-focused-instructor':
               (focusedInstructorId !== null &&
                 assignmentsByDay.get(date)?.some((person) => person.id === focusedInstructorId)) ||
@@ -273,7 +279,7 @@ export function ShiftCalendar({
               stagedCells.has(cellKey(date, activeShiftTypeId)) ||
               stagedRequirements.has(cellKey(date, activeShiftTypeId)) ||
               undefined,
-            'aria-label': `${Number(date.slice(5, 7))}月${Number(date.slice(8, 10))}日（${weekdayLabel(date)}）の割り当てを編集`,
+            'aria-label': `${shiftByCell.get(cellKey(date, activeShiftTypeId))?.status === 'PUBLISHED' ? '公開済み。自動割当の対象外。' : '未公開。'}${Number(date.slice(5, 7))}月${Number(date.slice(8, 10))}日（${weekdayLabel(date)}）の割り当てを編集`,
             style: {
               color: calendarDayColor ? `var(--mantine-color-${calendarDayColor}-7)` : undefined,
               backgroundColor:

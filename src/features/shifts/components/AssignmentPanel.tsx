@@ -13,6 +13,7 @@ import {
   Tooltip,
   VisuallyHidden,
 } from '@mantine/core';
+import { IconMessage } from '@tabler/icons-react';
 
 import { ErrorAlert } from '@/components/AppAlert';
 import { AppBadge } from '@/components/AppBadge';
@@ -330,7 +331,20 @@ function InstructorCard({
         </Group>
         {(hasNote || isConflict) && (
           <Stack id={descriptionId} gap={2} className={classes.candidateDetails}>
-            {hasNote && <Text size="xs">申告理由: {availability?.note}</Text>}
+            {hasNote && (
+              <Group gap={4} align="flex-start" wrap="nowrap" c="dimmed">
+                <IconMessage
+                  size={14}
+                  stroke={1.75}
+                  aria-hidden
+                  style={{ flexShrink: 0, marginTop: 2 }}
+                />
+                <Text size="xs" c="dimmed" miw={0}>
+                  <VisuallyHidden>コメント: </VisuallyHidden>
+                  {availability?.note}
+                </Text>
+              </Group>
+            )}
             {isConflict && <Text size="xs">同日配置済み: {conflictLabel}</Text>}
           </Stack>
         )}

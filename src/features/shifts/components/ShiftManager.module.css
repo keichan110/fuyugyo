@@ -355,3 +355,8 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+.publicationIcon {
+  flex-shrink: 0;
+  color: var(--mantine-color-dimmed);
+}

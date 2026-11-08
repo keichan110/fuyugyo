@@ -17,6 +17,7 @@ import { ShiftAnalysis } from './ShiftAnalysis';
 import { ShiftCalendar } from './ShiftCalendar';
 import classes from './ShiftManager.module.css';
 import { ShiftManagerDialogs } from './ShiftManagerDialogs';
+import { ShiftPublicationControls } from './ShiftPublicationControls';
 import { useShiftManagerController } from './useShiftManagerController';
 
 /** シフト枠（日付 × 部門 × シフト種別）を月間シフト表で編集する管理コンポーネント。 */
@@ -47,6 +48,29 @@ function ShiftManagerContent({ controller, myInstructorId }: ShiftManagerContent
   const selectedCellDateColor = controller.selectedCell
     ? getCalendarDayColor(controller.selectedCell.date)
     : undefined;
+
+  const publicationProps = {
+    month: controller.month,
+    departmentCode: controller.departmentCode,
+    shiftTypeId: controller.activeShiftTypeId,
+    shiftTypeName:
+      controller.formData.data?.shiftTypes.find((type) => type.id === controller.activeShiftTypeId)
+        ?.name ?? '',
+    days: controller.days,
+    shiftByCell: controller.shiftByCell,
+    stagedCells: controller.stagedCells,
+    stagedRequirements: controller.stagedRequirements,
+    disabled:
+      controller.autoAssignMode ||
+      controller.isAutoAssigning ||
+      controller.upsertMonthly.isPending ||
+      !controller.monthly.data ||
+      !controller.requirementsReady,
+  };
+  const selectedPublished = selectedCell
+    ? controller.shiftByCell.get(cellKey(selectedCell.date, selectedCell.shiftTypeId))?.status ===
+      'PUBLISHED'
+    : false;
 
   return (
     <Stack gap="md">
@@ -99,9 +123,9 @@ function ShiftManagerContent({ controller, myInstructorId }: ShiftManagerContent
           {controller.isDirty && (
             <UnsavedChangesBar
               count={controller.dirtyCount}
-              description="表示中の月のシフト割当と必要人数をまとめて保存します"
+              description="表示中の月の配置と必要人数を下書きとして保存します。メンバーには公開されません"
               loading={controller.upsertMonthly.isPending || controller.isAutoAssigning}
-              saveLabel="一括保存"
+              saveLabel="下書きを保存"
               onCancel={controller.resetStage}
               onSave={controller.saveMonthly}
             />
@@ -117,6 +141,12 @@ function ShiftManagerContent({ controller, myInstructorId }: ShiftManagerContent
             data-panel-opened={controller.assignmentPanelOpened || undefined}
           >
             <ShiftCalendar
+              publicationControls={
+                <ShiftPublicationControls
+                  key={`${controller.month}:${controller.departmentCode}:${controller.activeShiftTypeId}`}
+                  {...publicationProps}
+                />
+              }
               month={controller.month}
               onMonthChange={(nextMonth) =>
                 controller.requestNavigation({ type: 'month', nextMonth: toMonth(nextMonth) })
@@ -196,6 +226,18 @@ function ShiftManagerContent({ controller, myInstructorId }: ShiftManagerContent
                   />
                 </Group>
               </Group>
+              {selectedCell && (
+                <ShiftPublicationControls
+                  key={`single:${selectedCell.date}:${controller.departmentCode}:${selectedCell.shiftTypeId}`}
+                  {...publicationProps}
+                  date={selectedCell.date}
+                />
+              )}
+              {selectedPublished && (
+                <Text size="sm" c="dimmed" mb="sm">
+                  公開済みのため編集できません。変更するには公開を取り消してください。
+                </Text>
+              )}
               {controller.autoAssignMode && (
                 <Text size="sm" c="dimmed" mb="sm">
                   自動割当の日付選択中は手動編集できません。編集するには自動割当をキャンセルしてください。
@@ -209,6 +251,7 @@ function ShiftManagerContent({ controller, myInstructorId }: ShiftManagerContent
                 {selectedCell && (
                   <AssignmentPanel
                     key={`${selectedCell.date}-${controller.departmentCode}-${selectedCell.shiftTypeId}`}
+                    readOnly={selectedPublished}
                     date={selectedCell.date}
                     departmentCode={controller.departmentCode}
                     shiftTypeId={selectedCell.shiftTypeId}

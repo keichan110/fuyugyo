@@ -60,6 +60,7 @@ describe('自動割当の確認と未保存編集', () => {
         instructors: [],
         frames: [],
         availabilities: [],
+        publishedSlots: [],
         existingAssignments: [
           {
             date: '2026-01-10',
@@ -109,6 +110,7 @@ it.each([true, false])('未保存の別枠への追加・削除を重複判定�
         },
       ],
       availabilities: [],
+      publishedSlots: [],
       existingAssignments: added
         ? []
         : [

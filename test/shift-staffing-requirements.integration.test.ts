@@ -10,7 +10,6 @@ import {
   instructors,
   shiftAssignments,
   shifts,
-  shiftStaffingRequirements,
   shiftTypes,
   users,
 } from '../src/server/db/schema';
@@ -109,7 +108,6 @@ async function fetchRequirements(token: string, month: string) {
 
 beforeEach(async () => {
   const db = createDb(env.DB);
-  await db.delete(shiftStaffingRequirements);
   await db.delete(shiftAssignments);
   await db.delete(shifts);
   await db.delete(departmentShiftTypes);
@@ -186,7 +184,7 @@ describe('必要人数の保存と取得', () => {
     expect(await db.select().from(shiftAssignments)).toHaveLength(1);
   });
 
-  it('全員を外して Shift が消えても必要人数は残る', async () => {
+  it('全員を外しても必要人数のある Shift は残る', async () => {
     const token = await seedToken('MANAGER');
     const shiftTypeId = await seedShiftType();
     const instructorId = await seedInstructor();
@@ -202,7 +200,7 @@ describe('必要人数の保存と取得', () => {
     });
 
     const db = createDb(env.DB);
-    expect(await db.select().from(shifts)).toHaveLength(0);
+    expect(await db.select().from(shifts)).toHaveLength(1);
     expect(await fetchRequirements(token, '2027-01')).toHaveLength(1);
   });
 

@@ -25,6 +25,9 @@ function makeShift(
     id: crypto.randomUUID(),
     date: '2026-01-15',
     description: null,
+    status: 'PUBLISHED',
+    revision: 0,
+    requiredCount: null,
     department: { name: departmentName, code: 'ski' },
     shiftType: { id: 'st', name: '終日' },
     assignedInstructors: Array.from({ length: instructorCount }, (_, i) => ({

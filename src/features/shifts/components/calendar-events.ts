@@ -30,6 +30,7 @@ export type AssignmentEventPayload =
       kind: 'header';
       date: string;
       staged: boolean;
+      status?: 'DRAFT' | 'PUBLISHED' | undefined;
       description: string;
       staffing: StaffingDisplay | null;
     };
@@ -172,7 +173,8 @@ export function buildCalendarEvents({
           needsReview: compositionByDay?.get(day)?.needsReview ?? false,
         })
       : null;
-    if (!(staged || description || staffing)) return [];
+    const status = shiftByCell.get(key)?.status ?? (staged ? 'DRAFT' : undefined);
+    if (!(staged || description || staffing || status)) return [];
     return [
       {
         id: `${day}:${shiftTypeId}:header`,
@@ -181,7 +183,7 @@ export function buildCalendarEvents({
         end: `${addDays(day, 1)} 00:00:00`,
         color: 'gray',
         display: 'background',
-        payload: { kind: 'header', date: day, staged, description, staffing },
+        payload: { kind: 'header', date: day, staged, description, staffing, status },
       },
     ];
   });

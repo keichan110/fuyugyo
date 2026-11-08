@@ -46,6 +46,7 @@ function createContext(
       type,
       note: null,
     })),
+    publishedSlots: [],
     existingAssignments: [
       ...staff.flatMap(({ name, days }) =>
         Array.from({ length: days }, (_, index) => ({

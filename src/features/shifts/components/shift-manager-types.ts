@@ -9,6 +9,8 @@ export type SelectedCell = ShiftManagerSelection;
 export type StagedCell = {
   instructorIds: string[];
   description: string;
+  expectedRevision?: number | null;
+  expectedShiftId?: string | null;
 };
 
 /** 部門・対象月変更をユーザー承認で確定するための保留アクション */

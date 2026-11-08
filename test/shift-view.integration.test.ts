@@ -180,6 +180,7 @@ async function seedShift(
   const db = createDb(env.DB);
   const shiftId = crypto.randomUUID();
   await db.insert(shifts).values({
+    status: 'PUBLISHED',
     id: shiftId,
     date: new Date(`${dateStr}T00:00:00.000Z`),
     departmentCode,
@@ -219,7 +220,7 @@ describe('GET /api/shifts/calendar', () => {
     await seedShift('2026-01-31', ski, st, []);
     await seedShift('2025-12-31', ski, st, [inst]); // 前月
     await seedShift('2026-02-01', ski, st, [inst]); // 翌月
-    const token = await seedToken('MEMBER');
+    const token = await seedToken('MANAGER');
 
     const res = await app.request(
       '/api/shifts/calendar?month=2026-01',
@@ -272,6 +273,28 @@ describe('GET /api/shifts/calendar', () => {
     );
     expect(upsertRes.status).toBe(200);
 
+    const saved = await createDb(env.DB).select().from(shifts);
+    for (const type of shiftTypeIds) {
+      await app.request(
+        '/api/shifts/publication',
+        {
+          method: 'PUT',
+          ...authJsonRequest(managerToken, {
+            month: '2026-01',
+            departmentCode: ski,
+            shiftTypeId: type,
+            status: 'PUBLISHED',
+            dates: saved
+              .filter((shift) => shift.shiftTypeId === type)
+              .map((shift) => ({
+                date: shift.date.toISOString().slice(0, 10),
+                expectedRevision: shift.revision,
+              })),
+          }),
+        },
+        envWith({}),
+      );
+    }
     const memberToken = await seedToken('MEMBER');
     const res = await app.request(
       '/api/shifts/calendar?month=2026-01',
@@ -322,7 +345,7 @@ describe('GET /api/shifts/calendar', () => {
     await seedShift('2026-01-15', ski, morning);
     await seedShift('2026-01-15', ski, fullDay);
     await seedShift('2026-01-15', ski, afternoon);
-    const token = await seedToken('MEMBER');
+    const token = await seedToken('MANAGER');
 
     const res = await app.request(
       '/api/shifts/calendar?month=2026-01',
@@ -418,7 +441,7 @@ describe('GET /api/shifts/agenda', () => {
     await seedShift('2026-01-10', ski, morning);
     await seedShift('2026-01-10', ski, fullDay);
     await seedShift('2026-01-10', ski, afternoon);
-    const token = await seedToken('MEMBER');
+    const token = await seedToken('MANAGER');
 
     const res = await app.request(
       '/api/shifts/agenda?cursor=2026-01-10&direction=future',

@@ -589,14 +589,13 @@ describe('PUT /api/shifts/assignments', () => {
     expect(shiftsBody[0]?.departmentCode).toBe(deptB);
   });
 
-  it('複数セルの途中で UNIQUE 違反が起きた場合、全体をロールバックする', async () => {
+  it('重複した枠を含む入力は全体を拒否する', async () => {
     const deptId = await seedDepartment();
     const stId = await seedShiftType();
     const inst = await seedInstructor();
     const token = await seedToken('MANAGER');
 
-    // 同一キー (date × 部門 × シフト種別) を2セル分含めて UNIQUE 違反を誘発する。
-    // 先頭の 2026-02-05 が成功しても、後段の失敗で batch 全体がロールバックすることを検証する。
+    // 同一キーを重複指定しても、先頭の枠を含めて何も保存しない。
     const res = await app.request(
       '/api/shifts/assignments',
       {
@@ -614,7 +613,7 @@ describe('PUT /api/shifts/assignments', () => {
       envWith({}),
     );
 
-    expect(res.status).toBe(409);
+    expect(res.status).toBe(400);
 
     // 部分コミットが残っていないことを確認する
     const list = await app.request('/api/shifts', authHeader(token), envWith({}));

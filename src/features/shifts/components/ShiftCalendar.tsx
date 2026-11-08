@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 
 import { Box, Card, Group, Tabs, Text } from '@mantine/core';
 import { MonthView, type ScheduleEventData } from '@mantine/schedule';
+import { IconLock, IconPencil } from '@tabler/icons-react';
 
 import 'dayjs/locale/ja';
 
@@ -34,6 +35,7 @@ type ShiftTypeOption = {
 };
 
 type ShiftCalendarProps = {
+  publicationControls: React.ReactNode;
   month: string;
   onMonthChange: (month: string) => void;
   days: string[];
@@ -75,6 +77,7 @@ type ShiftCalendarProps = {
 
 /** 選択中の部門・種別の月間配置を、PCではカレンダー、モバイルでは日付リストで表示する。 */
 export function ShiftCalendar({
+  publicationControls,
   month,
   onMonthChange,
   days,
@@ -192,6 +195,7 @@ export function ShiftCalendar({
         </Tabs.List>
       </Tabs>
 
+      {publicationControls}
       <AutoAssignToolbar
         autoAssignMode={autoAssignMode}
         selectedDateCount={autoAssignDates.size}
@@ -215,6 +219,16 @@ export function ShiftCalendar({
         </Text>
       </Group>
 
+      <Group gap="md" mb="xs" aria-label="公開状態の凡例">
+        <Group gap={4}>
+          <IconLock size={12} aria-hidden />
+          <Text size="xs">公開済み（編集・自動割当から保護）</Text>
+        </Group>
+        <Group gap={4}>
+          <IconPencil size={12} aria-hidden />
+          <Text size="xs">下書き</Text>
+        </Group>
+      </Group>
       {focusedInstructor && (
         <Group gap="xs" mb="xs" wrap="wrap">
           <Text size="xs" c="blue">
@@ -273,7 +287,7 @@ export function ShiftCalendar({
               stagedCells.has(cellKey(date, activeShiftTypeId)) ||
               stagedRequirements.has(cellKey(date, activeShiftTypeId)) ||
               undefined,
-            'aria-label': `${Number(date.slice(5, 7))}月${Number(date.slice(8, 10))}日（${weekdayLabel(date)}）の割り当てを編集`,
+            'aria-label': `${shiftByCell.get(cellKey(date, activeShiftTypeId))?.status === 'PUBLISHED' ? '公開済み。自動割当の対象外。' : ''}${Number(date.slice(5, 7))}月${Number(date.slice(8, 10))}日（${weekdayLabel(date)}）の割り当てを編集`,
             style: {
               color: calendarDayColor ? `var(--mantine-color-${calendarDayColor}-7)` : undefined,
               backgroundColor:

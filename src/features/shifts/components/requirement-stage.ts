@@ -4,6 +4,8 @@ import { cellKey } from './shift-manager-utils';
 /** 未保存の必要人数。null は未設定（保存済みの行があれば削除）を表す。 */
 export type StagedRequirement = {
   requiredCount: number | null;
+  expectedRevision?: number | null;
+  expectedShiftId?: string | null;
 };
 
 /** cellKey（日付:シフト種別ID）→ 未保存の必要人数 */

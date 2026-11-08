@@ -132,6 +132,7 @@ describe('GET /api/shifts/auto-assign-context', () => {
 
     expect(res.status).toBe(200);
     expect(autoAssignContextSchema.parse(await res.json())).toEqual({
+      publishedSlots: [],
       departmentCode: 'ski',
       period: { from: '2026-01-01', to: '2026-01-31' },
       instructors: [

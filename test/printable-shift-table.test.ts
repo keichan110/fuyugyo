@@ -39,6 +39,9 @@ function makeShift(params: {
     id: params.id,
     date: params.date,
     description: 'この説明文は紙面に載せない',
+    status: 'PUBLISHED',
+    revision: 0,
+    requiredCount: null,
     department: {
       name: DEPARTMENT_LABELS[params.departmentCode],
       code: params.departmentCode,

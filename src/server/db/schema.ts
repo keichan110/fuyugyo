@@ -149,9 +149,20 @@ export const shifts = sqliteTable(
       .notNull()
       .references(() => shiftTypes.id),
     description: text('description'),
+    requiredCount: integer('required_count'),
+    status: text('status', { enum: ['DRAFT', 'PUBLISHED'] })
+      .notNull()
+      .default('DRAFT'),
+    revision: integer('revision').notNull().default(0),
     ...timestamps,
   },
   (t) => [
+    check(
+      'shifts_required_count_non_negative',
+      sql`${t.requiredCount} IS NULL OR ${t.requiredCount} >= 0`,
+    ),
+    check('shifts_revision_non_negative', sql`${t.revision} >= 0`),
+    check('shifts_status_valid', sql`${t.status} IN ('DRAFT', 'PUBLISHED')`),
     // (日付 × 部門 × シフト種別) の重複枠を DB レベルで禁止する
     uniqueIndex('unique_shift_per_day').on(t.date, t.departmentCode, t.shiftTypeId),
     index('idx_shifts_department_code').on(t.departmentCode),
@@ -160,33 +171,6 @@ export const shifts = sqliteTable(
     index('idx_shifts_date_department').on(t.date, t.departmentCode),
     index('idx_shifts_department_type_date').on(t.departmentCode, t.shiftTypeId, t.date),
     index('idx_shifts_date_type').on(t.date, t.shiftTypeId),
-  ],
-);
-
-/**
- * 必要人数テーブル（日付 × 部門 × シフト種別ごとの必要人数）。
- * 行なしは未設定、0 は開講予定なしを表す。shifts とは独立し、Shift が消えても残る。
- */
-export const shiftStaffingRequirements = sqliteTable(
-  'shift_staffing_requirements',
-  {
-    id: primaryId(),
-    date: integer('date', { mode: 'timestamp' }).notNull(),
-    departmentCode: text('department_code').notNull(),
-    shiftTypeId: text('shift_type_id')
-      .notNull()
-      .references(() => shiftTypes.id),
-    requiredCount: integer('required_count').notNull(),
-    ...timestamps,
-  },
-  (t) => [
-    uniqueIndex('unique_shift_staffing_requirement_per_day').on(
-      t.date,
-      t.departmentCode,
-      t.shiftTypeId,
-    ),
-    index('idx_shift_staffing_requirements_date').on(t.date),
-    check('shift_staffing_requirements_required_count_non_negative', sql`${t.requiredCount} >= 0`),
   ],
 );
 

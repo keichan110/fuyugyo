@@ -39,7 +39,15 @@ export function solveAutoAssignments(
   seed: number,
 ): AutoAssignSolveResult {
   // 対象枠は白紙から置き換えるため、元の勤務を重複判定・勤務日数へ二重計上しない。
-  const targets = new Set(params.targetDates);
+  const published = new Set(
+    context.publishedSlots
+      .filter(
+        (slot) =>
+          slot.departmentCode === context.departmentCode && slot.shiftTypeId === params.shiftTypeId,
+      )
+      .map((slot) => slot.date),
+  );
+  const targets = new Set(params.targetDates.filter((date) => !published.has(date)));
   context = {
     ...context,
     existingAssignments: context.existingAssignments.filter(
@@ -88,7 +96,7 @@ export function solveAutoAssignments(
     for (const id of assignment.instructorIds) baseline.get(id)?.add(dayNumber(assignment.date));
   }
   const evaluation: Evaluation = { baseline, avoid, rankById, configuredRankCount };
-  const frames: Frame[] = [...new Set(params.targetDates)].sort().map((date) => ({
+  const frames: Frame[] = [...targets].sort().map((date) => ({
     date,
     day: dayNumber(date),
     required: requiredCount(date, params),

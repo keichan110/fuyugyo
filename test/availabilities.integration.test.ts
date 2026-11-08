@@ -81,6 +81,7 @@ async function assignInstructor(instructorId: string, date: string): Promise<voi
     .insert(shifts)
     .values({
       date: new Date(`${date}T00:00:00.000Z`),
+      status: 'PUBLISHED',
       departmentCode: 'ski',
       shiftTypeId: shiftType.id,
     })

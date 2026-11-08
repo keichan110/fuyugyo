@@ -112,24 +112,6 @@ function MonthlyPublicationControl({
             <Text size="sm">
               公開する最終日を選んでください。月初から選択日までを公開し、それより後の日は非公開に戻します。
             </Text>
-            <Group gap="xs">
-              <AppButton
-                intent="secondary"
-                size="xs"
-                disabled={publication.isPending}
-                onClick={() => selectThrough(days.at(-1) ?? null)}
-              >
-                月末まで
-              </AppButton>
-              <AppButton
-                intent="danger"
-                size="xs"
-                disabled={publication.isPending}
-                onClick={() => selectThrough(null)}
-              >
-                すべて非公開
-              </AppButton>
-            </Group>
             <PublicationCalendar
               month={month}
               days={days}
@@ -189,7 +171,14 @@ function PublicationCalendar({
 }) {
   return (
     <>
-      <Box component="fieldset" disabled={pending} bd={0} p={0} m={0}>
+      <Box
+        component="fieldset"
+        disabled={pending}
+        bd={0}
+        p={0}
+        m={0}
+        style={{ display: 'flex', justifyContent: 'center' }}
+      >
         <DatePicker
           aria-label="公開する最終日"
           value={through}
@@ -213,6 +202,26 @@ function PublicationCalendar({
           mx="auto"
         />
       </Box>
+      <Group justify="space-between" gap="xs">
+        <AppButton
+          intent="secondary"
+          size="compact-xs"
+          disabled={pending}
+          aria-label="表示月をすべて非公開にする"
+          onClick={() => onChange(null)}
+        >
+          非公開
+        </AppButton>
+        <AppButton
+          intent="secondary"
+          size="compact-xs"
+          disabled={pending}
+          aria-label="月末まで公開する"
+          onClick={() => onChange(days.at(-1) ?? null)}
+        >
+          月末
+        </AppButton>
+      </Group>
       <Text size="sm" fw={600} aria-live="polite">
         {through
           ? `公開期間：${formatPublicationDate(days[0] ?? `${month}-01`)} 〜 ${formatPublicationDate(through)}`

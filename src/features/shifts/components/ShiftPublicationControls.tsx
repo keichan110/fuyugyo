@@ -132,14 +132,20 @@ function MonthlyPublicationControl({
             )}
             {publication.isError && <ErrorAlert>{publication.error.message}</ErrorAlert>}
             <Group justify="space-between" gap="xs">
-              <AppButton
-                intent="danger"
-                size="xs"
-                disabled={publication.isPending}
-                onClick={() => selectThrough(null)}
-              >
-                全て非公開
-              </AppButton>
+              <UnpublishAllButton
+                input={planPublicationWindow(
+                  { month, departmentCode, shiftTypeId },
+                  days,
+                  null,
+                  draft.saved,
+                )}
+                saved={draft.saved}
+                shiftTypeName={shiftTypeName}
+                disabled={disabled || hasUnsaved || publication.isPending}
+                onConfirm={(input) =>
+                  publication.mutate(input, { onSuccess: () => setDraft(null) })
+                }
+              />
               <Group gap="xs" ml="auto">
                 <AppButton
                   intent="secondary"
@@ -168,6 +174,37 @@ function MonthlyPublicationControl({
         )}
       </Modal>
     </>
+  );
+}
+
+/** 全非公開は警告で確認した直後に実行し、公開範囲の追加更新を求めない。 */
+function UnpublishAllButton({
+  input,
+  saved,
+  shiftTypeName,
+  disabled,
+  onConfirm,
+}: {
+  input: PublishShiftsInput;
+  saved: ReadonlyMap<string, ShiftViewItem>;
+  shiftTypeName: string;
+  disabled: boolean;
+  onConfirm: (input: PublishShiftsInput) => void;
+}) {
+  const { unpublishCount } = summarizePublicationChanges(input, saved);
+  const confirm = () => {
+    const message = `${input.month.replace('-', '/')} / ${DEPARTMENT_LABELS[input.departmentCode]} / ${shiftTypeName}\n公開済みの${unpublishCount}枠を全て非公開にしますか？\nメンバーから見えなくなり、編集・自動割当が可能になります。配置と必要人数は保持します。`;
+    if (window.confirm(message)) onConfirm(input);
+  };
+  return (
+    <AppButton
+      intent="danger"
+      size="xs"
+      disabled={disabled || unpublishCount === 0}
+      onClick={confirm}
+    >
+      全て非公開
+    </AppButton>
   );
 }
 

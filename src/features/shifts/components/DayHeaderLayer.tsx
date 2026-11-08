@@ -1,11 +1,5 @@
 import { Box } from '@mantine/core';
-import {
-  IconAlertTriangle,
-  IconCircleCheck,
-  IconLock,
-  IconMessage,
-  IconPencil,
-} from '@tabler/icons-react';
+import { IconAlertTriangle, IconCircleCheck, IconEye, IconMessage } from '@tabler/icons-react';
 
 import type { HeaderEventPayload } from './calendar-events';
 import classes from './ShiftManager.module.css';
@@ -21,19 +15,11 @@ export function DayHeaderLayer({ payload, style }: DayHeaderLayerProps) {
   return (
     <Box style={style} className={classes.headerLayer}>
       {payload.status === 'PUBLISHED' && (
-        <IconLock
+        <IconEye
           size={12}
           stroke={1.75}
           className={classes.publicationIcon}
           aria-label="公開済み"
-        />
-      )}
-      {payload.status === 'DRAFT' && (
-        <IconPencil
-          size={12}
-          stroke={1.75}
-          className={classes.publicationIcon}
-          aria-label="下書き"
         />
       )}
       {payload.staged && (

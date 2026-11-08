@@ -79,13 +79,14 @@ function BulkForm({
         <Checkbox.Group
           label="曜日・祝日"
           value={selected.map(String)}
-          onChange={(values) =>
+          onChange={(values) => {
+            const checked = new Set(values);
             setSelected(
               CATEGORY_OPTIONS.map((option) => option.value).filter((value) =>
-                values.includes(String(value)),
+                checked.has(String(value)),
               ),
-            )
-          }
+            );
+          }}
         >
           <Group gap="sm" mt={4}>
             {CATEGORY_OPTIONS.map((option) => (

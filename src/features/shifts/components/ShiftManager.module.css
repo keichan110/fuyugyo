@@ -341,3 +341,17 @@
 .dateListName[data-dimmed] {
   opacity: 0.35;
 }
+
+/* 無効な候補も申告理由を読める配色を保ち、チェックの無効表示で区別する。 */
+.instructorCard:disabled {
+  color: var(--mantine-color-text);
+  opacity: 1;
+  cursor: not-allowed;
+}
+
+.candidateDetails {
+  min-width: 0;
+  text-align: start;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

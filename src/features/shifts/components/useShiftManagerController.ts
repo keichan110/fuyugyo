@@ -3,7 +3,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useBlocker } from '@tanstack/react-router';
 
 import { useAvailabilities } from '@/features/availabilities/queries';
-import { getDepartmentAppearance } from '@/features/departments/appearance';
 import { departmentCodeSchema, type DepartmentCode } from '@/features/departments/schema';
 
 import type { AutoAssignSolver } from '../auto-assign-solver-port';
@@ -24,6 +23,7 @@ import {
   type CellAssignment,
   type DetailedCellAssignment,
 } from '../workload';
+import { assignmentConflictLabels } from './assignment-conflicts';
 import { applyAutoAssignProposals, contextWithStagedAssignments } from './auto-assign-stage';
 import { resolveAssignmentsByDay } from './calendar-events';
 import {
@@ -366,36 +366,14 @@ export function useShiftManagerController() {
   }, []);
 
   const conflictLabelById = useMemo(() => {
-    const map = new Map<string, string>();
-    if (!selectedCell || !formData.data) return map;
-    const { date, shiftTypeId } = selectedCell;
-    const deptName = getDepartmentAppearance(departmentCode).label;
-    const add = (ids: string[], label: string) => {
-      for (const id of ids) if (!map.has(id)) map.set(id, label);
-    };
-    for (const st of formData.data.shiftTypes) {
-      if (st.id === shiftTypeId) continue;
-      const staged = stagedCells.get(cellKey(date, st.id));
-      const ids = staged
-        ? staged.instructorIds
-        : (monthly.data?.shifts
-            .find(
-              (shift) =>
-                shift.date === date &&
-                shift.department.code === departmentCode &&
-                shift.shiftType.id === st.id,
-            )
-            ?.assignedInstructors.map((instructor) => instructor.id) ?? []);
-      add(ids, `${deptName} / ${st.name}`);
-    }
-    for (const shift of monthly.data?.shifts ?? []) {
-      if (shift.date !== date || shift.department.code === departmentCode) continue;
-      add(
-        shift.assignedInstructors.map((instructor) => instructor.id),
-        `${shift.department.name} / ${shift.shiftType.name}`,
-      );
-    }
-    return map;
+    if (!selectedCell || !formData.data) return new Map<string, string>();
+    return assignmentConflictLabels({
+      selectedCell,
+      departmentCode,
+      shiftTypes: formData.data.shiftTypes,
+      stagedCells,
+      savedShifts: monthly.data?.shifts ?? [],
+    });
   }, [selectedCell, departmentCode, formData.data, stagedCells, monthly.data]);
 
   const currentMonthWorkDays = useMemo(() => {

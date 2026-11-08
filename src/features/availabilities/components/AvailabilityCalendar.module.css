@@ -1,19 +1,9 @@
-/* shifts/manage と同じく MonthView の表示形式切替を隠し、月間表示に固定する。 */
-.calendarHeader > :nth-child(3),
-.calendarHeader > :nth-child(4) {
-  display: none !important;
-}
-
 .calendarWeekday:nth-child(6) {
   color: var(--mantine-color-blue-7);
 }
 
 .calendarWeekday:nth-child(7) {
   color: var(--mantine-color-red-7);
-}
-
-.calendarDay[data-disabled] {
-  background-color: var(--mantine-color-gray-1);
 }
 
 .calendarDay[data-availability='AVAILABLE'] {
@@ -26,6 +16,16 @@
 
 .calendarDay[data-availability='AVOID'] {
   background-color: var(--mantine-color-yellow-0);
+}
+
+.calendarDay[data-disabled][data-availability],
+.calendarDay[data-disabled] {
+  background-color: var(--mantine-color-gray-1);
+}
+
+/* 編集不可日は灰色背景を状態色より優先し、状態アイコンは残しつつ控えめに見せる（日付数字は TSX 側で薄くする）。 */
+.calendarDay[data-disabled] .availabilityEvent {
+  opacity: 0.45;
 }
 
 .calendarDay[data-staged]::after {

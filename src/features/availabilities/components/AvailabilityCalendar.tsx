@@ -1,18 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
-import {
-  Box,
-  Group,
-  List,
-  Menu,
-  Modal,
-  Stack,
-  Text,
-  Textarea,
-  Tooltip,
-  UnstyledButton,
-} from '@mantine/core';
-import { MonthView, type ScheduleEventData } from '@mantine/schedule';
+import { Box, Group, Modal, Stack, Text, Tooltip, UnstyledButton } from '@mantine/core';
+import { MonthView, ScheduleHeader, type ScheduleEventData } from '@mantine/schedule';
 import {
   IconAlertTriangleFilled,
   IconCircleCheckFilled,
@@ -24,20 +13,30 @@ import { useBlocker } from '@tanstack/react-router';
 
 import 'dayjs/locale/ja';
 
-import { ErrorAlert } from '@/components/AppAlert';
+import { ErrorAlert, WarningAlert } from '@/components/AppAlert';
 import { AppButton } from '@/components/AppButton';
 import { UnsavedChangesBar } from '@/components/UnsavedChangesBar';
-import { addDays, getCalendarDayColor, todayString, toMonth } from '@/features/shifts/view-utils';
+import {
+  addDays,
+  addMonths,
+  getCalendarDayColor,
+  todayString,
+  toMonth,
+} from '@/features/shifts/view-utils';
 
 import {
+  applyBulkAvailability,
   buildAvailabilityChanges,
   getDateEditability,
+  listMonthDates,
   stageAvailability,
   type StagedAvailability,
 } from '../editor';
 import { useMyAvailabilities, useUpdateMyAvailabilities } from '../queries';
 import type { Availability } from '../schema';
+import { AvailabilityBulkModal } from './AvailabilityBulkModal';
 import classes from './AvailabilityCalendar.module.css';
+import { AvailabilityDayModal } from './AvailabilityDayModal';
 
 /** 本人が月間カレンダー上で勤務可・要調整・勤務不可をまとめて申告する画面。 */
 export function AvailabilityCalendar({ initialMonth }: { initialMonth?: string }) {
@@ -45,9 +44,8 @@ export function AvailabilityCalendar({ initialMonth }: { initialMonth?: string }
   const availabilityQuery = useMyAvailabilities(month);
   const updateMutation = useUpdateMyAvailabilities();
   const [staged, setStaged] = useState<Map<string, StagedAvailability>>(new Map());
-  const [menu, setMenu] = useState<{ date: string; left: number; top: number } | null>(null);
-  const [noteDate, setNoteDate] = useState<string | null>(null);
-  const [note, setNote] = useState('');
+  const [editingDate, setEditingDate] = useState<string | null>(null);
+  const [bulkOpened, setBulkOpened] = useState(false);
   const [pendingMonth, setPendingMonth] = useState<string | null>(null);
 
   const saved = useMemo(
@@ -77,40 +75,27 @@ export function AvailabilityCalendar({ initialMonth }: { initialMonth?: string }
     withResolver: true,
   });
 
-  const getValue = (date: string): StagedAvailability | undefined =>
-    staged.get(date) ?? saved.get(date);
-  const changeType = (date: string, type: Availability['type']) => {
-    const current = getValue(date);
-    setStaged((value) => stageAvailability(value, date, { type, note: current?.note ?? null }));
-  };
-  const openNote = (date: string) => {
-    setNoteDate(date);
-    setNote(getValue(date)?.note ?? '');
-  };
-  const saveNote = () => {
-    if (!noteDate) return;
-    const current = getValue(noteDate);
-    if (!current) return;
-    setStaged((value) =>
-      stageAvailability(value, noteDate, { ...current, note: note.trim() || null }),
-    );
-    setNoteDate(null);
-  };
+  const getValue = useCallback(
+    (date: string): StagedAvailability | undefined => staged.get(date) ?? saved.get(date),
+    [staged, saved],
+  );
+  // 入力可能（過去日・公開済みシフト日を除く）なのに申告がない日を、未保存の編集も含めて数える。
+  const unfilledCount = useMemo(() => {
+    const today = todayString();
+    return listMonthDates(month).filter(
+      (date) =>
+        getDateEditability(date, today, lockedDates) === 'editable' && getValue(date) === undefined,
+    ).length;
+  }, [month, lockedDates, getValue]);
   const save = async () => {
     if (!hasChanges) return;
     await updateMutation.mutateAsync({ changes });
     setStaged(new Map());
   };
-  const changeTypeAndCloseMenu = (date: string, type: Availability['type']) => {
-    changeType(date, type);
-    setMenu(null);
-  };
-  const openMenu = (date: string, target: HTMLElement) => {
-    const { left, bottom } = target.getBoundingClientRect();
-    setMenu({ date, left, top: bottom });
-  };
   const changeMonth = (nextMonth: string) => {
     setStaged(new Map());
+    setEditingDate(null);
+    setBulkOpened(false);
     setMonth(nextMonth);
   };
   const requestMonthChange = (nextMonth: string) => {
@@ -131,15 +116,7 @@ export function AvailabilityCalendar({ initialMonth }: { initialMonth?: string }
       <Stack gap="md">
         <Stack gap={4}>
           <Text size="sm" c="dimmed">
-            日付を選んで勤務の可否を入力してください。
-          </Text>
-          <List size="sm" c="dimmed">
-            <List.Item>勤務可：勤務できる日</List.Item>
-            <List.Item>要調整：勤務はできるが、できれば避けてほしい日</List.Item>
-            <List.Item>勤務不可：勤務できない日</List.Item>
-          </List>
-          <Text size="sm" c="dimmed">
-            未入力の日も自動割当の対象になります。
+            日付をタップするか「一括設定」から勤務の可否を入力してください。
           </Text>
         </Stack>
         {availabilityQuery.isError && <ErrorAlert>{availabilityQuery.error.message}</ErrorAlert>}
@@ -154,8 +131,14 @@ export function AvailabilityCalendar({ initialMonth }: { initialMonth?: string }
             changedDates={changedDates}
             lockedDates={lockedDates}
             onMonthChange={(nextMonth) => requestMonthChange(toMonth(nextMonth))}
-            onOpenMenu={openMenu}
+            onEditDate={setEditingDate}
+            onOpenBulk={() => setBulkOpened(true)}
           />
+        )}
+        {availabilityQuery.isSuccess && unfilledCount > 0 && (
+          <WarningAlert>
+            入力できる日のうち {unfilledCount}日が未入力です。未入力の日も自動割当の対象になります。
+          </WarningAlert>
         )}
       </Stack>
 
@@ -169,74 +152,23 @@ export function AvailabilityCalendar({ initialMonth }: { initialMonth?: string }
         />
       )}
 
-      {menu && (
-        <Menu opened onChange={(opened) => !opened && setMenu(null)} position="bottom-start">
-          <Menu.Target>
-            <Box pos="fixed" left={menu.left} top={menu.top} w={1} h={1} />
-          </Menu.Target>
-          <Menu.Dropdown>
-            <Menu.Item
-              leftSection={
-                <IconCircleCheckFilled size={16} color="var(--mantine-color-green-6)" aria-hidden />
-              }
-              onClick={() => changeTypeAndCloseMenu(menu.date, 'AVAILABLE')}
-            >
-              勤務可にする
-            </Menu.Item>
-            <Menu.Item
-              leftSection={
-                <IconAlertTriangleFilled
-                  size={16}
-                  color="var(--mantine-color-yellow-8)"
-                  aria-hidden
-                />
-              }
-              onClick={() => changeTypeAndCloseMenu(menu.date, 'AVOID')}
-            >
-              要調整にする
-            </Menu.Item>
-            <Menu.Item
-              leftSection={
-                <IconCircleXFilled size={16} color="var(--mantine-color-red-6)" aria-hidden />
-              }
-              onClick={() => changeTypeAndCloseMenu(menu.date, 'UNAVAILABLE')}
-            >
-              勤務不可にする
-            </Menu.Item>
-            {getValue(menu.date) && (
-              <Menu.Item
-                leftSection={<IconNote size={15} />}
-                onClick={() => {
-                  openNote(menu.date);
-                  setMenu(null);
-                }}
-              >
-                メモを編集
-              </Menu.Item>
-            )}
-          </Menu.Dropdown>
-        </Menu>
-      )}
-      <Modal opened={noteDate !== null} onClose={() => setNoteDate(null)} title="メモを編集">
-        <Stack>
-          <Textarea
-            label="メモ"
-            value={note}
-            onChange={(event) => setNote(event.currentTarget.value)}
-            maxLength={500}
-            autosize
-            minRows={3}
-          />
-          <Group justify="flex-end">
-            <AppButton intent="secondary" onClick={() => setNoteDate(null)}>
-              キャンセル
-            </AppButton>
-            <AppButton intent="primary" onClick={saveNote}>
-              反映
-            </AppButton>
-          </Group>
-        </Stack>
-      </Modal>
+      <AvailabilityDayModal
+        date={editingDate}
+        current={editingDate ? getValue(editingDate) : undefined}
+        onClose={() => setEditingDate(null)}
+        onSubmit={(date, value) => setStaged((current) => stageAvailability(current, date, value))}
+      />
+      <AvailabilityBulkModal
+        opened={bulkOpened}
+        onClose={() => setBulkOpened(false)}
+        month={month}
+        today={todayString()}
+        lockedDates={lockedDates}
+        getCurrent={getValue}
+        onApply={(targetDates, type) =>
+          setStaged((current) => applyBulkAvailability(current, targetDates, type, getValue))
+        }
+      />
       <Modal
         opened={blocker.status === 'blocked'}
         onClose={() => blocker.reset?.()}
@@ -310,6 +242,19 @@ function AvailabilityIcon({ type }: { type: Availability['type'] }) {
   return <Icon size={28} color={iconColor} aria-hidden />;
 }
 
+/** カレンダーとヘッダー部品で共有する日本語ラベル。 */
+const CALENDAR_LABELS = {
+  today: '今日',
+  next: '翌月',
+  previous: '前月',
+  more: 'その他',
+  moreLabel: (count: number) => `+${count}件`,
+  selectMonth: '月を選択',
+  selectYear: '年を選択',
+  month: '月',
+  viewSelectLabel: '表示形式',
+};
+
 type AvailabilityEventPayload =
   | { kind: 'availability'; date: string; type: Availability['type']; note: string | null }
   | { kind: 'locked'; date: string };
@@ -322,7 +267,8 @@ function AvailabilityMonthView({
   changedDates,
   lockedDates,
   onMonthChange,
-  onOpenMenu,
+  onEditDate,
+  onOpenBulk,
 }: {
   month: string;
   availabilityDates: ReadonlySet<string>;
@@ -330,7 +276,8 @@ function AvailabilityMonthView({
   changedDates: ReadonlySet<string>;
   lockedDates: ReadonlySet<string>;
   onMonthChange: (month: string) => void;
-  onOpenMenu: (date: string, target: HTMLElement) => void;
+  onEditDate: (date: string) => void;
+  onOpenBulk: () => void;
 }) {
   const today = todayString();
   // 可否表示と、公開済みシフト日の日付見出しへ重ねるロック表示を同じ MonthView のイベントとして合成する。
@@ -369,98 +316,128 @@ function AvailabilityMonthView({
     return calendarEvents;
   }, [availabilityDates, getValue, lockedDates, month]);
 
+  const [year, monthNumber] = month.split('-').map(Number);
+
   return (
-    <MonthView
-      date={`${month}-01`}
-      onDateChange={onMonthChange}
-      events={events}
-      locale="ja"
-      firstDayOfWeek={1}
-      weekdayFormat="dd"
-      withOutsideDays={false}
-      consistentWeeks
-      maxEventsPerDay={1}
-      labels={{
-        today: '今日',
-        next: '翌月',
-        previous: '前月',
-        more: 'その他',
-        moreLabel: (count) => `+${count}件`,
-        selectMonth: '月を選択',
-        selectYear: '年を選択',
-        month: '月',
-        viewSelectLabel: '表示形式',
-      }}
-      monthYearSelectProps={{
-        labelFormat: (date) => `${date.slice(0, 4)}年${Number(date.slice(5, 7))}月`,
-        monthsListFormat: (date) => `${Number(date.slice(5, 7))}月`,
-      }}
-      viewSelectProps={{ views: ['month'], style: { display: 'none' } }}
-      getDayProps={(date) => {
-        const editability = getDateEditability(date, today, lockedDates);
-        const calendarDayColor = getCalendarDayColor(date);
-        const disabled = editability !== 'editable';
-        const disabledReason =
-          editability === 'locked'
-            ? '割り当て済みのため変更できません'
-            : editability === 'past'
-              ? '過去日は編集できません'
-              : undefined;
-        return {
-          'data-availability': getValue(date)?.type,
-          'data-disabled': disabled || undefined,
-          'data-locked': editability === 'locked' || undefined,
-          'data-staged': changedDates.has(date) || undefined,
-          'aria-label': `${formatDateLabel(date)}${
+    <Stack gap="xs">
+      {/* MonthView 標準ヘッダーには独自ボタンを差し込めないため、同じ部品でヘッダーを組み立てて右端に一括設定を置く。 */}
+      <ScheduleHeader labels={CALENDAR_LABELS}>
+        <Group gap={4} wrap="nowrap">
+          <ScheduleHeader.Previous
+            labels={CALENDAR_LABELS}
+            onClick={() => onMonthChange(`${addMonths(month, -1)}-01`)}
+          />
+          <ScheduleHeader.MonthYearSelect
+            labels={CALENDAR_LABELS}
+            locale="ja"
+            yearValue={year ?? 0}
+            monthValue={(monthNumber ?? 1) - 1}
+            onYearChange={(nextYear) =>
+              onMonthChange(`${nextYear}-${String(monthNumber).padStart(2, '0')}-01`)
+            }
+            onMonthChange={(nextMonthIndex) =>
+              onMonthChange(`${year}-${String(nextMonthIndex + 1).padStart(2, '0')}-01`)
+            }
+            labelFormat={(date) => `${date.slice(0, 4)}年${Number(date.slice(5, 7))}月`}
+            monthsListFormat={(date) => `${Number(date.slice(5, 7))}月`}
+          />
+          <ScheduleHeader.Next
+            labels={CALENDAR_LABELS}
+            onClick={() => onMonthChange(`${addMonths(month, 1)}-01`)}
+          />
+        </Group>
+        <ScheduleHeader.Today labels={CALENDAR_LABELS} onClick={() => onMonthChange(today)} />
+        <AppButton intent="secondary" size="xs" ml="auto" onClick={onOpenBulk}>
+          一括設定
+        </AppButton>
+      </ScheduleHeader>
+      <MonthView
+        date={`${month}-01`}
+        withHeader={false}
+        onDateChange={onMonthChange}
+        events={events}
+        locale="ja"
+        firstDayOfWeek={1}
+        weekdayFormat="dd"
+        withOutsideDays={false}
+        consistentWeeks
+        maxEventsPerDay={1}
+        labels={CALENDAR_LABELS}
+        getDayProps={(date) => {
+          const editability = getDateEditability(date, today, lockedDates);
+          const calendarDayColor = getCalendarDayColor(date);
+          const disabled = editability !== 'editable';
+          const disabledReason =
             editability === 'locked'
-              ? '（公開済みシフトのため編集不可）'
-              : disabled
-                ? '（編集不可）'
-                : ''
-          }`,
-          title: disabledReason,
-          disabled,
-          style: {
-            color: calendarDayColor ? `var(--mantine-color-${calendarDayColor}-7)` : undefined,
-          },
-        };
-      }}
-      onDayClick={(date, event) => onOpenMenu(date, event.currentTarget)}
-      onEventClick={(event, clickEvent) => {
-        const date = event.payload?.date;
-        if (
-          typeof date === 'string' &&
-          event.payload?.kind === 'availability' &&
-          getDateEditability(date, today, lockedDates) === 'editable'
-        ) {
-          onOpenMenu(date, clickEvent.currentTarget);
+              ? '割り当て済みのため変更できません'
+              : editability === 'past'
+                ? '過去日は編集できません'
+                : undefined;
+          return {
+            'data-availability': getValue(date)?.type,
+            'data-disabled': disabled || undefined,
+            'data-locked': editability === 'locked' || undefined,
+            'data-staged': changedDates.has(date) || undefined,
+            'aria-label': `${formatDateLabel(date)}${
+              editability === 'locked'
+                ? '（公開済みシフトのため編集不可）'
+                : disabled
+                  ? '（編集不可）'
+                  : ''
+            }`,
+            title: disabledReason,
+            disabled,
+            style: {
+              color: disabled
+                ? 'var(--mantine-color-dimmed)'
+                : calendarDayColor
+                  ? `var(--mantine-color-${calendarDayColor}-7)`
+                  : undefined,
+            },
+          };
+        }}
+        onDayClick={(date) => {
+          if (getDateEditability(date, today, lockedDates) === 'editable') onEditDate(date);
+        }}
+        onEventClick={(event) => {
+          const date = event.payload?.date;
+          if (
+            typeof date === 'string' &&
+            event.payload?.kind === 'availability' &&
+            getDateEditability(date, today, lockedDates) === 'editable'
+          ) {
+            onEditDate(date);
+          }
+        }}
+        renderEvent={(event, props) =>
+          event.payload?.kind === 'locked' ? (
+            <Box style={props.style} className={classes.lockLayer}>
+              <IconLock size={15} className={classes.lockIcon} aria-label="公開済みシフト" />
+            </Box>
+          ) : (
+            <UnstyledButton
+              {...props}
+              className={classes.availabilityEvent}
+              aria-label={event.title}
+            >
+              <Stack gap={0} align="center">
+                {event.payload?.kind === 'availability' && (
+                  <AvailabilityIcon type={event.payload.type} />
+                )}
+                {event.payload?.note && (
+                  <Tooltip label={event.payload.note} multiline maw={320} withArrow>
+                    <IconNote size={14} className={classes.noteIcon} aria-label="メモあり" />
+                  </Tooltip>
+                )}
+              </Stack>
+            </UnstyledButton>
+          )
         }
-      }}
-      renderEvent={(event, props) =>
-        event.payload?.kind === 'locked' ? (
-          <Box style={props.style} className={classes.lockLayer}>
-            <IconLock size={15} className={classes.lockIcon} aria-label="公開済みシフト" />
-          </Box>
-        ) : (
-          <UnstyledButton {...props} className={classes.availabilityEvent} aria-label={event.title}>
-            <Stack gap={0} align="center">
-              {event.payload?.kind === 'availability' && (
-                <AvailabilityIcon type={event.payload.type} />
-              )}
-              {event.payload?.note && (
-                <Tooltip label={event.payload.note} multiline maw={320} withArrow>
-                  <IconNote size={14} className={classes.noteIcon} aria-label="メモあり" />
-                </Tooltip>
-              )}
-            </Stack>
-          </UnstyledButton>
-        )
-      }
-      classNames={{
-        header: classes.calendarHeader,
-        monthViewDay: classes.calendarDay,
-        monthViewWeekday: classes.calendarWeekday,
-      }}
-    />
+        classNames={{
+          monthViewDay: classes.calendarDay,
+          monthViewWeekday: classes.calendarWeekday,
+        }}
+      />
+    </Stack>
   );
 }

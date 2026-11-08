@@ -95,116 +95,166 @@ function MonthlyPublicationControl({
       >
         公開
       </AppButton>
-      <Modal
-        opened={draft !== null}
-        onClose={close}
-        title="シフトの公開範囲"
-        centered
-        closeOnClickOutside={!publication.isPending}
-        closeOnEscape={!publication.isPending}
-        withCloseButton={!publication.isPending}
-      >
-        {draft && input && changes && (
-          <Stack gap="md">
-            <Text fw={600}>
-              {DEPARTMENT_LABELS[departmentCode]} / {shiftTypeName}
-            </Text>
-            <Text size="sm">
-              公開する最終日を選んでください。月初から選択日までを公開し、それより後の日は非公開に戻します。
-            </Text>
-            <PublicationCalendar
-              month={month}
-              days={days}
-              through={draft.through}
-              pending={publication.isPending}
-              onChange={selectThrough}
-            />
-            <PublicationSummary
-              publishCount={changes.publishCount}
-              unpublishCount={changes.unpublishCount}
-              zeroCount={changes.zeroCount}
-              shortCount={changes.shortCount}
-            />
-            {hasUnsaved && (
-              <Text size="sm" c="yellow.8">
-                この月・種別に未保存の変更があります。先に保存するか、変更を破棄してください。
+      <Modal.Stack>
+        <Modal
+          stackId="publication-window"
+          opened={draft !== null}
+          onClose={close}
+          title="シフトの公開範囲"
+          centered
+          closeOnClickOutside={!publication.isPending}
+          closeOnEscape={!publication.isPending}
+          withCloseButton={!publication.isPending}
+        >
+          {draft && input && changes && (
+            <Stack gap="md">
+              <Text fw={600}>
+                {DEPARTMENT_LABELS[departmentCode]} / {shiftTypeName}
               </Text>
-            )}
-            {publication.isError && <ErrorAlert>{publication.error.message}</ErrorAlert>}
-            <Group justify="space-between" gap="xs">
-              <UnpublishAllButton
-                input={planPublicationWindow(
-                  { month, departmentCode, shiftTypeId },
-                  days,
-                  null,
-                  draft.saved,
-                )}
-                saved={draft.saved}
-                shiftTypeName={shiftTypeName}
-                disabled={disabled || hasUnsaved || publication.isPending}
-                onConfirm={(input) =>
-                  publication.mutate(input, { onSuccess: () => setDraft(null) })
-                }
+              <Text size="sm">
+                公開する最終日を選んでください。月初から選択日までを公開し、それより後の日は非公開に戻します。
+              </Text>
+              <PublicationCalendar
+                month={month}
+                days={days}
+                through={draft.through}
+                pending={publication.isPending}
+                onChange={selectThrough}
               />
-              <Group gap="xs" ml="auto">
-                <AppButton
-                  intent="secondary"
-                  size="xs"
-                  disabled={publication.isPending}
-                  onClick={close}
-                >
-                  キャンセル
-                </AppButton>
-                <AppButton
-                  size="xs"
-                  intent={
-                    changes.publishCount === 0 && changes.unpublishCount > 0 ? 'danger' : 'primary'
+              <PublicationSummary
+                publishCount={changes.publishCount}
+                unpublishCount={changes.unpublishCount}
+                zeroCount={changes.zeroCount}
+                shortCount={changes.shortCount}
+              />
+              {hasUnsaved && (
+                <Text size="sm" c="yellow.8">
+                  この月・種別に未保存の変更があります。先に保存するか、変更を破棄してください。
+                </Text>
+              )}
+              {publication.isError && <ErrorAlert>{publication.error.message}</ErrorAlert>}
+              <Group justify="space-between" gap="xs">
+                <UnpublishAllButton
+                  input={planPublicationWindow(
+                    { month, departmentCode, shiftTypeId },
+                    days,
+                    null,
+                    draft.saved,
+                  )}
+                  saved={draft.saved}
+                  shiftTypeName={shiftTypeName}
+                  pending={publication.isPending}
+                  error={publication.error?.message}
+                  disabled={disabled || hasUnsaved || publication.isPending}
+                  onConfirm={(input) =>
+                    publication.mutate(input, { onSuccess: () => setDraft(null) })
                   }
-                  disabled={
-                    disabled || hasUnsaved || changes.publishCount + changes.unpublishCount === 0
-                  }
-                  loading={publication.isPending}
-                  onClick={() => publication.mutate(input, { onSuccess: () => setDraft(null) })}
-                >
-                  公開範囲を更新
-                </AppButton>
+                />
+                <Group gap="xs" ml="auto">
+                  <AppButton
+                    intent="secondary"
+                    size="xs"
+                    disabled={publication.isPending}
+                    onClick={close}
+                  >
+                    キャンセル
+                  </AppButton>
+                  <AppButton
+                    size="xs"
+                    intent={
+                      changes.publishCount === 0 && changes.unpublishCount > 0
+                        ? 'danger'
+                        : 'primary'
+                    }
+                    disabled={
+                      disabled || hasUnsaved || changes.publishCount + changes.unpublishCount === 0
+                    }
+                    loading={publication.isPending}
+                    onClick={() => publication.mutate(input, { onSuccess: () => setDraft(null) })}
+                  >
+                    公開範囲を更新
+                  </AppButton>
+                </Group>
               </Group>
-            </Group>
-          </Stack>
-        )}
-      </Modal>
+            </Stack>
+          )}
+        </Modal>
+      </Modal.Stack>
     </>
   );
 }
 
-/** 全非公開は警告で確認した直後に実行し、公開範囲の追加更新を求めない。 */
+/** 全非公開はアプリ内の確認ダイアログで承認した直後に実行する。 */
 function UnpublishAllButton({
   input,
   saved,
   shiftTypeName,
   disabled,
+  pending,
+  error,
   onConfirm,
 }: {
   input: PublishShiftsInput;
   saved: ReadonlyMap<string, ShiftViewItem>;
   shiftTypeName: string;
   disabled: boolean;
+  pending: boolean;
+  error: string | undefined;
   onConfirm: (input: PublishShiftsInput) => void;
 }) {
+  const [opened, setOpened] = useState(false);
   const { unpublishCount } = summarizePublicationChanges(input, saved);
-  const confirm = () => {
-    const message = `${input.month.replace('-', '/')} / ${DEPARTMENT_LABELS[input.departmentCode]} / ${shiftTypeName}\n公開済みの${unpublishCount}枠を全て非公開にしますか？\nメンバーから見えなくなり、編集・自動割当が可能になります。配置と必要人数は保持します。`;
-    if (window.confirm(message)) onConfirm(input);
+  const close = () => {
+    if (!pending) setOpened(false);
   };
   return (
-    <AppButton
-      intent="danger"
-      size="xs"
-      disabled={disabled || unpublishCount === 0}
-      onClick={confirm}
-    >
-      全て非公開
-    </AppButton>
+    <>
+      <AppButton
+        intent="danger"
+        size="xs"
+        disabled={disabled || unpublishCount === 0}
+        onClick={() => setOpened(true)}
+      >
+        全て非公開
+      </AppButton>
+      <Modal
+        stackId="unpublish-all"
+        role="alertdialog"
+        opened={opened}
+        onClose={close}
+        title="全て非公開にしますか？"
+        centered
+        closeOnClickOutside={!pending}
+        closeOnEscape={!pending}
+        withCloseButton={!pending}
+      >
+        <Stack gap="md">
+          <Text fw={600}>
+            {input.month.replace('-', '/')} / {DEPARTMENT_LABELS[input.departmentCode]} /{' '}
+            {shiftTypeName}
+          </Text>
+          <Text size="sm">公開済みの{unpublishCount}枠を全て非公開にします。</Text>
+          <Text size="sm">
+            メンバーから見えなくなり、編集・自動割当が可能になります。配置と必要人数は保持します。
+          </Text>
+          {error && <ErrorAlert>{error}</ErrorAlert>}
+          <Group justify="flex-end">
+            <AppButton intent="secondary" disabled={pending} onClick={close}>
+              キャンセル
+            </AppButton>
+            <AppButton
+              intent="danger"
+              emphasis="high"
+              disabled={disabled}
+              loading={pending}
+              onClick={() => onConfirm(input)}
+            >
+              全て非公開にする
+            </AppButton>
+          </Group>
+        </Stack>
+      </Modal>
+    </>
   );
 }
 

@@ -59,6 +59,7 @@ export function ShiftDateList({
             key={date}
             className={classes.dateListDay}
             data-shift-list-date={date}
+            data-published={header?.status === 'PUBLISHED' || undefined}
             data-selected={selected || undefined}
             data-focused-instructor={focused || undefined}
             disabled={isDateDisabled(date)}

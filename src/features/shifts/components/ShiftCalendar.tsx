@@ -265,6 +265,9 @@ export function ShiftCalendar({
           const calendarDayColor = getCalendarDayColor(date);
           return {
             'data-shift-date': date,
+            'data-published':
+              shiftByCell.get(cellKey(date, activeShiftTypeId))?.status === 'PUBLISHED' ||
+              undefined,
             'data-focused-instructor':
               (focusedInstructorId !== null &&
                 assignmentsByDay.get(date)?.some((person) => person.id === focusedInstructorId)) ||

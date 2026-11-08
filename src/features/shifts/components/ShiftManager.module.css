@@ -22,6 +22,11 @@
   cursor: not-allowed;
 }
 
+/* 公開済みの範囲を月全体から把握できるよう、未公開と背景色を分ける。 */
+.calendarDay[data-published] {
+  background-color: var(--mantine-color-teal-light);
+}
+
 /* 選択中はセルの面と枠線で示す（未保存はヘッダー層のドット） */
 .calendarDay[data-selected] {
   background-color: var(--mantine-color-blue-0);
@@ -311,6 +316,10 @@
 .dateListDay:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+.dateListDay[data-published] {
+  background-color: var(--mantine-color-teal-light);
 }
 
 .dateListDay[data-focused-instructor] {

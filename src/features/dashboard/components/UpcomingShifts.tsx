@@ -28,6 +28,13 @@ type UpcomingShiftGroup = {
   shifts: ShiftViewItem[];
 };
 
+/** 申告状態ごとのカレンダー上のラベル */
+const AVAILABILITY_LABELS = {
+  AVAILABLE: '勤務可',
+  AVOID: '要調整',
+  UNAVAILABLE: '勤務不可',
+} satisfies Record<Availability['type'], string>;
+
 /** Calendar の getDayProps prop 自体の型を流用し、既存の getDayProps 実装とのズレを防ぐ */
 type GetDayProps = NonNullable<CalendarProps['getDayProps']>;
 
@@ -175,8 +182,7 @@ export function UpcomingShifts({ instructorId }: { instructorId: string }) {
   const getDayProps = (date: string) => {
     const departments = departmentsByDate.get(date);
     const availability = availabilityByDate.get(date);
-    const availabilityLabel =
-      availability === 'UNAVAILABLE' ? '勤務不可' : availability === 'AVOID' ? '要調整' : undefined;
+    const availabilityLabel = availability ? AVAILABILITY_LABELS[availability] : undefined;
     const availabilityProps = {
       'data-availability': availability,
       'aria-label': availabilityLabel
@@ -331,6 +337,14 @@ export function UpcomingShifts({ instructorId }: { instructorId: string }) {
               </Group>
             );
           })}
+          <Group gap={6} wrap="nowrap">
+            <Text className={classes.availableLegend} aria-hidden>
+              ○
+            </Text>
+            <Text size="xs" c="dimmed">
+              勤務可
+            </Text>
+          </Group>
           <Group gap={6} wrap="nowrap">
             <Text className={classes.unavailableLegend} aria-hidden>
               ×

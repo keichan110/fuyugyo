@@ -13,7 +13,7 @@ type AvailabilitiesSearch = {
 
 const MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
 
-/** 本人が勤務不可・回避希望日を月単位で申告するページ。 */
+/** 本人が勤務可・要調整・勤務不可を月単位で申告するページ。 */
 export const Route = createFileRoute('/availabilities')({
   validateSearch: (search: Record<string, unknown>): AvailabilitiesSearch => ({
     month:

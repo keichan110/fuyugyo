@@ -1,9 +1,9 @@
 import type { Availability, UpdateMyAvailabilitiesInput } from './schema';
 
-export type StagedAvailability = Pick<Availability, 'type' | 'note'> | null;
+export type StagedAvailability = Pick<Availability, 'type' | 'note'>;
 export type DateEditability = 'editable' | 'past' | 'locked';
 
-/** 指定日の編集内容をステージ状態へ反映する。`null` は保存済み申告の解除を表す。 */
+/** 指定日の編集内容をステージ状態へ反映する。 */
 export function stageAvailability(
   current: ReadonlyMap<string, StagedAvailability>,
   date: string,
@@ -22,10 +22,6 @@ export function buildAvailabilityChanges(
   const changes: UpdateMyAvailabilitiesInput['changes'] = [];
   for (const [date, value] of staged) {
     const original = saved.get(date);
-    if (value === null) {
-      if (original) changes.push({ date, type: null });
-      continue;
-    }
     if (!original || original.type !== value.type || original.note !== value.note) {
       changes.push({ date, type: value.type, note: value.note });
     }

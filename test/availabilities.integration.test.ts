@@ -104,7 +104,7 @@ afterEach(() => {
 });
 
 describe('PUT /api/availabilities/me', () => {
-  it('本人の申告を差分で原子的に作成・更新・削除する', async () => {
+  it('本人の申告を差分で原子的に作成・更新する', async () => {
     const instructorId = await seedInstructor();
     const token = await seedToken('MEMBER', instructorId);
     const firstDate = dateOffset(3);
@@ -132,7 +132,7 @@ describe('PUT /api/availabilities/me', () => {
         ...authJsonRequest(token, {
           changes: [
             { date: firstDate, type: 'AVOID', note: '午後なら可' },
-            { date: secondDate, type: null },
+            { date: secondDate, type: 'AVAILABLE' },
           ],
         }),
       },
@@ -149,6 +149,62 @@ describe('PUT /api/availabilities/me', () => {
     const body = availabilityListResponseSchema.parse(await list.json());
     expect(body.availabilities).toEqual([
       { instructorId, date: firstDate, type: 'AVOID', note: '午後なら可' },
+      { instructorId, date: secondDate, type: 'AVAILABLE', note: null },
+    ]);
+  });
+
+  it('3状態の間で切り替えてもメモを保持できる', async () => {
+    const instructorId = await seedInstructor();
+    const token = await seedToken('MEMBER', instructorId);
+    const date = dateOffset(3);
+    const put = (type: string, note?: string | null) =>
+      app.request(
+        '/api/availabilities/me',
+        { method: 'PUT', ...authJsonRequest(token, { changes: [{ date, type, note }] }) },
+        envWith({}),
+      );
+    const read = async () => {
+      const res = await app.request(
+        `/api/availabilities/me?from=${date}&to=${date}`,
+        authHeader(token),
+        envWith({}),
+      );
+      return availabilityListResponseSchema.parse(await res.json()).availabilities;
+    };
+
+    for (const type of ['AVAILABLE', 'AVOID', 'UNAVAILABLE', 'AVAILABLE'] as const) {
+      expect((await put(type, '連絡事項')).status).toBe(200);
+      expect(await read()).toEqual([{ instructorId, date, type, note: '連絡事項' }]);
+    }
+  });
+
+  it('type: null による解除は拒否し、既存の申告とメモを変えない', async () => {
+    const instructorId = await seedInstructor();
+    const token = await seedToken('MEMBER', instructorId);
+    const date = dateOffset(3);
+    await app.request(
+      '/api/availabilities/me',
+      {
+        method: 'PUT',
+        ...authJsonRequest(token, { changes: [{ date, type: 'AVAILABLE', note: 'メモ' }] }),
+      },
+      envWith({}),
+    );
+
+    const res = await app.request(
+      '/api/availabilities/me',
+      { method: 'PUT', ...authJsonRequest(token, { changes: [{ date, type: null }] }) },
+      envWith({}),
+    );
+    expect(res.status).toBe(400);
+
+    const list = await app.request(
+      `/api/availabilities/me?from=${date}&to=${date}`,
+      authHeader(token),
+      envWith({}),
+    );
+    expect(availabilityListResponseSchema.parse(await list.json()).availabilities).toEqual([
+      { instructorId, date, type: 'AVAILABLE', note: 'メモ' },
     ]);
   });
 

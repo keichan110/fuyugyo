@@ -293,6 +293,19 @@ describe('solveAutoAssignments', () => {
     expect(solveAutoAssignments(context, createExecutionParams(), 3)).toEqual(submitted);
   });
 
+  it('勤務可の申告は未入力と同じ結果になり、優遇しない', () => {
+    const base = pairContext(0, 0);
+    const baseline = solveAutoAssignments(base, createExecutionParams(), 3);
+    const declared = pairContext(0, 0);
+    declared.availabilities = declared.instructors.slice(0, 1).map((instructor) => ({
+      instructorId: instructor.id,
+      date: '2026-01-05',
+      type: 'AVAILABLE' as const,
+      note: null,
+    }));
+    expect(solveAutoAssignments(declared, createExecutionParams(), 3)).toEqual(baseline);
+  });
+
   it('月全体の割当で4連勤を作らず勤務日数を平準化する', () => {
     const context = pairContext(0, 0);
     const proposals = solveAutoAssignments(

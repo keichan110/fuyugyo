@@ -239,4 +239,48 @@ describe('GET /api/shifts/auto-assign-context', () => {
       ]),
     );
   });
+
+  it('勤務可の申告を availabilities に含め、申告済みとして扱う', async () => {
+    const db = createDb(env.DB);
+    const [certification] = await db
+      .insert(certifications)
+      .values({ departmentCode: 'ski', name: '指導員', shortName: '指導員', organization: '連盟' })
+      .returning();
+    const [linked] = await db
+      .insert(instructors)
+      .values({ lastName: '連携', firstName: '太郎', status: 'ACTIVE' })
+      .returning();
+    await db
+      .insert(instructorCertifications)
+      .values({ instructorId: linked!.id, certificationId: certification!.id });
+    await db.insert(users).values({
+      lineUserId: `line-${crypto.randomUUID()}`,
+      displayName: '連携済み本人',
+      role: 'MEMBER',
+      isActive: true,
+      instructorId: linked!.id,
+    });
+    await db.insert(instructorAvailabilities).values({
+      instructorId: linked!.id,
+      date: date('2026-01-12'),
+      type: 'AVAILABLE',
+      note: null,
+    });
+
+    const token = await seedToken('MANAGER');
+    const res = await app.request(
+      '/api/shifts/auto-assign-context?departmentCode=ski&from=2026-01-01&to=2026-01-31',
+      authHeader(token),
+      envWith({}),
+    );
+
+    expect(res.status).toBe(200);
+    const context = autoAssignContextSchema.parse(await res.json());
+    expect(context.instructors.map((instructor) => instructor.availabilityStatus)).toEqual([
+      'SUBMITTED',
+    ]);
+    expect(context.availabilities).toEqual([
+      { instructorId: linked!.id, date: '2026-01-12', type: 'AVAILABLE', note: null },
+    ]);
+  });
 });

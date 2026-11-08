@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useId, useMemo, useState } from 'react';
 
 import {
   Box,
@@ -11,6 +11,7 @@ import {
   Textarea,
   TextInput,
   Tooltip,
+  VisuallyHidden,
 } from '@mantine/core';
 
 import { ErrorAlert } from '@/components/AppAlert';
@@ -19,14 +20,12 @@ import { AppButton } from '@/components/AppButton';
 import type { Availability } from '@/features/availabilities/schema';
 import type { DepartmentCode } from '@/features/departments/schema';
 
-import { compareInstructorCertification, compareInstructorKana } from '../candidate-display';
+import { groupAssignmentCandidates, type CandidateSortMode } from '../candidate-display';
 import { useShiftAssignmentEditor } from '../queries';
 import type { AvailableInstructor } from '../schema';
 import { calculateFairShare } from '../workload';
 import type { StagedCell } from './shift-manager-types';
 import classes from './ShiftManager.module.css';
-
-type CandidateSortMode = 'certification' | 'kana' | 'workload';
 
 type AssignmentPanelProps = {
   date: string;
@@ -100,30 +99,6 @@ export function AssignmentPanel({
     return { fairShareAverage: average, maxAbsDeviation: maxDeviation };
   }, [loadByInstructor]);
 
-  const candidates = useMemo(() => {
-    const query = search.trim().toLocaleLowerCase('ja-JP');
-    return [...(editData.data?.availableInstructors ?? [])]
-      .filter((inst) => {
-        if (!query) {
-          return true;
-        }
-        return `${inst.displayName} ${inst.displayNameKana ?? ''}`
-          .toLocaleLowerCase('ja-JP')
-          .includes(query);
-      })
-      .sort((a, b) => {
-        if (sortMode === 'workload') {
-          return (
-            (loadByInstructor.get(a.id) ?? 0) - (loadByInstructor.get(b.id) ?? 0) ||
-            compareInstructorKana(a, b)
-          );
-        }
-        return sortMode === 'certification'
-          ? compareInstructorCertification(a, b)
-          : compareInstructorKana(a, b);
-      });
-  }, [editData.data?.availableInstructors, search, sortMode, loadByInstructor]);
-
   const availabilityByInstructor = useMemo(() => {
     const byInstructor = new Map<string, Availability>();
     for (const availability of availabilities) {
@@ -133,6 +108,24 @@ export function AssignmentPanel({
     }
     return byInstructor;
   }, [availabilities, date]);
+
+  const candidateGroups = useMemo(
+    () =>
+      groupAssignmentCandidates({
+        candidates: editData.data?.availableInstructors ?? [],
+        availabilityByInstructor,
+        search,
+        sortMode,
+        loadByInstructor,
+      }),
+    [
+      editData.data?.availableInstructors,
+      availabilityByInstructor,
+      search,
+      sortMode,
+      loadByInstructor,
+    ],
+  );
 
   const toggle = (id: string) => {
     const next = new Set(selectedSet);
@@ -206,37 +199,49 @@ export function AssignmentPanel({
           </Group>
 
           <Stack gap="sm" className={classes.candidateList} role="group" aria-label="割り当て候補">
-            {candidates.length === 0 ? (
+            {candidateGroups.length === 0 ? (
               <Text c="dimmed" size="sm">
                 候補がありません
               </Text>
             ) : (
-              candidates.map((instructor) => (
-                <Box key={instructor.id} className={classes.candidateRow}>
-                  <InstructorCard
-                    instructor={instructor}
-                    departmentCode={departmentCode}
-                    checked={selectedSet.has(instructor.id)}
-                    onToggle={() => toggle(instructor.id)}
-                    conflictLabel={conflictLabelById.get(instructor.id)}
-                    load={loadByInstructor.get(instructor.id) ?? 0}
-                    fairShareAverage={fairShareAverage}
-                    maxAbsDeviation={maxAbsDeviation}
-                    availability={availabilityByInstructor.get(instructor.id)}
-                  />
-                  <AppButton
-                    intent="secondary"
-                    size="xs"
-                    px="xs"
-                    aria-label={`${instructor.displayName}の分析${focusedInstructorId === instructor.id ? 'を解除' : 'を表示'}`}
-                    aria-pressed={focusedInstructorId === instructor.id}
-                    onClick={() =>
-                      onAnalyzeInstructor({ id: instructor.id, name: instructor.displayName })
-                    }
-                  >
-                    {focusedInstructorId === instructor.id ? '解除' : '分析'}
-                  </AppButton>
-                </Box>
+              candidateGroups.map((group) => (
+                <Stack
+                  key={group.type}
+                  gap="xs"
+                  role="group"
+                  aria-label={`${group.label} ${group.candidates.length}名`}
+                >
+                  <Text component="h3" size="sm" fw={700} m={0}>
+                    {group.label}（{group.candidates.length}名）
+                  </Text>
+                  {group.candidates.map((instructor) => (
+                    <Box key={instructor.id} className={classes.candidateRow}>
+                      <InstructorCard
+                        instructor={instructor}
+                        departmentCode={departmentCode}
+                        checked={selectedSet.has(instructor.id)}
+                        onToggle={() => toggle(instructor.id)}
+                        conflictLabel={conflictLabelById.get(instructor.id)}
+                        load={loadByInstructor.get(instructor.id) ?? 0}
+                        fairShareAverage={fairShareAverage}
+                        maxAbsDeviation={maxAbsDeviation}
+                        availability={availabilityByInstructor.get(instructor.id)}
+                      />
+                      <AppButton
+                        intent="secondary"
+                        size="xs"
+                        px="xs"
+                        aria-label={`${instructor.displayName}の分析${focusedInstructorId === instructor.id ? 'を解除' : 'を表示'}`}
+                        aria-pressed={focusedInstructorId === instructor.id}
+                        onClick={() =>
+                          onAnalyzeInstructor({ id: instructor.id, name: instructor.displayName })
+                        }
+                      >
+                        {focusedInstructorId === instructor.id ? '解除' : '分析'}
+                      </AppButton>
+                    </Box>
+                  ))}
+                </Stack>
               ))
             )}
           </Stack>
@@ -289,45 +294,48 @@ function InstructorCard({
   const isConflict = conflictLabel !== undefined;
   const isUnavailable = availability?.type === 'UNAVAILABLE';
   const isDisabled = (isConflict || isUnavailable) && !checked;
-  const availabilityLabel =
-    availability?.type === 'AVOID'
-      ? `要調整${availability.note ? `: ${availability.note}` : ''}`
-      : availability?.type === 'UNAVAILABLE'
-        ? `勤務不可${availability.note ? `: ${availability.note}` : ''}`
-        : undefined;
+  const descriptionId = useId();
+  const qualificationId = useId();
+  const hasNote = Boolean(availability?.note?.trim());
 
   return (
-    <Tooltip
-      label={isConflict ? `${conflictLabel}に割当済` : availabilityLabel}
-      disabled={!isConflict && !availabilityLabel}
-      withArrow
+    <Checkbox.Card
+      checked={checked}
+      onClick={onToggle}
+      disabled={isDisabled}
+      aria-label={instructor.displayName}
+      aria-describedby={[qualificationId, hasNote || isConflict ? descriptionId : null]
+        .filter(Boolean)
+        .join(' ')}
+      className={classes.instructorCard}
+      h="100%"
     >
-      <Box miw={0}>
-        <Checkbox.Card
-          checked={checked}
-          onClick={onToggle}
-          disabled={isDisabled}
-          className={classes.instructorCard}
-          h="100%"
-        >
-          <Group justify="space-between" gap="xs" wrap="nowrap" align="center">
-            <Group gap="xs" wrap="nowrap" align="center" flex={1} miw={0}>
-              <Checkbox.Indicator />
-              <InstructorDetails
-                instructor={instructor}
-                departmentCode={departmentCode}
-                availability={availability}
-              />
-            </Group>
-            <WorkloadDeviationBar
-              load={load}
-              average={fairShareAverage}
-              maxAbsDeviation={maxAbsDeviation}
-            />
+      <Stack gap={4}>
+        <VisuallyHidden id={qualificationId}>
+          対象資格:{' '}
+          {instructor.certifications.map((certification) => certification.shortName).join('・') ||
+            'なし'}
+          {instructor.hasQualificationWarning ? '。資格外' : ''}
+        </VisuallyHidden>
+        <Group justify="space-between" gap="xs" wrap="nowrap" align="center">
+          <Group gap="xs" wrap="nowrap" align="center" flex={1} miw={0}>
+            <Checkbox.Indicator disabled={isDisabled} />
+            <InstructorDetails instructor={instructor} departmentCode={departmentCode} />
           </Group>
-        </Checkbox.Card>
-      </Box>
-    </Tooltip>
+          <WorkloadDeviationBar
+            load={load}
+            average={fairShareAverage}
+            maxAbsDeviation={maxAbsDeviation}
+          />
+        </Group>
+        {(hasNote || isConflict) && (
+          <Stack id={descriptionId} gap={2} className={classes.candidateDetails}>
+            {hasNote && <Text size="xs">申告理由: {availability?.note}</Text>}
+            {isConflict && <Text size="xs">同日配置済み: {conflictLabel}</Text>}
+          </Stack>
+        )}
+      </Stack>
+    </Checkbox.Card>
   );
 }
 
@@ -335,15 +343,7 @@ function InstructorCard({
 function InstructorDetails({
   instructor,
   departmentCode,
-  availability,
-}: Pick<InstructorCardProps, 'instructor' | 'departmentCode' | 'availability'>) {
-  const warnings = [
-    instructor.hasQualificationWarning ? '資格外' : '',
-    availability?.type === 'AVOID' ? '要調整' : '',
-    availability?.type === 'UNAVAILABLE' ? '勤務不可' : '',
-  ]
-    .filter(Boolean)
-    .join('・');
+}: Pick<InstructorCardProps, 'instructor' | 'departmentCode'>) {
   const certifications = instructor.certifications.map((cert) => cert.shortName).join('・');
 
   return (
@@ -368,9 +368,9 @@ function InstructorDetails({
           </AppBadge>
         </Tooltip>
       )}
-      {warnings && (
+      {instructor.hasQualificationWarning && (
         <Text component="span" size="xs" c="yellow.8" style={{ flexShrink: 0 }}>
-          {warnings}
+          資格外
         </Text>
       )}
     </Group>

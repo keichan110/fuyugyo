@@ -1,23 +1,20 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
-import { Box, Card, CloseButton, Group, Select, Stack, Text, Title } from '@mantine/core';
+import { Box, Group, Select, Stack, Text, Title } from '@mantine/core';
 
 import { ErrorAlert } from '@/components/AppAlert';
-import { AppBadge } from '@/components/AppBadge';
 import { UnsavedChangesBar } from '@/components/UnsavedChangesBar';
 import { useMe } from '@/features/auth/queries';
 import { getDepartmentAppearance } from '@/features/departments/appearance';
 import { DepartmentTag } from '@/features/departments/DepartmentTag';
 import { departmentCodeSchema } from '@/features/departments/schema';
 
-import { getCalendarDayColor, shortDateLabel, toMonth } from '../view-utils';
-import { AssignmentPanel } from './AssignmentPanel';
 import { cellKey } from './shift-manager-utils';
 import { ShiftAnalysis } from './ShiftAnalysis';
-import { ShiftCalendar } from './ShiftCalendar';
+import { ShiftAssignmentForm } from './ShiftAssignmentForm';
 import classes from './ShiftManager.module.css';
+import { ShiftManagerCalendar } from './ShiftManagerCalendar';
 import { ShiftManagerDialogs } from './ShiftManagerDialogs';
-import { ShiftPublicationControls } from './ShiftPublicationControls';
 import { useShiftManagerController } from './useShiftManagerController';
 
 /** シフト枠（日付 × 部門 × シフト種別）を月間シフト表で編集する管理コンポーネント。 */
@@ -42,13 +39,19 @@ type ShiftManagerContentProps = {
 /** シフト管理画面の表示と各編集コントロールを組み立てる。 */
 function ShiftManagerContent({ controller, myInstructorId }: ShiftManagerContentProps) {
   const selectedCell = controller.selectedCell;
+  const assignmentHeadingRef = useRef<HTMLHeadingElement>(null);
+  const [analysisTab, setAnalysisTab] = useState<string | null>('month');
+  const openAssignmentPanel: typeof controller.openAssignmentPanel = (cell) => {
+    controller.openAssignmentPanel(cell);
+    setAnalysisTab('slot');
+  };
+  const clearInstructor = () => {
+    setFocusedInstructor(null);
+    setAnalysisTab(controller.assignmentPanelOpened ? 'slot' : 'month');
+  };
   const [focusedInstructor, setFocusedInstructor] = useState<{ id: string; name: string } | null>(
     null,
   );
-  const selectedCellDateColor = controller.selectedCell
-    ? getCalendarDayColor(controller.selectedCell.date)
-    : undefined;
-
   const publicationProps = {
     month: controller.month,
     departmentCode: controller.departmentCode,
@@ -67,10 +70,6 @@ function ShiftManagerContent({ controller, myInstructorId }: ShiftManagerContent
       !controller.monthly.data ||
       !controller.requirementsReady,
   };
-  const selectedPublished = selectedCell
-    ? controller.shiftByCell.get(cellKey(selectedCell.date, selectedCell.shiftTypeId))?.status ===
-      'PUBLISHED'
-    : false;
 
   return (
     <Stack gap="md">
@@ -140,160 +139,37 @@ function ShiftManagerContent({ controller, myInstructorId }: ShiftManagerContent
             className={classes.workspace}
             data-panel-opened={controller.assignmentPanelOpened || undefined}
           >
-            <ShiftCalendar
-              publicationControls={
-                <ShiftPublicationControls
-                  key={`${controller.month}:${controller.departmentCode}:${controller.activeShiftTypeId}`}
-                  {...publicationProps}
-                />
-              }
-              month={controller.month}
-              onMonthChange={(nextMonth) =>
-                controller.requestNavigation({ type: 'month', nextMonth: toMonth(nextMonth) })
-              }
-              days={controller.days}
-              departmentCode={controller.departmentCode}
-              shiftTypes={controller.formData.data.shiftTypes}
-              activeShiftTypeId={controller.activeShiftTypeId}
-              onChangeShiftType={controller.changeActiveShiftType}
-              stagedShiftTypeIds={controller.stagedShiftTypeIds}
-              shiftByCell={controller.shiftByCell}
-              assignmentsByDay={controller.assignmentsByDay}
-              staffingSummary={controller.staffingSummary}
-              focusedInstructor={focusedInstructor}
-              onClearInstructor={() => setFocusedInstructor(null)}
-              stagedCells={controller.stagedCells}
-              selectedCell={controller.selectedCell}
+            <ShiftManagerCalendar
+              controller={controller}
+              publicationProps={publicationProps}
               myInstructorId={myInstructorId}
-              onSelectCell={controller.openAssignmentPanel}
-              autoAssignMode={controller.autoAssignMode}
-              autoAssignDates={controller.autoAssignDates}
-              onStartAutoAssign={controller.startAutoAssign}
-              onCancelAutoAssign={() => controller.setAutoAssignMode(false)}
-              onToggleAutoAssignDate={(date) =>
-                controller.setAutoAssignDates((current) => {
-                  const next = new Set(current);
-                  if (next.has(date)) next.delete(date);
-                  else next.add(date);
-                  return next;
-                })
-              }
-              onRunAutoAssign={controller.runAutoAssign}
-              isAutoAssigning={controller.isAutoAssigning}
-              canRunAutoAssign={
-                !!controller.autoAssignContext.data &&
-                controller.requirementsReady &&
-                !controller.activeShiftTypeMissingCertification
-              }
-              missingCertification={controller.activeShiftTypeMissingCertification}
-              noSelectableDates={controller.hasNoAutoAssignSelectableDates}
-              shortageByCell={controller.shortageByCell}
-              compositionByDay={controller.compositionByDay}
-              stagedRequirements={controller.stagedRequirements}
-              requiredByDay={controller.requiredByDay}
-              isAutoAssignSelectableDate={controller.isAutoAssignSelectableDate}
-              onOpenBulkModal={() => controller.setBulkModalOpened(true)}
+              focusedInstructor={focusedInstructor}
+              onClearInstructor={clearInstructor}
+              onSelectCell={openAssignmentPanel}
             />
 
-            <Card
-              withBorder
-              padding="md"
-              className={classes.assignmentForm}
-              component="section"
-              aria-label="枠の編集"
-            >
-              <Box className={classes.assignmentFormHeader}>
-                <Group justify="space-between" mb="sm" align="flex-start">
-                  <Stack gap={2}>
-                    <Title order={3} size="h4" c={selectedCellDateColor ?? 'inherit'}>
-                      {selectedCell ? shortDateLabel(selectedCell.date) : '枠の編集'}
-                    </Title>
-                    <Text size="xs" c="dimmed">
-                      {
-                        controller.formData.data.shiftTypes.find(
-                          (type) => type.id === controller.activeShiftTypeId,
-                        )?.name
-                      }
-                    </Text>
-                  </Stack>
-                  <Group gap="xs" wrap="nowrap">
-                    <Text size="sm">{controller.selectedAssignmentCount}名</Text>
-                    {(controller.selectedStagedCell || controller.selectedStagedRequirement) && (
-                      <AppBadge kind="pending">未保存</AppBadge>
-                    )}
-                    <CloseButton
-                      aria-label="編集フォームを閉じる"
-                      onClick={() => controller.setAssignmentPanelOpened(false)}
-                    />
-                  </Group>
-                </Group>
-                {selectedCell && (
-                  <ShiftPublicationControls
-                    key={`single:${selectedCell.date}:${controller.departmentCode}:${selectedCell.shiftTypeId}`}
-                    {...publicationProps}
-                    date={selectedCell.date}
-                  />
-                )}
-              </Box>
-              <Box className={classes.assignmentFormBody}>
-                {selectedPublished && (
-                  <Text size="sm" c="dimmed" mb="sm">
-                    公開済みのため編集できません。変更するには公開を取り消してください。
-                  </Text>
-                )}
-                {controller.autoAssignMode && (
-                  <Text size="sm" c="dimmed" mb="sm">
-                    自動割当の日付選択中は手動編集できません。編集するには自動割当をキャンセルしてください。
-                  </Text>
-                )}
-                <Box
-                  component="fieldset"
-                  disabled={controller.autoAssignMode || controller.isAutoAssigning}
-                  className={classes.assignmentFields}
-                >
-                  {selectedCell && (
-                    <AssignmentPanel
-                      key={`${selectedCell.date}-${controller.departmentCode}-${selectedCell.shiftTypeId}`}
-                      readOnly={selectedPublished}
-                      date={selectedCell.date}
-                      departmentCode={controller.departmentCode}
-                      shiftTypeId={selectedCell.shiftTypeId}
-                      stagedCell={controller.stagedCells.get(
-                        cellKey(selectedCell.date, selectedCell.shiftTypeId),
-                      )}
-                      onStageChange={(next) =>
-                        controller.stageCell(
-                          cellKey(selectedCell.date, selectedCell.shiftTypeId),
-                          next,
-                        )
-                      }
-                      requirementsReady={controller.requirementsReady}
-                      requiredCount={controller.selectedRequiredCount}
-                      onRequiredCountChange={(value) =>
-                        controller.stageRequirement(
-                          selectedCell.date,
-                          selectedCell.shiftTypeId,
-                          value,
-                        )
-                      }
-                      onRegisterInstructorNames={controller.registerInstructorNames}
-                      conflictLabelById={controller.conflictLabelById}
-                      currentMonthWorkDays={controller.currentMonthWorkDays}
-                      availabilities={controller.availabilities.data ?? []}
-                      focusedInstructorId={focusedInstructor?.id ?? null}
-                      onAnalyzeInstructor={(instructor) =>
-                        setFocusedInstructor((current) =>
-                          current?.id === instructor.id ? null : instructor,
-                        )
-                      }
-                    />
-                  )}
-                </Box>
-              </Box>
-            </Card>
+            <ShiftAssignmentForm
+              controller={controller}
+              publicationProps={publicationProps}
+              headingRef={assignmentHeadingRef}
+              focusedInstructorId={focusedInstructor?.id ?? null}
+              onClose={() => {
+                controller.setAssignmentPanelOpened(false);
+                setAnalysisTab('month');
+              }}
+              onAnalyzeInstructor={(instructor) => {
+                if (focusedInstructor?.id === instructor.id) {
+                  clearInstructor();
+                } else {
+                  setFocusedInstructor(instructor);
+                  setAnalysisTab('person');
+                }
+              }}
+            />
           </Box>
           <ShiftAnalysis
-            key={focusedInstructor?.id ?? 'overview'}
+            tab={analysisTab}
+            onTabChange={setAnalysisTab}
             month={controller.month}
             departmentCode={controller.departmentCode}
             shiftTypeName={
@@ -302,6 +178,14 @@ function ShiftManagerContent({ controller, myInstructorId }: ShiftManagerContent
               )?.name ?? ''
             }
             activeShiftTypeId={controller.activeShiftTypeId}
+            context={controller.autoAssignContext.data}
+            availabilities={controller.availabilities.data}
+            reviewFailed={
+              controller.autoAssignContext.isError ||
+              controller.availabilities.isError ||
+              controller.requirements.isError
+            }
+            nameById={controller.nameById}
             savedAssignments={controller.detailedAssignments.saved}
             stagedAssignments={controller.detailedAssignments.staged}
             days={controller.days}
@@ -322,10 +206,14 @@ function ShiftManagerContent({ controller, myInstructorId }: ShiftManagerContent
               ''
             }
             focusedInstructor={focusedInstructor}
-            onClearInstructor={() => setFocusedInstructor(null)}
-            onSelectDate={(date) =>
-              controller.openAssignmentPanel({ date, shiftTypeId: controller.activeShiftTypeId })
-            }
+            onClearInstructor={clearInstructor}
+            onSelectDate={(date) => {
+              openAssignmentPanel({ date, shiftTypeId: controller.activeShiftTypeId });
+              requestAnimationFrame(() => {
+                assignmentHeadingRef.current?.focus({ preventScroll: true });
+                assignmentHeadingRef.current?.scrollIntoView({ block: 'start' });
+              });
+            }}
           />
         </>
       )}

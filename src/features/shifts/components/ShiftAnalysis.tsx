@@ -1,26 +1,17 @@
-import { Fragment, useId, useMemo, useState } from 'react';
+import { useId, useMemo, useState } from 'react';
 
-import {
-  ActionIcon,
-  Anchor,
-  Box,
-  Card,
-  Collapse,
-  Group,
-  Stack,
-  Tabs,
-  Text,
-  Title,
-} from '@mantine/core';
+import { ActionIcon, Box, Card, Collapse, Group, Stack, Tabs, Text, Title } from '@mantine/core';
 import { IconChevronDown, IconChevronUp } from '@tabler/icons-react';
 
+import { WarningAlert } from '@/components/AppAlert';
 import { AppButton } from '@/components/AppButton';
+import type { Availability } from '@/features/availabilities/schema';
 import { getDepartmentAppearance } from '@/features/departments/appearance';
 import type { DepartmentCode } from '@/features/departments/schema';
 
 import type { FrameComposition } from '../qualification-composition';
 import { useInstructorWorkload } from '../queries';
-import type { AutoAssignProposal } from '../schema';
+import type { AutoAssignContext, AutoAssignProposal } from '../schema';
 import { deriveStaffingStatus, describeStaffing, type StaffingMonthlySummary } from '../staffing';
 import { getCalendarDayColor, shortDateLabel, weekdayIndex } from '../view-utils';
 import {
@@ -35,12 +26,18 @@ import {
   type WorkStreak,
   type WorkWeekStreak,
 } from '../workload';
+import { buildAssignmentReview, type AssignmentReviewDay } from './assignment-review';
+import { AssignmentReviewIssues } from './AssignmentReviewIssues';
 import type { DayAssignments } from './calendar-events';
+import { MonthlyAssignmentReview } from './MonthlyAssignmentReview';
+import { SavedAssignmentChanges } from './SavedAssignmentChanges';
 import type { SelectedCell } from './shift-manager-types';
 import { cellKey } from './shift-manager-utils';
 import classes from './ShiftManager.module.css';
 
 type ShiftAnalysisProps = {
+  tab: string | null;
+  onTabChange: (tab: string | null) => void;
   month: string;
   departmentCode: DepartmentCode;
   shiftTypeName: string;
@@ -50,6 +47,10 @@ type ShiftAnalysisProps = {
   savedAssignments: DetailedCellAssignment[];
   /** 現部門のステージ済み（未保存）セル */
   stagedAssignments: DetailedCellAssignment[];
+  context: AutoAssignContext | undefined;
+  availabilities: Availability[] | undefined;
+  reviewFailed: boolean;
+  nameById: ReadonlyMap<string, string>;
   days: string[];
   assignmentsByDay: DayAssignments;
   assignmentsReady: boolean;
@@ -74,11 +75,54 @@ type ShiftAnalysisProps = {
 /** 月全体・選択枠・人ごとの配置を、未保存の編集と同じ現在案で確認する分析領域。 */
 export function ShiftAnalysis(props: ShiftAnalysisProps) {
   const [opened, setOpened] = useState(true);
-  const [tab, setTab] = useState<string | null>(props.focusedInstructor ? 'person' : 'month');
   const contentId = useId();
+  const review = useMemo(
+    () =>
+      buildAssignmentReview({
+        days: props.days,
+        departmentCode: props.departmentCode,
+        shiftTypeId: props.activeShiftTypeId,
+        assignmentsByDay: props.assignmentsByDay,
+        savedAssignments: props.savedAssignments,
+        stagedAssignments: props.stagedAssignments,
+        requiredByDay: props.requiredByDay,
+        compositionByDay: props.compositionByDay,
+        availabilities: props.availabilities,
+        context: props.context,
+      }),
+    [
+      props.days,
+      props.departmentCode,
+      props.activeShiftTypeId,
+      props.assignmentsByDay,
+      props.savedAssignments,
+      props.stagedAssignments,
+      props.requiredByDay,
+      props.compositionByDay,
+      props.availabilities,
+      props.context,
+    ],
+  );
+  const knownIds = new Set(props.context?.instructors.map((person) => person.id));
+  const uncoveredNames = props.context
+    ? [
+        ...new Map(
+          [...props.assignmentsByDay.values()]
+            .flat()
+            .filter((person) => !knownIds.has(person.id))
+            .map((person) => [person.id, person.name]),
+        ).values(),
+      ]
+    : [];
 
   return (
-    <Card withBorder padding="md" component="section" aria-label="配置の分析">
+    <Card
+      withBorder
+      padding="md"
+      component="section"
+      aria-label="配置の分析"
+      style={{ scrollMarginTop: 76 }}
+    >
       <Group justify="space-between" mb={opened ? 'sm' : 0}>
         <Title order={3} size="h4">
           配置の分析
@@ -105,29 +149,36 @@ export function ShiftAnalysis(props: ShiftAnalysisProps) {
             月間配置を読み込み中…
           </Text>
         ) : (
-          <Tabs value={tab} onChange={setTab}>
+          <Tabs value={props.tab} onChange={props.onTabChange}>
             <Tabs.List>
               <Tabs.Tab value="month">月全体</Tabs.Tab>
               <Tabs.Tab value="slot">選択枠</Tabs.Tab>
               <Tabs.Tab value="person">選択した人</Tabs.Tab>
             </Tabs.List>
             <Tabs.Panel value="month" pt="md">
-              <MonthlyStaffingAnalysis
-                days={props.days}
-                assignmentsByDay={props.assignmentsByDay}
-                requiredByDay={props.requiredByDay}
-                compositionByDay={props.compositionByDay}
-                staffingSummary={props.staffingSummary}
-                navigationDisabled={props.navigationDisabled}
-                onSelectDate={(date) => {
-                  props.onSelectDate(date);
-                  setTab('slot');
+              <MonthlyAssignmentReview
+                review={review}
+                ready={{
+                  shortage: props.requiredByDay !== null,
+                  availability: props.availabilities !== undefined,
+                  streak: props.context !== undefined,
+                  qualification: props.compositionByDay !== null,
                 }}
+                failed={props.reviewFailed}
+                unsetCount={props.staffingSummary?.unsetCount ?? null}
+                requirementUnset={
+                  props.compositionByDay?.values().next().value?.requirementUnset ?? false
+                }
+                uncoveredNames={uncoveredNames}
+                navigationDisabled={props.navigationDisabled}
+                onSelectDate={props.onSelectDate}
               />
             </Tabs.Panel>
             <Tabs.Panel value="slot" pt="md">
               <SelectedSlotAnalysis
                 selectedCell={props.selectedCell}
+                review={review.find((day) => day.date === props.selectedCell?.date)}
+                nameById={props.nameById}
                 assignmentsByDay={props.assignmentsByDay}
                 requiredByDay={props.requiredByDay}
                 shortageByCell={props.shortageByCell}
@@ -158,106 +209,6 @@ export function ShiftAnalysis(props: ShiftAnalysisProps) {
   );
 }
 
-type MonthlyStaffingAnalysisProps = Pick<
-  ShiftAnalysisProps,
-  | 'days'
-  | 'assignmentsByDay'
-  | 'requiredByDay'
-  | 'compositionByDay'
-  | 'staffingSummary'
-  | 'navigationDisabled'
-  | 'onSelectDate'
->;
-
-/** 当月の不足を一覧し、選んだ枠の分析へ移動する。 */
-function MonthlyStaffingAnalysis({
-  days,
-  assignmentsByDay,
-  requiredByDay,
-  compositionByDay,
-  staffingSummary,
-  navigationDisabled,
-  onSelectDate,
-}: MonthlyStaffingAnalysisProps) {
-  if (!staffingSummary || !requiredByDay)
-    return (
-      <Text size="sm" c="dimmed">
-        必要人数を読み込み中…
-      </Text>
-    );
-  const shortDates = days.filter(
-    (date) =>
-      deriveStaffingStatus(
-        requiredByDay.get(date) ?? null,
-        assignmentsByDay.get(date)?.length ?? 0,
-      ) === 'SHORT',
-  );
-  const reviewDates = days.filter((date) => compositionByDay?.get(date)?.needsReview);
-  const requirementUnset = compositionByDay?.values().next().value?.requirementUnset ?? false;
-  return (
-    <Stack gap="sm">
-      {requirementUnset && <Text size="sm">必要資格未設定</Text>}
-      <Text size="sm">
-        不足 {staffingSummary.shortDays}日 / 必要人数未設定 {staffingSummary.unsetCount}枠
-      </Text>
-      <DateLinkList
-        dates={shortDates}
-        actionLabel="不足を確認"
-        disabled={navigationDisabled}
-        onSelectDate={onSelectDate}
-      />
-      {staffingSummary.shortDays === 0 && (
-        <Text size="sm" c="dimmed">
-          必要人数が設定された枠に不足はありません。
-        </Text>
-      )}
-      {compositionByDay && !requirementUnset && (
-        <>
-          <Text size="sm">資格構成の要確認 {reviewDates.length}日</Text>
-          <DateLinkList
-            dates={reviewDates}
-            actionLabel="要確認を確認"
-            disabled={navigationDisabled}
-            onSelectDate={onSelectDate}
-          />
-        </>
-      )}
-    </Stack>
-  );
-}
-
-type DateLinkListProps = {
-  dates: string[];
-  /** スクリーンリーダー向けに日付へ続ける操作の説明 */
-  actionLabel: string;
-  disabled: boolean;
-  onSelectDate: (date: string) => void;
-};
-
-/** 日付と曜日だけのリンクを「、」区切りで並べ、押した日の枠へ移動する。 */
-function DateLinkList({ dates, actionLabel, disabled, onSelectDate }: DateLinkListProps) {
-  if (dates.length === 0) return null;
-  return (
-    <Text size="sm">
-      {dates.map((date, index) => (
-        <Fragment key={date}>
-          {index > 0 && '、'}
-          <Anchor
-            component="button"
-            type="button"
-            size="sm"
-            disabled={disabled}
-            aria-label={`${shortDateLabel(date)}の${actionLabel}`}
-            onClick={() => onSelectDate(date)}
-          >
-            {shortDateLabel(date)}
-          </Anchor>
-        </Fragment>
-      ))}
-    </Text>
-  );
-}
-
 type SelectedSlotAnalysisProps = Pick<
   ShiftAnalysisProps,
   | 'selectedCell'
@@ -266,7 +217,8 @@ type SelectedSlotAnalysisProps = Pick<
   | 'shortageByCell'
   | 'compositionByDay'
   | 'selectedDescription'
->;
+  | 'nameById'
+> & { review: AssignmentReviewDay | undefined };
 
 /** 選択枠の現在の充足と、まだ不足している場合の自動割当時の理由を示す。 */
 function SelectedSlotAnalysis({
@@ -276,6 +228,8 @@ function SelectedSlotAnalysis({
   shortageByCell,
   compositionByDay,
   selectedDescription,
+  review,
+  nameById,
 }: SelectedSlotAnalysisProps) {
   if (!selectedCell)
     return (
@@ -296,6 +250,11 @@ function SelectedSlotAnalysis({
       <Text fw={600} size="sm">
         {shortDateLabel(selectedCell.date)}
       </Text>
+      {review && review.issues.length > 0 && (
+        <WarningAlert title="要確認">
+          <AssignmentReviewIssues issues={review.issues} />
+        </WarningAlert>
+      )}
       <Text size="sm">
         {requiredByDay ? describeStaffing(required, assigned.length) : '必要人数を読み込み中…'}
       </Text>
@@ -305,6 +264,7 @@ function SelectedSlotAnalysis({
           自動割当時の不足理由：{shortage.reasons.join(' / ')}
         </Text>
       )}
+      <SavedAssignmentChanges review={review} assigned={assigned} nameById={nameById} />
       {composition && <CompositionDetail composition={composition} />}
       {selectedDescription.trim() && (
         <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>
@@ -335,13 +295,7 @@ function CompositionDetail({ composition }: { composition: FrameComposition }) {
       {composition.outOfRequirementNames.length > 0 && (
         <Text size="sm">資格要件外の配置：{composition.outOfRequirementNames.join('・')}</Text>
       )}
-      {composition.needsReview ? (
-        composition.reasons.map((reason) => (
-          <Text key={reason} size="sm" c="yellow.8">
-            要確認：{reason}
-          </Text>
-        ))
-      ) : (
+      {!composition.needsReview && (
         <Text size="sm" c="dimmed">
           資格構成の要確認はありません
         </Text>

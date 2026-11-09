@@ -190,16 +190,7 @@ function ReviewNotice({
   );
 }
 
-/** 問題別の件数を、未判定の有無とともに表示する絞り込みボタン。 */
-function ReviewMetric({
-  category: { label, icon: Icon },
-  count,
-  unavailable,
-  partial,
-  unsetCount,
-  selected,
-  onClick,
-}: {
+type ReviewMetricProps = {
   category: (typeof REVIEW_CATEGORIES)[number];
   count: number;
   unavailable: boolean;
@@ -207,23 +198,50 @@ function ReviewMetric({
   unsetCount: number | null;
   selected: boolean;
   onClick: () => void;
-}) {
-  const status = unavailable
-    ? '未判定'
-    : unsetCount !== null && unsetCount > 0
-      ? `必要人数未設定 ${unsetCount}枠`
-      : partial
-        ? '一部未判定'
-        : count > 0
-          ? '確認が必要'
-          : '該当なし';
+};
+
+/** 取得状態・未設定・検出件数の順に、カードの表示状態を決める。 */
+function reviewMetricDisplay({
+  category,
+  count,
+  unavailable,
+  partial,
+  unsetCount,
+}: ReviewMetricProps) {
+  const countLabel = unavailable ? '未判定' : `${count}枠`;
+  const unsetLabel = unsetCount ? `、必要人数未設定${unsetCount}枠` : '';
+  const common = {
+    countText: unavailable ? '―' : count,
+    warning: count > 0 || partial || unavailable || undefined,
+    ariaLabel: `${category.label}：${countLabel}${unsetLabel}で絞り込む`,
+  };
+  if (unavailable) {
+    return { ...common, status: '未判定' };
+  }
+  if (unsetCount !== null && unsetCount > 0) {
+    return { ...common, status: `必要人数未設定 ${unsetCount}枠` };
+  }
+  if (partial) {
+    return { ...common, status: '一部未判定' };
+  }
+  return { ...common, status: count > 0 ? '確認が必要' : '該当なし' };
+}
+
+/** 問題別の件数を、未判定の有無とともに表示する絞り込みボタン。 */
+function ReviewMetric(props: ReviewMetricProps) {
+  const {
+    category: { label, icon: Icon },
+    selected,
+    onClick,
+  } = props;
+  const display = reviewMetricDisplay(props);
   return (
     <UnstyledButton
       className={classes.metric}
-      data-warning={count > 0 || partial || unavailable || undefined}
+      data-warning={display.warning}
       data-selected={selected || undefined}
       aria-pressed={selected}
-      aria-label={`${label}：${unavailable ? '未判定' : `${count}枠`}${unsetCount ? `、必要人数未設定${unsetCount}枠` : ''}で絞り込む`}
+      aria-label={display.ariaLabel}
       onClick={onClick}
     >
       <Group gap={6}>
@@ -234,12 +252,12 @@ function ReviewMetric({
       </Group>
       <Group gap={4} align="baseline" mt={4}>
         <Text size="28px" fw={700} lh={1.2}>
-          {unavailable ? '―' : count}
+          {display.countText}
         </Text>
         <Text size="xs">枠</Text>
       </Group>
       <Text size="xs" c="dimmed">
-        {status}
+        {display.status}
       </Text>
     </UnstyledButton>
   );

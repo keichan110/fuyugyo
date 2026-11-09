@@ -10,28 +10,16 @@ import {
   ThemeIcon,
   UnstyledButton,
 } from '@mantine/core';
-import {
-  IconAlertTriangle,
-  IconCalendarExclamation,
-  IconCertificate,
-  IconCheck,
-  IconChevronRight,
-  IconUsers,
-} from '@tabler/icons-react';
+import { IconAlertTriangle, IconCheck, IconChevronRight } from '@tabler/icons-react';
 
 import { AppBadge } from '@/components/AppBadge';
 import { AppButton } from '@/components/AppButton';
 
 import { shortDateLabel } from '../view-utils';
 import type { AssignmentReviewDay, ReviewKind } from './assignment-review';
+import { REVIEW_CATEGORIES } from './assignment-review-categories';
 import classes from './assignment-review.module.css';
-
-const REVIEW_CATEGORIES = [
-  { kind: 'shortage', label: '人数不足', icon: IconUsers },
-  { kind: 'availability', label: '勤務可否', icon: IconCalendarExclamation },
-  { kind: 'streak', label: '4連勤以上', icon: IconAlertTriangle },
-  { kind: 'qualification', label: '資格構成', icon: IconCertificate },
-] satisfies { kind: ReviewKind; label: string; icon: typeof IconUsers }[];
+import { AssignmentReviewIssues } from './AssignmentReviewIssues';
 
 type Props = {
   review: AssignmentReviewDay[];
@@ -112,6 +100,7 @@ export function MonthlyAssignmentReview({
               count={count}
               unavailable={unavailable}
               partial={partial}
+              unsetCount={kind === 'shortage' ? unsetCount : null}
               selected={filter === kind}
               onClick={() => setFilter((current) => (current === kind ? null : kind))}
             />
@@ -124,7 +113,6 @@ export function MonthlyAssignmentReview({
       <ReviewNotice
         ready={ready}
         failed={failed}
-        unsetCount={unsetCount}
         requirementUnset={requirementUnset}
         uncoveredNames={uncoveredNames}
       />
@@ -171,14 +159,12 @@ export function MonthlyAssignmentReview({
 function ReviewNotice({
   ready,
   failed,
-  unsetCount,
   requirementUnset,
   uncoveredNames,
-}: Pick<Props, 'ready' | 'failed' | 'unsetCount' | 'requirementUnset' | 'uncoveredNames'>) {
+}: Pick<Props, 'ready' | 'failed' | 'requirementUnset' | 'uncoveredNames'>) {
   if (
     Object.values(ready).every(Boolean) &&
     !failed &&
-    unsetCount === 0 &&
     !requirementUnset &&
     uncoveredNames.length === 0
   ) {
@@ -193,9 +179,6 @@ function ReviewNotice({
       )}
       {!failed && Object.values(ready).some((value) => !value) && (
         <Text size="sm">一部の確認情報を読み込み中です。</Text>
-      )}
-      {unsetCount !== null && unsetCount > 0 && (
-        <Text size="sm">必要人数未設定：{unsetCount}枠（人数不足の判定対象外）</Text>
       )}
       {requirementUnset && (
         <Text size="sm">必要資格未設定：この種別の資格構成は判定できません。</Text>
@@ -213,6 +196,7 @@ function ReviewMetric({
   count,
   unavailable,
   partial,
+  unsetCount,
   selected,
   onClick,
 }: {
@@ -220,23 +204,26 @@ function ReviewMetric({
   count: number;
   unavailable: boolean;
   partial: boolean;
+  unsetCount: number | null;
   selected: boolean;
   onClick: () => void;
 }) {
   const status = unavailable
     ? '未判定'
-    : partial
-      ? '一部未判定'
-      : count > 0
-        ? '確認が必要'
-        : '該当なし';
+    : unsetCount !== null && unsetCount > 0
+      ? `必要人数未設定 ${unsetCount}枠`
+      : partial
+        ? '一部未判定'
+        : count > 0
+          ? '確認が必要'
+          : '該当なし';
   return (
     <UnstyledButton
       className={classes.metric}
       data-warning={count > 0 || partial || unavailable || undefined}
       data-selected={selected || undefined}
       aria-pressed={selected}
-      aria-label={`${label}：${unavailable ? '未判定' : `${count}枠`}で絞り込む`}
+      aria-label={`${label}：${unavailable ? '未判定' : `${count}枠`}${unsetCount ? `、必要人数未設定${unsetCount}枠` : ''}で絞り込む`}
       onClick={onClick}
     >
       <Group gap={6}>
@@ -287,23 +274,7 @@ function ReviewDay({
               </AppBadge>
             )}
           </Group>
-          {REVIEW_CATEGORIES.map(({ kind, label, icon: Icon }) => {
-            const issues = day.issues.filter((issue) => issue.kind === kind);
-            if (!issues.length || (filter && filter !== kind)) {
-              return null;
-            }
-            return (
-              <Group key={kind} gap={6} align="flex-start" wrap="nowrap">
-                <Icon size={16} className={classes.issueIcon} aria-hidden="true" />
-                <Text size="sm" className={classes.issueText}>
-                  <Text component="span" fw={600}>
-                    {label}：
-                  </Text>
-                  {issues.map((issue) => issue.text).join(' / ')}
-                </Text>
-              </Group>
-            );
-          })}
+          <AssignmentReviewIssues issues={day.issues} filter={filter} />
         </Stack>
         <IconChevronRight size={18} className={classes.arrow} aria-hidden="true" />
       </Group>
@@ -344,7 +315,7 @@ function AssignmentChanges({
                   disabled={navigationDisabled}
                   onClick={() => onSelectDate(day.date)}
                 >
-                  {shortDateLabel(day.date)}　+{day.addedIds.length} / −{day.removedIds.length}
+                  {shortDateLabel(day.date)} +{day.addedIds.length} / −{day.removedIds.length}
                 </AppButton>
               ))}
             </Group>

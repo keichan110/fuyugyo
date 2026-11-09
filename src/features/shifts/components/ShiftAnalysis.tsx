@@ -3,6 +3,7 @@ import { useId, useMemo, useState } from 'react';
 import { ActionIcon, Box, Card, Collapse, Group, Stack, Tabs, Text, Title } from '@mantine/core';
 import { IconChevronDown, IconChevronUp } from '@tabler/icons-react';
 
+import { WarningAlert } from '@/components/AppAlert';
 import { AppButton } from '@/components/AppButton';
 import type { Availability } from '@/features/availabilities/schema';
 import { getDepartmentAppearance } from '@/features/departments/appearance';
@@ -26,6 +27,7 @@ import {
   type WorkWeekStreak,
 } from '../workload';
 import { buildAssignmentReview, type AssignmentReviewDay } from './assignment-review';
+import { AssignmentReviewIssues } from './AssignmentReviewIssues';
 import type { DayAssignments } from './calendar-events';
 import { MonthlyAssignmentReview } from './MonthlyAssignmentReview';
 import { SavedAssignmentChanges } from './SavedAssignmentChanges';
@@ -34,6 +36,8 @@ import { cellKey } from './shift-manager-utils';
 import classes from './ShiftManager.module.css';
 
 type ShiftAnalysisProps = {
+  tab: string | null;
+  onTabChange: (tab: string | null) => void;
   month: string;
   departmentCode: DepartmentCode;
   shiftTypeName: string;
@@ -71,7 +75,6 @@ type ShiftAnalysisProps = {
 /** 月全体・選択枠・人ごとの配置を、未保存の編集と同じ現在案で確認する分析領域。 */
 export function ShiftAnalysis(props: ShiftAnalysisProps) {
   const [opened, setOpened] = useState(true);
-  const [tab, setTab] = useState<string | null>(props.focusedInstructor ? 'person' : 'month');
   const contentId = useId();
   const review = useMemo(
     () =>
@@ -146,7 +149,7 @@ export function ShiftAnalysis(props: ShiftAnalysisProps) {
             月間配置を読み込み中…
           </Text>
         ) : (
-          <Tabs value={tab} onChange={setTab}>
+          <Tabs value={props.tab} onChange={props.onTabChange}>
             <Tabs.List>
               <Tabs.Tab value="month">月全体</Tabs.Tab>
               <Tabs.Tab value="slot">選択枠</Tabs.Tab>
@@ -168,10 +171,7 @@ export function ShiftAnalysis(props: ShiftAnalysisProps) {
                 }
                 uncoveredNames={uncoveredNames}
                 navigationDisabled={props.navigationDisabled}
-                onSelectDate={(date) => {
-                  props.onSelectDate(date);
-                  setTab('slot');
-                }}
+                onSelectDate={props.onSelectDate}
               />
             </Tabs.Panel>
             <Tabs.Panel value="slot" pt="md">
@@ -250,6 +250,11 @@ function SelectedSlotAnalysis({
       <Text fw={600} size="sm">
         {shortDateLabel(selectedCell.date)}
       </Text>
+      {review && review.issues.length > 0 && (
+        <WarningAlert title="要確認">
+          <AssignmentReviewIssues issues={review.issues} />
+        </WarningAlert>
+      )}
       <Text size="sm">
         {requiredByDay ? describeStaffing(required, assigned.length) : '必要人数を読み込み中…'}
       </Text>
@@ -259,15 +264,7 @@ function SelectedSlotAnalysis({
           自動割当時の不足理由：{shortage.reasons.join(' / ')}
         </Text>
       )}
-      {review &&
-        review.issues
-          .filter((issue) => issue.kind === 'availability' || issue.kind === 'streak')
-          .map((issue) => (
-            <Text key={`${issue.kind}:${issue.text}`} size="sm" c="orange.8">
-              {issue.text}
-            </Text>
-          ))}
-      <SavedAssignmentChanges review={review} nameById={nameById} />
+      <SavedAssignmentChanges review={review} assigned={assigned} nameById={nameById} />
       {composition && <CompositionDetail composition={composition} />}
       {selectedDescription.trim() && (
         <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>
@@ -298,13 +295,7 @@ function CompositionDetail({ composition }: { composition: FrameComposition }) {
       {composition.outOfRequirementNames.length > 0 && (
         <Text size="sm">資格要件外の配置：{composition.outOfRequirementNames.join('・')}</Text>
       )}
-      {composition.needsReview ? (
-        composition.reasons.map((reason) => (
-          <Text key={reason} size="sm" c="yellow.8">
-            要確認：{reason}
-          </Text>
-        ))
-      ) : (
+      {!composition.needsReview && (
         <Text size="sm" c="dimmed">
           資格構成の要確認はありません
         </Text>

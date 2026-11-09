@@ -1,44 +1,86 @@
-import { Group, Stack, Text } from '@mantine/core';
-
-import { AppBadge } from '@/components/AppBadge';
+import { Stack, Text } from '@mantine/core';
 
 import type { AssignmentReviewDay } from './assignment-review';
+import classes from './assignment-review.module.css';
 
 type Props = {
   review: AssignmentReviewDay | undefined;
+  assigned: { id: string; name: string }[];
   nameById: ReadonlyMap<string, string>;
 };
 
-/** 選択枠の担当者について、保存済みから現在案への追加・解除を示す。 */
-export function SavedAssignmentChanges({ review, nameById }: Props) {
-  const changes = [
-    { label: '追加', kind: 'link', ids: review?.addedIds ?? [] },
-    { label: '解除', kind: 'danger', ids: review?.removedIds ?? [] },
-  ] satisfies { label: string; kind: 'link' | 'danger'; ids: string[] }[];
-  const changed = changes.some((change) => change.ids.length > 0);
+/** 保存済みと現在案を左右に並べ、共通の担当者の行を揃えて追加・解除を示す。 */
+export function SavedAssignmentChanges({ review, assigned, nameById }: Props) {
+  const addedIds = review?.addedIds ?? [];
+  const removedIds = review?.removedIds ?? [];
+  const added = new Set(addedIds);
+  const unchanged = assigned.filter((person) => !added.has(person.id));
+  const changed = addedIds.length + removedIds.length > 0;
+  const rows = [
+    ...unchanged.map((person) => ({ before: person.id, after: person.id, changed: false })),
+    ...Array.from({ length: Math.max(addedIds.length, removedIds.length) }, (_, index) => ({
+      before: removedIds[index],
+      after: addedIds[index],
+      changed: true,
+    })),
+  ];
+  const currentNames = new Map(assigned.map((person) => [person.id, person.name]));
+  const name = (id: string) => currentNames.get(id) ?? nameById.get(id) ?? '名前未取得';
+
   return (
     <Stack gap={6} mt="xs">
       <Text size="sm" fw={600}>
         保存済みからの担当者変更
       </Text>
-      {changes
-        .filter((change) => change.ids.length > 0)
-        .map((change) => (
-          <Group key={change.kind} gap="xs" align="flex-start" wrap="nowrap">
-            <AppBadge kind={change.kind}>{change.label}</AppBadge>
-            <Text size="sm" style={{ overflowWrap: 'anywhere' }}>
-              {change.ids.map((id) => nameById.get(id) ?? '名前未取得').join('・')}
-            </Text>
-          </Group>
+      <div className={classes.diff} role="group" aria-label="保存済みと現在案の担当者比較">
+        <Text size="xs" c="dimmed">
+          保存済み
+        </Text>
+        <Text size="xs" c="dimmed">
+          現在案
+        </Text>
+        {rows.map((row) => (
+          <div className={classes.diffRow} key={`${row.before ?? ''}:${row.after ?? ''}`}>
+            <div
+              className={classes.diffName}
+              data-change={row.changed && row.before ? 'removed' : undefined}
+            >
+              {row.before && (
+                <>
+                  <span className={classes.diffMarker}>{row.changed ? '−' : ''}</span>
+                  {name(row.before)}
+                </>
+              )}
+            </div>
+            <div
+              className={classes.diffName}
+              data-change={row.changed && row.after ? 'added' : undefined}
+            >
+              {row.after && (
+                <>
+                  <span className={classes.diffMarker}>{row.changed ? '+' : ''}</span>
+                  {name(row.after)}
+                </>
+              )}
+            </div>
+          </div>
         ))}
+        {rows.length === 0 && (
+          <>
+            <Text size="sm" c="dimmed">
+              未配置
+            </Text>
+            <Text size="sm" c="dimmed">
+              未配置
+            </Text>
+          </>
+        )}
+      </div>
       {!changed && (
         <Text size="sm" c="dimmed">
           担当者の変更はありません。
         </Text>
       )}
-      <Text size="xs" c="dimmed">
-        自動割当と手動編集を含む、現在案と保存済みの比較です。
-      </Text>
     </Stack>
   );
 }

@@ -43,6 +43,15 @@ type ShiftManagerContentProps = {
 function ShiftManagerContent({ controller, myInstructorId }: ShiftManagerContentProps) {
   const selectedCell = controller.selectedCell;
   const assignmentHeadingRef = useRef<HTMLHeadingElement>(null);
+  const [analysisTab, setAnalysisTab] = useState<string | null>('month');
+  const openAssignmentPanel: typeof controller.openAssignmentPanel = (cell) => {
+    controller.openAssignmentPanel(cell);
+    setAnalysisTab('slot');
+  };
+  const clearInstructor = () => {
+    setFocusedInstructor(null);
+    setAnalysisTab(controller.assignmentPanelOpened ? 'slot' : 'month');
+  };
   const [focusedInstructor, setFocusedInstructor] = useState<{ id: string; name: string } | null>(
     null,
   );
@@ -162,11 +171,11 @@ function ShiftManagerContent({ controller, myInstructorId }: ShiftManagerContent
               assignmentsByDay={controller.assignmentsByDay}
               staffingSummary={controller.staffingSummary}
               focusedInstructor={focusedInstructor}
-              onClearInstructor={() => setFocusedInstructor(null)}
+              onClearInstructor={clearInstructor}
               stagedCells={controller.stagedCells}
               selectedCell={controller.selectedCell}
               myInstructorId={myInstructorId}
-              onSelectCell={controller.openAssignmentPanel}
+              onSelectCell={openAssignmentPanel}
               autoAssignMode={controller.autoAssignMode}
               autoAssignDates={controller.autoAssignDates}
               onStartAutoAssign={controller.startAutoAssign}
@@ -231,7 +240,10 @@ function ShiftManagerContent({ controller, myInstructorId }: ShiftManagerContent
                     )}
                     <CloseButton
                       aria-label="編集フォームを閉じる"
-                      onClick={() => controller.setAssignmentPanelOpened(false)}
+                      onClick={() => {
+                        controller.setAssignmentPanelOpened(false);
+                        setAnalysisTab('month');
+                      }}
                     />
                   </Group>
                 </Group>
@@ -289,11 +301,14 @@ function ShiftManagerContent({ controller, myInstructorId }: ShiftManagerContent
                       currentMonthWorkDays={controller.currentMonthWorkDays}
                       availabilities={controller.availabilities.data ?? []}
                       focusedInstructorId={focusedInstructor?.id ?? null}
-                      onAnalyzeInstructor={(instructor) =>
-                        setFocusedInstructor((current) =>
-                          current?.id === instructor.id ? null : instructor,
-                        )
-                      }
+                      onAnalyzeInstructor={(instructor) => {
+                        if (focusedInstructor?.id === instructor.id) {
+                          clearInstructor();
+                        } else {
+                          setFocusedInstructor(instructor);
+                          setAnalysisTab('person');
+                        }
+                      }}
                     />
                   )}
                 </Box>
@@ -301,7 +316,8 @@ function ShiftManagerContent({ controller, myInstructorId }: ShiftManagerContent
             </Card>
           </Box>
           <ShiftAnalysis
-            key={focusedInstructor?.id ?? 'overview'}
+            tab={analysisTab}
+            onTabChange={setAnalysisTab}
             month={controller.month}
             departmentCode={controller.departmentCode}
             shiftTypeName={
@@ -338,9 +354,9 @@ function ShiftManagerContent({ controller, myInstructorId }: ShiftManagerContent
               ''
             }
             focusedInstructor={focusedInstructor}
-            onClearInstructor={() => setFocusedInstructor(null)}
+            onClearInstructor={clearInstructor}
             onSelectDate={(date) => {
-              controller.openAssignmentPanel({ date, shiftTypeId: controller.activeShiftTypeId });
+              openAssignmentPanel({ date, shiftTypeId: controller.activeShiftTypeId });
               requestAnimationFrame(() => {
                 assignmentHeadingRef.current?.focus({ preventScroll: true });
                 assignmentHeadingRef.current?.scrollIntoView({ block: 'start' });

@@ -10,11 +10,13 @@ import {
   type CountScope,
   type DepartmentFilter,
 } from '../aggregators';
+import { buildConsecutive } from '../consecutive';
 import { buildDependency } from '../dependency';
 import { useSeasonAnalysis } from '../queries';
 import { AnalysisFilterBar } from './AnalysisFilterBar';
 import { AnalysisKpis } from './AnalysisKpis';
 import { AvailabilityScatterChart } from './AvailabilityScatterChart';
+import { ConsecutiveWorkSection } from './ConsecutiveWorkSection';
 import { DependencySection } from './DependencySection';
 import { MemberDaysChart } from './MemberDaysChart';
 import { MemberMonthHeatmap } from './MemberMonthHeatmap';
@@ -38,6 +40,10 @@ export function SeasonAnalysisPage(props: Props) {
     [props.department, includeDrafts, countScope],
   );
   const view = useMemo(() => (data ? buildAnalysisView(data, filters) : null), [data, filters]);
+  const consecutive = useMemo(
+    () => (data ? buildConsecutive(data, filters) : null),
+    [data, filters],
+  );
   const dependency = useMemo(() => (data ? buildDependency(data, filters) : null), [data, filters]);
 
   return (
@@ -74,6 +80,11 @@ export function SeasonAnalysisPage(props: Props) {
               department={props.department}
             />
           </Card>
+          {consecutive && (
+            <Card withBorder padding="md">
+              <ConsecutiveWorkSection view={consecutive} />
+            </Card>
+          )}
           <Card withBorder padding="md">
             <WeeklyStaffingChart weeks={view.weeks} />
           </Card>

@@ -100,9 +100,18 @@ export function NavigationMenu({
             {group.items.map(({ to, label, icon: Icon }) => (
               <NavLink
                 key={to}
-                component={Link}
-                to={to}
-                activeOptions={{ exact: true }}
+                renderRoot={(props) =>
+                  to === '/shifts/manage' ? (
+                    <Link
+                      {...props}
+                      to="/shifts/manage"
+                      search={{}}
+                      activeOptions={{ exact: true, includeSearch: false }}
+                    />
+                  ) : (
+                    <Link {...props} to={to} activeOptions={{ exact: true }} />
+                  )
+                }
                 label={label}
                 leftSection={<Icon size={18} stroke={1.75} />}
                 active={activePath === to}

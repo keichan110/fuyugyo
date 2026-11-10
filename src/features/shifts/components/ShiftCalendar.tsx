@@ -1,17 +1,15 @@
 import { useMemo } from 'react';
 
-import { Box, Card, Group, Tabs, Text } from '@mantine/core';
+import { Card, Group, Text } from '@mantine/core';
 import { MonthView, type ScheduleEventData } from '@mantine/schedule';
 
 import 'dayjs/locale/ja';
 
 import { AppButton } from '@/components/AppButton';
-import { getDepartmentAppearance } from '@/features/departments/appearance';
-import type { DepartmentCode } from '@/features/departments/schema';
+import type { Availability } from '@/features/availabilities/schema';
 
 import type { FrameComposition } from '../qualification-composition';
 import type { AutoAssignProposal, ShiftViewItem } from '../schema';
-import type { StaffingMonthlySummary } from '../staffing';
 import { getCalendarDayColor } from '../view-utils';
 import { AutoAssignToolbar } from './AutoAssignToolbar';
 import {
@@ -21,37 +19,34 @@ import {
   type DayAssignments,
   type HeaderEventPayload,
 } from './calendar-events';
-import { DayHeaderLayer } from './DayHeaderLayer';
+import { CalendarAssignmentEvent } from './CalendarAssignmentEvent';
 import type { StagedRequirements } from './requirement-stage';
 import type { SelectedCell, StagedCell } from './shift-manager-types';
 import { cellKey, weekdayLabel } from './shift-manager-utils';
+import { ShiftCalendarHeader } from './ShiftCalendarHeader';
 import { ShiftDateList } from './ShiftDateList';
 import classes from './ShiftManager.module.css';
-
-type ShiftTypeOption = {
-  id: string;
-  name: string;
-};
+import { staffingBackground, staffingRate } from './staffing-appearance';
+import { useCalendarAvailability } from './useCalendarAvailability';
 
 type ShiftCalendarProps = {
   publicationControls: React.ReactNode;
+  differenceControl: React.ReactNode;
   month: string;
   onMonthChange: (month: string) => void;
   days: string[];
-  departmentCode: DepartmentCode;
-  shiftTypes: ShiftTypeOption[];
   activeShiftTypeId: string;
-  onChangeShiftType: (shiftTypeId: string) => void;
-  stagedShiftTypeIds: Set<string>;
   shiftByCell: Map<string, ShiftViewItem>;
   assignmentsByDay: DayAssignments;
+  availabilities: Availability[] | undefined;
+  availabilityFailed: boolean;
   focusedInstructor: { id: string; name: string } | null;
   onClearInstructor: () => void;
-  staffingSummary: StaffingMonthlySummary | null;
   stagedCells: Map<string, StagedCell>;
   selectedCell: SelectedCell | null;
   myInstructorId: string | null;
   onSelectCell: (cell: SelectedCell) => void;
+  onDeselect: () => void;
   autoAssignMode: boolean;
   autoAssignDates: Set<string>;
   onStartAutoAssign: () => void;
@@ -77,23 +72,22 @@ type ShiftCalendarProps = {
 /** 選択中の部門・種別の月間配置を、PCではカレンダー、モバイルでは日付リストで表示する。 */
 export function ShiftCalendar({
   publicationControls,
+  differenceControl,
   month,
   onMonthChange,
   days,
-  departmentCode,
-  shiftTypes,
   activeShiftTypeId,
-  onChangeShiftType,
-  stagedShiftTypeIds,
   shiftByCell,
   assignmentsByDay,
+  availabilities,
+  availabilityFailed,
   focusedInstructor,
   onClearInstructor,
-  staffingSummary,
   stagedCells,
   selectedCell,
   myInstructorId,
   onSelectCell,
+  onDeselect,
   autoAssignMode,
   autoAssignDates,
   onStartAutoAssign,
@@ -111,9 +105,12 @@ export function ShiftCalendar({
   isAutoAssignSelectableDate,
   onOpenBulkModal,
 }: ShiftCalendarProps) {
+  const { availabilityByPersonDay, describeDayAvailability } = useCalendarAvailability(
+    availabilities,
+    availabilityFailed,
+    assignmentsByDay,
+  );
   const focusedInstructorId = focusedInstructor?.id ?? null;
-  // 自動割当コンテキストの取得後に、必要資格が未設定の種別かを判定する
-  const requirementUnset = compositionByDay?.values().next().value?.requirementUnset ?? false;
   const events = useMemo<ScheduleEventData<AssignmentEventPayload>[]>(
     () =>
       buildCalendarEvents({
@@ -150,11 +147,13 @@ export function ShiftCalendar({
   const isDateDisabled = (date: string) =>
     autoAssignMode && (isAutoAssigning || !isAutoAssignSelectableDate(date));
 
-  const activeShiftTypeName = shiftTypes.find((type) => type.id === activeShiftTypeId)?.name ?? '';
-
   // 日・イベント共通のクリック処理。自動割当モードでは対象日の切り替えだけを行う。
   const handleDateClick = (date: string) => {
     if (isAutoAssigning) return;
+    if (!date.startsWith(`${month}-`)) {
+      if (!autoAssignMode) onDeselect();
+      return;
+    }
     if (autoAssignMode) {
       // 必要人数が1名以上の日だけ選択できる（未設定と0名は対象外）
       if (isAutoAssignSelectableDate(date)) onToggleAutoAssignDate(date);
@@ -171,31 +170,9 @@ export function ShiftCalendar({
 
   return (
     <Card padding="sm" withBorder className={classes.calendarPanel}>
-      <Tabs
-        value={activeShiftTypeId}
-        onChange={(value) => value && onChangeShiftType(value)}
-        mb="sm"
-      >
-        <Tabs.List className={classes.shiftTypeTabsList}>
-          {shiftTypes.map((shiftType) => (
-            <Tabs.Tab
-              key={shiftType.id}
-              value={shiftType.id}
-              disabled={isAutoAssigning}
-              rightSection={
-                stagedShiftTypeIds.has(shiftType.id) ? (
-                  <Box w={8} h={8} bdrs="50%" bg="var(--mantine-color-orange-6)" />
-                ) : undefined
-              }
-            >
-              {shiftType.name}
-            </Tabs.Tab>
-          ))}
-        </Tabs.List>
-      </Tabs>
-
       <AutoAssignToolbar
         publicationControls={publicationControls}
+        differenceControl={differenceControl}
         autoAssignMode={autoAssignMode}
         selectedDateCount={autoAssignDates.size}
         requirementsReady={!!requiredByDay}
@@ -210,36 +187,27 @@ export function ShiftCalendar({
         onOpenBulkModal={onOpenBulkModal}
       />
 
-      <Group justify="space-between" mb="xs" gap="sm" wrap="wrap">
-        <Text size="sm" fw={600}>
-          {staffingSummary
-            ? `${getDepartmentAppearance(departmentCode).label} / ${activeShiftTypeName} / ${Number(month.slice(0, 4))}年${Number(month.slice(5, 7))}月：不足${staffingSummary.shortDays}日・未設定${staffingSummary.unsetCount}枠${requirementUnset ? '・必要資格未設定' : ''}`
-            : '必要人数を読み込み中…'}
-        </Text>
-      </Group>
-
       {focusedInstructor && (
         <Group gap="xs" mb="xs" wrap="wrap">
           <Text size="xs" c="blue">
             {focusedInstructor.name}の配置日を強調中
           </Text>
           <AppButton intent="tertiary" size="compact-xs" onClick={onClearInstructor}>
-            分析を解除
+            解除
           </AppButton>
         </Group>
       )}
+      <ShiftCalendarHeader month={month} disabled={isAutoAssigning} onMonthChange={onMonthChange} />
       <MonthView
+        withHeader={false}
         className={classes.monthView}
         date={`${month}-01`}
         onDateChange={onMonthChange}
-        previousControlProps={{ disabled: isAutoAssigning }}
-        nextControlProps={{ disabled: isAutoAssigning }}
-        todayControlProps={{ disabled: isAutoAssigning }}
         events={events}
         locale="ja"
         firstDayOfWeek={1}
         weekdayFormat="dd"
-        withOutsideDays={false}
+        withOutsideDays
         consistentWeeks
         maxEventsPerDay={maxEventsPerDay}
         moreEventsProps={{ className: classes.moreEvents, tabIndex: -1 }}
@@ -254,12 +222,11 @@ export function ShiftCalendar({
           month: '月',
           viewSelectLabel: '表示形式',
         }}
-        monthYearSelectProps={{
-          labelFormat: (date) => `${date.slice(0, 4)}年${Number(date.slice(5, 7))}月`,
-          monthsListFormat: (date) => `${Number(date.slice(5, 7))}月`,
-        }}
-        viewSelectProps={{ views: ['month'], style: { display: 'none' } }}
         getDayProps={(date) => {
+          const outside = !date.startsWith(`${month}-`);
+          const required = requiredByDay?.get(date) ?? null;
+          const assigned = assignmentsByDay.get(date)?.length ?? 0;
+          const rate = staffingRate(required, assigned);
           const selected =
             selectedCell?.date === date && selectedCell.shiftTypeId === activeShiftTypeId;
           const calendarDayColor = getCalendarDayColor(date);
@@ -273,19 +240,33 @@ export function ShiftCalendar({
                 assignmentsByDay.get(date)?.some((person) => person.id === focusedInstructorId)) ||
               undefined,
             // 自動割当モードでは、対象にできない日（未設定・0名）をクリック・キー操作から外す
-            disabled: isDateDisabled(date) || undefined,
+            disabled:
+              (outside ? autoAssignMode || isAutoAssigning : isDateDisabled(date)) || undefined,
             'data-selected': selected || undefined,
             'data-staged':
               stagedCells.has(cellKey(date, activeShiftTypeId)) ||
               stagedRequirements.has(cellKey(date, activeShiftTypeId)) ||
               undefined,
-            'aria-label': `${shiftByCell.get(cellKey(date, activeShiftTypeId))?.status === 'PUBLISHED' ? '公開済み。自動割当の対象外。' : '未公開。'}${Number(date.slice(5, 7))}月${Number(date.slice(8, 10))}日（${weekdayLabel(date)}）の割り当てを編集`,
+            'aria-label': outside
+              ? '対象月外。日付の選択を解除'
+              : `${rate !== null ? `充足率${Math.round(rate)}%。` : ''}${shiftByCell.get(cellKey(date, activeShiftTypeId))?.status === 'PUBLISHED' ? '公開済み。自動割当の対象外。' : '未公開。'}${Number(date.slice(5, 7))}月${Number(date.slice(8, 10))}日（${weekdayLabel(date)}）の割り当てを編集`,
+            title: outside
+              ? '選択を解除'
+              : rate !== null
+                ? `充足率 ${Math.round(rate)}%（配置${assigned} / 必要${required}名） ${describeDayAvailability(date)}`
+                : describeDayAvailability(date) || undefined,
             style: {
-              color: calendarDayColor ? `var(--mantine-color-${calendarDayColor}-7)` : undefined,
+              color: outside
+                ? 'var(--mantine-color-gray-6)'
+                : calendarDayColor
+                  ? `var(--mantine-color-${calendarDayColor}-7)`
+                  : undefined,
               backgroundColor:
                 autoAssignMode && autoAssignDates.has(date)
                   ? 'var(--mantine-color-blue-0)'
-                  : undefined,
+                  : outside
+                    ? 'light-dark(var(--mantine-color-gray-1), var(--mantine-color-dark-6))'
+                    : staffingBackground(required, assigned),
               outline:
                 autoAssignMode && autoAssignDates.has(date)
                   ? '2px solid var(--mantine-color-blue-5)'
@@ -295,35 +276,18 @@ export function ShiftCalendar({
         }}
         onDayClick={handleDateClick}
         renderEvent={(event, props) => {
-          const payload = event.payload;
-          if (isHeaderEventPayload(payload)) {
-            return <DayHeaderLayer payload={payload} style={props.style} />;
-          }
           return (
-            <Box
+            <CalendarAssignmentEvent
+              event={event}
               style={props.style}
-              className={classes.instructorEvent}
-              data-focused={
-                (payload?.kind === 'instructor' && payload.instructorId === focusedInstructorId) ||
-                undefined
-              }
-              data-dimmed={
-                (focusedInstructorId !== null &&
-                  payload?.kind === 'instructor' &&
-                  payload.instructorId !== focusedInstructorId) ||
-                undefined
-              }
-              data-current-user={
-                (payload?.kind === 'instructor' && payload.instructorId === myInstructorId) ||
-                undefined
-              }
-            >
-              {event.title}
-            </Box>
+              focusedInstructorId={focusedInstructorId}
+              myInstructorId={myInstructorId}
+              availabilityByPersonDay={availabilityByPersonDay}
+              availabilityFailed={availabilityFailed}
+            />
           );
         }}
         classNames={{
-          header: classes.calendarHeader,
           monthViewDay: classes.calendarDay,
           monthViewWeekday: classes.calendarWeekday,
           monthViewScrollArea: classes.calendarScrollArea,
@@ -332,8 +296,11 @@ export function ShiftCalendar({
       <ShiftDateList
         days={days}
         assignmentsByDay={assignmentsByDay}
+        availabilityByPersonDay={availabilityByPersonDay}
+        availabilityFailed={availabilityFailed}
         headersByDay={headersByDay}
         requirementsReady={requiredByDay !== null}
+        requiredByDay={requiredByDay}
         selectedDate={selectedCell?.shiftTypeId === activeShiftTypeId ? selectedCell.date : null}
         focusedInstructorId={focusedInstructorId}
         myInstructorId={myInstructorId}

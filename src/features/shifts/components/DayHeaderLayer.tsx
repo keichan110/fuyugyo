@@ -36,7 +36,7 @@ export function DayHeaderLayer({ payload, style }: DayHeaderLayerProps) {
           {payload.staffing.icon === 'filled' && (
             <IconCircleCheck size={14} stroke={1.75} className={classes.staffingIcon} />
           )}
-          {payload.staffing.icon === 'warning' && (
+          {(payload.staffing.icon === 'warning' || payload.staffing.icon === 'over') && (
             <IconAlertTriangle size={14} stroke={1.75} className={classes.staffingIcon} />
           )}
           <span className={classes.staffingText}>{payload.staffing.text}</span>

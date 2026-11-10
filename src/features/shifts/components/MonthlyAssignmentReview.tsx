@@ -12,7 +12,6 @@ import {
 } from '@mantine/core';
 import { IconAlertTriangle, IconCheck, IconChevronRight } from '@tabler/icons-react';
 
-import { AppBadge } from '@/components/AppBadge';
 import { AppButton } from '@/components/AppButton';
 
 import { shortDateLabel } from '../view-utils';
@@ -43,12 +42,12 @@ export function MonthlyAssignmentReview({
   navigationDisabled,
   onSelectDate,
 }: Props) {
+  const [opened, setOpened] = useState<string | null>(null);
   const [filter, setFilter] = useState<ReviewKind | null>(null);
   const problemDays = review.filter((day) => day.issues.length > 0);
   const visibleDays = problemDays.filter(
     (day) => !filter || day.issues.some((issue) => issue.kind === filter),
   );
-  const changedDays = review.filter((day) => day.addedIds.length > 0 || day.removedIds.length > 0);
   const allReady =
     Object.values(ready).every(Boolean) &&
     uncoveredNames.length === 0 &&
@@ -102,55 +101,74 @@ export function MonthlyAssignmentReview({
               partial={partial}
               unsetCount={kind === 'shortage' ? unsetCount : null}
               selected={filter === kind}
-              onClick={() => setFilter((current) => (current === kind ? null : kind))}
+              onClick={() => {
+                setFilter((current) => (current === kind ? null : kind));
+                setOpened('days');
+              }}
             />
           );
         })}
       </SimpleGrid>
-      <Text size="xs" c="dimmed">
-        同じ枠に複数の要確認がある場合、各項目に数えます。勤務可否は要調整・勤務不可の配置、連勤は同部門・全種別の月外勤務を含みます。
-      </Text>
       <ReviewNotice
         ready={ready}
         failed={failed}
         requirementUnset={requirementUnset}
         uncoveredNames={uncoveredNames}
       />
-      <Stack gap="xs">
-        <Group justify="space-between">
-          <Text size="sm" fw={600}>
-            {filter
-              ? `${REVIEW_CATEGORIES.find((item) => item.kind === filter)?.label}のある日`
-              : '確認する日'}
-          </Text>
-          {filter && (
-            <AppButton intent="tertiary" size="compact-xs" onClick={() => setFilter(null)}>
-              すべて表示
-            </AppButton>
-          )}
-        </Group>
-        {visibleDays.map((day) => (
-          <ReviewDay
-            key={day.date}
-            day={day}
-            filter={filter}
-            navigationDisabled={navigationDisabled}
-            onSelectDate={onSelectDate}
-          />
-        ))}
-        {visibleDays.length === 0 && (
-          <Text size="sm" c="dimmed">
-            {filter
-              ? 'この項目の要確認事項は検出されていません。'
-              : '取得済みの情報に要確認事項はありません。'}
-          </Text>
-        )}
-      </Stack>
-      <AssignmentChanges
-        changedDays={changedDays}
-        navigationDisabled={navigationDisabled}
-        onSelectDate={onSelectDate}
-      />
+      <Accordion value={opened} onChange={setOpened} variant="default">
+        <Accordion.Item value="days">
+          <Accordion.Control>
+            <Text size="sm" fw={600}>
+              {filter
+                ? `${REVIEW_CATEGORIES.find((item) => item.kind === filter)?.label}のある日`
+                : '確認する日'}
+              （{visibleDays.length}日）
+            </Text>
+          </Accordion.Control>
+          <Accordion.Panel>
+            <Stack gap="xs">
+              <Group justify="flex-end">
+                {filter && (
+                  <AppButton intent="tertiary" size="compact-xs" onClick={() => setFilter(null)}>
+                    すべて表示
+                  </AppButton>
+                )}
+              </Group>
+              {visibleDays.map((day) => (
+                <ReviewDay
+                  key={day.date}
+                  day={day}
+                  filter={filter}
+                  navigationDisabled={navigationDisabled}
+                  onSelectDate={onSelectDate}
+                />
+              ))}
+              {visibleDays.length === 0 && (
+                <Text size="sm" c="dimmed">
+                  {filter
+                    ? 'この項目の要確認事項は検出されていません。'
+                    : '取得済みの情報に要確認事項はありません。'}
+                </Text>
+              )}
+            </Stack>
+          </Accordion.Panel>
+        </Accordion.Item>
+        <Accordion.Item value="scope">
+          <Accordion.Control>
+            <Text size="xs" c="dimmed">
+              集計条件
+            </Text>
+          </Accordion.Control>
+          <Accordion.Panel>
+            <Text size="xs" c="dimmed">
+              同じ枠は複数項目に該当する場合があります。勤務可否は要調整・勤務不可の配置、連勤は同部門・全種別の月外勤務を含みます。
+            </Text>
+            <Text size="xs" c="dimmed">
+              勤務日数の分布は、表示枠の候補者・配置者の全部門・全種別の勤務を集計します。同日は1日、1人は1つの階級に含みます。破線は中央値です。勤務可能日数・希望日数は考慮していないため、分布だけで公平性は判断できません。
+            </Text>
+          </Accordion.Panel>
+        </Accordion.Item>
+      </Accordion>
     </Stack>
   );
 }
@@ -212,7 +230,7 @@ function reviewMetricDisplay({
   const unsetLabel = unsetCount ? `、必要人数未設定${unsetCount}枠` : '';
   const common = {
     countText: unavailable ? '―' : count,
-    warning: count > 0 || partial || unavailable || undefined,
+    warning: (count > 0 && !unavailable) || undefined,
     ariaLabel: `${category.label}：${countLabel}${unsetLabel}で絞り込む`,
   };
   if (unavailable) {
@@ -286,65 +304,11 @@ function ReviewDay({
             <Text size="sm" fw={700}>
               {shortDateLabel(day.date)}
             </Text>
-            {day.addedIds.length + day.removedIds.length > 0 && (
-              <AppBadge kind="pending" size="xs">
-                担当者変更あり
-              </AppBadge>
-            )}
           </Group>
           <AssignmentReviewIssues issues={day.issues} filter={filter} />
         </Stack>
         <IconChevronRight size={18} className={classes.arrow} aria-hidden="true" />
       </Group>
     </UnstyledButton>
-  );
-}
-
-/** 保存済みから担当者が変わる日だけを一覧する。 */
-function AssignmentChanges({
-  changedDays,
-  navigationDisabled,
-  onSelectDate,
-}: Pick<Props, 'navigationDisabled' | 'onSelectDate'> & { changedDays: AssignmentReviewDay[] }) {
-  return (
-    <Accordion variant="contained">
-      <Accordion.Item value="changes">
-        <Accordion.Control>
-          <Group gap="xs">
-            <Text size="sm" fw={600}>
-              保存済みからの担当者変更
-            </Text>
-            <AppBadge kind={changedDays.length ? 'pending' : 'count'}>
-              {changedDays.length}枠
-            </AppBadge>
-          </Group>
-        </Accordion.Control>
-        <Accordion.Panel>
-          <Stack gap="xs">
-            <Text size="xs" c="dimmed">
-              自動割当と手動編集を含みます。日付を選ぶと追加・解除される人を確認できます。必要人数・備考の変更はこの件数に含みません。
-            </Text>
-            <Group gap="xs">
-              {changedDays.map((day) => (
-                <AppButton
-                  key={day.date}
-                  intent="secondary"
-                  size="compact-sm"
-                  disabled={navigationDisabled}
-                  onClick={() => onSelectDate(day.date)}
-                >
-                  {shortDateLabel(day.date)} +{day.addedIds.length} / −{day.removedIds.length}
-                </AppButton>
-              ))}
-            </Group>
-            {changedDays.length === 0 && (
-              <Text size="sm" c="dimmed">
-                担当者の変更はありません。
-              </Text>
-            )}
-          </Stack>
-        </Accordion.Panel>
-      </Accordion.Item>
-    </Accordion>
   );
 }

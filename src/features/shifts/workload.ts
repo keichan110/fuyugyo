@@ -284,10 +284,8 @@ export type InstructorWorkloadSummary = {
   monthDays: number;
   /** シーズン勤務日数（現在案。月外の保存済み＋当月） */
   seasonDays: number;
-  /** 選択枠に未配置で、連勤・週数が「追加した場合」の値であるか。選択枠なしなら false */
-  isAddition: boolean;
-  /** 選択枠に追加すると増える勤務日数（同日に別勤務があれば 0）。未配置でなければ 0 */
-  addedDays: number;
+  /** 選択した基準日。未選択なら null。 */
+  selectedDate: string | null;
   /** 連勤。選択枠がなければ null */
   streak: WorkStreak | null;
   /** 連続勤務週数。選択枠がなければ null */
@@ -296,44 +294,35 @@ export type InstructorWorkloadSummary = {
 
 /**
  * 選択した人の当月・シーズン勤務日数と、選択枠を基準にした連勤・連続勤務週数を求める。
- * 選択枠に未配置なら連勤・週数は選択日を加えた値、日数は現在案のまま「追加すると +N日」を返す。
+ * 現在案に存在する勤務だけを使い、仮の勤務日は加えない。
  * @param params.monthWork - {@link composeInstructorMonthWork} の結果（当月の現在案）
  * @param params.workDatesOutsideMonth - API が返す月外の保存済み勤務日
  * @param params.season - 表示月を含むシーズン範囲
  * @param params.selectedDate - 選択枠の日付。なければ null
- * @param params.current - 選択枠の部門・種別
  */
 export function summarizeInstructorWorkload(params: {
   monthWork: Map<string, WorkEntry[]>;
   workDatesOutsideMonth: string[];
   season: SeasonRange;
   selectedDate: string | null;
-  current: { departmentCode: string; shiftTypeId: string };
 }): InstructorWorkloadSummary {
-  const { monthWork, workDatesOutsideMonth, season, selectedDate, current } = params;
-  const monthDays = monthWork.size;
-  const seasonDays = workDatesOutsideMonth.length + monthDays;
-  if (selectedDate === null) {
-    return {
-      monthDays,
-      seasonDays,
-      isAddition: false,
-      addedDays: 0,
-      streak: null,
-      weekStreak: null,
-    };
-  }
-  const isPlaced = classifyWorkDay(monthWork.get(selectedDate), current) === 'current';
-  const allDates = [...workDatesOutsideMonth, ...monthWork.keys()];
-  // 未配置なら選択日を勤務に加えた集合で計算する（配置済みなら既に含まれる）
-  const dates = isPlaced ? allDates : [...allDates, selectedDate];
+  const { monthWork, workDatesOutsideMonth, season, selectedDate } = params;
+  const dates = new Set([...workDatesOutsideMonth, ...monthWork.keys()]);
+  const selectedWeek = selectedDate === null ? null : weekStartOf(selectedDate);
+  const hasSelectedWeekWork =
+    selectedWeek !== null && [...dates].some((date) => weekStartOf(date) === selectedWeek);
   return {
-    monthDays,
-    seasonDays,
-    isAddition: !isPlaced,
-    addedDays: !isPlaced && !monthWork.has(selectedDate) ? 1 : 0,
-    streak: computeWorkStreak(dates, selectedDate, season),
-    weekStreak: computeWorkWeekStreak(dates, selectedDate, season),
+    monthDays: monthWork.size,
+    seasonDays: dates.size,
+    selectedDate,
+    streak:
+      selectedDate !== null && dates.has(selectedDate)
+        ? computeWorkStreak(dates, selectedDate, season)
+        : null,
+    weekStreak:
+      selectedDate !== null && hasSelectedWeekWork
+        ? computeWorkWeekStreak(dates, selectedDate, season)
+        : null,
   };
 }
 

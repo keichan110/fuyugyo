@@ -250,6 +250,11 @@ describe('buildCalendarEvents', () => {
       expect(staffingOf(3, 1, true)?.icon).toBe('warning');
     });
 
+    it('過員は充足チェックではなく注意アイコンで示す', () => {
+      expect(staffingOf(2, 3, false)).toMatchObject({ status: 'OVER', icon: 'over' });
+      expect(staffingOf(0, 1, false)).toMatchObject({ status: 'OVER', icon: 'over' });
+    });
+
     it('どちらもなく充足なら充足アイコン', () => {
       expect(staffingOf(2, 2, false)?.icon).toBe('filled');
     });

@@ -1,6 +1,7 @@
 import type { ComponentProps } from 'react';
 
 import { toMonth } from '../view-utils';
+import { AssignmentChangesControl } from './AssignmentChangesControl';
 import { ShiftCalendar } from './ShiftCalendar';
 import { ShiftPublicationControls } from './ShiftPublicationControls';
 import type { useShiftManagerController } from './useShiftManagerController';
@@ -11,6 +12,7 @@ type Props = {
   myInstructorId: string | null;
   focusedInstructor: ComponentProps<typeof ShiftCalendar>['focusedInstructor'];
   onClearInstructor: () => void;
+  onDeselect: () => void;
   onSelectCell: ComponentProps<typeof ShiftCalendar>['onSelectCell'];
 };
 
@@ -22,9 +24,11 @@ export function ShiftManagerCalendar({
   focusedInstructor,
   onClearInstructor,
   onSelectCell,
+  onDeselect,
 }: Props) {
   return (
     <ShiftCalendar
+      differenceControl={<AssignmentChangesControl controller={controller} />}
       publicationControls={
         <ShiftPublicationControls
           key={`${controller.month}:${controller.departmentCode}:${controller.activeShiftTypeId}`}
@@ -36,20 +40,18 @@ export function ShiftManagerCalendar({
         controller.requestNavigation({ type: 'month', nextMonth: toMonth(nextMonth) })
       }
       days={controller.days}
-      departmentCode={controller.departmentCode}
-      shiftTypes={controller.formData.data?.shiftTypes ?? []}
       activeShiftTypeId={controller.activeShiftTypeId}
-      onChangeShiftType={controller.changeActiveShiftType}
-      stagedShiftTypeIds={controller.stagedShiftTypeIds}
       shiftByCell={controller.shiftByCell}
       assignmentsByDay={controller.assignmentsByDay}
-      staffingSummary={controller.staffingSummary}
+      availabilities={controller.availabilities.data}
+      availabilityFailed={controller.availabilities.isError}
       focusedInstructor={focusedInstructor}
       onClearInstructor={onClearInstructor}
       stagedCells={controller.stagedCells}
-      selectedCell={controller.selectedCell}
+      selectedCell={controller.assignmentPanelOpened ? controller.selectedCell : null}
       myInstructorId={myInstructorId}
       onSelectCell={onSelectCell}
+      onDeselect={onDeselect}
       autoAssignMode={controller.autoAssignMode}
       autoAssignDates={controller.autoAssignDates}
       onStartAutoAssign={controller.startAutoAssign}

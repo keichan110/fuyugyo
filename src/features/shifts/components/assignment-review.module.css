@@ -8,7 +8,7 @@
 
 .metric[data-warning] {
   border-color: var(--mantine-color-orange-5);
-  background: var(--mantine-color-orange-light);
+  background: var(--mantine-color-default);
 }
 
 .metric[data-selected] {

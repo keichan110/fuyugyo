@@ -2,24 +2,30 @@ import { BarChart } from '@mantine/charts';
 import { Badge, Group, Stack, Table, Text } from '@mantine/core';
 
 import { CONSECUTIVE_WORK_LIMIT, type ConsecutiveView } from '../consecutive';
+import { PANEL_CHART_HEIGHT } from './AnalysisPanel';
 
 function formatDay(date: string): string {
   return `${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))}`;
 }
 
 /** C: 連勤。メンバー別の最大連勤と、4連勤以上の期間一覧を示す。 */
-export function ConsecutiveWorkSection({ view }: { view: ConsecutiveView }) {
+export function ConsecutiveWorkSection({
+  view,
+  expanded,
+}: {
+  view: ConsecutiveView;
+  expanded: boolean;
+}) {
   return (
     <Stack gap="md">
       <Stack gap="xs">
-        <Text fw={600}>連勤</Text>
         {view.members.length === 0 ? (
           <Text size="sm" c="dimmed">
             勤務がありません。
           </Text>
         ) : (
           <BarChart
-            h={Math.max(240, view.members.length * 28 + 60)}
+            h={Math.max(expanded ? 320 : PANEL_CHART_HEIGHT, view.members.length * 28 + 60)}
             data={view.members.map((member) => ({
               name: member.name,
               maxStreak: member.maxStreak,

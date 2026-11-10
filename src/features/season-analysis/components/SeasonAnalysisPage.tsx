@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 
-import { Card, Loader, Stack, Text } from '@mantine/core';
+import { Grid, Loader, Stack, Text } from '@mantine/core';
 
 import { ErrorAlert } from '@/components/AppAlert';
 
@@ -16,6 +16,7 @@ import { buildDependency } from '../dependency';
 import { useSeasonAnalysis } from '../queries';
 import { AnalysisFilterBar } from './AnalysisFilterBar';
 import { AnalysisKpis } from './AnalysisKpis';
+import { AnalysisPanel } from './AnalysisPanel';
 import { AvailabilityScatterChart } from './AvailabilityScatterChart';
 import { ConsecutiveWorkSection } from './ConsecutiveWorkSection';
 import { DependencySection } from './DependencySection';
@@ -75,39 +76,80 @@ export function SeasonAnalysisPage(props: Props) {
       {view && view.members.length > 0 && (
         <Stack gap="lg">
           <AnalysisKpis view={view} />
-          <Card withBorder padding="md">
-            <MemberDaysChart members={view.members} averageDays={view.averageDays} />
-          </Card>
-          <Card withBorder padding="md">
-            <AvailabilityScatterChart members={view.members} workRatio={view.workRatio} />
-          </Card>
-          <Card withBorder padding="md">
-            <MemberMonthHeatmap
-              members={view.members}
-              months={view.months}
-              department={props.department}
-            />
-          </Card>
-          {consecutive && (
-            <Card withBorder padding="md">
-              <ConsecutiveWorkSection view={consecutive} />
-            </Card>
-          )}
-          <Card withBorder padding="md">
-            <WeeklyStaffingChart weeks={view.weeks} />
-          </Card>
-          {dependency && (
-            <Card withBorder padding="md">
-              <DependencySection departments={dependency} />
-            </Card>
-          )}
-          <Card withBorder padding="md">
-            <SeasonComparisonSection
-              view={comparison}
-              season={props.season}
-              isLoading={previousQuery.isPending}
-            />
-          </Card>
+          <Grid>
+            <Grid.Col span={{ base: 12, md: 6 }}>
+              <AnalysisPanel title="メンバー別の勤務日数">
+                {(expanded) => (
+                  <MemberDaysChart
+                    members={view.members}
+                    averageDays={view.averageDays}
+                    expanded={expanded}
+                  />
+                )}
+              </AnalysisPanel>
+            </Grid.Col>
+            <Grid.Col span={{ base: 12, md: 6 }}>
+              <AnalysisPanel title="勤務可能日数と勤務日数">
+                {(expanded) => (
+                  <AvailabilityScatterChart
+                    members={view.members}
+                    workRatio={view.workRatio}
+                    expanded={expanded}
+                  />
+                )}
+              </AnalysisPanel>
+            </Grid.Col>
+            {/* 人×月は横に長いため常に全幅 */}
+            <Grid.Col span={12}>
+              <AnalysisPanel title="人×月の勤務日数">
+                {(expanded) => (
+                  <MemberMonthHeatmap
+                    members={view.members}
+                    months={view.months}
+                    department={props.department}
+                    expanded={expanded}
+                  />
+                )}
+              </AnalysisPanel>
+            </Grid.Col>
+            {consecutive && (
+              <Grid.Col span={{ base: 12, md: 6 }}>
+                <AnalysisPanel title="連勤">
+                  {(expanded) => <ConsecutiveWorkSection view={consecutive} expanded={expanded} />}
+                </AnalysisPanel>
+              </Grid.Col>
+            )}
+            <Grid.Col span={{ base: 12, md: 6 }}>
+              <AnalysisPanel
+                title="週ごとの充足状況"
+                description="必要人数が設定された枠のみ集計。月曜始まり。"
+              >
+                {(expanded) => <WeeklyStaffingChart weeks={view.weeks} expanded={expanded} />}
+              </AnalysisPanel>
+            </Grid.Col>
+            {dependency && (
+              <Grid.Col span={{ base: 12, md: 6 }}>
+                <AnalysisPanel
+                  title="特定の人への依存"
+                  description="担当回数は枠単位（同日に複数枠へ入ればそれぞれ1回）。ランクは各枠の必要資格のうち持つ最上位。"
+                >
+                  {(expanded) => <DependencySection departments={dependency} expanded={expanded} />}
+                </AnalysisPanel>
+              </Grid.Col>
+            )}
+            <Grid.Col span={{ base: 12, md: 6 }}>
+              <AnalysisPanel title="前シーズンとの比較">
+                {(expanded) => (
+                  <SeasonComparisonSection
+                    view={comparison}
+                    season={props.season}
+                    isLoading={previousQuery.isPending}
+                    expanded={expanded}
+                  />
+                )}
+              </AnalysisPanel>
+            </Grid.Col>
+          </Grid>
         </Stack>
       )}
     </Stack>

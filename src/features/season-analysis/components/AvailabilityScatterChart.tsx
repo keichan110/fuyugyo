@@ -2,19 +2,19 @@ import { ScatterChart } from '@mantine/charts';
 import { Stack, Text } from '@mantine/core';
 
 import type { MemberSummary } from '../aggregators';
+import { PANEL_CHART_HEIGHT } from './AnalysisPanel';
 
-type Props = { members: MemberSummary[]; workRatio: number | null };
+type Props = { members: MemberSummary[]; workRatio: number | null; expanded: boolean };
 
 /**
  * A': 勤務可能日数（x）と勤務日数（y）の散布図。勤務可能日が少ないから配置が少ないのか、
  * 勤務可能なのに配置が少ないのかを見分ける。メンバーごとに1点1系列にしてツールチップに名前を出す。
  */
-export function AvailabilityScatterChart({ members, workRatio }: Props) {
+export function AvailabilityScatterChart({ members, workRatio, expanded }: Props) {
   return (
     <Stack gap="xs">
-      <Text fw={600}>勤務可能日数と勤務日数</Text>
       <ScatterChart
-        h={320}
+        h={expanded ? 480 : PANEL_CHART_HEIGHT}
         data={members.map((member) => ({
           name: member.name,
           color: 'teal.6',

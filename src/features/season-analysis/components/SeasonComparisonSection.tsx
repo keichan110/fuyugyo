@@ -2,6 +2,7 @@ import { BarChart } from '@mantine/charts';
 import { Badge, Group, Stack, Text } from '@mantine/core';
 
 import type { ComparisonView } from '../comparison';
+import { PANEL_CHART_HEIGHT } from './AnalysisPanel';
 
 function formatDay(date: string): string {
   return `${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))}`;
@@ -12,15 +13,16 @@ export function SeasonComparisonSection({
   view,
   season,
   isLoading,
+  expanded,
 }: {
   view: ComparisonView | null;
   season: number;
   isLoading: boolean;
+  expanded: boolean;
 }) {
   if (!view) {
     return (
       <Stack gap="xs">
-        <Text fw={600}>前シーズンとの比較</Text>
         <Text size="sm" c="dimmed">
           {isLoading ? '前シーズンのデータを読み込んでいます。' : '前シーズンのデータがありません'}
         </Text>
@@ -36,10 +38,7 @@ export function SeasonComparisonSection({
   const currentLabel = `${season}シーズン`;
   return (
     <Stack gap="md">
-      <Group justify="space-between">
-        <Text fw={600}>前シーズンとの比較</Text>
-        <Text size="sm">メンバー別の増減は{periodLabel}（実施済みのみ）</Text>
-      </Group>
+      <Text size="sm">メンバー別の増減は{periodLabel}（実施済みのみ）</Text>
       {view.previousIsEmpty ? (
         <Text size="sm" c="dimmed">
           前シーズンのデータがありません
@@ -51,7 +50,7 @@ export function SeasonComparisonSection({
               月別の延べ勤務日数
             </Text>
             <BarChart
-              h={280}
+              h={expanded ? 400 : PANEL_CHART_HEIGHT}
               data={view.months.map((month) => ({
                 month: `${month.month}月`,
                 current: month.current,
@@ -78,7 +77,7 @@ export function SeasonComparisonSection({
               メンバー別の増減（{currentLabel} − {previousLabel}）
             </Text>
             <BarChart
-              h={Math.max(240, view.members.length * 28 + 60)}
+              h={Math.max(expanded ? 320 : PANEL_CHART_HEIGHT, view.members.length * 28 + 60)}
               data={view.members.map((member) => ({
                 name: member.isNew ? `${member.name}（新規）` : member.name,
                 increase: Math.max(0, member.diff),

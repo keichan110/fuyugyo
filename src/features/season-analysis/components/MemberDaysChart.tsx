@@ -4,8 +4,9 @@ import { Paper, Stack, Text } from '@mantine/core';
 import { DEPARTMENT_LABELS, departmentCodeSchema } from '@/features/departments/schema';
 
 import type { MemberSummary } from '../aggregators';
+import { PANEL_CHART_HEIGHT } from './AnalysisPanel';
 
-type Props = { members: MemberSummary[]; averageDays: number };
+type Props = { members: MemberSummary[]; averageDays: number; expanded: boolean };
 
 /** 同名メンバーが混ざっても軸ラベルが衝突しないよう、重複には連番を付ける */
 function uniqueLabels(members: MemberSummary[]): string[] {
@@ -18,7 +19,7 @@ function uniqueLabels(members: MemberSummary[]): string[] {
 }
 
 /** A: メンバー別の勤務日数（実施済み・予定の積み上げ横棒）。ツールチップに部門別内訳を出す。 */
-export function MemberDaysChart({ members, averageDays }: Props) {
+export function MemberDaysChart({ members, averageDays, expanded }: Props) {
   const labels = uniqueLabels(members);
   const data = members.map((member, index) => ({
     name: labels[index] ?? member.name,
@@ -28,9 +29,8 @@ export function MemberDaysChart({ members, averageDays }: Props) {
   const memberByLabel = new Map(members.map((member, index) => [labels[index], member]));
   return (
     <Stack gap="xs">
-      <Text fw={600}>メンバー別の勤務日数</Text>
       <BarChart
-        h={Math.max(240, members.length * 28 + 60)}
+        h={Math.max(expanded ? 320 : PANEL_CHART_HEIGHT, members.length * 28 + 60)}
         data={data}
         dataKey="name"
         orientation="vertical"

@@ -4,6 +4,7 @@ import { Box, ScrollArea, Stack, Text } from '@mantine/core';
 import { shortDateLabel } from '@/features/shifts/view-utils';
 
 import type { WeeklyStaffing } from '../aggregators';
+import { PANEL_CHART_HEIGHT } from './AnalysisPanel';
 
 const PHASE_SUFFIX: Record<WeeklyStaffing['phase'], string> = {
   past: '',
@@ -12,7 +13,13 @@ const PHASE_SUFFIX: Record<WeeklyStaffing['phase'], string> = {
 };
 
 /** D: 週ごとの必要人数合計と配置人数合計、不足枠数。予定の週はラベルで区別する。 */
-export function WeeklyStaffingChart({ weeks }: { weeks: WeeklyStaffing[] }) {
+export function WeeklyStaffingChart({
+  weeks,
+  expanded,
+}: {
+  weeks: WeeklyStaffing[];
+  expanded: boolean;
+}) {
   const data = weeks.map((week) => ({
     week: `${shortDateLabel(week.weekStart)}〜${PHASE_SUFFIX[week.phase]}`,
     required: week.required,
@@ -21,7 +28,6 @@ export function WeeklyStaffingChart({ weeks }: { weeks: WeeklyStaffing[] }) {
   }));
   return (
     <Stack gap="xs">
-      <Text fw={600}>週ごとの充足状況</Text>
       {weeks.length === 0 ? (
         <Text size="sm" c="dimmed">
           必要人数が設定された枠がありません。
@@ -30,7 +36,7 @@ export function WeeklyStaffingChart({ weeks }: { weeks: WeeklyStaffing[] }) {
         <ScrollArea type="auto" offsetScrollbars>
           <Box miw={Math.max(360, weeks.length * 48)}>
             <CompositeChart
-              h={300}
+              h={expanded ? 480 : PANEL_CHART_HEIGHT}
               data={data}
               dataKey="week"
               withLegend
@@ -56,9 +62,6 @@ export function WeeklyStaffingChart({ weeks }: { weeks: WeeklyStaffing[] }) {
           </Box>
         </ScrollArea>
       )}
-      <Text size="xs" c="dimmed">
-        必要人数が設定された枠のみ集計。月曜始まり。
-      </Text>
     </Stack>
   );
 }

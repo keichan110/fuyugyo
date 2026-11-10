@@ -10,6 +10,8 @@ type Props = {
   members: MemberSummary[];
   months: string[];
   department: DepartmentFilter;
+  /** 拡大表示中か（本文は常に全幅で人数分の行を持つため、現状は表示内容に影響しない） */
+  expanded: boolean;
 };
 
 /** 月ごとの対象メンバー中央値との差を、多い=オレンジ・少ない=青の発散配色にする。0 は中立。 */
@@ -37,7 +39,6 @@ export function MemberMonthHeatmap({ members, months, department }: Props) {
 
   return (
     <Stack gap="xs">
-      <Text fw={600}>人×月の勤務日数</Text>
       <ScrollArea type="auto" offsetScrollbars>
         <Table withRowBorders={false} miw={Math.max(360, months.length * 56 + 140)}>
           <Table.Thead>

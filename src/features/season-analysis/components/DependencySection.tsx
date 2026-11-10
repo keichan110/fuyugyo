@@ -11,9 +11,11 @@ const CHART_MEMBER_LIMIT = 10;
 function DepartmentDependencyBlock({
   dependency,
   showHeading,
+  expanded,
 }: {
   dependency: DepartmentDependency;
   showHeading: boolean;
+  expanded: boolean;
 }) {
   const appearance = getDepartmentAppearance(dependency.departmentCode);
   const top = dependency.members.slice(0, CHART_MEMBER_LIMIT);
@@ -62,7 +64,7 @@ function DepartmentDependencyBlock({
       )}
       {data.length > 0 && (
         <BarChart
-          h={Math.max(200, data.length * 28 + 60)}
+          h={Math.max(expanded ? 240 : 200, data.length * 28 + 60)}
           data={data}
           dataKey="name"
           orientation="vertical"
@@ -83,20 +85,23 @@ function DepartmentDependencyBlock({
 }
 
 /** E: 特定の人への依存。資格ランクごとの占有率と、メンバー別の担当回数（枠単位）を部門ごとに示す。 */
-export function DependencySection({ departments }: { departments: DepartmentDependency[] }) {
+export function DependencySection({
+  departments,
+  expanded,
+}: {
+  departments: DepartmentDependency[];
+  expanded: boolean;
+}) {
   return (
     <Stack gap="md">
-      <Text fw={600}>特定の人への依存</Text>
       {departments.map((dependency) => (
         <DepartmentDependencyBlock
           key={dependency.departmentCode}
           dependency={dependency}
           showHeading={departments.length > 1}
+          expanded={expanded}
         />
       ))}
-      <Text size="xs" c="dimmed">
-        担当回数は枠単位（同日に複数枠へ入ればそれぞれ1回）。ランクは各枠の必要資格のうち持つ最上位。
-      </Text>
     </Stack>
   );
 }

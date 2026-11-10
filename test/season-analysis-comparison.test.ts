@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildComparison,
   resolveComparisonPeriod,
+  summarizeComparison,
 } from '../src/features/season-analysis/comparison';
 import { analysis, assign, filters } from './season-analysis-fixtures';
 
@@ -68,5 +69,36 @@ describe('buildComparison', () => {
     const current = analysis({ assignments: [assign('a', '2026-10-01')] });
     expect(buildComparison(current, undefined, filters).previousIsEmpty).toBe(true);
     expect(buildComparison(current, analysis(), filters).previousIsEmpty).toBe(true);
+  });
+});
+
+describe('summarizeComparison', () => {
+  it('比較期間内の延べ日数と増減率、増減の大きい人を返す', () => {
+    const current = analysis({
+      assignments: [
+        assign('a', '2026-10-01'),
+        ...['2026-10-01', '2026-10-02', '2026-10-03'].map((d) => assign('b', d)),
+      ],
+    });
+    const previous = analysis({
+      seasonRange: { from: '2025-09-01', to: '2026-08-31' },
+      assignments: [
+        ...['2025-10-01', '2025-10-02', '2025-10-03'].map((d) => assign('a', d)),
+        assign('c', '2025-10-05'),
+      ],
+    });
+    const summary = summarizeComparison(buildComparison(current, previous, filters));
+    expect(summary).toMatchObject({ currentTotal: 4, previousTotal: 4, diff: 0, diffPercent: 0 });
+    expect(summary.topIncreases.map((m) => [m.id, m.diff])).toEqual([['b', 3]]);
+    expect(summary.topDecreases.map((m) => [m.id, m.diff])).toEqual([
+      ['a', -2],
+      ['c', -1],
+    ]);
+  });
+
+  it('前シーズンが0日なら増減率は null', () => {
+    const current = analysis({ assignments: [assign('a', '2026-10-01')] });
+    const summary = summarizeComparison(buildComparison(current, analysis(), filters));
+    expect(summary.diffPercent).toBeNull();
   });
 });

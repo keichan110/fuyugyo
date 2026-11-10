@@ -168,3 +168,56 @@ export function buildComparison(
     previousIsEmpty: members.every((member) => member.previous === 0),
   };
 }
+
+/** 前シーズン比較の要約（比較期間内の延べ勤務日数と、増減の大きいメンバー） */
+export type ComparisonSummary = {
+  currentTotal: number;
+  previousTotal: number;
+  diff: number;
+  /** 前シーズン比の増減率（%）。前シーズンが0日なら null */
+  diffPercent: number | null;
+  /** 増加の大きい順（増加がある人のみ） */
+  topIncreases: MemberChange[];
+  /** 減少の大きい順（減少がある人のみ） */
+  topDecreases: MemberChange[];
+};
+
+/**
+ * 比較結果から画面上部に出す要約を作る。
+ * @param view - {@link buildComparison} の結果
+ * @param topCount - 増加・減少それぞれで挙げる人数
+ */
+export function summarizeComparison(view: ComparisonView, topCount = 3): ComparisonSummary {
+  const currentTotal = view.members.reduce((sum, m) => sum + m.current, 0);
+  const previousTotal = view.members.reduce((sum, m) => sum + m.previous, 0);
+  // members は diff の降順で並んでいる
+  const topIncreases = view.members.filter((m) => m.diff > 0).slice(0, topCount);
+  const topDecreases = view.members
+    .filter((m) => m.diff < 0)
+    .slice(-topCount)
+    .reverse();
+  return {
+    currentTotal,
+    previousTotal,
+    diff: currentTotal - previousTotal,
+    diffPercent:
+      previousTotal === 0 ? null : ((currentTotal - previousTotal) / previousTotal) * 100,
+    topIncreases,
+    topDecreases,
+  };
+}
+
+function formatMonthDay(date: string): string {
+  return `${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))}`;
+}
+
+/**
+ * 比較期間の表示文言（例: 「9/1〜11/9 時点で比較」「シーズン全期間で比較」）。
+ * @param view - {@link buildComparison} の結果
+ */
+export function comparisonPeriodLabel(view: ComparisonView): string {
+  const { period } = view;
+  return period.mode === 'toDate'
+    ? `${formatMonthDay(period.current.from)}〜${formatMonthDay(period.current.to)} 時点で比較`
+    : 'シーズン全期間で比較';
+}

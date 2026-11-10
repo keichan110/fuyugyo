@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useBlocker } from '@tanstack/react-router';
 
 import { useAvailabilities } from '@/features/availabilities/queries';
-import { departmentCodeSchema, type DepartmentCode } from '@/features/departments/schema';
+import type { DepartmentCode } from '@/features/departments/schema';
 
 import type { AutoAssignSolver } from '../auto-assign-solver-port';
 import { createWorkerSolver } from '../auto-assign-worker-solver';
@@ -45,8 +45,6 @@ import type {
 } from './shift-manager-types';
 import { cellKey, monthDays, monthLastDate, splitCellKey } from './shift-manager-utils';
 
-const DEPARTMENT_STORAGE_KEY = 'fuyugyo.shiftManage.departmentCode';
-
 /**
  * 自動割当の生成器。呼び出し口はポート（{@link AutoAssignSolver}）越しに固定してあるため、
  * 将来 AI 割当へ移行する際はこの1行を別実装（例: サーバー AI ソルバー）へ差し替えるだけで済む。
@@ -54,13 +52,8 @@ const DEPARTMENT_STORAGE_KEY = 'fuyugyo.shiftManage.departmentCode';
 const autoAssignSolver: AutoAssignSolver = createWorkerSolver();
 
 /** ShiftManager の編集状態、データ取得、副作用、操作ハンドラーをまとめて提供する。 */
-export function useShiftManagerController() {
+export function useShiftManagerController(departmentCode: DepartmentCode) {
   const [month, setMonth] = useState(() => toMonth(todayString()));
-  const [departmentCode, setDepartmentCode] = useState<DepartmentCode>(() => {
-    const stored = window.localStorage.getItem(DEPARTMENT_STORAGE_KEY);
-    const parsed = departmentCodeSchema.safeParse(stored);
-    return parsed.success ? parsed.data : 'ski';
-  });
   const [selectedCell, setSelectedCell] = useState<SelectedCell | null>(null);
   const [assignmentPanelOpened, setAssignmentPanelOpened] = useState(false);
   const [stagedCells, setStagedCells] = useState<Map<string, StagedCell>>(new Map());
@@ -111,15 +104,6 @@ export function useShiftManagerController() {
   });
 
   const activeShiftTypeId = selectedCell?.shiftTypeId ?? formData.data?.shiftTypes[0]?.id ?? '';
-  // シフト種別タブに「未保存の編集あり」のドットを出すため、ステージ済みセルの種別IDを集計する
-  const stagedShiftTypeIds = useMemo(() => {
-    const ids = new Set<string>();
-    for (const key of [...stagedCells.keys(), ...stagedRequirements.keys()]) {
-      ids.add(splitCellKey(key)[1]);
-    }
-    return ids;
-  }, [stagedCells, stagedRequirements]);
-
   const registerInstructorNames = useCallback((entries: Array<{ id: string; name: string }>) => {
     setNameById((prev) => {
       let changed = false;
@@ -154,10 +138,6 @@ export function useShiftManagerController() {
   }, [autoAssignContext.data, registerInstructorNames]);
 
   useEffect(() => {
-    window.localStorage.setItem(DEPARTMENT_STORAGE_KEY, departmentCode);
-  }, [departmentCode]);
-
-  useEffect(() => {
     setSelectedCell((current) => {
       const next = reconcileShiftManagerSelection({
         selection: current,
@@ -172,8 +152,7 @@ export function useShiftManagerController() {
 
   const applyNavigation = useCallback(
     (nav: PendingNavigation) => {
-      if (nav.type === 'department') setDepartmentCode(nav.nextDepartmentCode);
-      else if (nav.type === 'month') setMonth(nav.nextMonth);
+      if (nav.type === 'month') setMonth(nav.nextMonth);
       else {
         setSelectedCell((current) => ({
           date: current?.date ?? days[0] ?? todayString(),
@@ -611,7 +590,6 @@ export function useShiftManagerController() {
     shortageByCell,
     stageCell,
     stagedCells,
-    stagedShiftTypeIds,
     startAutoAssign,
     upsertMonthly,
     weekdayRequiredCount,

@@ -247,72 +247,64 @@ describe('composeInstructorMonthWork / classifyWorkDay', () => {
 
 describe('summarizeInstructorWorkload', () => {
   const season = { from: '2025-09-01', to: '2026-08-31' };
-  const current = { departmentCode: 'ski', shiftTypeId: 'am' };
-  const entry = (departmentCode: string, shiftTypeId: string) => ({
+  const entry = (departmentCode: string) => ({
     departmentCode,
-    shiftTypeId,
-    shiftTypeName: shiftTypeId,
+    shiftTypeId: 'am',
+    shiftTypeName: 'am',
   });
 
-  it('選択枠がなければ日数のみで連勤・週数は null', () => {
-    const monthWork = new Map([['2026-02-02', [entry('ski', 'am')]]]);
+  it('日付未選択では現在案の勤務日数だけを表示する', () => {
     expect(
       summarizeInstructorWorkload({
-        monthWork,
+        monthWork: new Map([['2026-02-02', [entry('ski')]]]),
         workDatesOutsideMonth: ['2026-01-31'],
         season,
         selectedDate: null,
-        current,
       }),
-    ).toEqual({
-      monthDays: 1,
-      seasonDays: 2,
-      isAddition: false,
-      addedDays: 0,
-      streak: null,
-      weekStreak: null,
-    });
+    ).toEqual({ monthDays: 1, seasonDays: 2, selectedDate: null, streak: null, weekStreak: null });
   });
 
-  it('未配置なら選択日を加えた連勤・週数と +1日を返し、日数は現在案のまま', () => {
-    const monthWork = new Map([['2026-02-02', [entry('ski', 'am')]]]);
+  it('未勤務の選択日を仮に追加せず、月境界の連勤をつながない', () => {
     const summary = summarizeInstructorWorkload({
-      monthWork,
+      monthWork: new Map([['2026-02-02', [entry('ski')]]]),
       workDatesOutsideMonth: ['2026-01-31'],
       season,
       selectedDate: '2026-02-01',
-      current,
     });
     expect(summary).toMatchObject({
       monthDays: 1,
       seasonDays: 2,
-      isAddition: true,
-      addedDays: 1,
+      streak: null,
+      weekStreak: { weeks: 2 },
+    });
+    expect(summary).not.toHaveProperty('isAddition');
+    expect(summary).not.toHaveProperty('addedDays');
+  });
+
+  it('選択日に別部門の勤務がある場合も現在の勤務として集計する', () => {
+    expect(
+      summarizeInstructorWorkload({
+        monthWork: new Map([['2026-02-02', [entry('snowboard'), entry('ski')]]]),
+        workDatesOutsideMonth: ['2026-01-31', '2026-02-01'],
+        season,
+        selectedDate: '2026-02-02',
+      }),
+    ).toMatchObject({
+      monthDays: 1,
+      seasonDays: 3,
       streak: { days: 3, from: '2026-01-31', to: '2026-02-02' },
+      weekStreak: { weeks: 2 },
     });
   });
 
-  it('同日に別勤務がある未配置は +0日、配置済みは現在案', () => {
-    const monthWork = new Map([['2026-02-02', [entry('snowboard', 'am')]]]);
+  it('選択週に勤務がなければ連続勤務週を作らない', () => {
     expect(
       summarizeInstructorWorkload({
-        monthWork,
+        monthWork: new Map([['2026-02-02', [entry('ski')]]]),
         workDatesOutsideMonth: [],
         season,
-        selectedDate: '2026-02-02',
-        current,
+        selectedDate: '2026-02-16',
       }),
-    ).toMatchObject({ isAddition: true, addedDays: 0, monthDays: 1 });
-
-    const placed = new Map([['2026-02-02', [entry('ski', 'am')]]]);
-    expect(
-      summarizeInstructorWorkload({
-        monthWork: placed,
-        workDatesOutsideMonth: [],
-        season,
-        selectedDate: '2026-02-02',
-        current,
-      }),
-    ).toMatchObject({ isAddition: false, addedDays: 0, streak: { days: 1 } });
+    ).toMatchObject({ streak: null, weekStreak: null });
   });
 });

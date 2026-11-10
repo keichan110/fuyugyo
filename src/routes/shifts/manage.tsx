@@ -3,7 +3,9 @@ import { createFileRoute, redirect } from '@tanstack/react-router';
 
 import { fetchMe } from '@/features/auth/auth-guard';
 import { hasMinimumRole } from '@/features/auth/schema';
+import { ShiftDepartmentEntry } from '@/features/shifts/components/ShiftDepartmentEntry';
 import { ShiftManager } from '@/features/shifts/components/ShiftManager';
+import { parseShiftManagerSearch } from '@/features/shifts/manager-search';
 
 /**
  * `/shifts/manage` — シフト管理画面。
@@ -12,6 +14,7 @@ import { ShiftManager } from '@/features/shifts/components/ShiftManager';
  * ロールチェックのみを行う。
  */
 export const Route = createFileRoute('/shifts/manage')({
+  validateSearch: parseShiftManagerSearch,
   beforeLoad: async ({ context }) => {
     const user = await fetchMe(context.queryClient);
     if (!user || !hasMinimumRole(user.role, 'MANAGER')) {
@@ -22,9 +25,19 @@ export const Route = createFileRoute('/shifts/manage')({
 });
 
 function ShiftManagePage() {
+  const { department } = Route.useSearch();
+  const navigate = Route.useNavigate();
   return (
     <Container size="xl" py="md">
-      <ShiftManager />
+      {department ? (
+        <ShiftManager key={department} departmentCode={department} />
+      ) : (
+        <ShiftDepartmentEntry
+          onSelect={(selected) => {
+            void navigate({ search: { department: selected } });
+          }}
+        />
+      )}
     </Container>
   );
 }

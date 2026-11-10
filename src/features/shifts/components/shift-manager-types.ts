@@ -1,5 +1,3 @@
-import type { DepartmentCode } from '@/features/departments/schema';
-
 import type { AutoAssignProposal } from '../schema';
 import type { ShiftManagerSelection } from './shift-manager-selection';
 
@@ -13,10 +11,8 @@ export type StagedCell = {
   expectedShiftId?: string | null;
 };
 
-/** 部門・対象月変更をユーザー承認で確定するための保留アクション */
+/** 対象月・勤務種別の変更をユーザー承認で確定するための保留アクション */
 export type PendingNavigation =
-  | { type: 'department'; nextDepartmentCode: DepartmentCode }
-  | { type: 'month'; nextMonth: string }
-  | { type: 'shiftType'; nextShiftTypeId: string };
+  { type: 'month'; nextMonth: string } | { type: 'shiftType'; nextShiftTypeId: string };
 
 export type ShortageByCell = Map<string, AutoAssignProposal['shortage']>;

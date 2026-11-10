@@ -1,21 +1,19 @@
 import { Stack, Text } from '@mantine/core';
 
-import type { AssignmentReviewDay } from './assignment-review';
 import classes from './assignment-review.module.css';
 
 type Props = {
-  review: AssignmentReviewDay | undefined;
+  addedIds: string[];
+  removedIds: string[];
   assigned: { id: string; name: string }[];
   nameById: ReadonlyMap<string, string>;
 };
 
 /** 保存済みと現在案を左右に並べ、共通の担当者の行を揃えて追加・解除を示す。 */
-export function SavedAssignmentChanges({ review, assigned, nameById }: Props) {
-  const addedIds = review?.addedIds ?? [];
-  const removedIds = review?.removedIds ?? [];
+export function SavedAssignmentChanges({ addedIds, removedIds, assigned, nameById }: Props) {
   const added = new Set(addedIds);
   const unchanged = assigned.filter((person) => !added.has(person.id));
-  const changed = addedIds.length + removedIds.length > 0;
+  if (addedIds.length + removedIds.length === 0) return null;
   const rows = [
     ...unchanged.map((person) => ({ before: person.id, after: person.id, changed: false })),
     ...Array.from({ length: Math.max(addedIds.length, removedIds.length) }, (_, index) => ({
@@ -30,7 +28,7 @@ export function SavedAssignmentChanges({ review, assigned, nameById }: Props) {
   return (
     <Stack gap={6} mt="xs">
       <Text size="sm" fw={600}>
-        保存済みからの担当者変更
+        担当者
       </Text>
       <div className={classes.diff} role="group" aria-label="保存済みと現在案の担当者比較">
         <Text size="xs" c="dimmed">
@@ -76,11 +74,6 @@ export function SavedAssignmentChanges({ review, assigned, nameById }: Props) {
           </>
         )}
       </div>
-      {!changed && (
-        <Text size="sm" c="dimmed">
-          担当者の変更はありません。
-        </Text>
-      )}
     </Stack>
   );
 }

@@ -21,13 +21,11 @@ export function ShiftManagerDialogs({ controller }: ShiftManagerDialogsProps) {
         <Stack gap="md">
           <Text size="sm">
             未保存の変更が {controller.dirtyCount} 件あります。 このまま
-            {controller.pendingNav?.type === 'department'
-              ? '部門を切り替える'
-              : controller.pendingNav?.type === 'month'
-                ? '対象月を変更する'
-                : controller.pendingNav?.type === 'shiftType'
-                  ? 'シフト種別を切り替える'
-                  : '別のページへ移動する'}
+            {controller.pendingNav?.type === 'month'
+              ? '対象月を変更する'
+              : controller.pendingNav?.type === 'shiftType'
+                ? 'シフト種別を切り替える'
+                : '別の画面へ移動する'}
             と、これらの変更は破棄されます。
           </Text>
           <Group justify="flex-end" gap="xs">

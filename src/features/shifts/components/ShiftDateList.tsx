@@ -3,16 +3,23 @@ import { useId } from 'react';
 import { Box, Group, Stack, Text, UnstyledButton } from '@mantine/core';
 
 import { AppBadge } from '@/components/AppBadge';
+import type { Availability } from '@/features/availabilities/schema';
 
 import { getCalendarDayColor, shortDateLabel } from '../view-utils';
+import { AssignedAvailabilityIcon } from './AssignedAvailabilityIcon';
+import { availabilityDisplay } from './availability-display';
 import type { DayAssignments, HeaderEventPayload } from './calendar-events';
 import classes from './ShiftManager.module.css';
+import { staffingBackground, staffingRate } from './staffing-appearance';
 
 type ShiftDateListProps = {
   days: string[];
   assignmentsByDay: DayAssignments;
+  availabilityByPersonDay: ReadonlyMap<string, Availability> | undefined;
+  availabilityFailed: boolean;
   headersByDay: ReadonlyMap<string, HeaderEventPayload>;
   requirementsReady: boolean;
+  requiredByDay: ReadonlyMap<string, number | null> | null;
   selectedDate: string | null;
   focusedInstructorId: string | null;
   myInstructorId: string | null;
@@ -24,6 +31,7 @@ type ShiftDateListProps = {
 
 const staffingLabels = {
   FILLED: '充足',
+  OVER: '過員',
   SHORT: '不足',
   UNSET: '必要人数未設定',
   NOT_PLANNED: '開講予定なし',
@@ -33,8 +41,11 @@ const staffingLabels = {
 export function ShiftDateList({
   days,
   assignmentsByDay,
+  availabilityByPersonDay,
+  availabilityFailed,
   headersByDay,
   requirementsReady,
+  requiredByDay,
   selectedDate,
   focusedInstructorId,
   myInstructorId,
@@ -51,6 +62,8 @@ export function ShiftDateList({
         const assigned = assignmentsByDay.get(date) ?? [];
         const header = headersByDay.get(date);
         const staffing = header?.staffing;
+        const required = requiredByDay?.get(date) ?? null;
+        const rate = staffingRate(required, assigned.length);
         const selected = autoAssignMode ? autoAssignDates.has(date) : selectedDate === date;
         const focused = assigned.some((person) => person.id === focusedInstructorId);
 
@@ -59,6 +72,13 @@ export function ShiftDateList({
             key={date}
             className={classes.dateListDay}
             data-shift-list-date={date}
+            title={assigned
+              .map(
+                (person) =>
+                  `${person.name}：${availabilityDisplay(availabilityByPersonDay?.get(`${person.id}:${date}`), availabilityByPersonDay !== undefined, availabilityFailed).label}`,
+              )
+              .join(' / ')}
+            style={{ backgroundColor: staffingBackground(required, assigned.length) }}
             data-published={header?.status === 'PUBLISHED' || undefined}
             data-selected={selected || undefined}
             data-focused-instructor={focused || undefined}
@@ -76,7 +96,11 @@ export function ShiftDateList({
                 <Text
                   component="span"
                   size="xs"
-                  c={staffing?.icon === 'warning' ? 'yellow.8' : 'dimmed'}
+                  c={
+                    staffing?.icon === 'warning' || staffing?.icon === 'over'
+                      ? 'yellow.8'
+                      : 'dimmed'
+                  }
                 >
                   {staffing
                     ? `${staffing.text} ${staffingLabels[staffing.status]}${staffing.status !== 'SHORT' && staffing.icon === 'warning' ? '・資格構成の確認が必要' : ''}`
@@ -84,13 +108,13 @@ export function ShiftDateList({
                       ? '必要人数未設定'
                       : '必要人数を読み込み中…'}
                 </Text>
+                {rate !== null && (
+                  <Text component="span" size="xs">
+                    充足率 {Math.round(rate)}%
+                  </Text>
+                )}
                 {header?.status && (
-                  <Text
-                    component="span"
-                    size="xs"
-                    fw={600}
-                    c={header.status === 'PUBLISHED' ? 'teal' : 'dimmed'}
-                  >
+                  <Text component="span" size="xs" fw={600} c="dimmed">
                     {header.status === 'PUBLISHED' ? '公開済み' : '下書き'}
                   </Text>
                 )}
@@ -119,7 +143,12 @@ export function ShiftDateList({
                         undefined
                       }
                     >
-                      {person.name}
+                      <span className={classes.dateListNameText}>{person.name}</span>{' '}
+                      <AssignedAvailabilityIcon
+                        availability={availabilityByPersonDay?.get(`${person.id}:${date}`)}
+                        ready={availabilityByPersonDay !== undefined}
+                        failed={availabilityFailed}
+                      />
                     </Text>
                   ))
                 )}

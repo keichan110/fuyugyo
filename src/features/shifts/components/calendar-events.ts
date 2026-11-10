@@ -15,11 +15,11 @@ import { cellKey } from './shift-manager-utils';
 
 /** 日付セル上部に表示する充足表示（数字・状態・Tooltip 文言）。 */
 export type StaffingDisplay = {
-  status: StaffingStatus;
+  status: StaffingStatus | 'OVER';
   text: string;
   tooltip: string;
-  /** 表示するアイコン。不足または資格構成の要確認なら警告、充足なら充足、それ以外は出さない。 */
-  icon: 'warning' | 'filled' | null;
+  /** 表示するアイコン。不足または資格構成の要確認は警告、過員は過員警告、充足はチェック。それ以外は出さない。 */
+  icon: 'warning' | 'filled' | 'over' | null;
 };
 
 /** カレンダーイベントのペイロード。担当者イベントと、日付セル上部のヘッダー層に分かれる。 */
@@ -106,7 +106,8 @@ function buildStaffingDisplay({
 }): StaffingDisplay | null {
   const text = formatStaffingText(required, assigned);
   if (text === null) return null;
-  const status = deriveStaffingStatus(required, assigned);
+  const status =
+    required !== null && assigned > required ? 'OVER' : deriveStaffingStatus(required, assigned);
   // 不足理由は、その後も不足のままの日にだけ補足として続ける
   const reason =
     status === 'SHORT' && shortage && shortage.count > 0 && shortage.reasons.length > 0
@@ -115,7 +116,13 @@ function buildStaffingDisplay({
   const described = describeStaffing(required, assigned);
   const label = needsReview ? `${described}、資格構成の確認が必要` : described;
   const icon =
-    status === 'SHORT' || needsReview ? 'warning' : status === 'FILLED' ? 'filled' : null;
+    status === 'SHORT' || needsReview
+      ? 'warning'
+      : status === 'OVER'
+        ? 'over'
+        : status === 'FILLED'
+          ? 'filled'
+          : null;
   return { status, text, tooltip: reason ? `${label}：${reason}` : label, icon };
 }
 

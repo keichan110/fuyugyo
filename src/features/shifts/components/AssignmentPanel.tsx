@@ -1,6 +1,7 @@
-import { useId, useMemo, useState } from 'react';
+import { useId, useMemo, useState, type ReactNode } from 'react';
 
 import {
+  Accordion,
   Box,
   Checkbox,
   Group,
@@ -243,37 +244,58 @@ export function AssignmentPanel({
                 候補がありません
               </Text>
             ) : (
-              candidateGroups.map((group) => (
-                <Stack
-                  key={group.type}
-                  gap="xs"
-                  role="group"
-                  aria-label={`${group.label} ${group.candidates.length}名`}
-                >
-                  <Group gap={6} wrap="nowrap">
-                    <CandidateGroupIcon type={group.type} />
-                    <Text component="h3" size="sm" fw={700} m={0}>
-                      {group.label}（{group.candidates.length}名）
-                    </Text>
-                  </Group>
-                  {group.type === 'ASSIGNED'
-                    ? group.blocks.map((block) => (
-                        <Stack
-                          key={block.label}
-                          gap="xs"
-                          pl="xs"
-                          role="group"
-                          aria-label={`${block.label} ${block.candidates.length}名`}
-                        >
-                          <Text component="h4" size="xs" fw={600} m={0} c="dimmed">
-                            {block.label}（{block.candidates.length}名）
-                          </Text>
-                          {block.candidates.map(renderCandidate)}
-                        </Stack>
-                      ))
-                    : group.candidates.map(renderCandidate)}
-                </Stack>
-              ))
+              candidateGroups.map((group) =>
+                group.type === 'UNAVAILABLE' ? (
+                  <CollapsedCandidateGroup
+                    type="UNAVAILABLE"
+                    key={group.type}
+                    count={group.candidates.length}
+                    expanded={
+                      search.trim().length > 0 ||
+                      group.candidates.some((person) => selectedSet.has(person.id))
+                    }
+                  >
+                    {group.candidates.map(renderCandidate)}
+                  </CollapsedCandidateGroup>
+                ) : group.type === 'ASSIGNED' ? (
+                  <CollapsedCandidateGroup
+                    key={group.type}
+                    type="ASSIGNED"
+                    count={group.candidates.length}
+                    expanded={search.trim().length > 0}
+                  >
+                    {group.blocks.map((block) => (
+                      <Stack
+                        key={block.label}
+                        gap="xs"
+                        pl="xs"
+                        role="group"
+                        aria-label={`${block.label} ${block.candidates.length}名`}
+                      >
+                        <Text component="h4" size="xs" fw={600} m={0} c="dimmed">
+                          {block.label}（{block.candidates.length}名）
+                        </Text>
+                        {block.candidates.map(renderCandidate)}
+                      </Stack>
+                    ))}
+                  </CollapsedCandidateGroup>
+                ) : (
+                  <Stack
+                    key={group.type}
+                    gap="xs"
+                    role="group"
+                    aria-label={`${group.label} ${group.candidates.length}名`}
+                  >
+                    <Group gap={6} wrap="nowrap">
+                      <CandidateGroupIcon type={group.type} />
+                      <Text component="h3" size="sm" fw={700} m={0}>
+                        {group.label}（{group.candidates.length}名）
+                      </Text>
+                    </Group>
+                    {group.candidates.map(renderCandidate)}
+                  </Stack>
+                ),
+              )
             )}
           </Stack>
 
@@ -288,6 +310,42 @@ export function AssignmentPanel({
         </>
       )}
     </Stack>
+  );
+}
+
+/** 勤務不可・配置済みの候補は通常閉じ、検索中など確認が必要なときに開いて示す。 */
+function CollapsedCandidateGroup({
+  type,
+  count,
+  expanded,
+  children,
+}: {
+  type: 'UNAVAILABLE' | 'ASSIGNED';
+  count: number;
+  expanded: boolean;
+  children: ReactNode;
+}) {
+  const [opened, setOpened] = useState(false);
+  return (
+    <Accordion
+      value={expanded || opened ? 'unavailable' : null}
+      onChange={(value) => setOpened(value !== null)}
+      variant="default"
+    >
+      <Accordion.Item value="unavailable">
+        <Accordion.Control>
+          <Group gap={6}>
+            <CandidateGroupIcon type={type} />
+            <Text size="sm" fw={700}>
+              {type === 'UNAVAILABLE' ? '勤務不可' : '配置済み'}（{count}名）
+            </Text>
+          </Group>
+        </Accordion.Control>
+        <Accordion.Panel>
+          <Stack gap="xs">{children}</Stack>
+        </Accordion.Panel>
+      </Accordion.Item>
+    </Accordion>
   );
 }
 
@@ -420,6 +478,7 @@ function InstructorDetails({
         <Tooltip label={certifications} withArrow>
           <AppBadge
             kind="certification"
+            muted
             departmentCode={departmentCode}
             size="xs"
             className={classes.candidateCertifications}

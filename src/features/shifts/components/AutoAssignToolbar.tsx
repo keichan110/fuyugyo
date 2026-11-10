@@ -6,6 +6,7 @@ import { AppButton } from '@/components/AppButton';
 
 type AutoAssignToolbarProps = {
   publicationControls: React.ReactNode;
+  differenceControl: React.ReactNode;
   autoAssignMode: boolean;
   selectedDateCount: number;
   /** 必要人数の取得前は false（ボタンを無効にする） */
@@ -30,6 +31,7 @@ type AutoAssignToolbarProps = {
  */
 export function AutoAssignToolbar({
   publicationControls,
+  differenceControl,
   autoAssignMode,
   selectedDateCount,
   requirementsReady,
@@ -107,7 +109,10 @@ export function AutoAssignToolbar({
                 </Box>
               </Tooltip>
             </Group>
-            <Box ml="auto">{publicationControls}</Box>
+            <Group gap="xs" ml="auto">
+              {differenceControl}
+              {publicationControls}
+            </Group>
           </>
         )}
       </Group>

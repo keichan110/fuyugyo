@@ -6,8 +6,7 @@ import { ErrorAlert } from '@/components/AppAlert';
 import { UnsavedChangesBar } from '@/components/UnsavedChangesBar';
 import { useMe } from '@/features/auth/queries';
 import { getDepartmentAppearance } from '@/features/departments/appearance';
-import { DepartmentTag } from '@/features/departments/DepartmentTag';
-import { departmentCodeSchema } from '@/features/departments/schema';
+import type { DepartmentCode } from '@/features/departments/schema';
 
 import { cellKey } from './shift-manager-utils';
 import { ShiftAnalysis } from './ShiftAnalysis';
@@ -18,8 +17,8 @@ import { ShiftManagerDialogs } from './ShiftManagerDialogs';
 import { useShiftManagerController } from './useShiftManagerController';
 
 /** シフト枠（日付 × 部門 × シフト種別）を月間シフト表で編集する管理コンポーネント。 */
-export function ShiftManager() {
-  const controller = useShiftManagerController();
+export function ShiftManager({ departmentCode }: { departmentCode: DepartmentCode }) {
+  const controller = useShiftManagerController(departmentCode);
   const me = useMe();
 
   return (
@@ -39,11 +38,13 @@ type ShiftManagerContentProps = {
 /** シフト管理画面の表示と各編集コントロールを組み立てる。 */
 function ShiftManagerContent({ controller, myInstructorId }: ShiftManagerContentProps) {
   const selectedCell = controller.selectedCell;
+  const analysisHeadingRef = useRef<HTMLHeadingElement>(null);
+  const [analysisOpened, setAnalysisOpened] = useState(true);
   const assignmentHeadingRef = useRef<HTMLHeadingElement>(null);
   const [analysisTab, setAnalysisTab] = useState<string | null>('month');
   const openAssignmentPanel: typeof controller.openAssignmentPanel = (cell) => {
     controller.openAssignmentPanel(cell);
-    setAnalysisTab('slot');
+    setAnalysisTab((current) => (current === 'person' ? 'person' : 'slot'));
   };
   const clearInstructor = () => {
     setFocusedInstructor(null);
@@ -74,28 +75,22 @@ function ShiftManagerContent({ controller, myInstructorId }: ShiftManagerContent
   return (
     <Stack gap="md">
       <Group justify="space-between" align="flex-end" wrap="wrap">
-        <Title order={2}>シフト管理</Title>
+        <Title order={2}>
+          {getDepartmentAppearance(controller.departmentCode).label}のシフト管理
+        </Title>
         <Select
-          label="部門"
-          disabled={controller.isAutoAssigning}
-          data={departmentCodeSchema.options.map((code) => ({
-            value: code,
-            label: getDepartmentAppearance(code).label,
+          label="勤務種別"
+          data={(controller.formData.data?.shiftTypes ?? []).map((type) => ({
+            value: type.id,
+            label: type.name,
           }))}
-          value={controller.departmentCode}
-          onChange={(value) => {
-            if (!value || value === controller.departmentCode) return;
-            const parsed = departmentCodeSchema.safeParse(value);
-            if (parsed.success) {
-              controller.requestNavigation({ type: 'department', nextDepartmentCode: parsed.data });
-            }
-          }}
-          renderOption={({ option }) => <DepartmentTag code={option.value} name={option.label} />}
-          leftSection={(() => {
-            const SelectedIcon = getDepartmentAppearance(controller.departmentCode).icon;
-            return <SelectedIcon size={16} stroke={1.75} />;
-          })()}
+          value={controller.activeShiftTypeId || null}
+          disabled={controller.isAutoAssigning || !controller.formData.data}
           allowDeselect={false}
+          onChange={(value) => {
+            if (value && value !== controller.activeShiftTypeId)
+              controller.changeActiveShiftType(value);
+          }}
           w={{ base: '100%', sm: 280 }}
         />
       </Group>
@@ -146,6 +141,10 @@ function ShiftManagerContent({ controller, myInstructorId }: ShiftManagerContent
               focusedInstructor={focusedInstructor}
               onClearInstructor={clearInstructor}
               onSelectCell={openAssignmentPanel}
+              onDeselect={() => {
+                controller.setAssignmentPanelOpened(false);
+                setAnalysisTab((current) => (current === 'person' ? 'person' : 'month'));
+              }}
             />
 
             <ShiftAssignmentForm
@@ -155,7 +154,7 @@ function ShiftManagerContent({ controller, myInstructorId }: ShiftManagerContent
               focusedInstructorId={focusedInstructor?.id ?? null}
               onClose={() => {
                 controller.setAssignmentPanelOpened(false);
-                setAnalysisTab('month');
+                setAnalysisTab((current) => (current === 'person' ? 'person' : 'month'));
               }}
               onAnalyzeInstructor={(instructor) => {
                 if (focusedInstructor?.id === instructor.id) {
@@ -163,11 +162,19 @@ function ShiftManagerContent({ controller, myInstructorId }: ShiftManagerContent
                 } else {
                   setFocusedInstructor(instructor);
                   setAnalysisTab('person');
+                  setAnalysisOpened(true);
+                  requestAnimationFrame(() => {
+                    analysisHeadingRef.current?.focus({ preventScroll: true });
+                    analysisHeadingRef.current?.scrollIntoView({ block: 'start' });
+                  });
                 }
               }}
             />
           </Box>
           <ShiftAnalysis
+            headingRef={analysisHeadingRef}
+            opened={analysisOpened}
+            onOpenedChange={setAnalysisOpened}
             tab={analysisTab}
             onTabChange={setAnalysisTab}
             month={controller.month}
@@ -192,11 +199,10 @@ function ShiftManagerContent({ controller, myInstructorId }: ShiftManagerContent
             assignmentsByDay={controller.assignmentsByDay}
             assignmentsReady={controller.monthly.data !== undefined}
             staffingSummary={controller.staffingSummary}
-            shortageByCell={controller.shortageByCell}
             compositionByDay={controller.compositionByDay}
             navigationDisabled={controller.autoAssignMode || controller.isAutoAssigning}
             requiredByDay={controller.requiredByDay}
-            selectedCell={selectedCell}
+            selectedCell={controller.assignmentPanelOpened ? selectedCell : null}
             streakBaseDate={controller.assignmentPanelOpened ? (selectedCell?.date ?? null) : null}
             selectedDescription={
               controller.selectedStagedCell?.description ??
@@ -207,8 +213,23 @@ function ShiftManagerContent({ controller, myInstructorId }: ShiftManagerContent
             }
             focusedInstructor={focusedInstructor}
             onClearInstructor={clearInstructor}
+            onChangeDate={(date) =>
+              openAssignmentPanel({ date, shiftTypeId: controller.activeShiftTypeId })
+            }
+            onClearDate={() => {
+              controller.setAssignmentPanelOpened(false);
+              setAnalysisTab(focusedInstructor ? 'person' : 'month');
+            }}
+            onSelectInstructor={(person) => {
+              setFocusedInstructor(person);
+              setAnalysisTab('person');
+            }}
+            onInspectDate={(date) =>
+              controller.openAssignmentPanel({ date, shiftTypeId: controller.activeShiftTypeId })
+            }
             onSelectDate={(date) => {
-              openAssignmentPanel({ date, shiftTypeId: controller.activeShiftTypeId });
+              controller.openAssignmentPanel({ date, shiftTypeId: controller.activeShiftTypeId });
+              setAnalysisTab('slot');
               requestAnimationFrame(() => {
                 assignmentHeadingRef.current?.focus({ preventScroll: true });
                 assignmentHeadingRef.current?.scrollIntoView({ block: 'start' });

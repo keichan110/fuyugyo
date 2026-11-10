@@ -22,6 +22,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as ShiftsIndexRouteImport } from './routes/shifts/index'
 import { Route as ShiftsPrintRouteImport } from './routes/shifts/print'
 import { Route as ShiftsManageRouteImport } from './routes/shifts/manage'
+import { Route as ShiftsAnalysisRouteImport } from './routes/shifts/analysis'
 
 const UsersRoute = UsersRouteImport.update({
   id: '/users',
@@ -89,6 +90,11 @@ const ShiftsManageRoute = ShiftsManageRouteImport.update({
   path: '/manage',
   getParentRoute: () => ShiftsRouteRoute,
 } as any)
+const ShiftsAnalysisRoute = ShiftsAnalysisRouteImport.update({
+  id: '/analysis',
+  path: '/analysis',
+  getParentRoute: () => ShiftsRouteRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -101,6 +107,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/shift-types': typeof ShiftTypesRoute
   '/users': typeof UsersRoute
+  '/shifts/analysis': typeof ShiftsAnalysisRoute
   '/shifts/manage': typeof ShiftsManageRoute
   '/shifts/print': typeof ShiftsPrintRoute
   '/shifts/': typeof ShiftsIndexRoute
@@ -115,6 +122,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/shift-types': typeof ShiftTypesRoute
   '/users': typeof UsersRoute
+  '/shifts/analysis': typeof ShiftsAnalysisRoute
   '/shifts/manage': typeof ShiftsManageRoute
   '/shifts/print': typeof ShiftsPrintRoute
   '/shifts': typeof ShiftsIndexRoute
@@ -131,6 +139,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/shift-types': typeof ShiftTypesRoute
   '/users': typeof UsersRoute
+  '/shifts/analysis': typeof ShiftsAnalysisRoute
   '/shifts/manage': typeof ShiftsManageRoute
   '/shifts/print': typeof ShiftsPrintRoute
   '/shifts/': typeof ShiftsIndexRoute
@@ -148,6 +157,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/shift-types'
     | '/users'
+    | '/shifts/analysis'
     | '/shifts/manage'
     | '/shifts/print'
     | '/shifts/'
@@ -162,6 +172,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/shift-types'
     | '/users'
+    | '/shifts/analysis'
     | '/shifts/manage'
     | '/shifts/print'
     | '/shifts'
@@ -177,6 +188,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/shift-types'
     | '/users'
+    | '/shifts/analysis'
     | '/shifts/manage'
     | '/shifts/print'
     | '/shifts/'
@@ -288,16 +300,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShiftsManageRouteImport
       parentRoute: typeof ShiftsRouteRoute
     }
+    '/shifts/analysis': {
+      id: '/shifts/analysis'
+      path: '/analysis'
+      fullPath: '/shifts/analysis'
+      preLoaderRoute: typeof ShiftsAnalysisRouteImport
+      parentRoute: typeof ShiftsRouteRoute
+    }
   }
 }
 
 interface ShiftsRouteRouteChildren {
+  ShiftsAnalysisRoute: typeof ShiftsAnalysisRoute
   ShiftsManageRoute: typeof ShiftsManageRoute
   ShiftsPrintRoute: typeof ShiftsPrintRoute
   ShiftsIndexRoute: typeof ShiftsIndexRoute
 }
 
 const ShiftsRouteRouteChildren: ShiftsRouteRouteChildren = {
+  ShiftsAnalysisRoute: ShiftsAnalysisRoute,
   ShiftsManageRoute: ShiftsManageRoute,
   ShiftsPrintRoute: ShiftsPrintRoute,
   ShiftsIndexRoute: ShiftsIndexRoute,

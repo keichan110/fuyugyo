@@ -28,7 +28,7 @@ function assignment(
   shiftTypeId = 'am',
   shiftStatus: 'DRAFT' | 'PUBLISHED' = 'PUBLISHED',
 ): Assignment {
-  return { instructorId, date, departmentCode, shiftTypeId, shiftStatus };
+  return { instructorId, date, departmentCode, shiftTypeId, shiftStatus, tierRank: null };
 }
 
 function analysis(overrides: Partial<SeasonAnalysis>): SeasonAnalysis {
@@ -39,6 +39,7 @@ function analysis(overrides: Partial<SeasonAnalysis>): SeasonAnalysis {
     assignments: [],
     shifts: [],
     availabilityExceptions: [],
+    tierDefinitions: [],
     ...overrides,
   };
 }

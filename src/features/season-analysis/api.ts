@@ -7,7 +7,9 @@ import { SEASON_START_MONTH } from '@/features/shifts/season';
 import { seasonRangeForDate } from '@/features/shifts/workload';
 import { createDb } from '@/server/db/client';
 import {
+  certificationRequirements,
   certifications,
+  departmentShiftTypes,
   instructorAvailabilities,
   instructorCertifications,
   instructors,
@@ -56,65 +58,115 @@ export const seasonAnalysisRoute = new Hono<{
   const to = parseShiftDate(seasonRange.to);
   const db = createDb(c.env.DB);
 
-  const [instructorRows, certificationRows, assignmentRows, shiftRows, availabilityRows] =
-    await Promise.all([
-      db
-        .select({
-          id: instructors.id,
-          lastName: instructors.lastName,
-          firstName: instructors.firstName,
-          status: instructors.status,
-        })
-        .from(instructors)
-        .orderBy(asc(instructors.lastName), asc(instructors.firstName), asc(instructors.id)),
-      db
-        .select({
-          instructorId: instructorCertifications.instructorId,
-          departmentCode: certifications.departmentCode,
-        })
-        .from(instructorCertifications)
-        .innerJoin(certifications, eq(certifications.id, instructorCertifications.certificationId))
-        .where(eq(certifications.isActive, true)),
-      db
-        .select({
-          instructorId: shiftAssignments.instructorId,
-          date: shifts.date,
-          departmentCode: shifts.departmentCode,
-          shiftTypeId: shifts.shiftTypeId,
-          shiftStatus: shifts.status,
-        })
-        .from(shiftAssignments)
-        .innerJoin(shifts, eq(shifts.id, shiftAssignments.shiftId))
-        .where(and(gte(shifts.date, from), lte(shifts.date, to))),
-      db
-        .select({
-          id: shifts.id,
-          date: shifts.date,
-          departmentCode: shifts.departmentCode,
-          shiftTypeId: shifts.shiftTypeId,
-          shiftTypeName: shiftTypes.name,
-          requiredCount: shifts.requiredCount,
-          status: shifts.status,
-        })
-        .from(shifts)
-        .innerJoin(shiftTypes, eq(shiftTypes.id, shifts.shiftTypeId))
-        .where(and(gte(shifts.date, from), lte(shifts.date, to)))
-        .orderBy(asc(shifts.date)),
-      db
-        .select({
-          instructorId: instructorAvailabilities.instructorId,
-          date: instructorAvailabilities.date,
-          type: instructorAvailabilities.type,
-        })
-        .from(instructorAvailabilities)
-        .where(
-          and(
-            gte(instructorAvailabilities.date, from),
-            lte(instructorAvailabilities.date, to),
-            ne(instructorAvailabilities.type, 'AVAILABLE'),
-          ),
+  const [
+    instructorRows,
+    certificationRows,
+    assignmentRows,
+    shiftRows,
+    availabilityRows,
+    tierRows,
+    tierDefinitionRows,
+  ] = await Promise.all([
+    db
+      .select({
+        id: instructors.id,
+        lastName: instructors.lastName,
+        firstName: instructors.firstName,
+        status: instructors.status,
+      })
+      .from(instructors)
+      .orderBy(asc(instructors.lastName), asc(instructors.firstName), asc(instructors.id)),
+    db
+      .select({
+        instructorId: instructorCertifications.instructorId,
+        departmentCode: certifications.departmentCode,
+      })
+      .from(instructorCertifications)
+      .innerJoin(certifications, eq(certifications.id, instructorCertifications.certificationId))
+      .where(eq(certifications.isActive, true)),
+    db
+      .select({
+        shiftId: shiftAssignments.shiftId,
+        instructorId: shiftAssignments.instructorId,
+        date: shifts.date,
+        departmentCode: shifts.departmentCode,
+        shiftTypeId: shifts.shiftTypeId,
+        shiftStatus: shifts.status,
+      })
+      .from(shiftAssignments)
+      .innerJoin(shifts, eq(shifts.id, shiftAssignments.shiftId))
+      .where(and(gte(shifts.date, from), lte(shifts.date, to))),
+    db
+      .select({
+        id: shifts.id,
+        date: shifts.date,
+        departmentCode: shifts.departmentCode,
+        shiftTypeId: shifts.shiftTypeId,
+        shiftTypeName: shiftTypes.name,
+        requiredCount: shifts.requiredCount,
+        status: shifts.status,
+      })
+      .from(shifts)
+      .innerJoin(shiftTypes, eq(shiftTypes.id, shifts.shiftTypeId))
+      .where(and(gte(shifts.date, from), lte(shifts.date, to)))
+      .orderBy(asc(shifts.date)),
+    db
+      .select({
+        instructorId: instructorAvailabilities.instructorId,
+        date: instructorAvailabilities.date,
+        type: instructorAvailabilities.type,
+      })
+      .from(instructorAvailabilities)
+      .where(
+        and(
+          gte(instructorAvailabilities.date, from),
+          lte(instructorAvailabilities.date, to),
+          ne(instructorAvailabilities.type, 'AVAILABLE'),
         ),
-    ]);
+      ),
+    // 配置ごとの資格ランク。枠の必要資格のうち本人が持つものを全行返し、最上位は後段で選ぶ
+    db
+      .select({
+        shiftId: shiftAssignments.shiftId,
+        instructorId: shiftAssignments.instructorId,
+        tierRank: certificationRequirements.tierRank,
+      })
+      .from(shiftAssignments)
+      .innerJoin(shifts, eq(shifts.id, shiftAssignments.shiftId))
+      .innerJoin(
+        departmentShiftTypes,
+        and(
+          eq(departmentShiftTypes.departmentCode, shifts.departmentCode),
+          eq(departmentShiftTypes.shiftTypeId, shifts.shiftTypeId),
+        ),
+      )
+      .innerJoin(
+        certificationRequirements,
+        eq(certificationRequirements.departmentShiftTypeId, departmentShiftTypes.id),
+      )
+      .innerJoin(
+        instructorCertifications,
+        and(
+          eq(instructorCertifications.instructorId, shiftAssignments.instructorId),
+          eq(instructorCertifications.certificationId, certificationRequirements.certificationId),
+        ),
+      )
+      .where(and(gte(shifts.date, from), lte(shifts.date, to))),
+    db
+      .select({
+        departmentCode: departmentShiftTypes.departmentCode,
+        shiftTypeId: departmentShiftTypes.shiftTypeId,
+        tierRank: certificationRequirements.tierRank,
+        shortName: certifications.shortName,
+      })
+      .from(departmentShiftTypes)
+      .innerJoin(
+        certificationRequirements,
+        eq(certificationRequirements.departmentShiftTypeId, departmentShiftTypes.id),
+      )
+      .innerJoin(certifications, eq(certifications.id, certificationRequirements.certificationId))
+      .orderBy(asc(certificationRequirements.tierRank)),
+  ]);
 
   // 枠ごとの配置人数は枠の取得結果とは別に配置行から数える（N+1 を避ける）
   const assignedCountByShift = new Map<string, number>();
@@ -123,6 +175,16 @@ export const seasonAnalysisRoute = new Hono<{
   for (const row of assignmentRows) {
     const key = shiftKey(row.date, row.departmentCode, row.shiftTypeId);
     assignedCountByShift.set(key, (assignedCountByShift.get(key) ?? 0) + 1);
+  }
+
+  // 同じ配置に複数の要件資格が該当しうるため、最小（最上位）のランクを採用する
+  const bestTierByAssignment = new Map<string, number>();
+  for (const row of tierRows) {
+    const key = `${row.shiftId}:${row.instructorId}`;
+    const current = bestTierByAssignment.get(key);
+    if (current === undefined || row.tierRank < current) {
+      bestTierByAssignment.set(key, row.tierRank);
+    }
   }
 
   const qualifiedByInstructor = new Map<string, Set<DepartmentCode>>();
@@ -154,6 +216,7 @@ export const seasonAnalysisRoute = new Hono<{
               departmentCode,
               shiftTypeId: row.shiftTypeId,
               shiftStatus: row.shiftStatus,
+              tierRank: bestTierByAssignment.get(`${row.shiftId}:${row.instructorId}`) ?? null,
             },
           ];
     }),
@@ -172,6 +235,19 @@ export const seasonAnalysisRoute = new Hono<{
               assignedCount:
                 assignedCountByShift.get(shiftKey(row.date, row.departmentCode, row.shiftTypeId)) ??
                 0,
+            },
+          ];
+    }),
+    tierDefinitions: tierDefinitionRows.flatMap((row) => {
+      const departmentCode = toDepartmentCode(row.departmentCode);
+      return departmentCode === null
+        ? []
+        : [
+            {
+              departmentCode,
+              shiftTypeId: row.shiftTypeId,
+              tierRank: row.tierRank,
+              certificationShortName: row.shortName,
             },
           ];
     }),

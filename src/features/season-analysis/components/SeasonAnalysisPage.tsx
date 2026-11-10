@@ -4,11 +4,18 @@ import { Card, Loader, Stack, Text } from '@mantine/core';
 
 import { ErrorAlert } from '@/components/AppAlert';
 
-import { buildAnalysisView, type CountScope, type DepartmentFilter } from '../aggregators';
+import {
+  buildAnalysisView,
+  type AnalysisFilters,
+  type CountScope,
+  type DepartmentFilter,
+} from '../aggregators';
+import { buildDependency } from '../dependency';
 import { useSeasonAnalysis } from '../queries';
 import { AnalysisFilterBar } from './AnalysisFilterBar';
 import { AnalysisKpis } from './AnalysisKpis';
 import { AvailabilityScatterChart } from './AvailabilityScatterChart';
+import { DependencySection } from './DependencySection';
 import { MemberDaysChart } from './MemberDaysChart';
 import { MemberMonthHeatmap } from './MemberMonthHeatmap';
 import { WeeklyStaffingChart } from './WeeklyStaffingChart';
@@ -26,13 +33,12 @@ export function SeasonAnalysisPage(props: Props) {
   const [countScope, setCountScope] = useState<CountScope>('allDepartments');
   const query = useSeasonAnalysis(props.season);
   const data = query.data;
-  const view = useMemo(
-    () =>
-      data
-        ? buildAnalysisView(data, { department: props.department, includeDrafts, countScope })
-        : null,
-    [data, props.department, includeDrafts, countScope],
+  const filters = useMemo<AnalysisFilters>(
+    () => ({ department: props.department, includeDrafts, countScope }),
+    [props.department, includeDrafts, countScope],
   );
+  const view = useMemo(() => (data ? buildAnalysisView(data, filters) : null), [data, filters]);
+  const dependency = useMemo(() => (data ? buildDependency(data, filters) : null), [data, filters]);
 
   return (
     <Stack gap="lg">
@@ -71,6 +77,11 @@ export function SeasonAnalysisPage(props: Props) {
           <Card withBorder padding="md">
             <WeeklyStaffingChart weeks={view.weeks} />
           </Card>
+          {dependency && (
+            <Card withBorder padding="md">
+              <DependencySection departments={dependency} />
+            </Card>
+          )}
         </Stack>
       )}
     </Stack>

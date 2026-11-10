@@ -162,6 +162,76 @@ describe('GET /api/season-analysis', () => {
     expect(body.availabilityExceptions.map((a) => a.type).sort()).toEqual(['AVOID', 'UNAVAILABLE']);
   });
 
+  it('配置ごとの最上位の資格ランクと、部門×シフト種別のランク定義を返す', async () => {
+    const db = createDb(env.DB);
+    const [shiftType] = await db.insert(shiftTypes).values({ name: '午前' }).returning();
+    const [frame] = await db
+      .insert(departmentShiftTypes)
+      .values({ departmentCode: 'ski', shiftTypeId: shiftType!.id, sortOrder: 1 })
+      .returning();
+    const [top, mid] = await db
+      .insert(certifications)
+      .values([
+        { departmentCode: 'ski', name: '指導員', shortName: '指導員', organization: 'SAJ' },
+        { departmentCode: 'ski', name: '準指導員', shortName: '準', organization: 'SAJ' },
+      ])
+      .returning();
+    await db.insert(certificationRequirements).values([
+      { departmentShiftTypeId: frame!.id, certificationId: top!.id, tierRank: 1 },
+      { departmentShiftTypeId: frame!.id, certificationId: mid!.id, tierRank: 2 },
+    ]);
+    const [both, midOnly, none] = await db
+      .insert(instructors)
+      .values([
+        { lastName: '両方', firstName: '一', status: 'ACTIVE' },
+        { lastName: '準', firstName: '二', status: 'ACTIVE' },
+        { lastName: '無', firstName: '三', status: 'ACTIVE' },
+      ])
+      .returning();
+    await db.insert(instructorCertifications).values([
+      { instructorId: both!.id, certificationId: top!.id },
+      { instructorId: both!.id, certificationId: mid!.id },
+      { instructorId: midOnly!.id, certificationId: mid!.id },
+    ]);
+    const [shift] = await db
+      .insert(shifts)
+      .values({ date: date('2026-12-01'), departmentCode: 'ski', shiftTypeId: shiftType!.id })
+      .returning();
+    await db.insert(shiftAssignments).values([
+      { shiftId: shift!.id, instructorId: both!.id },
+      { shiftId: shift!.id, instructorId: midOnly!.id },
+      { shiftId: shift!.id, instructorId: none!.id },
+    ]);
+
+    const token = await seedToken('MANAGER');
+    const res = await app.request(
+      '/api/season-analysis?season=2026',
+      authHeader(token),
+      envWith({}),
+    );
+    expect(res.status).toBe(200);
+    const body = seasonAnalysisSchema.parse(await res.json());
+    const rankOf = (id: string) => body.assignments.find((a) => a.instructorId === id)?.tierRank;
+    // 複数の要件資格を持つ人は最上位（小さい方）のランク、該当なしは null
+    expect(rankOf(both!.id)).toBe(1);
+    expect(rankOf(midOnly!.id)).toBe(2);
+    expect(rankOf(none!.id)).toBeNull();
+    expect(body.tierDefinitions).toEqual([
+      {
+        departmentCode: 'ski',
+        shiftTypeId: shiftType!.id,
+        tierRank: 1,
+        certificationShortName: '指導員',
+      },
+      {
+        departmentCode: 'ski',
+        shiftTypeId: shiftType!.id,
+        tierRank: 2,
+        certificationShortName: '準',
+      },
+    ]);
+  });
+
   it('MANAGER 未満を拒否し、不正な season を拒否する', async () => {
     const memberToken = await seedToken('MEMBER');
     const managerToken = await seedToken('MANAGER');

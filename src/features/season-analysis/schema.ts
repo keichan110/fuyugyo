@@ -31,6 +31,16 @@ export const analysisAssignmentSchema = z.object({
   departmentCode: departmentCodeSchema,
   shiftTypeId: z.string(),
   shiftStatus: z.enum(['DRAFT', 'PUBLISHED']),
+  /** その人が枠の必要資格のうち持つ最上位ランク（1が最上位）。該当なしは null */
+  tierRank: z.number().int().nullable(),
+});
+
+/** 部門×シフト種別ごとの資格ランク定義（ランクと資格の短縮名） */
+export const analysisTierDefinitionSchema = z.object({
+  departmentCode: departmentCodeSchema,
+  shiftTypeId: z.string(),
+  tierRank: z.number().int(),
+  certificationShortName: z.string(),
 });
 
 /** 枠1件（充足状況の集計用） */
@@ -59,10 +69,12 @@ export const seasonAnalysisSchema = z.object({
   assignments: z.array(analysisAssignmentSchema),
   shifts: z.array(analysisShiftSchema),
   availabilityExceptions: z.array(analysisAvailabilityExceptionSchema),
+  tierDefinitions: z.array(analysisTierDefinitionSchema),
 });
 
 export type SeasonAnalysis = z.infer<typeof seasonAnalysisSchema>;
 export type AnalysisInstructor = z.infer<typeof analysisInstructorSchema>;
 export type AnalysisAssignment = z.infer<typeof analysisAssignmentSchema>;
+export type AnalysisTierDefinition = z.infer<typeof analysisTierDefinitionSchema>;
 export type AnalysisShift = z.infer<typeof analysisShiftSchema>;
 export type AnalysisAvailabilityException = z.infer<typeof analysisAvailabilityExceptionSchema>;

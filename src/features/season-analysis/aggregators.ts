@@ -98,12 +98,12 @@ export function median(values: number[]): number {
 }
 
 /** 下書き枠を含めるかの判定 */
-function isVisible(status: 'DRAFT' | 'PUBLISHED', includeDrafts: boolean): boolean {
+export function isVisible(status: 'DRAFT' | 'PUBLISHED', includeDrafts: boolean): boolean {
   return includeDrafts || status === 'PUBLISHED';
 }
 
 /** 個人の負荷・勤務可能日数・月別の集計対象となる部門か */
-function isInCountScope(departmentCode: DepartmentCode, filters: AnalysisFilters): boolean {
+export function isInCountScope(departmentCode: DepartmentCode, filters: AnalysisFilters): boolean {
   return (
     filters.countScope === 'allDepartments' ||
     filters.department === 'all' ||
@@ -112,7 +112,7 @@ function isInCountScope(departmentCode: DepartmentCode, filters: AnalysisFilters
 }
 
 /** 部門フィルタ（枠の充足・対象メンバー選定）に合致する部門か */
-function matchesDepartmentFilter(
+export function matchesDepartmentFilter(
   departmentCode: DepartmentCode,
   filter: DepartmentFilter,
 ): boolean {
@@ -147,8 +147,8 @@ export function selectMemberIds(data: SeasonAnalysis, filters: AnalysisFilters):
   return ids;
 }
 
-/** 勤務日（日付→部門集合）を人別に集める。集計範囲外の部門は含めない */
-function collectWorkDates(
+/** 勤務日（日付→部門集合）を人別に集める。集計範囲外の部門は含めない。連勤・比較など他の集計とも共有する */
+export function collectWorkDates(
   data: SeasonAnalysis,
   filters: AnalysisFilters,
   memberIds: Set<string>,
@@ -230,7 +230,7 @@ export function countAvailability(
   return { availableDays: shiftDates.size - unavailable, avoidDays: avoid };
 }
 
-function phaseOf(date: string, today: string): keyof PhaseDays {
+export function phaseOf(date: string, today: string): keyof PhaseDays {
   return date < today ? 'past' : 'future';
 }
 

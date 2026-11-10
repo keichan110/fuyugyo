@@ -16,11 +16,11 @@ type AnalysisSearch = {
 };
 
 /**
- * `/shifts/analysis` — シーズン分析。
+ * `/analysis/season` — シーズン分析。
  *
- * 認証は親レイアウト（`shifts/route.tsx`）で担保済み。ここでは MANAGER 以上のロールチェックのみを行う。
+ * 認証は親レイアウト（`analysis/route.tsx`）で担保済み。ここでは MANAGER 以上のロールチェックのみを行う。
  */
-export const Route = createFileRoute('/shifts/analysis')({
+export const Route = createFileRoute('/analysis/season')({
   validateSearch: (search: Record<string, unknown>): AnalysisSearch => {
     const season = Number(search.season);
     const department = departmentCodeSchema.safeParse(search.department);

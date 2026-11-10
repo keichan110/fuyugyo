@@ -1,15 +1,5 @@
-import {
-  Container,
-  Divider,
-  Group,
-  SimpleGrid,
-  Stack,
-  Text,
-  Title,
-  UnstyledButton,
-} from '@mantine/core';
-import { IconChartBar, IconChevronRight } from '@tabler/icons-react';
-import { Link } from '@tanstack/react-router';
+import { Container, Group, SimpleGrid, Stack, Text, Title, UnstyledButton } from '@mantine/core';
+import { IconChevronRight } from '@tabler/icons-react';
 
 import { getDepartmentAppearance } from '@/features/departments/appearance';
 import { departmentCodeSchema, type DepartmentCode } from '@/features/departments/schema';
@@ -52,26 +42,6 @@ export function ShiftDepartmentEntry({
             );
           })}
         </SimpleGrid>
-        <Divider label="部門に紐づかない分析" labelPosition="center" />
-        <UnstyledButton
-          className={classes.choice}
-          component={Link}
-          to="/shifts/analysis"
-          aria-label="シーズン分析を開く"
-        >
-          <Group gap="md" wrap="nowrap">
-            <IconChartBar size={36} stroke={1.5} aria-hidden />
-            <Stack gap={2} flex={1}>
-              <Text fw={600} size="lg">
-                シーズン分析
-              </Text>
-              <Text size="sm" c="dimmed">
-                シーズンを通した配置の傾向を見る
-              </Text>
-            </Stack>
-            <IconChevronRight size={18} aria-hidden />
-          </Group>
-        </UnstyledButton>
       </Stack>
     </Container>
   );

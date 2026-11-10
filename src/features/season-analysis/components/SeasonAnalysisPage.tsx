@@ -10,6 +10,7 @@ import {
   type CountScope,
   type DepartmentFilter,
 } from '../aggregators';
+import { buildComparison } from '../comparison';
 import { buildConsecutive } from '../consecutive';
 import { buildDependency } from '../dependency';
 import { useSeasonAnalysis } from '../queries';
@@ -20,6 +21,7 @@ import { ConsecutiveWorkSection } from './ConsecutiveWorkSection';
 import { DependencySection } from './DependencySection';
 import { MemberDaysChart } from './MemberDaysChart';
 import { MemberMonthHeatmap } from './MemberMonthHeatmap';
+import { SeasonComparisonSection } from './SeasonComparisonSection';
 import { WeeklyStaffingChart } from './WeeklyStaffingChart';
 
 type Props = {
@@ -35,6 +37,8 @@ export function SeasonAnalysisPage(props: Props) {
   const [countScope, setCountScope] = useState<CountScope>('allDepartments');
   const query = useSeasonAnalysis(props.season);
   const data = query.data;
+  const previousQuery = useSeasonAnalysis(props.season - 1);
+  const previousData = previousQuery.data;
   const filters = useMemo<AnalysisFilters>(
     () => ({ department: props.department, includeDrafts, countScope }),
     [props.department, includeDrafts, countScope],
@@ -45,6 +49,10 @@ export function SeasonAnalysisPage(props: Props) {
     [data, filters],
   );
   const dependency = useMemo(() => (data ? buildDependency(data, filters) : null), [data, filters]);
+  const comparison = useMemo(
+    () => (data && previousData ? buildComparison(data, previousData, filters) : null),
+    [data, previousData, filters],
+  );
 
   return (
     <Stack gap="lg">
@@ -93,6 +101,13 @@ export function SeasonAnalysisPage(props: Props) {
               <DependencySection departments={dependency} />
             </Card>
           )}
+          <Card withBorder padding="md">
+            <SeasonComparisonSection
+              view={comparison}
+              season={props.season}
+              isLoading={previousQuery.isPending}
+            />
+          </Card>
         </Stack>
       )}
     </Stack>

@@ -65,6 +65,13 @@
   pointer-events: none;
 }
 
+/* 日付番号の右隣に置く。狭いセルではモバイル用の日付リストに任せて隠す */
+.headerWeather {
+  display: inline-flex;
+  flex-shrink: 0;
+  pointer-events: none;
+}
+
 .stagedDot {
   flex-shrink: 0;
   width: 8px;
@@ -246,7 +253,8 @@
     height: 5px;
   }
 
-  .descriptionIcon {
+  .descriptionIcon,
+  .headerWeather {
     display: none;
   }
 

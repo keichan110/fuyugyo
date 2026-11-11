@@ -23,6 +23,7 @@ import { AppButton } from '@/components/AppButton';
 import { useMe } from '@/features/auth/queries';
 import { getDepartmentAppearance } from '@/features/departments/appearance';
 import { departmentCodeSchema, type DepartmentCode } from '@/features/departments/schema';
+import { DailyWeather, useWeatherByDate, WeatherAttribution } from '@/features/weather';
 
 import { containsInstructorAssignment, filterAgendaDaysByInstructor } from '../aggregators';
 import { pickPrintTargetDate } from '../print-target';
@@ -214,6 +215,7 @@ export function ShiftAgendaViewer({ date, onVisibleDateChange }: ShiftAgendaView
         )}
 
         <AgendaDayList days={filteredDays} myInstructorId={myInstructorId} />
+        <WeatherAttribution />
 
         <Box ref={sentinelRef} mih={1} />
         {future.isFetchingNextPage && (
@@ -279,6 +281,8 @@ function measurePrintTargetMonth(fallbackDate: string): string {
 type ShiftEventPayload = {
   shift: ShiftViewItem;
   includesMe: boolean;
+  /** 同日の先頭イベントだけ天気を表示する（見出しは文字列しか受け取れないため） */
+  showWeather: boolean;
 };
 
 /** 稼働日を月ごとにグルーピングする（月が変わったことを識別しやすくするため、月ごとに 1つの AgendaView を描画する） */
@@ -311,7 +315,7 @@ function buildMonthEvents(
 ): ScheduleEventData<ShiftEventPayload>[] {
   const events: ScheduleEventData<ShiftEventPayload>[] = [];
   for (const day of days) {
-    for (const shift of day.shifts) {
+    for (const [index, shift] of day.shifts.entries()) {
       events.push({
         id: shift.id,
         title: shift.shiftType.name,
@@ -322,6 +326,7 @@ function buildMonthEvents(
         payload: {
           shift,
           includesMe: containsInstructorAssignment(shift, myInstructorId),
+          showWeather: index === 0,
         },
       });
     }
@@ -337,6 +342,7 @@ function AgendaDayList({
   myInstructorId: string | null;
 }) {
   const monthGroups = groupDaysByMonth(days);
+  const weatherByDate = useWeatherByDate();
 
   return (
     <Stack gap="sm">
@@ -377,6 +383,11 @@ function AgendaDayList({
                       }
                     />
                     <ShiftAttendeeRow shift={payload.shift} myInstructorId={myInstructorId} />
+                    {payload.showWeather && (
+                      <Box className={classes.weather}>
+                        <DailyWeather day={weatherByDate.get(payload.shift.date)} />
+                      </Box>
+                    )}
                   </Box>
                 </UnstyledButton>
               );

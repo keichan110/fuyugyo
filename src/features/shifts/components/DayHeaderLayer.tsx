@@ -1,6 +1,8 @@
 import { Box } from '@mantine/core';
 import { IconAlertTriangle, IconCircleCheck, IconMessage } from '@tabler/icons-react';
 
+import { DailyWeather, useWeatherByDate } from '@/features/weather';
+
 import type { HeaderEventPayload } from './calendar-events';
 import classes from './ShiftManager.module.css';
 
@@ -12,8 +14,15 @@ type DayHeaderLayerProps = {
 
 /** 日付セルの状態を重ねて表示する。タップは下のセルへ透過し、日付選択に統一する。 */
 export function DayHeaderLayer({ payload, style }: DayHeaderLayerProps) {
+  const weather = useWeatherByDate().get(payload.date);
+
   return (
     <Box style={style} className={classes.headerLayer}>
+      {weather && (
+        <Box component="span" className={classes.headerWeather}>
+          <DailyWeather day={weather} size="compact" />
+        </Box>
+      )}
       {payload.staged && (
         <Box className={classes.stagedDot} role="img" aria-label="未保存の変更あり" />
       )}

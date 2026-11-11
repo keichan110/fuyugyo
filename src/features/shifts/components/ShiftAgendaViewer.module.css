@@ -32,3 +32,9 @@
   border-radius: 2px;
   flex-shrink: 0;
 }
+
+/* 天気は日付見出しに置けないため、同日先頭イベントの右端に控えめに添える */
+.weather {
+  flex-shrink: 0;
+  align-self: flex-start;
+}

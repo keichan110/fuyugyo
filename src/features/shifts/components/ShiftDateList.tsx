@@ -4,6 +4,7 @@ import { Box, Group, Stack, Text, UnstyledButton } from '@mantine/core';
 
 import { AppBadge } from '@/components/AppBadge';
 import type { Availability } from '@/features/availabilities/schema';
+import { DailyWeather, useWeatherByDate } from '@/features/weather';
 
 import { getCalendarDayColor, shortDateLabel } from '../view-utils';
 import { AssignedAvailabilityIcon } from './AssignedAvailabilityIcon';
@@ -55,6 +56,7 @@ export function ShiftDateList({
   onSelectDate,
 }: ShiftDateListProps) {
   const descriptionId = useId();
+  const weatherByDate = useWeatherByDate();
 
   return (
     <Stack gap={0} className={classes.dateList} role="group" aria-label="月の配置日付リスト">
@@ -88,9 +90,12 @@ export function ShiftDateList({
             aria-pressed={selected}
             onClick={() => onSelectDate(date)}
           >
-            <Text component="span" size="sm" fw={600} c={getCalendarDayColor(date) ?? 'inherit'}>
-              {shortDateLabel(date)}
-            </Text>
+            <Stack gap={2} align="flex-start">
+              <Text component="span" size="sm" fw={600} c={getCalendarDayColor(date) ?? 'inherit'}>
+                {shortDateLabel(date)}
+              </Text>
+              <DailyWeather day={weatherByDate.get(date)} size="compact" />
+            </Stack>
             <Stack gap={5} miw={0} id={`${descriptionId}-${date}`}>
               <Group gap="xs" wrap="wrap">
                 <Text

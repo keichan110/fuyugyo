@@ -258,7 +258,7 @@ function toFillRate(required: number, assigned: number): FillRate {
 }
 
 /** 日付を含む週の月曜日 */
-function weekStartOf(date: string): string {
+export function weekStartOf(date: string): string {
   return addDays(date, -((weekdayIndex(date) + 6) % 7));
 }
 

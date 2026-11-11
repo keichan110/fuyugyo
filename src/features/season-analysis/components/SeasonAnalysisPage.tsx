@@ -7,7 +7,7 @@ import { seasonName } from '@/features/shifts/season';
 
 import { buildAnalysisView, type AnalysisFilters, type DepartmentFilter } from '../aggregators';
 import { buildComparison, comparisonPeriodLabel } from '../comparison';
-import { buildConsecutive } from '../consecutive';
+import { buildBurden } from '../consecutive';
 import { buildDependency } from '../dependency';
 import { useSeasonAnalysis } from '../queries';
 import { buildShiftTypeMix } from '../shift-type-mix';
@@ -16,7 +16,6 @@ import { AnalysisFilterBar } from './AnalysisFilterBar';
 import { AnalysisKpis } from './AnalysisKpis';
 import { AnalysisPanel } from './AnalysisPanel';
 import { AvailabilityScatterChart } from './AvailabilityScatterChart';
-import { ConsecutiveWorkSection } from './ConsecutiveWorkSection';
 import { DependencySection } from './DependencySection';
 import { MemberDaysChart } from './MemberDaysChart';
 import { MemberMonthHeatmap } from './MemberMonthHeatmap';
@@ -27,6 +26,7 @@ import {
 } from './SeasonComparisonSection';
 import { ShiftTypeMixChart } from './ShiftTypeMixChart';
 import { WeeklyStaffingChart } from './WeeklyStaffingChart';
+import { BurdenSummary, WeeklyWorkHeatmap, WorkBurdenTable } from './WorkBurden';
 
 type Props = {
   season: number;
@@ -47,10 +47,7 @@ export function SeasonAnalysisPage(props: Props) {
     [props.department, includeDrafts],
   );
   const view = useMemo(() => (data ? buildAnalysisView(data, filters) : null), [data, filters]);
-  const consecutive = useMemo(
-    () => (data ? buildConsecutive(data, filters) : null),
-    [data, filters],
-  );
+  const burden = useMemo(() => (data ? buildBurden(data, filters) : null), [data, filters]);
   const shiftTypeMix = useMemo(
     () => (data ? buildShiftTypeMix(data, filters) : null),
     [data, filters],
@@ -148,17 +145,40 @@ export function SeasonAnalysisPage(props: Props) {
               </Grid.Col>
             </Grid>
           </AnalysisBlock>
-          {consecutive && (
+          {burden && (
             <AnalysisBlock title="負担" question="負担の重い入り方をしていないかを見る">
-              <Grid>
-                <Grid.Col span={12}>
-                  <AnalysisPanel title="連勤">
-                    {(expanded) => (
-                      <ConsecutiveWorkSection view={consecutive} expanded={expanded} />
-                    )}
-                  </AnalysisPanel>
-                </Grid.Col>
-              </Grid>
+              <Stack gap="sm">
+                <BurdenSummary view={burden} />
+                <Grid>
+                  <Grid.Col span={{ base: 12, md: 6 }}>
+                    <AnalysisPanel
+                      title="人×週の勤務パターン"
+                      scrollable={false}
+                      description="セルは週（月曜始まり、見出しは月曜日）の勤務日数。1日でも勤務があれば勤務週で、勤務のない週で連続は途切れます。斜線は予定のみの週。"
+                    >
+                      {(expanded) => (
+                        <WeeklyWorkHeatmap
+                          view={burden}
+                          department={props.department}
+                          expanded={expanded}
+                        />
+                      )}
+                    </AnalysisPanel>
+                  </Grid.Col>
+                  <Grid.Col span={{ base: 12, md: 6 }}>
+                    <AnalysisPanel
+                      title="負担の一覧"
+                      description={`連勤は暦日で連続した勤務日。連続勤務週は勤務週が続く数。直近は基準週から遡った実施済みの週数。列見出しで並べ替え。${
+                        burden.excludedCount > 0
+                          ? ` 勤務のない${burden.excludedCount}名は除外。`
+                          : ''
+                      }`}
+                    >
+                      {() => <WorkBurdenTable view={burden} />}
+                    </AnalysisPanel>
+                  </Grid.Col>
+                </Grid>
+              </Stack>
             </AnalysisBlock>
           )}
           <AnalysisBlock

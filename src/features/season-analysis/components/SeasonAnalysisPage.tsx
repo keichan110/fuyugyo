@@ -7,7 +7,6 @@ import { seasonName } from '@/features/shifts/season';
 
 import { buildAnalysisView, type AnalysisFilters, type DepartmentFilter } from '../aggregators';
 import { buildComparison, comparisonPeriodLabel } from '../comparison';
-import { buildBurden } from '../consecutive';
 import { buildDependency } from '../dependency';
 import { useSeasonAnalysis } from '../queries';
 import { buildShiftTypeMix } from '../shift-type-mix';
@@ -26,7 +25,6 @@ import {
 } from './SeasonComparisonSection';
 import { ShiftTypeMixChart } from './ShiftTypeMixChart';
 import { WeeklyStaffingChart } from './WeeklyStaffingChart';
-import { WorkBurden } from './WorkBurden';
 
 type Props = {
   season: number;
@@ -47,7 +45,6 @@ export function SeasonAnalysisPage(props: Props) {
     [props.department, includeDrafts],
   );
   const view = useMemo(() => (data ? buildAnalysisView(data, filters) : null), [data, filters]);
-  const burden = useMemo(() => (data ? buildBurden(data, filters) : null), [data, filters]);
   const shiftTypeMix = useMemo(
     () => (data ? buildShiftTypeMix(data, filters) : null),
     [data, filters],
@@ -145,11 +142,6 @@ export function SeasonAnalysisPage(props: Props) {
               </Grid.Col>
             </Grid>
           </AnalysisBlock>
-          {burden && (
-            <AnalysisBlock title="負担" question="負担の重い入り方をしていないかを見る">
-              <WorkBurden view={burden} department={props.department} />
-            </AnalysisBlock>
-          )}
           <AnalysisBlock
             title="枠・体制"
             question="枠が足りない時期や、特定の人への依存はないかを見る"

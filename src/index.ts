@@ -1,3 +1,4 @@
+import type { ExecutionContext, ScheduledController } from '@cloudflare/workers-types';
 import { Hono } from 'hono';
 import { csrf } from 'hono/csrf';
 import { HTTPException } from 'hono/http-exception';
@@ -16,6 +17,8 @@ import { shiftTypesRoute } from '@/features/shift-types/api';
 import { shiftsRoute } from '@/features/shifts/api';
 import { usersRoute } from '@/features/users/api';
 import { weatherRoute } from '@/features/weather/api';
+import { createDb } from '@/server/db/client';
+import { runWeatherFetch } from '@/server/weather-fetcher';
 import type { Env } from '@/server/types';
 
 const app = new Hono<{ Bindings: Env }>();
@@ -60,4 +63,13 @@ const routes = app
 /** Hono RPC 用のアプリ型。クライアントは `import type { AppType }` でのみ参照する。 */
 export type AppType = typeof routes;
 
-export default routes;
+/**
+ * Cron Trigger のハンドラ。天気予報の取得を `waitUntil` に載せ、
+ * 完了を待たずにハンドラを返す（失敗は `runWeatherFetch` がログに残す）。
+ */
+function scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): void {
+  ctx.waitUntil(runWeatherFetch(createDb(env.DB), { now: new Date(), fetchFn: fetch }));
+}
+
+// Hono アプリに scheduled を足して export する。`fetch` / `request` はそのまま使える
+export default Object.assign(routes, { scheduled });

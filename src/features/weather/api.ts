@@ -112,25 +112,31 @@ export const weatherRoute = new Hono<{
 
     if (days.length === 0) return c.json({ days: [], lastFetchedAt: null });
 
-    const [lastOk] = await db
-      .select({ fetchedAt: weatherFetchLogs.fetchedAt })
-      .from(weatherFetchLogs)
-      .where(
-        and(
-          eq(weatherFetchLogs.pointId, point.id),
-          eq(weatherFetchLogs.source, WEATHER_SOURCE),
-          eq(weatherFetchLogs.ok, true),
-        ),
-      )
-      .orderBy(desc(weatherFetchLogs.fetchedAt))
-      .limit(1);
-    const [state] = await db
-      .select({ lastFetchedAt: weatherFetchState.lastFetchedAt })
-      .from(weatherFetchState)
-      .where(
-        and(eq(weatherFetchState.pointId, point.id), eq(weatherFetchState.source, WEATHER_SOURCE)),
-      )
-      .limit(1);
+    // 最終取得時刻の2クエリは互いに独立なので並列に実行する
+    const [[lastOk], [state]] = await Promise.all([
+      db
+        .select({ fetchedAt: weatherFetchLogs.fetchedAt })
+        .from(weatherFetchLogs)
+        .where(
+          and(
+            eq(weatherFetchLogs.pointId, point.id),
+            eq(weatherFetchLogs.source, WEATHER_SOURCE),
+            eq(weatherFetchLogs.ok, true),
+          ),
+        )
+        .orderBy(desc(weatherFetchLogs.fetchedAt))
+        .limit(1),
+      db
+        .select({ lastFetchedAt: weatherFetchState.lastFetchedAt })
+        .from(weatherFetchState)
+        .where(
+          and(
+            eq(weatherFetchState.pointId, point.id),
+            eq(weatherFetchState.source, WEATHER_SOURCE),
+          ),
+        )
+        .limit(1),
+    ]);
 
     return c.json({ days, lastFetchedAt: lastOk?.fetchedAt ?? state?.lastFetchedAt ?? null });
   })

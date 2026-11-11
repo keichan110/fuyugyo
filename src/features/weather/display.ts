@@ -64,6 +64,16 @@ function normalizeZero(value: number): number {
   return rounded === 0 ? 0 : rounded;
 }
 
+/** 最終更新時刻用のフォーマッタ（生成コストが高いためモジュールで使い回す） */
+const fetchedAtFormatter = new Intl.DateTimeFormat('ja-JP', {
+  timeZone: 'Asia/Tokyo',
+  month: 'numeric',
+  day: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+});
+
 /**
  * 最終更新時刻を JST の `11/12 09:23` 形式にする。
  *
@@ -71,14 +81,7 @@ function normalizeZero(value: number): number {
  * @returns 整形した文字列
  */
 export function formatFetchedAt(date: Date): string {
-  const parts = new Intl.DateTimeFormat('ja-JP', {
-    timeZone: 'Asia/Tokyo',
-    month: 'numeric',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-  }).formatToParts(date);
+  const parts = fetchedAtFormatter.formatToParts(date);
   const get = (type: string) => parts.find((part) => part.type === type)?.value ?? '';
   return `${get('month')}/${get('day')} ${get('hour')}:${get('minute')}`;
 }

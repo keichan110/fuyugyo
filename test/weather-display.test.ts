@@ -3,6 +3,10 @@ import { describe, expect, it } from 'vitest';
 import {
   formatFetchedAt,
   formatPrecipitationWind,
+  formatStepPrecipitation,
+  formatStepTemperature,
+  formatStepTimeLabel,
+  formatStepWind,
   formatTemperature,
   pickConditions,
 } from '../src/features/weather/display';
@@ -58,5 +62,36 @@ describe('formatPrecipitationWind', () => {
 describe('formatFetchedAt', () => {
   it('JST に変換して月/日 時:分で表示する', () => {
     expect(formatFetchedAt(new Date('2026-11-12T00:23:00Z'))).toBe('11/12 09:23');
+  });
+});
+
+describe('formatStepTimeLabel', () => {
+  // 2026-11-12 00:00 JST = 2026-11-11T15:00:00Z
+  const jst = (hour: number) => new Date(Date.UTC(2026, 10, 11, 15 + hour));
+
+  it('1時間刻みは開始時のみ（JST）', () => {
+    expect(formatStepTimeLabel(jst(0), 1)).toBe('0時');
+    expect(formatStepTimeLabel(jst(6), 1)).toBe('6時');
+  });
+
+  it('6時間刻みは範囲で表示し、深夜をまたぐと24時を越えた分は折り返す', () => {
+    expect(formatStepTimeLabel(jst(9), 6)).toBe('9–15時');
+    expect(formatStepTimeLabel(jst(21), 6)).toBe('21–3時');
+    expect(formatStepTimeLabel(jst(18), 6)).toBe('18–0時');
+  });
+});
+
+describe('時間別の値の整形', () => {
+  it('気温は整数に丸め、null は -', () => {
+    expect(formatStepTemperature(-2.6)).toBe('-3°');
+    expect(formatStepTemperature(-0.1)).toBe('0°');
+    expect(formatStepTemperature(null)).toBe('-');
+  });
+
+  it('降水は0.1mm単位、風は整数、null は -', () => {
+    expect(formatStepPrecipitation(0.24)).toBe('0.2');
+    expect(formatStepPrecipitation(null)).toBe('-');
+    expect(formatStepWind(4.6)).toBe('5');
+    expect(formatStepWind(null)).toBe('-');
   });
 });

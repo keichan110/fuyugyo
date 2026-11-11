@@ -32,9 +32,3 @@
   border-radius: 2px;
   flex-shrink: 0;
 }
-
-/* 天気行はシフト行より控えめに、薄く小さく表示する */
-.weatherRow {
-  padding: 4px var(--mantine-spacing-sm);
-  font-size: var(--mantine-font-size-xs);
-}

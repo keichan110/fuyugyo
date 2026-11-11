@@ -10,13 +10,18 @@ import {
   weatherDailyResponseSchema,
   weatherPointResponseSchema,
   weatherPointSchema,
+  weatherStepsResponseSchema,
   type UpdateWeatherPointInput,
   type WeatherDailyResponse,
   type WeatherPoint,
+  type WeatherStep,
 } from './schema';
 
 /** API エラーレスポンスのスキーマ（型アサーションを避けるためランタイム検証する） */
 const apiErrorSchema = z.object({ message: z.string().optional() });
+
+/** 時間別ステップのクエリキー */
+export const WEATHER_STEPS_QUERY_KEY = ['weather', 'steps'] as const;
 
 /** 予報地点のクエリキー */
 export const WEATHER_POINT_QUERY_KEY = ['weather', 'point'] as const;
@@ -59,6 +64,7 @@ export function useUpdateWeatherPoint() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: WEATHER_POINT_QUERY_KEY });
       void queryClient.invalidateQueries({ queryKey: WEATHER_DAILY_QUERY_KEY });
+      void queryClient.invalidateQueries({ queryKey: WEATHER_STEPS_QUERY_KEY });
     },
   });
 }
@@ -74,6 +80,26 @@ export function useWeatherDaily() {
         throw new Error('天気予報の取得に失敗しました');
       }
       return weatherDailyResponseSchema.parse(await res.json());
+    },
+  });
+}
+
+/**
+ * 指定日（JST）の時間別ステップを取得する。展開したときだけ取得する遅延クエリ。
+ * @param date - 'YYYY-MM-DD'
+ * @param enabled - false の間は取得しない
+ */
+export function useWeatherSteps(date: string, enabled: boolean) {
+  return useQuery<WeatherStep[]>({
+    queryKey: [...WEATHER_STEPS_QUERY_KEY, date],
+    enabled,
+    staleTime: WEATHER_DAILY_STALE_TIME,
+    queryFn: async () => {
+      const res = await client.api.weather.steps.$get({ query: { date } });
+      if (!res.ok) {
+        throw new Error('時間別の天気の取得に失敗しました');
+      }
+      return weatherStepsResponseSchema.parse(await res.json()).steps;
     },
   });
 }

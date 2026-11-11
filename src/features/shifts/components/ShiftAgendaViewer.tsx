@@ -23,7 +23,7 @@ import { AppButton } from '@/components/AppButton';
 import { useMe } from '@/features/auth/queries';
 import { getDepartmentAppearance } from '@/features/departments/appearance';
 import { departmentCodeSchema, type DepartmentCode } from '@/features/departments/schema';
-import { DailyWeather, useWeatherByDate, WeatherAttribution } from '@/features/weather';
+import { useWeatherByDate, WeatherAttribution, WeatherDayRow } from '@/features/weather';
 import type { DaySummary } from '@/features/weather/daily';
 
 import { containsInstructorAssignment, filterAgendaDaysByInstructor } from '../aggregators';
@@ -375,12 +375,10 @@ function AgendaDayList({
               // （events はこのコンポーネント自身が組み立てているため安全）
               const payload = event.payload as ShiftEventPayload;
               if (payload.kind === 'weather') {
-                // 天気行は操作対象ではないため、ボタンにせずレイアウト用の props だけ引き継ぐ
+                // 天気行は開閉だけの行のため、AgendaView の click 等は引き継がず見た目の props だけ使う
                 return (
                   <Box className={props.className} style={props.style}>
-                    <Box className={classes.weatherRow}>
-                      <DailyWeather day={payload.day} showDetails />
-                    </Box>
+                    <WeatherDayRow day={payload.day} />
                   </Box>
                 );
               }

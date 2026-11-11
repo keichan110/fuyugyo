@@ -78,3 +78,47 @@ export function formatFetchedAt(date: Date): string {
   const get = (type: string) => parts.find((part) => part.type === type)?.value ?? '';
   return `${get('month')}/${get('day')} ${get('hour')}:${get('minute')}`;
 }
+
+/**
+ * 時間別ステップの時刻ラベルを JST で作る。1時間刻みは `6時`、6時間刻みは `9–15時`
+ * （深夜をまたぐ場合は `21–3時`）。
+ *
+ * @param time - ステップの開始時刻
+ * @param stepHours - ステップの時間数（1 または 6）
+ * @returns 時刻ラベル
+ */
+export function formatStepTimeLabel(time: Date, stepHours: number): string {
+  const startHour = new Date(time.getTime() + 9 * 60 * 60 * 1000).getUTCHours();
+  if (stepHours <= 1) return `${startHour}時`;
+  return `${startHour}–${(startHour + stepHours) % 24}時`;
+}
+
+/**
+ * 時間別の気温を `-3°` 形式にする（整数に丸め、値がなければ `-`）。
+ *
+ * @param value - 気温（℃）
+ * @returns 表示文字列
+ */
+export function formatStepTemperature(value: number | null): string {
+  return value === null ? '-' : `${normalizeZero(value)}°`;
+}
+
+/**
+ * 時間別の降水量を 0.1mm 単位で表示する（値がなければ `-`）。
+ *
+ * @param value - 降水量（mm）
+ * @returns 表示文字列
+ */
+export function formatStepPrecipitation(value: number | null): string {
+  return value === null ? '-' : value.toFixed(1);
+}
+
+/**
+ * 時間別の風速を整数で表示する（値がなければ `-`）。
+ *
+ * @param value - 風速（m/s）
+ * @returns 表示文字列
+ */
+export function formatStepWind(value: number | null): string {
+  return value === null ? '-' : String(Math.round(value));
+}

@@ -1,0 +1,81 @@
+/* 日別の天気行。シフト行より控えめに、薄く小さく表示する */
+.toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--mantine-spacing-xs);
+  width: 100%;
+  padding: 4px var(--mantine-spacing-sm);
+  font-size: var(--mantine-font-size-xs);
+}
+
+@media (hover: hover) {
+  .toggle:hover {
+    background-color: var(--mantine-color-gray-0);
+  }
+
+  :where([data-mantine-color-scheme='dark']) .toggle:hover {
+    background-color: var(--mantine-color-dark-6);
+  }
+}
+
+.chevron {
+  flex-shrink: 0;
+  transition: transform 150ms ease;
+}
+
+.toggle[aria-expanded='true'] .chevron {
+  transform: rotate(180deg);
+}
+
+.hourly {
+  padding: 0 var(--mantine-spacing-sm) var(--mantine-spacing-xs);
+}
+
+/* 行ラベルを左に固定し、時間列だけ横スクロールさせる */
+.strip {
+  display: flex;
+  gap: var(--mantine-spacing-xs);
+  font-size: var(--mantine-font-size-xs);
+  color: var(--mantine-color-dimmed);
+}
+
+.labels,
+.column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.labels {
+  align-items: flex-start;
+  white-space: nowrap;
+}
+
+.scroller {
+  display: flex;
+  gap: var(--mantine-spacing-xs);
+  overflow-x: auto;
+  min-width: 0;
+  scrollbar-width: thin;
+}
+
+.column {
+  min-width: 2.5rem;
+  white-space: nowrap;
+}
+
+/* 6時間刻みの列は時刻範囲が長いので少し広げる */
+.columnWide {
+  min-width: 3.5rem;
+}
+
+/* 行の高さを列ラベルと揃えるための固定高 */
+.cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 18px;
+}

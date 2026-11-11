@@ -1,28 +1,8 @@
 import { Group, Text } from '@mantine/core';
-import {
-  IconCloud,
-  IconCloudRain,
-  IconCloudSnow,
-  IconSnowflake,
-  IconSun,
-  type Icon,
-} from '@tabler/icons-react';
 
-import type { Condition, DaySummary } from '../daily';
-import {
-  CONDITION_LABELS,
-  formatPrecipitationWind,
-  formatTemperature,
-  pickConditions,
-} from '../display';
-
-const CONDITION_ICONS: Record<Condition, Icon> = {
-  clear: IconSun,
-  cloudy: IconCloud,
-  rain: IconCloudRain,
-  sleet: IconCloudSnow,
-  snow: IconSnowflake,
-};
+import type { DaySummary } from '../daily';
+import { formatPrecipitationWind, formatTemperature, pickConditions } from '../display';
+import { ConditionIcon } from './ConditionIcon';
 
 type DailyWeatherProps = {
   /** 表示する日別サマリー（未取得なら何も描画しない） */
@@ -49,7 +29,6 @@ export function DailyWeather({ day, size = 'normal', showDetails = false }: Dail
     <Group gap={4} wrap="nowrap" c="dimmed" component="span">
       <Group gap={2} wrap="nowrap" component="span">
         {conditions.map((condition, index) => {
-          const ConditionIcon = CONDITION_ICONS[condition];
           return (
             <Group key={condition} gap={2} wrap="nowrap" component="span">
               {index > 0 && (
@@ -57,14 +36,7 @@ export function DailyWeather({ day, size = 'normal', showDetails = false }: Dail
                   /
                 </Text>
               )}
-              <ConditionIcon
-                size={iconSize}
-                stroke={1.75}
-                role="img"
-                aria-label={CONDITION_LABELS[condition]}
-              >
-                <title>{CONDITION_LABELS[condition]}</title>
-              </ConditionIcon>
+              <ConditionIcon condition={condition} size={iconSize} />
             </Group>
           );
         })}

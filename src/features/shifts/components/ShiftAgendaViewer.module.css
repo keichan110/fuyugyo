@@ -7,12 +7,43 @@
   padding-block: 8px;
 }
 
-/* AgendaView は日付見出しの個別描画を差し替えられないため、同日イベントの属性から色を適用する。 */
-.agendaDateGroup:has([data-agenda-day-color='red']) > :first-child {
+/*
+ * 日付ごとに AgendaView を分け、標準の見出し（グレー帯）を自前で再現して天気を右端に載せる。
+ * 値は @mantine/schedule の agendaViewDateHeader / agendaViewDateGroup と同一。
+ */
+.monthList {
+  display: flex;
+  flex-direction: column;
+}
+
+.dateBlock:where(:not(:last-child)) {
+  border-bottom: 1px solid var(--mantine-color-gray-3);
+}
+
+:where([data-mantine-color-scheme='dark']) .dateBlock:where(:not(:last-child)) {
+  border-bottom-color: var(--mantine-color-dark-4);
+}
+
+.dateHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--mantine-spacing-xs);
+  padding: var(--mantine-spacing-xs) var(--mantine-spacing-sm);
+  font-weight: var(--mantine-font-weight-semibold);
+  font-size: var(--mantine-font-size-sm);
+  background-color: var(--mantine-color-gray-0);
+}
+
+:where([data-mantine-color-scheme='dark']) .dateHeader {
+  background-color: var(--mantine-color-dark-6);
+}
+
+.dateHeader[data-agenda-day-color='red'] {
   color: var(--mantine-color-red-7);
 }
 
-.agendaDateGroup:has([data-agenda-day-color='blue']) > :first-child {
+.dateHeader[data-agenda-day-color='blue'] {
   color: var(--mantine-color-blue-7);
 }
 
@@ -31,10 +62,4 @@
   width: 4px;
   border-radius: 2px;
   flex-shrink: 0;
-}
-
-/* 天気は日付見出しに置けないため、同日先頭イベントの右端に控えめに添える */
-.weather {
-  flex-shrink: 0;
-  align-self: flex-start;
 }

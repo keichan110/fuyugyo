@@ -15,6 +15,7 @@ import { buildComparison, comparisonPeriodLabel } from '../comparison';
 import { buildConsecutive } from '../consecutive';
 import { buildDependency } from '../dependency';
 import { useSeasonAnalysis } from '../queries';
+import { buildShiftTypeMix } from '../shift-type-mix';
 import { AnalysisBlock } from './AnalysisBlock';
 import { AnalysisFilterBar } from './AnalysisFilterBar';
 import { AnalysisKpis } from './AnalysisKpis';
@@ -29,6 +30,7 @@ import {
   ComparisonMonthlyChart,
   ComparisonSummary,
 } from './SeasonComparisonSection';
+import { ShiftTypeMixChart } from './ShiftTypeMixChart';
 import { WeeklyStaffingChart } from './WeeklyStaffingChart';
 
 type Props = {
@@ -53,6 +55,10 @@ export function SeasonAnalysisPage(props: Props) {
   const view = useMemo(() => (data ? buildAnalysisView(data, filters) : null), [data, filters]);
   const consecutive = useMemo(
     () => (data ? buildConsecutive(data, filters) : null),
+    [data, filters],
+  );
+  const shiftTypeMix = useMemo(
+    () => (data ? buildShiftTypeMix(data, filters) : null),
     [data, filters],
   );
   const dependency = useMemo(() => (data ? buildDependency(data, filters) : null), [data, filters]);
@@ -109,6 +115,20 @@ export function SeasonAnalysisPage(props: Props) {
                   )}
                 </AnalysisPanel>
               </Grid.Col>
+              {shiftTypeMix && (
+                <Grid.Col span={12}>
+                  <AnalysisPanel
+                    title="勤務種別の構成比"
+                    description={`各メンバーの配置回数に占める勤務種別の割合（量はメンバー別の勤務日数を参照）。回数は枠単位。${
+                      shiftTypeMix.excludedCount > 0
+                        ? ` 配置のない${shiftTypeMix.excludedCount}名は除外。`
+                        : ''
+                    }`}
+                  >
+                    {(expanded) => <ShiftTypeMixChart mix={shiftTypeMix} expanded={expanded} />}
+                  </AnalysisPanel>
+                </Grid.Col>
+              )}
               {/* 人×月は横に長いため常に全幅。スクロールは表コンテナが持つ */}
               <Grid.Col span={12}>
                 <AnalysisPanel

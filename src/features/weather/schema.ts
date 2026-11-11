@@ -7,6 +7,9 @@ import { CONDITIONS } from './daily';
  * サーバー（`api.ts`）の入出力検証とクライアント（`queries.ts`）の表示で共有する。
  */
 
+/** 天気データ源の識別子。API を乗り換え・併用するときは別の値で区別する */
+export const WEATHER_SOURCE = 'metno:locationforecast';
+
 /** 予報地点の単一レコード */
 export const weatherPointSchema = z.object({
   id: z.string(),

@@ -2,7 +2,11 @@ import { env } from 'cloudflare:test';
 import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { weatherPointResponseSchema } from '../src/features/weather/schema';
+import { jstDateString, jstMidnightToUtc } from '../src/features/weather/daily';
+import {
+  weatherDailyResponseSchema,
+  weatherPointResponseSchema,
+} from '../src/features/weather/schema';
 import app from '../src/index';
 import { signJwt } from '../src/server/auth/jwt';
 import { createDb } from '../src/server/db/client';
@@ -435,5 +439,75 @@ describe('runWeatherFetch', () => {
     const [log] = await db.select().from(weatherFetchLogs);
     expect(log).toMatchObject({ ok: false, httpStatus: 200 });
     expect(await db.select().from(weatherSteps)).toHaveLength(0);
+  });
+});
+
+describe('GET /api/weather/daily', () => {
+  it('未認証は 401', async () => {
+    const res = await app.request('/api/weather/daily', {}, envWith({}));
+    expect(res.status).toBe(401);
+  });
+
+  it('地点が未登録なら空を返す（MEMBER でも読める）', async () => {
+    const res = await request('/api/weather/daily', await seedToken('MEMBER'));
+    expect(res.status).toBe(200);
+    expect(weatherDailyResponseSchema.parse(await res.json())).toEqual({
+      days: [],
+      lastFetchedAt: null,
+    });
+  });
+
+  it('地点はあるがデータがなければ空を返す', async () => {
+    await seedPoint();
+    const res = await request('/api/weather/daily', await seedToken('MEMBER'));
+    expect(weatherDailyResponseSchema.parse(await res.json())).toEqual({
+      days: [],
+      lastFetchedAt: null,
+    });
+  });
+
+  it('JST の今日以降を日付順に集計し、最終取得時刻を返す', async () => {
+    const point = await seedPoint();
+    const db = createDb(env.DB);
+    const today = jstDateString(new Date());
+    const todayStart = jstMidnightToUtc(today).getTime();
+    const hour = 3600_000;
+    const day = 24 * hour;
+    const base = {
+      pointId: point.id,
+      source: SOURCE,
+      stepHours: 1,
+      precipitationMm: null,
+      windSpeedMs: null,
+      windDirectionDeg: null,
+      cloudCoverPct: null,
+      rawSymbol: null,
+      updatedAt: new Date(),
+    };
+    await db.insert(weatherSteps).values([
+      // 昨日の行は含めない
+      { ...base, time: new Date(todayStart - day + 10 * hour), temperatureC: 20, condition: 'clear' },
+      // 明日 → 今日の順に入れても日付順で返る
+      { ...base, time: new Date(todayStart + day + 10 * hour), temperatureC: -1, condition: 'rain' },
+      { ...base, time: new Date(todayStart + 2 * hour), temperatureC: -8, condition: 'clear' },
+      { ...base, time: new Date(todayStart + 10 * hour), temperatureC: -3, condition: 'snow' },
+    ]);
+    await db.insert(weatherFetchLogs).values([
+      { pointId: point.id, source: SOURCE, fetchedAt: new Date('2026-11-11T01:00:00Z'), ok: true },
+      { pointId: point.id, source: SOURCE, fetchedAt: new Date('2026-11-11T04:00:00Z'), ok: false },
+    ]);
+
+    const res = await request('/api/weather/daily', await seedToken('MEMBER'));
+    expect(res.status).toBe(200);
+    const body = weatherDailyResponseSchema.parse(await res.json());
+
+    expect(body.days.map((d) => d.date)).toEqual([
+      today,
+      jstDateString(new Date(todayStart + day + 10 * hour)),
+    ]);
+    expect(body.days[0]).toMatchObject({ morning: 'snow', tempMinC: -8, tempMaxC: -3 });
+    expect(body.days[1]).toMatchObject({ morning: 'rain', tempMaxC: -1 });
+    // 失敗ログは最終更新時刻に使わない
+    expect(body.lastFetchedAt).toEqual(new Date('2026-11-11T01:00:00Z'));
   });
 });

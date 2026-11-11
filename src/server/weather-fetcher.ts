@@ -2,7 +2,7 @@ import { and, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { normalizeSymbol } from '@/features/weather/daily';
-import { truncateCoordinate } from '@/features/weather/schema';
+import { truncateCoordinate, WEATHER_SOURCE } from '@/features/weather/schema';
 
 import type { Database } from './db/client';
 import {
@@ -11,9 +11,6 @@ import {
   weatherPoints,
   weatherSteps,
 } from './db/schema';
-
-/** 天気データ源の識別子。API を乗り換え・併用するときは別の値で区別する */
-export const WEATHER_SOURCE = 'metno:locationforecast';
 
 /** MET Norway の利用規約で求められる User-Agent（アプリ名と連絡先） */
 export const WEATHER_USER_AGENT = 'fuyugyo/1.0 github.com/keichan110/fuyugyo';

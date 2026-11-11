@@ -3,6 +3,7 @@ import {
   IconCalendarCog,
   IconCalendarWeek,
   IconCertificate,
+  IconChartBar,
   IconHome,
   IconSettings,
   IconTicket,
@@ -37,6 +38,18 @@ const NAVIGATION_GROUPS: NavigationGroup[] = [
     items: [
       { to: '/shifts', label: 'シフト表', icon: IconCalendarWeek },
       { to: '/shifts/manage', label: 'シフト管理', icon: IconCalendarCog, minimumRole: 'MANAGER' },
+    ],
+  },
+  {
+    id: 'analysis',
+    label: '分析',
+    items: [
+      {
+        to: '/analysis/season',
+        label: 'シーズン分析',
+        icon: IconChartBar,
+        minimumRole: 'MANAGER',
+      },
     ],
   },
   {

@@ -18,10 +18,12 @@ import { Route as CertificationsRouteImport } from './routes/certifications'
 import { Route as CertificationRequirementsRouteImport } from './routes/certification-requirements'
 import { Route as AvailabilitiesRouteImport } from './routes/availabilities'
 import { Route as ShiftsRouteRouteImport } from './routes/shifts/route'
+import { Route as AnalysisRouteRouteImport } from './routes/analysis/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ShiftsIndexRouteImport } from './routes/shifts/index'
 import { Route as ShiftsPrintRouteImport } from './routes/shifts/print'
 import { Route as ShiftsManageRouteImport } from './routes/shifts/manage'
+import { Route as AnalysisSeasonRouteImport } from './routes/analysis/season'
 
 const UsersRoute = UsersRouteImport.update({
   id: '/users',
@@ -69,6 +71,11 @@ const ShiftsRouteRoute = ShiftsRouteRouteImport.update({
   path: '/shifts',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AnalysisRouteRoute = AnalysisRouteRouteImport.update({
+  id: '/analysis',
+  path: '/analysis',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -89,9 +96,15 @@ const ShiftsManageRoute = ShiftsManageRouteImport.update({
   path: '/manage',
   getParentRoute: () => ShiftsRouteRoute,
 } as any)
+const AnalysisSeasonRoute = AnalysisSeasonRouteImport.update({
+  id: '/season',
+  path: '/season',
+  getParentRoute: () => AnalysisRouteRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/analysis': typeof AnalysisRouteRouteWithChildren
   '/shifts': typeof ShiftsRouteRouteWithChildren
   '/availabilities': typeof AvailabilitiesRoute
   '/certification-requirements': typeof CertificationRequirementsRoute
@@ -101,12 +114,14 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/shift-types': typeof ShiftTypesRoute
   '/users': typeof UsersRoute
+  '/analysis/season': typeof AnalysisSeasonRoute
   '/shifts/manage': typeof ShiftsManageRoute
   '/shifts/print': typeof ShiftsPrintRoute
   '/shifts/': typeof ShiftsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/analysis': typeof AnalysisRouteRouteWithChildren
   '/availabilities': typeof AvailabilitiesRoute
   '/certification-requirements': typeof CertificationRequirementsRoute
   '/certifications': typeof CertificationsRoute
@@ -115,6 +130,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/shift-types': typeof ShiftTypesRoute
   '/users': typeof UsersRoute
+  '/analysis/season': typeof AnalysisSeasonRoute
   '/shifts/manage': typeof ShiftsManageRoute
   '/shifts/print': typeof ShiftsPrintRoute
   '/shifts': typeof ShiftsIndexRoute
@@ -122,6 +138,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/analysis': typeof AnalysisRouteRouteWithChildren
   '/shifts': typeof ShiftsRouteRouteWithChildren
   '/availabilities': typeof AvailabilitiesRoute
   '/certification-requirements': typeof CertificationRequirementsRoute
@@ -131,6 +148,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/shift-types': typeof ShiftTypesRoute
   '/users': typeof UsersRoute
+  '/analysis/season': typeof AnalysisSeasonRoute
   '/shifts/manage': typeof ShiftsManageRoute
   '/shifts/print': typeof ShiftsPrintRoute
   '/shifts/': typeof ShiftsIndexRoute
@@ -139,6 +157,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/analysis'
     | '/shifts'
     | '/availabilities'
     | '/certification-requirements'
@@ -148,12 +167,14 @@ export interface FileRouteTypes {
     | '/login'
     | '/shift-types'
     | '/users'
+    | '/analysis/season'
     | '/shifts/manage'
     | '/shifts/print'
     | '/shifts/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/analysis'
     | '/availabilities'
     | '/certification-requirements'
     | '/certifications'
@@ -162,12 +183,14 @@ export interface FileRouteTypes {
     | '/login'
     | '/shift-types'
     | '/users'
+    | '/analysis/season'
     | '/shifts/manage'
     | '/shifts/print'
     | '/shifts'
   id:
     | '__root__'
     | '/'
+    | '/analysis'
     | '/shifts'
     | '/availabilities'
     | '/certification-requirements'
@@ -177,6 +200,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/shift-types'
     | '/users'
+    | '/analysis/season'
     | '/shifts/manage'
     | '/shifts/print'
     | '/shifts/'
@@ -184,6 +208,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AnalysisRouteRoute: typeof AnalysisRouteRouteWithChildren
   ShiftsRouteRoute: typeof ShiftsRouteRouteWithChildren
   AvailabilitiesRoute: typeof AvailabilitiesRoute
   CertificationRequirementsRoute: typeof CertificationRequirementsRoute
@@ -260,6 +285,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShiftsRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/analysis': {
+      id: '/analysis'
+      path: '/analysis'
+      fullPath: '/analysis'
+      preLoaderRoute: typeof AnalysisRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -288,8 +320,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShiftsManageRouteImport
       parentRoute: typeof ShiftsRouteRoute
     }
+    '/analysis/season': {
+      id: '/analysis/season'
+      path: '/season'
+      fullPath: '/analysis/season'
+      preLoaderRoute: typeof AnalysisSeasonRouteImport
+      parentRoute: typeof AnalysisRouteRoute
+    }
   }
 }
+
+interface AnalysisRouteRouteChildren {
+  AnalysisSeasonRoute: typeof AnalysisSeasonRoute
+}
+
+const AnalysisRouteRouteChildren: AnalysisRouteRouteChildren = {
+  AnalysisSeasonRoute: AnalysisSeasonRoute,
+}
+
+const AnalysisRouteRouteWithChildren = AnalysisRouteRoute._addFileChildren(
+  AnalysisRouteRouteChildren,
+)
 
 interface ShiftsRouteRouteChildren {
   ShiftsManageRoute: typeof ShiftsManageRoute
@@ -309,6 +360,7 @@ const ShiftsRouteRouteWithChildren = ShiftsRouteRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AnalysisRouteRoute: AnalysisRouteRouteWithChildren,
   ShiftsRouteRoute: ShiftsRouteRouteWithChildren,
   AvailabilitiesRoute: AvailabilitiesRoute,
   CertificationRequirementsRoute: CertificationRequirementsRoute,

@@ -1,0 +1,58 @@
+/* 縦横スクロールを1つのコンテナで持つ。sticky の基準はこのコンテナになる */
+.scroller {
+  overflow: auto;
+}
+
+.table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.headCell {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--mantine-color-body);
+}
+
+.nameCell {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--mantine-color-body);
+  white-space: nowrap;
+}
+
+.cell {
+  display: block;
+  width: 100%;
+  min-width: 44px;
+  padding: var(--mantine-spacing-xs) 0;
+  border-radius: var(--mantine-radius-sm);
+  background-color: var(--mantine-color-default-hover);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.cell:disabled {
+  cursor: default;
+}
+
+.cell[data-planned] {
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent 0 4px,
+    color-mix(in srgb, var(--mantine-color-body) 55%, transparent) 4px 7px
+  );
+}
+
+.cell:focus-visible {
+  outline: 2px solid var(--mantine-primary-color-filled);
+  outline-offset: 1px;
+}
+
+/* 左上の見出しセルは上・左の両方を固定し、最前面に置く */
+.corner {
+  top: 0;
+  z-index: 3;
+}

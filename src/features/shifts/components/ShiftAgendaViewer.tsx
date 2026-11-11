@@ -24,12 +24,13 @@ import { useMe } from '@/features/auth/queries';
 import { getDepartmentAppearance } from '@/features/departments/appearance';
 import { departmentCodeSchema, type DepartmentCode } from '@/features/departments/schema';
 import { DailyWeather, useWeatherByDate, WeatherAttribution } from '@/features/weather';
+import type { DaySummary } from '@/features/weather/daily';
 
 import { containsInstructorAssignment, filterAgendaDaysByInstructor } from '../aggregators';
 import { pickPrintTargetDate } from '../print-target';
 import { fetchShiftAgendaPage, useShiftAgendaFuture } from '../queries';
 import type { ShiftAgendaDay, ShiftAgendaResponse, ShiftViewItem } from '../schema';
-import { addDays, getCalendarDayColor, shortDateLabel, toMonth } from '../view-utils';
+import { addDays, addMonths, getCalendarDayColor, shortDateLabel, toMonth } from '../view-utils';
 import classes from './ShiftAgendaViewer.module.css';
 import { ShiftAttendeeRow } from './ShiftAttendeeRow';
 import { ShiftPrintDialog } from './ShiftPrintDialog';
@@ -278,10 +279,9 @@ function measurePrintTargetMonth(fallbackDate: string): string {
 }
 
 /** シフトイベントに付随するペイロード（AgendaView は payload を汎用型で扱うため renderEvent 内で参照する） */
-type ShiftEventPayload = {
-  shift: ShiftViewItem;
-  includesMe: boolean;
-};
+type ShiftEventPayload =
+  | { kind: 'shift'; shift: ShiftViewItem; includesMe: boolean }
+  | { kind: 'weather'; day: DaySummary };
 
 /** 稼働日を月ごとにグルーピングする（月が変わったことを識別しやすくするため、月ごとに 1つの AgendaView を描画する） */
 function groupDaysByMonth(days: ShiftAgendaDay[]): Map<string, ShiftAgendaDay[]> {
@@ -298,6 +298,11 @@ function groupDaysByMonth(days: ShiftAgendaDay[]): Map<string, ShiftAgendaDay[]>
   return byMonth;
 }
 
+/** 月文字列（YYYY-MM）の月末日（YYYY-MM-DD）を返す */
+function lastDateOfMonth(month: string): string {
+  return addDays(`${addMonths(month, 1)}-01`, -1);
+}
+
 /**
  * 稼働日配列を AgendaView 用の終日イベント配列へ変換する。
  * シフトは時刻を持たないため、当日 0時〜翌日 0時の終日イベントとして表現する。
@@ -305,9 +310,24 @@ function groupDaysByMonth(days: ShiftAgendaDay[]): Map<string, ShiftAgendaDay[]>
 function buildMonthEvents(
   days: ShiftAgendaDay[],
   myInstructorId: string | null,
+  weatherByDate: ReadonlyMap<string, DaySummary>,
 ): ScheduleEventData<ShiftEventPayload>[] {
   const events: ScheduleEventData<ShiftEventPayload>[] = [];
   for (const day of days) {
+    const weather = weatherByDate.get(day.date);
+    // 天気行は同日の先頭に出す。AgendaView は開始時刻→長さの順に安定ソートするため、
+    // シフトと同じ開始・終了で先に push しておけば先頭に残る。
+    // シフトのない日に追加すると天気だけの日付が生まれるため、稼働日のみ対象にする。
+    if (weather && day.shifts.length > 0) {
+      events.push({
+        id: `weather-${day.date}`,
+        title: '天気',
+        color: 'gray',
+        start: `${day.date} 00:00:00`,
+        end: `${addDays(day.date, 1)} 00:00:00`,
+        payload: { kind: 'weather', day: weather },
+      });
+    }
     for (const shift of day.shifts) {
       events.push({
         id: shift.id,
@@ -317,6 +337,7 @@ function buildMonthEvents(
         // AgendaView の左端バーで部門を判別できるよう、部門固有の色を使う。
         color: getDepartmentAppearance(shift.department.code, shift.department.name).color,
         payload: {
+          kind: 'shift',
           shift,
           includesMe: containsInstructorAssignment(shift, myInstructorId),
         },
@@ -341,60 +362,55 @@ function AgendaDayList({
       {Array.from(monthGroups, ([month, monthDays]) => (
         <Fragment key={month}>
           <MonthHeader month={month} />
-          <Box className={classes.monthList}>
-            {monthDays.map((day) => (
-              <Box key={day.date} className={classes.dateBlock}>
-                <Box
-                  className={classes.dateHeader}
-                  data-agenda-day-color={getCalendarDayColor(day.date)}
+          <AgendaView
+            rangeStart={`${month}-01`}
+            rangeEnd={lastDateOfMonth(month)}
+            events={buildMonthEvents(monthDays, myInstructorId, weatherByDate)}
+            mode="static"
+            dateHeaderFormat={(date) => shortDateLabel(date.slice(0, 10))}
+            styles={{ agendaViewHeader: { display: 'none' } }}
+            classNames={{ agendaViewDateGroup: classes.agendaDateGroup }}
+            renderEvent={(event, props) => {
+              // AgendaView の payload は汎用型のため、ここで自前の型へ絞り込む
+              // （events はこのコンポーネント自身が組み立てているため安全）
+              const payload = event.payload as ShiftEventPayload;
+              if (payload.kind === 'weather') {
+                // 天気行は操作対象ではないため、ボタンにせずレイアウト用の props だけ引き継ぐ
+                return (
+                  <Box className={props.className} style={props.style}>
+                    <Box className={classes.weatherRow}>
+                      <DailyWeather day={payload.day} showDetails />
+                    </Box>
+                  </Box>
+                );
+              }
+              return (
+                <UnstyledButton
+                  {...props}
+                  data-agenda-date={payload.shift.date}
+                  data-agenda-day-color={getCalendarDayColor(payload.shift.date)}
+                  display="block"
+                  w="100%"
                 >
-                  <span>{shortDateLabel(day.date)}</span>
-                  <DailyWeather day={weatherByDate.get(day.date)} />
-                </Box>
-                <AgendaView
-                  rangeStart={day.date}
-                  rangeEnd={day.date}
-                  events={buildMonthEvents([day], myInstructorId)}
-                  mode="static"
-                  // 日付見出しは天気を載せるため自前で描画し、標準の見出しは隠す
-                  styles={{
-                    agendaViewHeader: { display: 'none' },
-                    agendaViewDateHeader: { display: 'none' },
-                  }}
-                  renderEvent={(event, props) => {
-                    // AgendaView の payload は汎用型のため、ここで自前の型へ絞り込む
-                    // （events はこのコンポーネント自身が組み立てているため安全）
-                    const payload = event.payload as ShiftEventPayload;
-                    return (
-                      <UnstyledButton
-                        {...props}
-                        data-agenda-date={payload.shift.date}
-                        data-agenda-day-color={getCalendarDayColor(payload.shift.date)}
-                        display="block"
-                        w="100%"
-                      >
-                        <Box
-                          className={classes.eventBody}
-                          data-includes-me={payload.includesMe || undefined}
-                        >
-                          <Box
-                            className={classes.departmentBar}
-                            bg={
-                              getDepartmentAppearance(
-                                payload.shift.department.code,
-                                payload.shift.department.name,
-                              ).color
-                            }
-                          />
-                          <ShiftAttendeeRow shift={payload.shift} myInstructorId={myInstructorId} />
-                        </Box>
-                      </UnstyledButton>
-                    );
-                  }}
-                />
-              </Box>
-            ))}
-          </Box>
+                  <Box
+                    className={classes.eventBody}
+                    data-includes-me={payload.includesMe || undefined}
+                  >
+                    <Box
+                      className={classes.departmentBar}
+                      bg={
+                        getDepartmentAppearance(
+                          payload.shift.department.code,
+                          payload.shift.department.name,
+                        ).color
+                      }
+                    />
+                    <ShiftAttendeeRow shift={payload.shift} myInstructorId={myInstructorId} />
+                  </Box>
+                </UnstyledButton>
+              );
+            }}
+          />
         </Fragment>
       ))}
     </Stack>

@@ -4,6 +4,7 @@ import {
   IconCalendarWeek,
   IconCertificate,
   IconChartBar,
+  IconCloud,
   IconHome,
   IconSettings,
   IconTicket,
@@ -59,6 +60,7 @@ const NAVIGATION_GROUPS: NavigationGroup[] = [
       { to: '/certifications', label: '資格', icon: IconCertificate, minimumRole: 'MANAGER' },
       { to: '/shift-types', label: 'シフト種別設定', icon: IconSettings, minimumRole: 'ADMIN' },
       { to: '/instructors', label: 'インストラクター', icon: IconUser, minimumRole: 'MANAGER' },
+      { to: '/weather-point', label: '天気予報地点', icon: IconCloud, minimumRole: 'ADMIN' },
     ],
   },
   {

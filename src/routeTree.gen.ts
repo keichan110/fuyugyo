@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as WeatherPointRouteImport } from './routes/weather-point'
 import { Route as UsersRouteImport } from './routes/users'
 import { Route as ShiftTypesRouteImport } from './routes/shift-types'
 import { Route as LoginRouteImport } from './routes/login'
@@ -25,6 +26,11 @@ import { Route as ShiftsPrintRouteImport } from './routes/shifts/print'
 import { Route as ShiftsManageRouteImport } from './routes/shifts/manage'
 import { Route as AnalysisSeasonRouteImport } from './routes/analysis/season'
 
+const WeatherPointRoute = WeatherPointRouteImport.update({
+  id: '/weather-point',
+  path: '/weather-point',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const UsersRoute = UsersRouteImport.update({
   id: '/users',
   path: '/users',
@@ -114,6 +120,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/shift-types': typeof ShiftTypesRoute
   '/users': typeof UsersRoute
+  '/weather-point': typeof WeatherPointRoute
   '/analysis/season': typeof AnalysisSeasonRoute
   '/shifts/manage': typeof ShiftsManageRoute
   '/shifts/print': typeof ShiftsPrintRoute
@@ -130,6 +137,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/shift-types': typeof ShiftTypesRoute
   '/users': typeof UsersRoute
+  '/weather-point': typeof WeatherPointRoute
   '/analysis/season': typeof AnalysisSeasonRoute
   '/shifts/manage': typeof ShiftsManageRoute
   '/shifts/print': typeof ShiftsPrintRoute
@@ -148,6 +156,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/shift-types': typeof ShiftTypesRoute
   '/users': typeof UsersRoute
+  '/weather-point': typeof WeatherPointRoute
   '/analysis/season': typeof AnalysisSeasonRoute
   '/shifts/manage': typeof ShiftsManageRoute
   '/shifts/print': typeof ShiftsPrintRoute
@@ -167,6 +176,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/shift-types'
     | '/users'
+    | '/weather-point'
     | '/analysis/season'
     | '/shifts/manage'
     | '/shifts/print'
@@ -183,6 +193,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/shift-types'
     | '/users'
+    | '/weather-point'
     | '/analysis/season'
     | '/shifts/manage'
     | '/shifts/print'
@@ -200,6 +211,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/shift-types'
     | '/users'
+    | '/weather-point'
     | '/analysis/season'
     | '/shifts/manage'
     | '/shifts/print'
@@ -218,10 +230,18 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   ShiftTypesRoute: typeof ShiftTypesRoute
   UsersRoute: typeof UsersRoute
+  WeatherPointRoute: typeof WeatherPointRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/weather-point': {
+      id: '/weather-point'
+      path: '/weather-point'
+      fullPath: '/weather-point'
+      preLoaderRoute: typeof WeatherPointRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/users': {
       id: '/users'
       path: '/users'
@@ -370,6 +390,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   ShiftTypesRoute: ShiftTypesRoute,
   UsersRoute: UsersRoute,
+  WeatherPointRoute: WeatherPointRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

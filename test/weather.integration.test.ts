@@ -66,13 +66,18 @@ function request(path: string, token: string, init: { method?: string; body?: un
     {
       method: init.method ?? 'GET',
       headers: { cookie: `auth-token=${token}`, 'Content-Type': 'application/json' },
-      body: init.body === undefined ? undefined : JSON.stringify(init.body),
+      body: init.body === undefined ? null : JSON.stringify(init.body),
     },
     envWith({}),
   );
 }
 
-const pointInput = { name: 'ゲレンデ中腹', latitude: 36.123456, longitude: 137.56789, elevationM: 1500 };
+const pointInput = {
+  name: 'ゲレンデ中腹',
+  latitude: 36.123456,
+  longitude: 137.56789,
+  elevationM: 1500,
+};
 
 beforeEach(async () => {
   // 各テストを独立させるためデータを全削除する（地点の削除で関連テーブルも cascade で消える）
@@ -229,7 +234,10 @@ const forecastBody = {
             summary: { symbol_code: 'heavysnow' },
             details: { precipitation_amount: 1.5 },
           },
-          next_6_hours: { summary: { symbol_code: 'cloudy' }, details: { precipitation_amount: 4 } },
+          next_6_hours: {
+            summary: { symbol_code: 'cloudy' },
+            details: { precipitation_amount: 4 },
+          },
         },
       },
       {
@@ -387,7 +395,8 @@ describe('runWeatherFetch', () => {
 
     const later = new Date('2026-11-11T03:30:00Z');
     const { fetchFn, calls } = fakeFetch(
-      () => new Response(null, { status: 304, headers: { Expires: 'Wed, 11 Nov 2026 06:00:00 GMT' } }),
+      () =>
+        new Response(null, { status: 304, headers: { Expires: 'Wed, 11 Nov 2026 06:00:00 GMT' } }),
     );
     await runWeatherFetch(db, { now: later, fetchFn });
 
@@ -486,9 +495,19 @@ describe('GET /api/weather/daily', () => {
     };
     await db.insert(weatherSteps).values([
       // 昨日の行は含めない
-      { ...base, time: new Date(todayStart - day + 10 * hour), temperatureC: 20, condition: 'clear' },
+      {
+        ...base,
+        time: new Date(todayStart - day + 10 * hour),
+        temperatureC: 20,
+        condition: 'clear',
+      },
       // 明日 → 今日の順に入れても日付順で返る
-      { ...base, time: new Date(todayStart + day + 10 * hour), temperatureC: -1, condition: 'rain' },
+      {
+        ...base,
+        time: new Date(todayStart + day + 10 * hour),
+        temperatureC: -1,
+        condition: 'rain',
+      },
       { ...base, time: new Date(todayStart + 2 * hour), temperatureC: -8, condition: 'clear' },
       { ...base, time: new Date(todayStart + 10 * hour), temperatureC: -3, condition: 'snow' },
     ]);

@@ -40,3 +40,6 @@ simple = { limit = 60, period = 60 }
 [observability]
 enabled = true
 head_sampling_rate = 1.0
+
+[triggers]
+crons = ["23 */3 * * *"]

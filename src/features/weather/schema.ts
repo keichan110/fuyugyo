@@ -10,6 +10,9 @@ import { CONDITIONS } from './daily';
 /** 天気データ源の識別子。API を乗り換え・併用するときは別の値で区別する */
 export const WEATHER_SOURCE = 'metno:locationforecast';
 
+/** 予報地点（単一レコード）の固定ID。主キーを固定して DB レベルで1件に保つ */
+export const WEATHER_POINT_ID = 'default';
+
 /** 予報地点の単一レコード */
 export const weatherPointSchema = z.object({
   id: z.string(),

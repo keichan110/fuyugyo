@@ -2,7 +2,7 @@ import { and, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { normalizeSymbol } from '@/features/weather/daily';
-import { truncateCoordinate, WEATHER_SOURCE } from '@/features/weather/schema';
+import { truncateCoordinate, WEATHER_POINT_ID, WEATHER_SOURCE } from '@/features/weather/schema';
 
 import type { Database } from './db/client';
 import { weatherFetchLogs, weatherFetchState, weatherPoints, weatherSteps } from './db/schema';
@@ -189,7 +189,11 @@ export async function runWeatherFetch(
   let pointId: string | null = null;
   let httpStatus: number | null = null;
   try {
-    const [point] = await db.select().from(weatherPoints).limit(1);
+    const [point] = await db
+      .select()
+      .from(weatherPoints)
+      .where(eq(weatherPoints.id, WEATHER_POINT_ID))
+      .limit(1);
     if (!point) return;
     pointId = point.id;
 

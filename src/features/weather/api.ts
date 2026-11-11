@@ -13,7 +13,12 @@ import { requireAuth, requireRole, type AuthVariables } from '@/server/middlewar
 import type { Env } from '@/server/types';
 
 import { jstDateString, jstMidnightToUtc, summarizeDay, type StepRow } from './daily';
-import { updateWeatherPointSchema, WEATHER_SOURCE, weatherStepsQuerySchema } from './schema';
+import {
+  updateWeatherPointSchema,
+  WEATHER_POINT_ID,
+  WEATHER_SOURCE,
+  weatherStepsQuerySchema,
+} from './schema';
 
 /**
  * 天気（予報地点・日別サマリー）の Hono ルート。
@@ -27,7 +32,11 @@ export const weatherRoute = new Hono<{
   /** 予報地点を返す（未登録なら null）（ADMIN） */
   .get('/point', requireAuth, requireRole('ADMIN'), async (c) => {
     const db = createDb(c.env.DB);
-    const [row] = await db.select().from(weatherPoints).limit(1);
+    const [row] = await db
+      .select()
+      .from(weatherPoints)
+      .where(eq(weatherPoints.id, WEATHER_POINT_ID))
+      .limit(1);
     return c.json(row ?? null);
   })
   /**
@@ -49,31 +58,36 @@ export const weatherRoute = new Hono<{
     async (c) => {
       const input = c.req.valid('json');
       const db = createDb(c.env.DB);
-      const [existing] = await db.select().from(weatherPoints).limit(1);
-
-      if (!existing) {
-        const [created] = await db.insert(weatherPoints).values(input).returning();
-        return c.json(created ?? null);
-      }
+      const [existing] = await db
+        .select()
+        .from(weatherPoints)
+        .where(eq(weatherPoints.id, WEATHER_POINT_ID))
+        .limit(1);
 
       const locationChanged =
+        !existing ||
         existing.latitude !== input.latitude ||
         existing.longitude !== input.longitude ||
         existing.elevationM !== input.elevationM;
 
-      const update = db
-        .update(weatherPoints)
-        .set(input)
-        .where(eq(weatherPoints.id, existing.id))
+      // 固定IDで upsert するため、同時に初回保存が走っても DB レベルで行は1件に保たれる。
+      // upsert では $onUpdate が効かないので updatedAt は明示的に更新する
+      const upsert = db
+        .insert(weatherPoints)
+        .values({ id: WEATHER_POINT_ID, ...input })
+        .onConflictDoUpdate({
+          target: weatherPoints.id,
+          set: { ...input, updatedAt: new Date() },
+        })
         .returning();
       if (!locationChanged) {
-        const [updated] = await update;
+        const [updated] = await upsert;
         return c.json(updated ?? null);
       }
 
       const [[updated]] = await db.batch([
-        update,
-        db.delete(weatherFetchState).where(eq(weatherFetchState.pointId, existing.id)),
+        upsert,
+        db.delete(weatherFetchState).where(eq(weatherFetchState.pointId, WEATHER_POINT_ID)),
       ]);
       return c.json(updated ?? null);
     },
@@ -84,7 +98,11 @@ export const weatherRoute = new Hono<{
    */
   .get('/daily', requireAuth, async (c) => {
     const db = createDb(c.env.DB);
-    const [point] = await db.select().from(weatherPoints).limit(1);
+    const [point] = await db
+      .select()
+      .from(weatherPoints)
+      .where(eq(weatherPoints.id, WEATHER_POINT_ID))
+      .limit(1);
     if (!point) return c.json({ days: [], lastFetchedAt: null });
 
     const todayStart = jstMidnightToUtc(jstDateString(new Date()));
@@ -157,7 +175,11 @@ export const weatherRoute = new Hono<{
     async (c) => {
       const { date } = c.req.valid('query');
       const db = createDb(c.env.DB);
-      const [point] = await db.select().from(weatherPoints).limit(1);
+      const [point] = await db
+        .select()
+        .from(weatherPoints)
+        .where(eq(weatherPoints.id, WEATHER_POINT_ID))
+        .limit(1);
       if (!point) return c.json({ steps: [] });
 
       const from = jstMidnightToUtc(date);

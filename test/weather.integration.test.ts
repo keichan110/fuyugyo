@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { jstDateString, jstMidnightToUtc } from '../src/features/weather/daily';
 import {
+  WEATHER_POINT_ID,
   weatherDailyResponseSchema,
   weatherPointResponseSchema,
   weatherStepsResponseSchema,
@@ -153,6 +154,26 @@ describe('PUT /api/weather/point', () => {
     expect(rows[0]?.name).toBe('山頂');
   });
 
+  it('固定IDで1件に保たれる（逐次・同時の初回保存でも重複しない）', async () => {
+    const token = await seedToken('ADMIN');
+    const db = createDb(env.DB);
+    const put = (name: string) =>
+      request('/api/weather/point', token, { method: 'PUT', body: { ...pointInput, name } });
+
+    // 空テーブルへの同時保存
+    const results = await Promise.all([put('A'), put('B')]);
+    for (const res of results) expect(res.status).toBe(200);
+    let rows = await db.select().from(weatherPoints);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.id).toBe(WEATHER_POINT_ID);
+
+    // 逐次の再保存
+    await put('C');
+    rows = await db.select().from(weatherPoints);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ id: WEATHER_POINT_ID, name: 'C' });
+  });
+
   it('座標・標高の変更で取得状態を削除し、名前のみの変更では残す', async () => {
     const token = await seedToken('ADMIN');
     const db = createDb(env.DB);
@@ -280,7 +301,13 @@ async function seedPoint() {
   const db = createDb(env.DB);
   const [point] = await db
     .insert(weatherPoints)
-    .values({ name: '中腹', latitude: 36.12349, longitude: 137.5678, elevationM: 1500.9 })
+    .values({
+      id: WEATHER_POINT_ID,
+      name: '中腹',
+      latitude: 36.12349,
+      longitude: 137.5678,
+      elevationM: 1500.9,
+    })
     .returning();
   if (!point) throw new Error('seedPoint failed');
   return point;

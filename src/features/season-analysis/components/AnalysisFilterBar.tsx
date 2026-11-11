@@ -2,7 +2,7 @@ import { Group, SegmentedControl, Select, Stack, Switch, Text, Title } from '@ma
 
 import { DEPARTMENT_LABELS, departmentCodeSchema } from '@/features/departments/schema';
 
-import type { CountScope, DepartmentFilter } from '../aggregators';
+import type { DepartmentFilter } from '../aggregators';
 import { seasonOptions } from '../season-label';
 
 type Props = {
@@ -13,8 +13,6 @@ type Props = {
   onDepartmentChange: (department: DepartmentFilter) => void;
   includeDrafts: boolean;
   onIncludeDraftsChange: (value: boolean) => void;
-  countScope: CountScope;
-  onCountScopeChange: (value: CountScope) => void;
 };
 
 const DEPARTMENT_DATA = [
@@ -53,22 +51,6 @@ export function AnalysisFilterBar(props: Props) {
               const parsed = departmentCodeSchema.safeParse(value);
               props.onDepartmentChange(parsed.success ? parsed.data : 'all');
             }}
-          />
-        </Stack>
-        <Stack gap={4}>
-          <Text size="sm" fw={500}>
-            負荷の数え方
-          </Text>
-          <SegmentedControl
-            data={[
-              { value: 'allDepartments', label: '全部門で数える' },
-              { value: 'selectedDepartment', label: '選択部門のみで数える' },
-            ]}
-            value={props.countScope}
-            disabled={props.department === 'all'}
-            onChange={(value) =>
-              props.onCountScopeChange(value === 'selectedDepartment' ? value : 'allDepartments')
-            }
           />
         </Stack>
         <Switch

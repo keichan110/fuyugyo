@@ -5,7 +5,7 @@ import type { SeasonAnalysis } from './schema';
 
 /**
  * 連勤の集計。連勤＝暦日で連続する勤務日の並び（同日に複数枠へ入っても1日）。
- * 負荷の数え方・下書き・部門フィルタは A（メンバー別の勤務日数）と同じ規則で適用する。
+ * 下書き・部門フィルタは A（メンバー別の勤務日数）と同じ規則で適用する。
  */
 
 /**
@@ -71,7 +71,7 @@ export function splitIntoRuns(
 /**
  * メンバーごとの最大連勤・4連勤以上の回数と、4連勤以上の期間一覧を求める。
  * @param data - API 応答
- * @param filters - 部門・下書き・負荷の数え方
+ * @param filters - 部門・下書き
  */
 export function buildConsecutive(data: SeasonAnalysis, filters: AnalysisFilters): ConsecutiveView {
   const memberIds = selectMemberIds(data, filters);

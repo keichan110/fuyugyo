@@ -16,14 +16,10 @@ import type { SeasonAnalysis } from './schema';
 /** 部門フィルタ。`all` は全体 */
 export type DepartmentFilter = 'all' | DepartmentCode;
 
-/** 個人の負荷の数え方。全部門で数えるか、選択部門のみで数えるか */
-export type CountScope = 'allDepartments' | 'selectedDepartment';
-
 /** 画面のフィルタ状態 */
 export type AnalysisFilters = {
   department: DepartmentFilter;
   includeDrafts: boolean;
-  countScope: CountScope;
 };
 
 /** 実施済み・予定の日数 */
@@ -47,6 +43,11 @@ export type MemberSummary = PhaseDays & {
   total: number;
   /** 部門別の勤務日数（同日に複数部門へ入ると合算は total を超えうる） */
   departmentDays: Record<DepartmentCode, number>;
+  /**
+   * 他部門での勤務日数（選択部門で勤務していない日のみ。実施済み/予定は分けない）。
+   * 実施済み＋予定＋他部門＝全部門での勤務日数（重複なし）。部門=全体のときは常に 0
+   */
+  otherDepartmentDays: number;
   /** 勤務可能日数（枠のある日のうち UNAVAILABLE 申告のない日。AVOID を含む） */
   availableDays: number;
   /** 勤務可能日数のうち「要調整」の日数 */
@@ -102,15 +103,6 @@ export function isVisible(status: 'DRAFT' | 'PUBLISHED', includeDrafts: boolean)
   return includeDrafts || status === 'PUBLISHED';
 }
 
-/** 個人の負荷・勤務可能日数・月別の集計対象となる部門か */
-export function isInCountScope(departmentCode: DepartmentCode, filters: AnalysisFilters): boolean {
-  return (
-    filters.countScope === 'allDepartments' ||
-    filters.department === 'all' ||
-    filters.department === departmentCode
-  );
-}
-
 /** 部門フィルタ（枠の充足・対象メンバー選定）に合致する部門か */
 export function matchesDepartmentFilter(
   departmentCode: DepartmentCode,
@@ -158,7 +150,7 @@ export function collectWorkDates(
     if (
       !memberIds.has(assignment.instructorId) ||
       !isVisible(assignment.shiftStatus, filters.includeDrafts) ||
-      !isInCountScope(assignment.departmentCode, filters)
+      !matchesDepartmentFilter(assignment.departmentCode, filters.department)
     ) {
       continue;
     }
@@ -167,6 +159,32 @@ export function collectWorkDates(
     const departments = dates.get(assignment.date) ?? new Set<DepartmentCode>();
     departments.add(assignment.departmentCode);
     dates.set(assignment.date, departments);
+    byInstructor.set(assignment.instructorId, dates);
+  }
+  return byInstructor;
+}
+
+/**
+ * 選択部門以外での勤務日を人別に集める（兼任の参考表示用）。部門=全体のときは空。
+ * 選択部門で勤務した日との差し引きは呼び出し側で行う。
+ */
+function collectOtherDepartmentDates(
+  data: SeasonAnalysis,
+  filters: AnalysisFilters,
+  memberIds: Set<string>,
+): Map<string, Set<string>> {
+  const byInstructor = new Map<string, Set<string>>();
+  if (filters.department === 'all') return byInstructor;
+  for (const assignment of data.assignments) {
+    if (
+      !memberIds.has(assignment.instructorId) ||
+      !isVisible(assignment.shiftStatus, filters.includeDrafts) ||
+      assignment.departmentCode === filters.department
+    ) {
+      continue;
+    }
+    const dates = byInstructor.get(assignment.instructorId) ?? new Set<string>();
+    dates.add(assignment.date);
     byInstructor.set(assignment.instructorId, dates);
   }
   return byInstructor;
@@ -181,7 +199,7 @@ function collectShiftDatesByDepartment(
   for (const shift of data.shifts) {
     if (
       isVisible(shift.status, filters.includeDrafts) &&
-      isInCountScope(shift.departmentCode, filters)
+      matchesDepartmentFilter(shift.departmentCode, filters.department)
     ) {
       const dates = byDepartment.get(shift.departmentCode) ?? new Set<string>();
       dates.add(shift.date);
@@ -310,7 +328,7 @@ export function buildFill(
 /**
  * 画面用データを組み立てる。勤務日数の多い順に並んだメンバー一覧、月列、KPI 用の値、週別充足を返す。
  * @param data - API 応答（集計前の事実データ）
- * @param filters - 部門・下書き・負荷の数え方
+ * @param filters - 部門・下書き
  */
 export function buildAnalysisView(data: SeasonAnalysis, filters: AnalysisFilters): AnalysisView {
   const memberIds = selectMemberIds(data, filters);
@@ -325,6 +343,8 @@ export function buildAnalysisView(data: SeasonAnalysis, filters: AnalysisFilters
   ].sort();
   const nameById = new Map(data.instructors.map((i) => [i.id, i.displayName]));
   const qualifiedById = new Map(data.instructors.map((i) => [i.id, i.qualifiedDepartments]));
+
+  const otherDates = collectOtherDepartmentDates(data, filters, memberIds);
 
   const members: MemberSummary[] = [...memberIds].map((id) => {
     const dates = workDates.get(id) ?? new Map<string, Set<DepartmentCode>>();
@@ -357,6 +377,8 @@ export function buildAnalysisView(data: SeasonAnalysis, filters: AnalysisFilters
       ...phase,
       total: phase.past + phase.future,
       departmentDays,
+      otherDepartmentDays: [...(otherDates.get(id) ?? [])].filter((date) => !dates.has(date))
+        .length,
       availableDays,
       avoidDays,
       // diff は月ごとの中央値が必要なため、後段で埋める

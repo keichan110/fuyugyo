@@ -9,7 +9,6 @@ export const TODAY = '2026-11-10';
 export const filters: AnalysisFilters = {
   department: 'all',
   includeDrafts: true,
-  countScope: 'allDepartments',
 };
 
 /** 4名（a〜d）を含むシーズン分析の応答を作る */

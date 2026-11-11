@@ -62,7 +62,7 @@ function toMembers(
 /**
  * 部門ごと・資格ランクごとの担当回数、上位3名の占有率、担当人数を求める。
  * @param data - API 応答
- * @param filters - 部門・下書き（負荷の数え方は影響しない）
+ * @param filters - 部門・下書き
  */
 export function buildDependency(
   data: SeasonAnalysis,

@@ -63,7 +63,7 @@ describe('buildConsecutive', () => {
     expect(crossMonth.longRuns[0]).toMatchObject({ includesPast: true, includesFuture: false });
   });
 
-  it('部門をまたぐ連勤は全部門で数え、選択部門のみ指定では途切れる。下書きは除外できる', () => {
+  it('部門をまたぐ連勤は全体で数え、部門を絞ると他部門の日で途切れる。下書きは除外できる', () => {
     const data = analysis({
       assignments: [
         assign('a', '2026-10-01', { departmentCode: 'ski' }),
@@ -73,10 +73,7 @@ describe('buildConsecutive', () => {
       ],
     });
     expect(buildConsecutive(data, filters).members[0]?.maxStreak).toBe(4);
-    expect(
-      buildConsecutive(data, { ...filters, department: 'ski', countScope: 'selectedDepartment' })
-        .members[0]?.maxStreak,
-    ).toBe(2); // 10/1 と、10/3〜10/4（snowboard の 10/2 で途切れる）
+    expect(buildConsecutive(data, { ...filters, department: 'ski' }).members[0]?.maxStreak).toBe(2); // 10/1 と、10/3〜10/4（snowboard の 10/2 で途切れる）
     expect(buildConsecutive(data, { ...filters, includeDrafts: false }).members[0]?.maxStreak).toBe(
       3,
     );

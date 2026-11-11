@@ -5,12 +5,17 @@ import {
   type DepartmentCode,
 } from '@/features/departments/schema';
 
-import { isInCountScope, isVisible, selectMemberIds, type AnalysisFilters } from './aggregators';
+import {
+  isVisible,
+  matchesDepartmentFilter,
+  selectMemberIds,
+  type AnalysisFilters,
+} from './aggregators';
 import type { SeasonAnalysis } from './schema';
 
 /**
  * メンバー別の勤務種別の構成比。単位は「回数」（枠単位。同日に2種別へ入れば各1回）で、
- * 依存（E）と同じ。対象メンバー・下書き・部門フィルタ・負荷の数え方は A と同じ定義を適用する。
+ * 依存（E）と同じ。対象メンバー・下書き・部門フィルタは A と同じ定義を適用する。
  */
 
 /** 構成比の系列（部門×種別、または種別） */
@@ -75,7 +80,7 @@ export type ShiftTypeMix = {
 /**
  * メンバー別の勤務種別の構成比を求める。
  * @param data - API 応答
- * @param filters - 部門・下書き・負荷の数え方
+ * @param filters - 部門・下書き
  */
 export function buildShiftTypeMix(data: SeasonAnalysis, filters: AnalysisFilters): ShiftTypeMix {
   const memberIds = selectMemberIds(data, filters);
@@ -92,7 +97,7 @@ export function buildShiftTypeMix(data: SeasonAnalysis, filters: AnalysisFilters
     if (
       !memberIds.has(assignment.instructorId) ||
       !isVisible(assignment.shiftStatus, filters.includeDrafts) ||
-      !isInCountScope(assignment.departmentCode, filters)
+      !matchesDepartmentFilter(assignment.departmentCode, filters.department)
     ) {
       continue;
     }

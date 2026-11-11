@@ -5,12 +5,7 @@ import { Grid, Loader, Stack, Text } from '@mantine/core';
 import { ErrorAlert } from '@/components/AppAlert';
 import { seasonName } from '@/features/shifts/season';
 
-import {
-  buildAnalysisView,
-  type AnalysisFilters,
-  type CountScope,
-  type DepartmentFilter,
-} from '../aggregators';
+import { buildAnalysisView, type AnalysisFilters, type DepartmentFilter } from '../aggregators';
 import { buildComparison, comparisonPeriodLabel } from '../comparison';
 import { buildConsecutive } from '../consecutive';
 import { buildDependency } from '../dependency';
@@ -43,14 +38,13 @@ type Props = {
 /** シーズン分析の画面本体。season・department は URL、その他のフィルタは画面内の状態で持つ。 */
 export function SeasonAnalysisPage(props: Props) {
   const [includeDrafts, setIncludeDrafts] = useState(true);
-  const [countScope, setCountScope] = useState<CountScope>('allDepartments');
   const query = useSeasonAnalysis(props.season);
   const data = query.data;
   const previousQuery = useSeasonAnalysis(props.season - 1);
   const previousData = previousQuery.data;
   const filters = useMemo<AnalysisFilters>(
-    () => ({ department: props.department, includeDrafts, countScope }),
-    [props.department, includeDrafts, countScope],
+    () => ({ department: props.department, includeDrafts }),
+    [props.department, includeDrafts],
   );
   const view = useMemo(() => (data ? buildAnalysisView(data, filters) : null), [data, filters]);
   const consecutive = useMemo(
@@ -77,8 +71,6 @@ export function SeasonAnalysisPage(props: Props) {
         onDepartmentChange={props.onDepartmentChange}
         includeDrafts={includeDrafts}
         onIncludeDraftsChange={setIncludeDrafts}
-        countScope={props.department === 'all' ? 'allDepartments' : countScope}
-        onCountScopeChange={setCountScope}
       />
       {query.isPending && <Loader size="sm" aria-label="読み込み中" />}
       {query.isError && <ErrorAlert>{query.error.message}</ErrorAlert>}
@@ -91,9 +83,17 @@ export function SeasonAnalysisPage(props: Props) {
           <AnalysisBlock title="人の偏り" question="誰に偏っているか、いつから続いているかを見る">
             <Grid>
               <Grid.Col span={{ base: 12, md: 6 }}>
-                <AnalysisPanel title="メンバー別の勤務日数">
+                <AnalysisPanel
+                  title="メンバー別の勤務日数"
+                  description={
+                    props.department === 'all'
+                      ? undefined
+                      : '灰色は他部門での勤務日数（兼任の参考。並び順・平均には含めない）'
+                  }
+                >
                   {(expanded) => (
                     <MemberDaysChart
+                      showOtherDepartment={props.department !== 'all'}
                       members={view.members}
                       averageDays={view.averageDays}
                       expanded={expanded}

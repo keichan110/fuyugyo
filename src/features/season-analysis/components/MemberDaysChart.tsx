@@ -6,7 +6,13 @@ import { DEPARTMENT_LABELS, departmentCodeSchema } from '@/features/departments/
 import type { MemberSummary } from '../aggregators';
 import { PANEL_CHART_HEIGHT } from './AnalysisPanel';
 
-type Props = { members: MemberSummary[]; averageDays: number; expanded: boolean };
+type Props = {
+  members: MemberSummary[];
+  averageDays: number;
+  expanded: boolean;
+  /** 部門を絞り込んでいるとき、他部門の勤務日数を灰色で積み上げる */
+  showOtherDepartment: boolean;
+};
 
 /** 同名メンバーが混ざっても軸ラベルが衝突しないよう、重複には連番を付ける */
 function uniqueLabels(members: MemberSummary[]): string[] {
@@ -19,12 +25,13 @@ function uniqueLabels(members: MemberSummary[]): string[] {
 }
 
 /** A: メンバー別の勤務日数（実施済み・予定の積み上げ横棒）。ツールチップに部門別内訳を出す。 */
-export function MemberDaysChart({ members, averageDays, expanded }: Props) {
+export function MemberDaysChart({ members, averageDays, expanded, showOtherDepartment }: Props) {
   const labels = uniqueLabels(members);
   const data = members.map((member, index) => ({
     name: labels[index] ?? member.name,
     past: member.past,
     future: member.future,
+    other: member.otherDepartmentDays,
   }));
   const memberByLabel = new Map(members.map((member, index) => [labels[index], member]));
   return (
@@ -38,6 +45,7 @@ export function MemberDaysChart({ members, averageDays, expanded }: Props) {
         series={[
           { name: 'past', color: 'teal.6', label: '実施済み' },
           { name: 'future', color: 'teal.2', label: '予定' },
+          ...(showOtherDepartment ? [{ name: 'other', color: 'gray.4', label: '他部門' }] : []),
         ]}
         withLegend
         xAxisProps={{ allowDecimals: false }}
@@ -63,6 +71,12 @@ export function MemberDaysChart({ members, averageDays, expanded }: Props) {
                 <Text size="xs">
                   実施済み {member.past}日 ／ 予定 {member.future}日
                 </Text>
+                {showOtherDepartment && (
+                  <Text size="xs">
+                    他部門 {member.otherDepartmentDays}日 ／ 全部門合計{' '}
+                    {member.total + member.otherDepartmentDays}日
+                  </Text>
+                )}
                 <Text size="xs" c="dimmed">
                   部門別（日数）：
                   {departmentCodeSchema.options

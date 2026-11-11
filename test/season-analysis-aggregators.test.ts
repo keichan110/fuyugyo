@@ -16,7 +16,6 @@ const TODAY = '2026-11-10';
 const defaultFilters: AnalysisFilters = {
   department: 'all',
   includeDrafts: true,
-  countScope: 'allDepartments',
 };
 
 type Assignment = SeasonAnalysis['assignments'][number];
@@ -131,26 +130,36 @@ describe('buildAnalysisView', () => {
     expect(withoutDrafts.months).toEqual(['2026-10']);
   });
 
-  it('負荷の数え方を切り替えると選択部門のみの日数になる', () => {
+  it('部門を絞ると選択部門の勤務だけを数え、他部門は otherDepartmentDays に分ける', () => {
     const data = analysis({
       instructors: [instructor('a')],
       assignments: [
         assignment('a', '2026-10-01', 'ski'),
+        // 同日に両部門: 選択部門側で1日、他部門には数えない
+        assignment('a', '2026-10-01', 'snowboard'),
         assignment('a', '2026-10-02', 'snowboard'),
         assignment('a', '2026-10-03', 'snowboard'),
+        assignment('a', '2026-10-04', 'snowboard', 'am', 'DRAFT'),
+        assignment('a', '2026-10-05', 'ski'),
       ],
     });
-    const all = buildAnalysisView(data, { ...defaultFilters, department: 'snowboard' });
-    const selected = buildAnalysisView(data, {
-      ...defaultFilters,
-      department: 'snowboard',
-      countScope: 'selectedDepartment',
-    });
-    expect(member(all, 'a').total).toBe(3);
-    expect(member(selected, 'a').total).toBe(2);
+    const ski = member(buildAnalysisView(data, { ...defaultFilters, department: 'ski' }), 'a');
+    expect(ski.total).toBe(2);
+    // 他部門は 10/2, 10/3, 10/4(下書き) の3日
+    expect(ski.otherDepartmentDays).toBe(3);
+    // 実施済み＋予定＋他部門＝全部門での勤務日数（重複なし）
+    const all = member(buildAnalysisView(data, defaultFilters), 'a');
+    expect(all.total).toBe(5);
+    expect(ski.total + ski.otherDepartmentDays).toBe(5);
+
+    const noDrafts = member(
+      buildAnalysisView(data, { ...defaultFilters, department: 'ski', includeDrafts: false }),
+      'a',
+    );
+    expect(noDrafts.otherDepartmentDays).toBe(2);
   });
 
-  it('部門=全体のときは負荷の数え方に関わらず全部門で数える', () => {
+  it('部門=全体のときは全部門で数え、otherDepartmentDays は 0', () => {
     const data = analysis({
       instructors: [instructor('a')],
       assignments: [
@@ -158,8 +167,9 @@ describe('buildAnalysisView', () => {
         assignment('a', '2026-10-02', 'snowboard'),
       ],
     });
-    const view = buildAnalysisView(data, { ...defaultFilters, countScope: 'selectedDepartment' });
-    expect(member(view, 'a').total).toBe(2);
+    const a = member(buildAnalysisView(data, defaultFilters), 'a');
+    expect(a.total).toBe(2);
+    expect(a.otherDepartmentDays).toBe(0);
   });
 
   it('対象メンバーは部門の有効資格を持つACTIVEな人と、その部門に配置された人（status不問）の和集合', () => {

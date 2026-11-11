@@ -101,7 +101,6 @@ describe('buildShiftTypeMix', () => {
     const only = buildShiftTypeMix(data, {
       department: 'ski',
       includeDrafts: true,
-      countScope: 'selectedDepartment',
     });
     expect(only.series.map((s) => s.label)).toEqual(['一般レッスン']);
     expect(only.members[0]?.total).toBe(1);

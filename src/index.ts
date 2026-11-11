@@ -18,8 +18,8 @@ import { shiftsRoute } from '@/features/shifts/api';
 import { usersRoute } from '@/features/users/api';
 import { weatherRoute } from '@/features/weather/api';
 import { createDb } from '@/server/db/client';
-import { runWeatherFetch } from '@/server/weather-fetcher';
 import type { Env } from '@/server/types';
+import { runWeatherFetch } from '@/server/weather-fetcher';
 
 const app = new Hono<{ Bindings: Env }>();
 

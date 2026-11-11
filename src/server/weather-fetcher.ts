@@ -5,12 +5,7 @@ import { normalizeSymbol } from '@/features/weather/daily';
 import { truncateCoordinate, WEATHER_SOURCE } from '@/features/weather/schema';
 
 import type { Database } from './db/client';
-import {
-  weatherFetchLogs,
-  weatherFetchState,
-  weatherPoints,
-  weatherSteps,
-} from './db/schema';
+import { weatherFetchLogs, weatherFetchState, weatherPoints, weatherSteps } from './db/schema';
 
 /** MET Norway の利用規約で求められる User-Agent（アプリ名と連絡先） */
 export const WEATHER_USER_AGENT = 'fuyugyo/1.0 github.com/keichan110/fuyugyo';

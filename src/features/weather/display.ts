@@ -39,19 +39,23 @@ export function formatTemperature(day: Pick<DaySummary, 'tempMaxC' | 'tempMinC'>
 }
 
 /**
- * レッスン時間帯の降水量と最大風速を `降水 1.5mm · 風 6m/s` 形式にする。
- * 降水量は 0.1mm 単位、風は整数に丸め、値がない項目は省く。
+ * レッスン時間帯の降水量を `1.5mm` 形式（0.1mm 単位）にする。
  *
- * @param day - 日別サマリー
- * @returns 表示文字列。どちらも無ければ null
+ * @param value - 降水量（mm）
+ * @returns 表示文字列。値がなければ null
  */
-export function formatPrecipitationWind(
-  day: Pick<DaySummary, 'precipitationMm' | 'windMaxMs'>,
-): string | null {
-  const parts: string[] = [];
-  if (day.precipitationMm !== null) parts.push(`降水 ${day.precipitationMm.toFixed(1)}mm`);
-  if (day.windMaxMs !== null) parts.push(`風 ${Math.round(day.windMaxMs)}m/s`);
-  return parts.length > 0 ? parts.join(' · ') : null;
+export function formatPrecipitation(value: number | null): string | null {
+  return value === null ? null : `${value.toFixed(1)}mm`;
+}
+
+/**
+ * レッスン時間帯の最大風速を `6m/s` 形式（整数）にする。
+ *
+ * @param value - 風速（m/s）
+ * @returns 表示文字列。値がなければ null
+ */
+export function formatWindMax(value: number | null): string | null {
+  return value === null ? null : `${Math.round(value)}m/s`;
 }
 
 /** 丸めた結果の -0 を 0 にそろえる */

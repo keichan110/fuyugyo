@@ -2,12 +2,13 @@ import { describe, expect, it } from 'vitest';
 
 import {
   formatFetchedAt,
-  formatPrecipitationWind,
+  formatPrecipitation,
   formatStepPrecipitation,
   formatStepTemperature,
   formatStepTimeLabel,
   formatStepWind,
   formatTemperature,
+  formatWindMax,
   pickConditions,
 } from '../src/features/weather/display';
 
@@ -42,20 +43,16 @@ describe('formatTemperature', () => {
   });
 });
 
-describe('formatPrecipitationWind', () => {
-  it('降水量は0.1mm単位、風は整数で表示する', () => {
-    expect(formatPrecipitationWind({ precipitationMm: 1.54, windMaxMs: 5.6 })).toBe(
-      '降水 1.5mm · 風 6m/s',
-    );
-    expect(formatPrecipitationWind({ precipitationMm: 0, windMaxMs: 2 })).toBe(
-      '降水 0.0mm · 風 2m/s',
-    );
+describe('formatPrecipitation / formatWindMax', () => {
+  it('降水量は0.1mm単位、風は整数で単位付きにする', () => {
+    expect(formatPrecipitation(1.54)).toBe('1.5mm');
+    expect(formatPrecipitation(0)).toBe('0.0mm');
+    expect(formatWindMax(5.6)).toBe('6m/s');
   });
 
-  it('null の項目は省き、両方 null なら null', () => {
-    expect(formatPrecipitationWind({ precipitationMm: null, windMaxMs: 3 })).toBe('風 3m/s');
-    expect(formatPrecipitationWind({ precipitationMm: 2, windMaxMs: null })).toBe('降水 2.0mm');
-    expect(formatPrecipitationWind({ precipitationMm: null, windMaxMs: null })).toBeNull();
+  it('null は null', () => {
+    expect(formatPrecipitation(null)).toBeNull();
+    expect(formatWindMax(null)).toBeNull();
   });
 });
 

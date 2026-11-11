@@ -116,7 +116,7 @@ export function SeasonAnalysisPage(props: Props) {
                 </AnalysisPanel>
               </Grid.Col>
               {shiftTypeMix && (
-                <Grid.Col span={12}>
+                <Grid.Col span={{ base: 12, md: 6 }}>
                   <AnalysisPanel
                     title="勤務種別の構成比"
                     description={`各メンバーの配置回数に占める勤務種別の割合（量はメンバー別の勤務日数を参照）。回数は枠単位。${
@@ -129,8 +129,8 @@ export function SeasonAnalysisPage(props: Props) {
                   </AnalysisPanel>
                 </Grid.Col>
               )}
-              {/* 人×月は横に長いため常に全幅。スクロールは表コンテナが持つ */}
-              <Grid.Col span={12}>
+              {/* 種別構成比と並べて半幅にする。横にはみ出す月は表コンテナ内でスクロールし、氏名列は固定される */}
+              <Grid.Col span={{ base: 12, md: shiftTypeMix ? 6 : 12 }}>
                 <AnalysisPanel
                   title="人×月の勤務日数"
                   scrollable={false}

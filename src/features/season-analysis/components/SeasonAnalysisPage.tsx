@@ -26,7 +26,7 @@ import {
 } from './SeasonComparisonSection';
 import { ShiftTypeMixChart } from './ShiftTypeMixChart';
 import { WeeklyStaffingChart } from './WeeklyStaffingChart';
-import { BurdenSummary, WeeklyWorkHeatmap, WorkBurdenTable } from './WorkBurden';
+import { WorkBurden } from './WorkBurden';
 
 type Props = {
   season: number;
@@ -147,38 +147,7 @@ export function SeasonAnalysisPage(props: Props) {
           </AnalysisBlock>
           {burden && (
             <AnalysisBlock title="負担" question="負担の重い入り方をしていないかを見る">
-              <Stack gap="sm">
-                <BurdenSummary view={burden} />
-                <Grid>
-                  <Grid.Col span={{ base: 12, md: 6 }}>
-                    <AnalysisPanel
-                      title="人×週の勤務パターン"
-                      scrollable={false}
-                      description="セルは週（月曜始まり、見出しは月曜日）の勤務日数。1日でも勤務があれば勤務週で、勤務のない週で連続は途切れます。斜線は予定のみの週。"
-                    >
-                      {(expanded) => (
-                        <WeeklyWorkHeatmap
-                          view={burden}
-                          department={props.department}
-                          expanded={expanded}
-                        />
-                      )}
-                    </AnalysisPanel>
-                  </Grid.Col>
-                  <Grid.Col span={{ base: 12, md: 6 }}>
-                    <AnalysisPanel
-                      title="負担の一覧"
-                      description={`連勤は暦日で連続した勤務日。連続勤務週は勤務週が続く数。直近は基準週から遡った実施済みの週数。列見出しで並べ替え。${
-                        burden.excludedCount > 0
-                          ? ` 勤務のない${burden.excludedCount}名は除外。`
-                          : ''
-                      }`}
-                    >
-                      {() => <WorkBurdenTable view={burden} />}
-                    </AnalysisPanel>
-                  </Grid.Col>
-                </Grid>
-              </Stack>
+              <WorkBurden view={burden} department={props.department} />
             </AnalysisBlock>
           )}
           <AnalysisBlock

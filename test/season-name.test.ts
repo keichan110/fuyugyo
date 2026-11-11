@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { seasonLabel } from '../src/features/season-analysis/season-label';
+import { seasonOptions } from '../src/features/season-analysis/season-label';
 import { seasonName } from '../src/features/shifts/season';
 
 /** シーズン名がスキー・スノーボード業界の慣習（開始年と終了年の下2桁）に沿うことを確認する。 */
@@ -14,7 +14,10 @@ describe('seasonName', () => {
     expect(seasonName(2005)).toBe('05-06シーズン');
   });
 
-  it('選択肢のラベルはシーズン名に期間を添える', () => {
-    expect(seasonLabel(2026)).toBe('26-27シーズン（2026/9〜2027/8）');
+  it('選択肢のラベルは期間を添えずシーズン名だけを出す', () => {
+    expect(seasonOptions('2026-11-11', 2026)[0]).toEqual({
+      value: '2026',
+      label: '26-27シーズン',
+    });
   });
 });

@@ -1,5 +1,16 @@
 import { sql } from 'drizzle-orm';
-import { check, index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import {
+  check,
+  index,
+  integer,
+  primaryKey,
+  real,
+  sqliteTable,
+  text,
+  uniqueIndex,
+} from 'drizzle-orm/sqlite-core';
+
+import { CONDITIONS } from '../../features/weather/daily';
 
 /**
  * 全テーブル共通の作成・更新タイムスタンプ列。
@@ -263,4 +274,85 @@ export const invitationTokens = sqliteTable(
     index('idx_invitation_tokens_created_by').on(t.createdBy),
     index('idx_invitation_tokens_active_expires').on(t.isActive, t.expiresAt),
   ],
+);
+
+/** 天気の予報地点。シーズン中の代表地点を1行だけ持つ（単一行の制約は API 側で担保する） */
+export const weatherPoints = sqliteTable('weather_points', {
+  id: primaryId(),
+  name: text('name').notNull(),
+  /** 小数点以下4桁に切り捨てた緯度 */
+  latitude: real('latitude').notNull(),
+  /** 小数点以下4桁に切り捨てた経度 */
+  longitude: real('longitude').notNull(),
+  /** 標高（m・整数）。MET Norway の altitude パラメータに渡す */
+  elevationM: integer('elevation_m').notNull(),
+  ...timestamps,
+});
+
+/**
+ * 天気予報の時系列。(地点, データ源, 開始時刻) で upsert する。
+ * 過去の行は実測値ではなく「その時点の最後の予報値」。
+ */
+export const weatherSteps = sqliteTable(
+  'weather_steps',
+  {
+    pointId: text('point_id')
+      .notNull()
+      .references(() => weatherPoints.id, { onDelete: 'cascade' }),
+    source: text('source').notNull(),
+    /** ステップの開始時刻 */
+    time: integer('time', { mode: 'timestamp' }).notNull(),
+    /** そのステップが表す時間数（1 または 6） */
+    stepHours: integer('step_hours').notNull(),
+    temperatureC: real('temperature_c'),
+    precipitationMm: real('precipitation_mm'),
+    windSpeedMs: real('wind_speed_ms'),
+    windDirectionDeg: integer('wind_direction_deg'),
+    cloudCoverPct: integer('cloud_cover_pct'),
+    /** 取得時に5種類へまとめた天気 */
+    condition: text('condition', { enum: CONDITIONS }),
+    /** 元の symbol_code */
+    rawSymbol: text('raw_symbol'),
+    updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.pointId, t.source, t.time] }),
+    index('idx_weather_steps_time').on(t.time),
+  ],
+);
+
+/** 地点・データ源ごとの取得状態（Expires / Last-Modified による取得制御用） */
+export const weatherFetchState = sqliteTable(
+  'weather_fetch_state',
+  {
+    pointId: text('point_id')
+      .notNull()
+      .references(() => weatherPoints.id, { onDelete: 'cascade' }),
+    source: text('source').notNull(),
+    /** レスポンスの Last-Modified をそのまま保持（If-Modified-Since に使う） */
+    lastModified: text('last_modified'),
+    /** レスポンスの Expires。この時刻までは再取得しない */
+    expiresAt: integer('expires_at', { mode: 'timestamp' }),
+    lastFetchedAt: integer('last_fetched_at', { mode: 'timestamp' }),
+  },
+  (t) => [primaryKey({ columns: [t.pointId, t.source] })],
+);
+
+/** 天気取得ログ。最終更新時刻の表示と失敗検知に使う */
+export const weatherFetchLogs = sqliteTable(
+  'weather_fetch_logs',
+  {
+    id: primaryId(),
+    pointId: text('point_id')
+      .notNull()
+      .references(() => weatherPoints.id, { onDelete: 'cascade' }),
+    source: text('source').notNull(),
+    fetchedAt: integer('fetched_at', { mode: 'timestamp' }).notNull(),
+    ok: integer('ok', { mode: 'boolean' }).notNull(),
+    /** 304 もここに入る */
+    httpStatus: integer('http_status'),
+    rowsUpserted: integer('rows_upserted'),
+    error: text('error'),
+  },
+  (t) => [index('idx_weather_fetch_logs_point_time').on(t.pointId, t.fetchedAt)],
 );

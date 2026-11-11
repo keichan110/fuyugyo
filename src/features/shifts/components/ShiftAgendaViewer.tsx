@@ -23,6 +23,8 @@ import { AppButton } from '@/components/AppButton';
 import { useMe } from '@/features/auth/queries';
 import { getDepartmentAppearance } from '@/features/departments/appearance';
 import { departmentCodeSchema, type DepartmentCode } from '@/features/departments/schema';
+import { useWeatherByDate, WeatherAttribution, WeatherDayRow } from '@/features/weather';
+import type { DaySummary } from '@/features/weather/daily';
 
 import { containsInstructorAssignment, filterAgendaDaysByInstructor } from '../aggregators';
 import { pickPrintTargetDate } from '../print-target';
@@ -214,6 +216,7 @@ export function ShiftAgendaViewer({ date, onVisibleDateChange }: ShiftAgendaView
         )}
 
         <AgendaDayList days={filteredDays} myInstructorId={myInstructorId} />
+        <WeatherAttribution />
 
         <Box ref={sentinelRef} mih={1} />
         {future.isFetchingNextPage && (
@@ -276,10 +279,9 @@ function measurePrintTargetMonth(fallbackDate: string): string {
 }
 
 /** シフトイベントに付随するペイロード（AgendaView は payload を汎用型で扱うため renderEvent 内で参照する） */
-type ShiftEventPayload = {
-  shift: ShiftViewItem;
-  includesMe: boolean;
-};
+type ShiftEventPayload =
+  | { kind: 'shift'; shift: ShiftViewItem; includesMe: boolean }
+  | { kind: 'weather'; day: DaySummary };
 
 /** 稼働日を月ごとにグルーピングする（月が変わったことを識別しやすくするため、月ごとに 1つの AgendaView を描画する） */
 function groupDaysByMonth(days: ShiftAgendaDay[]): Map<string, ShiftAgendaDay[]> {
@@ -308,9 +310,24 @@ function lastDateOfMonth(month: string): string {
 function buildMonthEvents(
   days: ShiftAgendaDay[],
   myInstructorId: string | null,
+  weatherByDate: ReadonlyMap<string, DaySummary>,
 ): ScheduleEventData<ShiftEventPayload>[] {
   const events: ScheduleEventData<ShiftEventPayload>[] = [];
   for (const day of days) {
+    const weather = weatherByDate.get(day.date);
+    // 天気行は同日の先頭に出す。AgendaView は開始時刻→長さの順に安定ソートするため、
+    // シフトと同じ開始・終了で先に push しておけば先頭に残る。
+    // シフトのない日に追加すると天気だけの日付が生まれるため、稼働日のみ対象にする。
+    if (weather && day.shifts.length > 0) {
+      events.push({
+        id: `weather-${day.date}`,
+        title: '天気',
+        color: 'gray',
+        start: `${day.date} 00:00:00`,
+        end: `${addDays(day.date, 1)} 00:00:00`,
+        payload: { kind: 'weather', day: weather },
+      });
+    }
     for (const shift of day.shifts) {
       events.push({
         id: shift.id,
@@ -320,6 +337,7 @@ function buildMonthEvents(
         // AgendaView の左端バーで部門を判別できるよう、部門固有の色を使う。
         color: getDepartmentAppearance(shift.department.code, shift.department.name).color,
         payload: {
+          kind: 'shift',
           shift,
           includesMe: containsInstructorAssignment(shift, myInstructorId),
         },
@@ -337,6 +355,7 @@ function AgendaDayList({
   myInstructorId: string | null;
 }) {
   const monthGroups = groupDaysByMonth(days);
+  const weatherByDate = useWeatherByDate();
 
   return (
     <Stack gap="sm">
@@ -346,7 +365,7 @@ function AgendaDayList({
           <AgendaView
             rangeStart={`${month}-01`}
             rangeEnd={lastDateOfMonth(month)}
-            events={buildMonthEvents(monthDays, myInstructorId)}
+            events={buildMonthEvents(monthDays, myInstructorId, weatherByDate)}
             mode="static"
             dateHeaderFormat={(date) => shortDateLabel(date.slice(0, 10))}
             styles={{ agendaViewHeader: { display: 'none' } }}
@@ -355,6 +374,14 @@ function AgendaDayList({
               // AgendaView の payload は汎用型のため、ここで自前の型へ絞り込む
               // （events はこのコンポーネント自身が組み立てているため安全）
               const payload = event.payload as ShiftEventPayload;
+              if (payload.kind === 'weather') {
+                // 天気行は開閉だけの行のため、AgendaView の click 等は引き継がず見た目の props だけ使う
+                return (
+                  <Box className={props.className} style={props.style}>
+                    <WeatherDayRow day={payload.day} />
+                  </Box>
+                );
+              }
               return (
                 <UnstyledButton
                   {...props}

@@ -7,6 +7,7 @@ import { UnsavedChangesBar } from '@/components/UnsavedChangesBar';
 import { useMe } from '@/features/auth/queries';
 import { getDepartmentAppearance } from '@/features/departments/appearance';
 import type { DepartmentCode } from '@/features/departments/schema';
+import { WeatherAttribution } from '@/features/weather';
 
 import { cellKey } from './shift-manager-utils';
 import { ShiftAnalysis } from './ShiftAnalysis';
@@ -238,6 +239,8 @@ function ShiftManagerContent({ controller, myInstructorId }: ShiftManagerContent
           />
         </>
       )}
+
+      <WeatherAttribution />
 
       <ShiftManagerDialogs controller={controller} />
     </Stack>

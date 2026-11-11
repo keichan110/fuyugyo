@@ -3,6 +3,7 @@ import type { ComponentProps, Ref } from 'react';
 import { Box, Card, CloseButton, Group, Stack, Text, Title } from '@mantine/core';
 
 import { AppBadge } from '@/components/AppBadge';
+import { DailyWeather, useWeatherByDate } from '@/features/weather';
 
 import { getCalendarDayColor, shortDateLabel } from '../view-utils';
 import { AssignmentPanel } from './AssignmentPanel';
@@ -30,6 +31,7 @@ export function ShiftAssignmentForm({
   onAnalyzeInstructor,
 }: Props) {
   const selectedCell = controller.selectedCell;
+  const weatherByDate = useWeatherByDate();
   const selectedCellDateColor = selectedCell ? getCalendarDayColor(selectedCell.date) : undefined;
   const selectedPublished = selectedCell
     ? controller.shiftByCell.get(cellKey(selectedCell.date, selectedCell.shiftTypeId))?.status ===
@@ -46,16 +48,19 @@ export function ShiftAssignmentForm({
       <Box className={classes.assignmentFormHeader}>
         <Group justify="space-between" mb="sm" align="flex-start">
           <Stack gap={2}>
-            <Title
-              ref={headingRef}
-              tabIndex={-1}
-              style={{ scrollMarginTop: 80 }}
-              order={3}
-              size="h4"
-              c={selectedCellDateColor ?? 'inherit'}
-            >
-              {selectedCell ? shortDateLabel(selectedCell.date) : '枠の編集'}
-            </Title>
+            <Group gap="xs" align="center" wrap="nowrap">
+              <Title
+                ref={headingRef}
+                tabIndex={-1}
+                style={{ scrollMarginTop: 80 }}
+                order={3}
+                size="h4"
+                c={selectedCellDateColor ?? 'inherit'}
+              >
+                {selectedCell ? shortDateLabel(selectedCell.date) : '枠の編集'}
+              </Title>
+              {selectedCell && <DailyWeather day={weatherByDate.get(selectedCell.date)} />}
+            </Group>
             <Text size="xs" c="dimmed">
               {
                 controller.formData.data?.shiftTypes.find(

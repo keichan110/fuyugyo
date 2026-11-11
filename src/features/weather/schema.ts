@@ -79,3 +79,28 @@ export const weatherDailyResponseSchema = z.object({
 });
 
 export type WeatherDailyResponse = z.infer<typeof weatherDailyResponseSchema>;
+
+/** `GET /steps` のクエリ（JST の日付） */
+export const weatherStepsQuerySchema = z.object({
+  date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .refine((value) => !Number.isNaN(Date.parse(`${value}T00:00:00Z`))),
+});
+
+/** 時間別ステップ（開始時刻・刻み幅・天気と数値） */
+export const weatherStepSchema = z.object({
+  time: z.coerce.date(),
+  stepHours: z.number(),
+  condition: z.enum(CONDITIONS).nullable(),
+  temperatureC: z.number().nullable(),
+  precipitationMm: z.number().nullable(),
+  windSpeedMs: z.number().nullable(),
+});
+
+export type WeatherStep = z.infer<typeof weatherStepSchema>;
+
+/** `GET /steps` のレスポンス */
+export const weatherStepsResponseSchema = z.object({
+  steps: z.array(weatherStepSchema),
+});

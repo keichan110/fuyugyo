@@ -6,6 +6,7 @@ import { jstDateString, jstMidnightToUtc } from '../src/features/weather/daily';
 import {
   weatherDailyResponseSchema,
   weatherPointResponseSchema,
+  weatherStepsResponseSchema,
 } from '../src/features/weather/schema';
 import app from '../src/index';
 import { signJwt } from '../src/server/auth/jwt';
@@ -528,5 +529,80 @@ describe('GET /api/weather/daily', () => {
     expect(body.days[1]).toMatchObject({ morning: 'rain', tempMaxC: -1 });
     // 失敗ログは最終更新時刻に使わない
     expect(body.lastFetchedAt).toEqual(new Date('2026-11-11T01:00:00Z'));
+  });
+});
+
+describe('GET /api/weather/steps', () => {
+  it('未認証は 401', async () => {
+    const res = await app.request('/api/weather/steps?date=2026-11-12', {}, envWith({}));
+    expect(res.status).toBe(401);
+  });
+
+  it('日付が不正なら 400', async () => {
+    const token = await seedToken('MEMBER');
+    for (const query of ['', '?date=2026-1-2', '?date=abc', '?date=2026-13-45']) {
+      const res = await request(`/api/weather/steps${query}`, token);
+      expect(res.status).toBe(400);
+    }
+  });
+
+  it('地点が未登録なら空を返す（MEMBER でも読める）', async () => {
+    const res = await request('/api/weather/steps?date=2026-11-12', await seedToken('MEMBER'));
+    expect(res.status).toBe(200);
+    expect(weatherStepsResponseSchema.parse(await res.json())).toEqual({ steps: [] });
+  });
+
+  it('JST の指定日 0:00〜24:00 に開始する 1 時間・6 時間ステップを時刻順に返す', async () => {
+    const point = await seedPoint();
+    const db = createDb(env.DB);
+    const start = jstMidnightToUtc('2026-11-12').getTime();
+    const hour = 3600_000;
+    const base = {
+      pointId: point.id,
+      source: SOURCE,
+      precipitationMm: 0.2,
+      windSpeedMs: 5,
+      windDirectionDeg: null,
+      cloudCoverPct: null,
+      rawSymbol: null,
+      updatedAt: new Date(),
+    };
+    await db.insert(weatherSteps).values([
+      // 前日 23:00 JST と翌日 0:00 JST は境界の外
+      { ...base, stepHours: 1, time: new Date(start - hour), temperatureC: 1, condition: 'clear' },
+      {
+        ...base,
+        stepHours: 1,
+        time: new Date(start + 24 * hour),
+        temperatureC: 2,
+        condition: 'clear',
+      },
+      // 順不同で入れても時刻順で返る
+      {
+        ...base,
+        stepHours: 6,
+        time: new Date(start + 15 * hour),
+        temperatureC: -3,
+        condition: 'snow',
+      },
+      { ...base, stepHours: 1, time: new Date(start), temperatureC: -8, condition: null },
+      {
+        ...base,
+        stepHours: 1,
+        time: new Date(start + 23 * hour),
+        temperatureC: -6,
+        condition: 'cloudy',
+      },
+    ]);
+
+    const res = await request('/api/weather/steps?date=2026-11-12', await seedToken('MEMBER'));
+    expect(res.status).toBe(200);
+    const body = weatherStepsResponseSchema.parse(await res.json());
+    expect(body.steps.map((s) => [s.time.getTime() - start, s.stepHours, s.temperatureC])).toEqual([
+      [0, 1, -8],
+      [15 * hour, 6, -3],
+      [23 * hour, 1, -6],
+    ]);
+    expect(body.steps[0]).toMatchObject({ condition: null, precipitationMm: 0.2, windSpeedMs: 5 });
   });
 });

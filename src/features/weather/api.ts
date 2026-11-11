@@ -1,4 +1,4 @@
-import { and, desc, eq, gte } from 'drizzle-orm';
+import { and, desc, eq, gte, lt } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { validator } from 'hono/validator';
 
@@ -13,7 +13,7 @@ import { requireAuth, requireRole, type AuthVariables } from '@/server/middlewar
 import type { Env } from '@/server/types';
 
 import { jstDateString, jstMidnightToUtc, summarizeDay, type StepRow } from './daily';
-import { updateWeatherPointSchema, WEATHER_SOURCE } from './schema';
+import { updateWeatherPointSchema, WEATHER_SOURCE, weatherStepsQuerySchema } from './schema';
 
 /**
  * 天気（予報地点・日別サマリー）の Hono ルート。
@@ -133,4 +133,48 @@ export const weatherRoute = new Hono<{
       .limit(1);
 
     return c.json({ days, lastFetchedAt: lastOk?.fetchedAt ?? state?.lastFetchedAt ?? null });
-  });
+  })
+  /**
+   * 指定日（JST 0:00〜24:00）に開始するステップを時刻順に返す（ログイン済みなら全ロール）。
+   * 日別行の展開表示用。地点未登録なら空配列。
+   */
+  .get(
+    '/steps',
+    requireAuth,
+    validator('query', (value, c) => {
+      const parsed = weatherStepsQuerySchema.safeParse(value);
+      if (!parsed.success) {
+        return c.json({ message: parsed.error.message }, 400);
+      }
+      return parsed.data;
+    }),
+    async (c) => {
+      const { date } = c.req.valid('query');
+      const db = createDb(c.env.DB);
+      const [point] = await db.select().from(weatherPoints).limit(1);
+      if (!point) return c.json({ steps: [] });
+
+      const from = jstMidnightToUtc(date);
+      const to = new Date(from.getTime() + 24 * 60 * 60 * 1000);
+      const rows = await db
+        .select({
+          time: weatherSteps.time,
+          stepHours: weatherSteps.stepHours,
+          condition: weatherSteps.condition,
+          temperatureC: weatherSteps.temperatureC,
+          precipitationMm: weatherSteps.precipitationMm,
+          windSpeedMs: weatherSteps.windSpeedMs,
+        })
+        .from(weatherSteps)
+        .where(
+          and(
+            eq(weatherSteps.pointId, point.id),
+            eq(weatherSteps.source, WEATHER_SOURCE),
+            gte(weatherSteps.time, from),
+            lt(weatherSteps.time, to),
+          ),
+        )
+        .orderBy(weatherSteps.time);
+      return c.json({ steps: rows });
+    },
+  );

@@ -1,4 +1,4 @@
-import { SEASON_END_MONTH, SEASON_START_MONTH } from '@/features/shifts/season';
+import { SEASON_END_MONTH, SEASON_START_MONTH, seasonName } from '@/features/shifts/season';
 import { seasonRangeForDate } from '@/features/shifts/workload';
 
 /** シーズンの選択肢として「今シーズンから遡る」シーズン数（今シーズンを含む） */
@@ -13,12 +13,12 @@ export function currentSeasonStartYear(today: string): number {
 }
 
 /**
- * シーズン開始年から表示ラベルを作る（例: 「2026シーズン（2026/9〜2027/8）」）。
+ * シーズン開始年から選択肢の表示ラベルを作る（例: 「26-27シーズン（2026/9〜2027/8）」）。
  * @param season - シーズン開始年
  */
 export function seasonLabel(season: number): string {
   const endYear = SEASON_START_MONTH > SEASON_END_MONTH ? season + 1 : season;
-  return `${season}シーズン（${season}/${SEASON_START_MONTH}〜${endYear}/${SEASON_END_MONTH}）`;
+  return `${seasonName(season)}（${season}/${SEASON_START_MONTH}〜${endYear}/${SEASON_END_MONTH}）`;
 }
 
 /**

@@ -1,6 +1,8 @@
 import { BarChart } from '@mantine/charts';
 import { Group, Stack, Text } from '@mantine/core';
 
+import { seasonName } from '@/features/shifts/season';
+
 import {
   comparisonPeriodLabel,
   summarizeComparison,
@@ -34,8 +36,8 @@ export function ComparisonSummary({ view, season }: { view: ComparisonView; seas
   return (
     <Stack gap={4}>
       <Text size="sm">
-        {comparisonPeriodLabel(view)}（実施済みのみ）。延べ勤務日数 {season}シーズン{' '}
-        {summary.currentTotal}日 ／ {season - 1}シーズン {summary.previousTotal}日（
+        {comparisonPeriodLabel(view)}（実施済みのみ）。延べ勤務日数 {seasonName(season)}{' '}
+        {summary.currentTotal}日 ／ {seasonName(season - 1)} {summary.previousTotal}日（
         {formatSigned(summary.diff)}
         {percent}）
       </Text>
@@ -57,7 +59,7 @@ export function ComparisonMonthlyChart({
   season: number;
   expanded: boolean;
 }) {
-  const currentLabel = `${season}シーズン`;
+  const currentLabel = seasonName(season);
   return (
     <BarChart
       h={expanded ? 400 : PANEL_CHART_HEIGHT}
@@ -71,7 +73,7 @@ export function ComparisonMonthlyChart({
       series={[
         { name: 'current', color: 'teal.6', label: currentLabel },
         { name: 'currentPlanned', color: 'teal.2', label: `${currentLabel}（予定）` },
-        { name: 'previous', color: 'gray.5', label: `${season - 1}シーズン` },
+        { name: 'previous', color: 'gray.5', label: seasonName(season - 1) },
       ]}
       withLegend
       yAxisProps={{ allowDecimals: false }}

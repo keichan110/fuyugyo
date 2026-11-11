@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { Grid, Loader, Stack, Text } from '@mantine/core';
 
 import { ErrorAlert } from '@/components/AppAlert';
+import { seasonName } from '@/features/shifts/season';
 
 import {
   buildAnalysisView,
@@ -195,7 +196,7 @@ export function SeasonAnalysisPage(props: Props) {
                   <Grid.Col span={{ base: 12, md: 6 }}>
                     <AnalysisPanel
                       title="メンバー別の増減"
-                      description={`${props.season}シーズン − ${props.season - 1}シーズン（${comparisonPeriodLabel(comparison)}）。「新規」は前シーズンに配置がない人。今シーズンに配置がない人は減少として表示します。`}
+                      description={`${seasonName(props.season)} − ${seasonName(props.season - 1)}（${comparisonPeriodLabel(comparison)}）。「新規」は前シーズンに配置がない人。今シーズンに配置がない人は減少として表示します。`}
                     >
                       {(expanded) => (
                         <ComparisonMemberChart view={comparison} expanded={expanded} />

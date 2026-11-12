@@ -425,18 +425,11 @@ wrangler tail --since=2024-08-29T10:00:00Z
 
 ### 10.3 ロールバック手順
 
-```bash
-# 前バージョンにロールバック
-wrangler rollback [DEPLOYMENT_ID]
-
-# マイグレーションロールバック（緊急時）
-wrangler d1 execute fuyugyo --command="
-DROP TABLE invitation_tokens;
-DROP TABLE users;
-"
-```
+> 現行のロールバック手順（`wrangler rollback`、D1 は戻らない点、Time Travel による DB 復元）は [本番リリース・デプロイ手順](../settings/database-migration-deployment.md#ロールバック手順) を参照。
 
 ## 11. CI/CD設定
+
+> 現行の本番デプロイは Release ワークフロー（`.github/workflows/release.yml`）の手動実行で行う。手順は [本番リリース・デプロイ手順](../settings/database-migration-deployment.md) を参照。以下は初期構築時の記録。
 
 ### 11.1 GitHub Actions設定
 
@@ -530,7 +523,7 @@ export function middleware(request: NextRequest) {
 
   response.headers.set(
     'Content-Security-Policy',
-    "default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'"
+    "default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'",
   );
 
   return response;

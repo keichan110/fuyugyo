@@ -137,6 +137,8 @@ pnpm run preview      # ビルド成果物のプレビュー
 pnpm run deploy       # Cloudflare Workers へデプロイ
 ```
 
+本番リリースは GitHub Actions の Release ワークフローを手動実行して行う（`main` へのマージではデプロイされない）。リリース・ロールバック・secret 変更の手順は [docs/settings/database-migration-deployment.md](./docs/settings/database-migration-deployment.md) を参照。
+
 ### テスト
 
 ```bash

@@ -1,0 +1,162 @@
+name: Release
+
+# 本番デプロイは手動実行のみ。main へのマージとデプロイを切り離し、
+# 本番に出すタイミング（営業時間外など）を選べるようにする。
+# 手順・ロールバック: docs/settings/database-migration-deployment.md
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # 実行ブランチの選択に関わらず main 上の定義からのみ実行する
+    if: github.repository == 'keichan110/fuyugyo' && github.ref == 'refs/heads/main'
+    timeout-minutes: 10
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+      sha: ${{ steps.tag.outputs.sha }}
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      # JST の日付で vYYYY.MM.DD を採番し、同日2回目以降は .2, .3 ... を付ける。
+      # concurrency で直列化しているため、採番からリリース作成までに他の実行と衝突しない。
+      - name: Determine release tag
+        id: tag
+        run: |
+          base="v$(TZ=Asia/Tokyo date +%Y.%m.%d)"
+          existing=$(git ls-remote --tags --refs origin "refs/tags/${base}*" | sed 's|.*refs/tags/||')
+          tag="$base"
+          n=2
+          while printf '%s\n' "$existing" | grep -qxF "$tag"; do
+            tag="${base}.${n}"
+            n=$((n + 1))
+          done
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "Release tag: $tag ($(git rev-parse --short HEAD))"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.node-version'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate required secrets and variables
+        run: |
+          for name in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID APP_URL LINE_CHANNEL_ID; do
+            if [ -z "${!name}" ]; then
+              echo "::error::$name is not set"
+              exit 1
+            fi
+          done
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          APP_URL: ${{ vars.APP_URL }}
+          LINE_CHANNEL_ID: ${{ vars.LINE_CHANNEL_ID }}
+
+      # Worker secret はデプロイごとに入れ直さない（secret put は新バージョンを即デプロイするため）。
+      # Cloudflare 側に登録済みであることだけを確認する。
+      - name: Verify Worker secrets exist
+        run: |
+          secrets=$(pnpm exec wrangler secret list --format json | jq -r '.[].name')
+          for name in JWT_SECRET LINE_CHANNEL_SECRET; do
+            if ! printf '%s\n' "$secrets" | grep -qxF "$name"; then
+              echo "::error::Worker secret $name is not set on Cloudflare"
+              exit 1
+            fi
+          done
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Build application
+        run: pnpm run build
+
+      # 新コードが参照するスキーマを先に用意し、デプロイ中の 500 を防ぐ。
+      # 失敗した migration は Wrangler がロールバックする。適用済み migration の巻き戻しは
+      # 自動では行われないため、DB の復元が必要な場合は D1 Time Travel を使う。
+      - name: Apply database migrations
+        run: pnpm exec wrangler d1 migrations apply fuyugyo --remote
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      # Worker Version にリリースタグを付け、Cloudflare 側のバージョンと GitHub Release を対応させる
+      - name: Deploy to Cloudflare Workers
+        run: |
+          pnpm exec wrangler deploy \
+            --var "APP_URL:$APP_URL" \
+            --var "LINE_CHANNEL_ID:$LINE_CHANNEL_ID" \
+            --tag "$RELEASE_TAG" \
+            --message "Release $RELEASE_TAG (${RELEASE_SHA:0:7})"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          APP_URL: ${{ vars.APP_URL }}
+          LINE_CHANNEL_ID: ${{ vars.LINE_CHANNEL_ID }}
+          RELEASE_TAG: ${{ steps.tag.outputs.tag }}
+          RELEASE_SHA: ${{ steps.tag.outputs.sha }}
+
+  health-check:
+    runs-on: ubuntu-latest
+    needs: deploy
+    timeout-minutes: 5
+
+    steps:
+      - name: Health check
+        run: |
+          for i in $(seq 1 10); do
+            RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" "${APP_URL}/api/health")
+            if [ "$RESPONSE" = "200" ]; then
+              echo "Health check passed!"
+              exit 0
+            fi
+            echo "Attempt $i failed (HTTP $RESPONSE). Retrying in 5s..."
+            sleep 5
+          done
+          echo "Health check failed after 10 attempts."
+          exit 1
+        env:
+          APP_URL: ${{ vars.APP_URL }}
+
+  # デプロイとヘルスチェックが両方成功した場合のみタグと Release を作る。
+  # 失敗時にリリースだけが残り、記録と本番が食い違うのを避けるため最後に置く。
+  # 書き込み権限はこのジョブだけに限定する。
+  release:
+    runs-on: ubuntu-latest
+    needs: [deploy, health-check]
+    timeout-minutes: 5
+    permissions:
+      contents: write
+
+    steps:
+      - name: Create GitHub Release
+        run: |
+          gh release create "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$RELEASE_SHA" \
+            --title "$RELEASE_TAG" \
+            --generate-notes \
+            --latest
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.deploy.outputs.tag }}
+          RELEASE_SHA: ${{ needs.deploy.outputs.sha }}

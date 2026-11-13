@@ -3,6 +3,7 @@ import { Hono } from 'hono';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { HTTPException } from 'hono/http-exception';
 import { validator } from 'hono/validator';
+import { z } from 'zod';
 
 import {
   AUTH_COOKIE,
@@ -52,12 +53,14 @@ function lineConfig(env: Env): LineConfig {
 }
 
 /** OAuth フロー中に一時保管するセッション情報 */
-type AuthSession = {
-  state: string;
-  inviteToken?: string;
-  redirectUrl: string;
-  createdAt: number;
-};
+const authSessionSchema = z.object({
+  state: z.string().min(1),
+  inviteToken: z.string().optional(),
+  redirectUrl: z.string(),
+  createdAt: z.number().int().nonnegative(),
+});
+
+type AuthSession = z.infer<typeof authSessionSchema>;
 
 /** Open Redirect を防ぐため、アプリ内パス（先頭が `/`）のみ許可する */
 function safeRedirectPath(value: string | undefined): string {
@@ -68,8 +71,17 @@ function safeRedirectPath(value: string | undefined): string {
 }
 
 /** ログインページへエラー付きでリダイレクトする URL を作る */
-function loginErrorUrl(env: Env, reason: string): string {
-  return `${env.APP_URL}/login?error=${encodeURIComponent(reason)}`;
+function loginErrorUrl(
+  env: Env,
+  reason: string,
+  retry?: { redirectUrl: string; inviteToken: string | undefined },
+): string {
+  const params = new URLSearchParams({ error: reason });
+  if (retry) {
+    params.set('redirect', safeRedirectPath(retry.redirectUrl));
+    if (retry.inviteToken) params.set('invite', retry.inviteToken);
+  }
+  return `${env.APP_URL}/login?${params.toString()}`;
 }
 
 /** User レコードから `/me` 系レスポンス（MeResponse 形）を作る */
@@ -200,7 +212,7 @@ export const authRoute = new Hono<{
   .get('/line/callback', rateLimit('callback'), async (c) => {
     const code = c.req.query('code');
     const receivedState = c.req.query('state');
-    if (c.req.query('error') || !(code && receivedState)) {
+    if (!receivedState) {
       return c.redirect(loginErrorUrl(c.env, 'auth_failed'), 302);
     }
 
@@ -211,7 +223,7 @@ export const authRoute = new Hono<{
     }
     let session: AuthSession;
     try {
-      session = JSON.parse(rawSession) as AuthSession;
+      session = authSessionSchema.parse(JSON.parse(rawSession));
     } catch {
       return c.redirect(loginErrorUrl(c.env, 'invalid_session'), 302);
     }
@@ -221,25 +233,38 @@ export const authRoute = new Hono<{
       return c.redirect(loginErrorUrl(c.env, 'invalid_state'), 302);
     }
 
-    // コード交換 → プロフィール取得（LINE への外部呼び出し）
-    const accessToken = await exchangeCodeForToken(lineConfig(c.env), code);
-    if (!accessToken) {
-      return c.redirect(loginErrorUrl(c.env, 'token_exchange_failed'), 302);
+    // state を検証できた場合だけ、元の戻り先と招待情報を再試行へ引き継ぐ。
+    const retry = {
+      redirectUrl: session.redirectUrl,
+      inviteToken: session.inviteToken ?? stateCheck.inviteToken,
+    };
+    if (c.req.query('error') !== undefined || !code) {
+      return c.redirect(loginErrorUrl(c.env, 'auth_failed', retry), 302);
     }
-    const profile = await fetchLineUserProfile(accessToken);
+
+    // コード交換 → プロフィール取得（LINE への外部呼び出し）
+    let profile: LineUserProfile | null;
+    try {
+      const accessToken = await exchangeCodeForToken(lineConfig(c.env), code);
+      if (!accessToken) {
+        return c.redirect(loginErrorUrl(c.env, 'token_exchange_failed', retry), 302);
+      }
+      profile = await fetchLineUserProfile(accessToken);
+    } catch {
+      return c.redirect(loginErrorUrl(c.env, 'auth_failed', retry), 302);
+    }
     if (!profile) {
-      return c.redirect(loginErrorUrl(c.env, 'profile_fetch_failed'), 302);
+      return c.redirect(loginErrorUrl(c.env, 'profile_fetch_failed', retry), 302);
     }
 
     // User 取得/作成（招待トークンは session 由来を優先）
     const db = createDb(c.env.DB);
-    const inviteToken = session.inviteToken ?? stateCheck.inviteToken;
-    const result = await getOrCreateUser(db, profile, inviteToken);
+    const result = await getOrCreateUser(db, profile, retry.inviteToken);
     if (!result.ok) {
-      return c.redirect(loginErrorUrl(c.env, result.reason), 302);
+      return c.redirect(loginErrorUrl(c.env, result.reason, retry), 302);
     }
     if (!result.user.isActive) {
-      return c.redirect(loginErrorUrl(c.env, 'inactive_user'), 302);
+      return c.redirect(loginErrorUrl(c.env, 'inactive_user', retry), 302);
     }
 
     // JWT 発行 → Cookie に載せてログインセッションとする

@@ -10,6 +10,7 @@ import { z } from 'zod';
 
 import { client } from '@/lib/rpc';
 
+import { clearAutoLoginAttempt } from './auto-login-attempt';
 import { meResponseSchema, type LinkInstructorInput, type MeResponse } from './schema';
 
 /** API エラーレスポンスのスキーマ（型アサーションを避けるためランタイム検証する） */
@@ -30,7 +31,9 @@ export function meQueryOptions() {
       if (!res.ok) {
         throw new Error('ユーザー情報の取得に失敗しました');
       }
-      return meResponseSchema.parse(await res.json());
+      const user = meResponseSchema.parse(await res.json());
+      clearAutoLoginAttempt();
+      return user;
     },
     // 認証主体の取り違えを防ぐため、本人確認はグローバルの staleTime（60s）でマスクしない
     staleTime: 0,

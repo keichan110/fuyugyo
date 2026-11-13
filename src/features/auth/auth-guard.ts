@@ -1,6 +1,7 @@
 import type { QueryClient } from '@tanstack/react-query';
 import { redirect } from '@tanstack/react-router';
 
+import { readAutoLoginAttempt, saveAutoLoginAttempt } from './auto-login-attempt';
 import { getLineAutoLoginUrl, type LoginSearch } from './login-policy';
 import { meQueryOptions } from './queries';
 import type { MeResponse } from './schema';
@@ -49,6 +50,18 @@ export async function guardLoginPage(
   }
   const href = getLineAutoLoginUrl(userAgent, search);
   if (href) {
+    const pending = readAutoLoginAttempt();
+    if (pending || !saveAutoLoginAttempt(search)) {
+      throw redirect({
+        to: '/login',
+        search: {
+          redirect: search.redirect ?? pending?.redirect,
+          invite: search.invite ?? pending?.invite,
+          error: pending ? 'auto_login_failed' : 'auto_login_unavailable',
+        },
+        replace: true,
+      });
+    }
     throw redirect({ href, reloadDocument: true, replace: true });
   }
 }

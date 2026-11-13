@@ -3,7 +3,7 @@ import { Box, Center, Stack, Text, Title } from '@mantine/core';
 import { ErrorAlert } from '@/components/AppAlert';
 import { AppBadge } from '@/components/AppBadge';
 
-import { getLineLoginUrl } from '../login-policy';
+import { getLineLoginUrl, getLoginErrorMessage } from '../login-policy';
 import { LineLoginButton } from './LineLoginButton';
 import classes from './LoginPage.module.css';
 
@@ -41,7 +41,7 @@ export function LoginPage({ redirectUrl = '/', inviteToken, error }: LoginPagePr
             ❄ 招待を受けた方のみ利用可能です
           </Text>
 
-          {error && <ErrorAlert>ログインに失敗しました。もう一度お試しください。</ErrorAlert>}
+          {error && <ErrorAlert>{getLoginErrorMessage(error)}</ErrorAlert>}
 
           <LineLoginButton onClick={handleLineLogin} />
         </Stack>

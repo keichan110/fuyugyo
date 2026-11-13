@@ -5,16 +5,30 @@ import {
   createRoute,
   createRouter,
 } from '@tanstack/react-router';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { ensureAuthenticated, guardLoginPage } from '../src/features/auth/auth-guard';
+import { ensureAuthenticated, fetchMe, guardLoginPage } from '../src/features/auth/auth-guard';
 import {
   getLineAutoLoginUrl,
   getLineLoginUrl,
+  getLoginErrorMessage,
   type LoginSearch,
 } from '../src/features/auth/login-policy';
 
 const lineUserAgent = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Line/15.0.0';
+
+beforeEach(() => {
+  const values = new Map<string, string>();
+  vi.stubGlobal('sessionStorage', {
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => {
+      values.set(key, value);
+    },
+    removeItem: (key: string) => {
+      values.delete(key);
+    },
+  });
+});
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -100,6 +114,128 @@ describe('ログインルートの認証ガード', () => {
     expect(router.state.redirect?.options).toMatchObject({ to: '/shifts' });
     expect(router.state.redirect?.options.reloadDocument).not.toBe(true);
   });
+
+  it('OAuth 後も認証できなければ再び自動ログインせず、招待と戻り先を保持して手動再試行へ切り替える', async () => {
+    const initial = await loadLogin(
+      lineUserAgent,
+      '/login?redirect=%2Fshifts%3Fdate%3D2026-01&invite=token',
+    );
+    expect(initial.state.redirect?.options.reloadDocument).toBe(true);
+
+    const returned = await loadLogin(lineUserAgent, '/login?redirect=%2Fshifts%3Fdate%3D2026-01');
+    expect(returned.state.redirect?.options).toMatchObject({
+      to: '/login',
+      search: { redirect: '/shifts?date=2026-01', invite: 'token', error: 'auto_login_failed' },
+      replace: true,
+    });
+    expect(returned.state.redirect?.options.reloadDocument).not.toBe(true);
+    const stopped = await loadLogin(
+      lineUserAgent,
+      '/login?error=auto_login_failed&invite=token&redirect=%2Fshifts',
+    );
+    expect(stopped.state.redirect).toBeUndefined();
+    expect(getLineLoginUrl({ invite: 'token', redirect: '/shifts?date=2026-01' })).toBe(
+      '/api/auth/line/login?redirect=%2Fshifts%3Fdate%3D2026-01&invite=token',
+    );
+  });
+
+  it('保護ページで本人確認が成功したら、次のセッション切れでは再び自動ログインできる', async () => {
+    await loadLogin(lineUserAgent, '/login');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn<typeof fetch>().mockResolvedValue(
+        Response.json({
+          id: 'user',
+          lineUserId: 'line-user',
+          displayName: 'テスト太郎',
+          role: 'MEMBER',
+          isActive: true,
+          pictureUrl: null,
+          instructorId: null,
+        }),
+      ),
+    );
+    const queryClient = new QueryClient();
+    expect(await fetchMe(queryClient)).not.toBeNull();
+    queryClient.clear();
+
+    const nextSession = await loadLogin(lineUserAgent, '/login');
+    expect(nextSession.state.redirect?.options.href).toBe('/api/auth/line/login?redirect=%2F');
+  });
+
+  it('タブ内ストレージがない環境では自動遷移せず手動ログインへ切り替える', async () => {
+    vi.stubGlobal('sessionStorage', undefined);
+    const router = await loadLogin(lineUserAgent, '/login?invite=token');
+    expect(router.state.redirect?.options).toMatchObject({
+      to: '/login',
+      search: { invite: 'token', error: 'auto_login_unavailable' },
+    });
+    expect(router.state.redirect?.options.reloadDocument).not.toBe(true);
+  });
+
+  it('ストレージへの書き込みが拒否された場合も自動遷移しない', async () => {
+    vi.stubGlobal('sessionStorage', {
+      getItem: () => null,
+      setItem: () => {
+        throw new Error('保存不可');
+      },
+      removeItem: () => undefined,
+    });
+    const router = await loadLogin(lineUserAgent, '/login');
+    expect(router.state.redirect?.options).toMatchObject({
+      to: '/login',
+      search: { error: 'auto_login_unavailable' },
+    });
+  });
+
+  it('保存内容が破損していても自動ログインを繰り返さず、手動ログインは利用できる', async () => {
+    vi.stubGlobal('sessionStorage', {
+      getItem: () => 'invalid-json',
+      setItem: () => undefined,
+      removeItem: () => undefined,
+    });
+    const router = await loadLogin(lineUserAgent, '/login?invite=token');
+    expect(router.state.redirect?.options).toMatchObject({
+      to: '/login',
+      search: { invite: 'token', error: 'auto_login_failed' },
+    });
+    const manual = await loadLogin(lineUserAgent, '/login?error=auto_login_failed&invite=token');
+    expect(manual.state.redirect).toBeUndefined();
+  });
+
+  it('ストレージの削除が拒否されても本人確認は成功する', async () => {
+    vi.stubGlobal('sessionStorage', {
+      getItem: () => '{}',
+      setItem: () => undefined,
+      removeItem: () => {
+        throw new Error('削除不可');
+      },
+    });
+    const router = await loadLogin(lineUserAgent, '/login?redirect=%2Fshifts', true);
+    expect(router.state.redirect?.options).toMatchObject({ to: '/shifts' });
+  });
+
+  it('認証が確認できない間に別の招待を開いた場合は、新しい招待を優先して手動再試行できる', async () => {
+    await loadLogin(lineUserAgent, '/login?invite=old-token');
+    const router = await loadLogin(lineUserAgent, '/login?invite=new-token');
+    expect(router.state.redirect?.options).toMatchObject({
+      to: '/login',
+      search: { invite: 'new-token', error: 'auto_login_failed' },
+    });
+  });
+});
+
+describe('ログイン失敗時の案内', () => {
+  it('自動ログイン後の認証確認失敗ではCookie設定と手動再試行を案内する', () => {
+    expect(getLoginErrorMessage('auto_login_failed')).toContain('Cookie設定');
+  });
+
+  it.each(['session_expired', 'invalid_session', 'invalid_state'])(
+    'セッションを復元できない場合（%s）は招待リンクの開き直しを案内する',
+    (error) => {
+      expect(getLoginErrorMessage(error)).toContain('招待リンクを開き直してください');
+    },
+  );
 });
 
 describe('LINE 内ブラウザの自動ログイン', () => {

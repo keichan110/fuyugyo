@@ -10,6 +10,8 @@ import { errors, jwtVerify, SignJWT } from 'jose';
 const JWT_ISSUER = 'fuyugyo';
 /** JWT 対象者識別子 */
 const JWT_AUDIENCE = 'fuyugyo-users';
+/** 発行時刻の比較で許容する時計差（秒）。有効期限と絶対期限は延長しない */
+const JWT_CLOCK_TOLERANCE_SECONDS = 5;
 
 /** 有効なユーザーロール（ADMIN > MANAGER > MEMBER の序列を持つ） */
 export const VALID_ROLES = ['ADMIN', 'MANAGER', 'MEMBER'] as const;
@@ -95,7 +97,7 @@ function parsePayload(claims: Record<string, unknown>): JwtSession | null {
     !Number.isSafeInteger(authTime) ||
     authTime < 0 ||
     authTime > iat ||
-    iat > Math.floor(Date.now() / 1000)
+    iat > Math.floor(Date.now() / 1000) + JWT_CLOCK_TOLERANCE_SECONDS
   ) {
     return null;
   }

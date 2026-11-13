@@ -3,6 +3,7 @@ import { Hono } from 'hono';
 import { decodeJwt, SignJWT } from 'jose';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { getLineLoginUrl } from '../src/features/auth/login-policy';
 import { meResponseSchema } from '../src/features/auth/schema';
 import app from '../src/index';
 import { signJwt, verifyJwt, type UserRole } from '../src/server/auth/jwt';
@@ -281,6 +282,31 @@ describe('セッションのスライディング更新と絶対期限', () => {
       );
     },
   );
+
+  it.each([1, 5, 6])(
+    '発行時刻が現在より%s秒先の場合、5秒以内の時計差だけ許容する',
+    async (offset) => {
+      const user = await seedUser();
+      const now = Math.floor(Date.now() / 1000);
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(now * 1000);
+      const token = await sessionToken(user, now + offset);
+      const res = await sessionApp.request('/session', cookieHeader(token), envWith({}));
+      expect(res.status).toBe(offset <= 5 ? 200 : 401);
+      expect(res.headers.get('set-cookie')).toBeNull();
+    },
+  );
+
+  it('時計差の許容によってJWTの有効期限を延長しない', async () => {
+    const user = await seedUser();
+    const now = Math.floor(Date.now() / 1000);
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(now * 1000);
+    const token = await sessionToken(user, now - 7200);
+    expect((await sessionApp.request('/session', cookieHeader(token), envWith({}))).status).toBe(
+      401,
+    );
+  });
 });
 
 describe('GET /api/auth/line/login', () => {
@@ -300,6 +326,143 @@ describe('GET /api/auth/line/login', () => {
 });
 
 describe('LINE OAuth コールバック', () => {
+  /** OAuth 開始エンドポイントを通して state と Cookie を取得する */
+  async function startOAuth(
+    path = '/api/auth/line/login?redirect=%2Fshifts%3Fdate%3D2026-01&invite=test-invitation',
+  ) {
+    const reqEnv = envWith({ AUTH_RATE_LIMITER: makeRateLimiter(20) });
+    const res = await app.request(path, {}, reqEnv);
+    const state = new URL(res.headers.get('location') ?? '').searchParams.get('state') ?? '';
+    const cookie = (res.headers.get('set-cookie') ?? '').split(';')[0] ?? '';
+    return { reqEnv, state, cookie };
+  }
+
+  it.each(['cancelled', 'token', 'profile', 'network'])(
+    '認証途中の失敗（%s）でも検証済みの招待と戻り先を保持する',
+    async (failure) => {
+      const { reqEnv, state, cookie } = await startOAuth();
+      const fetchMock = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('接続失敗'));
+      if (failure === 'token') fetchMock.mockResolvedValueOnce(new Response(null, { status: 400 }));
+      if (failure === 'profile') {
+        fetchMock
+          .mockResolvedValueOnce(Response.json({ access_token: 'access-token' }))
+          .mockResolvedValueOnce(new Response(null, { status: 400 }));
+      }
+      const query = new URLSearchParams({
+        state,
+        ...(failure === 'cancelled' ? { error: 'access_denied' } : { code: 'code' }),
+      });
+      const res = await app.request(
+        `/api/auth/line/callback?${query}`,
+        { headers: { cookie } },
+        reqEnv,
+      );
+      expect(res.status).toBe(302);
+      const location = new URL(res.headers.get('location') ?? '');
+      expect(location.pathname).toBe('/login');
+      expect(location.searchParams.get('invite')).toBe('test-invitation');
+      expect(location.searchParams.get('redirect')).toBe('/shifts?date=2026-01');
+      expect(location.searchParams.get('error')).toBe(
+        failure === 'token'
+          ? 'token_exchange_failed'
+          : failure === 'profile'
+            ? 'profile_fetch_failed'
+            : 'auth_failed',
+      );
+      if (failure === 'cancelled') expect(fetchMock).not.toHaveBeenCalled();
+    },
+  );
+
+  it('認証エラーから手動再試行すると、元の招待で登録して元の画面へ戻れる', async () => {
+    const owner = await seedUser({ role: 'ADMIN' });
+    await createDb(env.DB)
+      .insert(invitationTokens)
+      .values({
+        token: 'test-invitation',
+        createdBy: owner.id,
+        expiresAt: new Date(Date.now() + 3600000),
+        maxUses: 1,
+      });
+    const first = await startOAuth();
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response(null, { status: 400 }));
+    const failure = await app.request(
+      `/api/auth/line/callback?code=code&state=${encodeURIComponent(first.state)}`,
+      {
+        headers: { cookie: first.cookie },
+      },
+      first.reqEnv,
+    );
+    const errorUrl = new URL(failure.headers.get('location') ?? '');
+    const retry = await startOAuth(
+      getLineLoginUrl({
+        redirect: errorUrl.searchParams.get('redirect') ?? undefined,
+        invite: errorUrl.searchParams.get('invite') ?? undefined,
+      }),
+    );
+    fetchMock
+      .mockResolvedValueOnce(Response.json({ access_token: 'access-token' }))
+      .mockResolvedValueOnce(
+        Response.json({ userId: 'retry-user', displayName: '再試行ユーザー' }),
+      );
+    const success = await app.request(
+      `/api/auth/line/callback?code=retry-code&state=${encodeURIComponent(retry.state)}`,
+      {
+        headers: { cookie: retry.cookie },
+      },
+      retry.reqEnv,
+    );
+    expect(success.status).toBe(302);
+    expect(success.headers.get('location')).toBe(`${retry.reqEnv.APP_URL}/shifts?date=2026-01`);
+    const token = success.headers.get('set-cookie')?.match(/auth-token=([^;]+)/)?.[1] ?? '';
+    expect(await verifyJwt(token, retry.reqEnv.JWT_SECRET)).toMatchObject({
+      success: true,
+      payload: { lineUserId: 'retry-user' },
+    });
+  });
+
+  it('state の不一致やセッション不正時には検証できていない再試行情報を引き継がない', async () => {
+    const { reqEnv, cookie, state } = await startOAuth();
+    const invalidState = await app.request(
+      '/api/auth/line/callback?code=code&state=wrong-state',
+      { headers: { cookie } },
+      reqEnv,
+    );
+    expect(invalidState.headers.get('location')).toBe(
+      `${reqEnv.APP_URL}/login?error=invalid_state`,
+    );
+    const invalidSession = await app.request(
+      `/api/auth/line/callback?code=code&state=${encodeURIComponent(state)}`,
+      {
+        headers: { cookie: `auth-session=${encodeURIComponent(JSON.stringify({ state }))}` },
+      },
+      reqEnv,
+    );
+    expect(invalidSession.headers.get('location')).toBe(
+      `${reqEnv.APP_URL}/login?error=invalid_session`,
+    );
+    const expired = await app.request(
+      `/api/auth/line/callback?code=code&state=${encodeURIComponent(state)}`,
+      {},
+      reqEnv,
+    );
+    expect(expired.headers.get('location')).toBe(`${reqEnv.APP_URL}/login?error=session_expired`);
+  });
+
+  it('state を検証できても外部URLを再試行の戻り先として渡さない', async () => {
+    const { reqEnv, state, cookie } = await startOAuth(
+      '/api/auth/line/login?redirect=https%3A%2F%2Fevil.example&invite=test-invitation',
+    );
+    const res = await app.request(
+      `/api/auth/line/callback?error=access_denied&state=${encodeURIComponent(state)}`,
+      { headers: { cookie } },
+      reqEnv,
+    );
+    const location = new URL(res.headers.get('location') ?? '');
+    expect(location.searchParams.get('redirect')).toBe('/');
+  });
+
   it('招待経由で初回ログイン時刻を持つJWTを発行し、元のパスとクエリへ戻る', async () => {
     const owner = await seedUser({ role: 'ADMIN' });
     const db = createDb(env.DB);

@@ -1,0 +1,28 @@
+name: Labeler
+
+# リリースノート（.github/release.yml）の分類に使う db-migration ラベルを PR に自動で付ける。
+# ラベル付与に書き込み権限が必要なため pull_request_target を使う。
+# PR のコードはチェックアウト・実行しない（変更ファイル名を API で読むだけ）ため、書き込み権限付きでも安全
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize]
+
+concurrency:
+  group: labeler-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  labeler:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # フォーク先で不要に動かないようにする
+    if: github.repository == 'keichan110/fuyugyo'
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Label pull request
+        uses: actions/labeler@v7
+        with:
+          # マイグレーションを取り消した PR からはラベルを外す
+          sync-labels: true

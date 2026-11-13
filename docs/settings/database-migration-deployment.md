@@ -19,7 +19,15 @@
 
 ### リリースノート
 
-`gh release create --generate-notes` で前回リリース以降にマージされた PR を自動で並べる。カテゴリは `.github/release.yml` で PR のラベルごとに分けている（`enhancement` / `bug` / `dependencies` / `ci-cd`・`devops` / その他）。`skip-changelog` ラベルの PR は載らない。
+`gh release create --generate-notes` で前回リリース以降にマージされた PR を自動で並べる。カテゴリは `.github/release.yml` で PR のラベルごとに分けている（`security` / `db-migration` / `enhancement` / `bug` / `dependencies` / `ci-cd`・`devops` / その他）。1つの PR は上から最初に当てはまるカテゴリにだけ載る。`skip-changelog` ラベルの PR は載らない。
+
+| ラベル                                       | 付け方                                                                     |
+| -------------------------------------------- | -------------------------------------------------------------------------- |
+| `enhancement` / `bug` / `security` / `ci-cd` | PR 作成時に手動で1つ付ける。付いていない PR は「その他」に載る             |
+| `db-migration`                               | `drizzle/` 配下を変更すると `.github/workflows/labeler.yml` が自動で付ける |
+| `dependencies`                               | Renovate が付ける                                                          |
+
+**リリース前の確認ポイント**: 「🗃️ DB マイグレーションあり」があれば、ロールバックで DB が戻らないことを踏まえてリリースの時間帯を選ぶ。
 
 ### 最初のリリース
 

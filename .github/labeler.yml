@@ -1,0 +1,7 @@
+# actions/labeler の設定（PR の変更ファイルからラベルを自動付与する）
+# https://github.com/actions/labeler
+
+# ロールバックで DB は戻らないため、リリース前に確認できるようマイグレーションを含む PR を明示する
+db-migration:
+  - changed-files:
+      - any-glob-to-any-file: 'drizzle/**'

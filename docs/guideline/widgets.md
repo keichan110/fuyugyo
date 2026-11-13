@@ -1,17 +1,5 @@
-# /widgets ガイド
+# 複数機能を組み合わせる UI
 
-## 責務
-- 複数 Feature を束ねる UI 断片（Header, Sidebar, DashboardCard など）。
+独立した widgets ディレクトリは設けていない。ナビゲーションやページレイアウトは `src/routes/components/`、複数画面で使う汎用 UI は `src/components/`、機能固有 UI は `src/features/<name>/components/` に配置する。
 
-## ルール
-- I/O は持たず、上位（app/pages や features/pages）に委譲。
-- Design System（`/shared/ui`）と Feature UI を組み合わせて構成。
-
-## I/O 制限の詳細
-- **禁止**: データフェッチング（`useQuery`, `useMutation`, `fetch`）、Server Actions 呼び出し、状態更新
-- **許可**: Props 経由のイベントハンドラ、ローカル状態（`useState`）、グローバル状態の読み取りのみ
-- **原則**: データとイベントは Props で受け取る
-
-## チェックリスト
-- [ ] 依存方向は UI → Widget → (Features UI) のみ（逆流なし）
-- [ ] データフェッチングを持たず Props で受け取っているか
+データの取得・更新は feature の `queries.ts` にまとめ、表示コンポーネントの責務に合わせてフックまたは Props を使う。

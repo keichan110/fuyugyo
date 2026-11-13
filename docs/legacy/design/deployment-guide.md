@@ -1,3 +1,5 @@
+> **旧スタックの資料（履歴保存用）**。現行実装の指針には使用しない。現行の構成は [README](../../../README.md)、実装ガイドは `docs/guideline/overview.md`、リリース手順は `docs/settings/database-migration-deployment.md` を参照。
+
 # デプロイメント手順書 - 認証システム対応
 
 ## 1. 概要
@@ -429,7 +431,7 @@ wrangler tail --since=2024-08-29T10:00:00Z
 
 ## 11. CI/CD設定
 
-> 現行の本番デプロイは Release ワークフロー（`.github/workflows/release.yml`）の手動実行で行う。手順は [本番リリース・デプロイ手順](../settings/database-migration-deployment.md) を参照。以下は初期構築時の記録。
+> 現行の本番デプロイは Release ワークフロー（`.github/workflows/release.yml`）の手動実行で行う。手順は [本番リリース・デプロイ手順](../../settings/database-migration-deployment.md) を参照。以下は初期構築時の記録。
 
 ### 11.1 GitHub Actions設定
 

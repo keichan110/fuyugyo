@@ -42,7 +42,7 @@ src/
 ├── routeTree.gen.ts  # TanStack Router 自動生成（編集禁止）
 ├── features/[name]/  # ドメイン機能（下記「Feature 構造パターン」参照）
 ├── routes/           # TanStack Router ページ
-├── components/ui/    # shadcn/ui コンポーネント
+├── components/       # Mantine ラッパー（AppButton 等）・共通 UI
 ├── lib/              # 共有ライブラリ（rpc, query-client, utils）
 └── server/           # サーバー専用（auth, db, middleware, types）
 test/                 # Vitest 統合テスト（実D1使用）

@@ -30,7 +30,7 @@
 - Reactコンポーネントは任意（ただし推奨）
 - APIエンドポイントはテスト必須
 
-## コードスタイル（Next.jsプロジェクト）
+## コードスタイル（React SPA + Hono）
 
 ### TypeScript
 
@@ -58,11 +58,12 @@
 - **why（なぜこうするか）**を書く
 - 日本語常体で記述（「〜する」）
 
-### Next.js固有
+### SPA / API の境界
 
-- Server Componentを優先（"use client"は必要最小限）
-- データフェッチはServer Componentで実施
-- 環境変数は`process.env.NEXT_PUBLIC_*`（クライアント）と分離
+- ページは TanStack Router、データ取得・更新は Hono RPC + TanStack Query
+- サーバー専用コードは Hono API と `src/server/` に閉じる
+- クライアントからサーバーモジュールを参照するときは `import type` のみ
+- 機密情報は Worker の secret / ローカルの `.dev.vars` で管理し、クライアントへ公開しない
 
 ## セキュリティチェックリスト
 
@@ -79,7 +80,7 @@
 
 - [ ] 不要な`useEffect`の除去
 - [ ] `useMemo`/`useCallback`の適切な使用
-- [ ] 画像は`next/image`を使用
+- [ ] 画像に適切な代替テキスト・サイズ・必要に応じた遅延読み込みを指定
 - [ ] 重い計算はメモ化
 - [ ] ループ内でのAPI呼び出しなし
 

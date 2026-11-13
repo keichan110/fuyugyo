@@ -1,3 +1,5 @@
+> **旧スタックの資料（履歴保存用）**。現行実装の指針には使用しない。現行の構成は [README](../../README.md)、実装ガイドは `docs/guideline/overview.md`、リリース手順は `docs/settings/database-migration-deployment.md` を参照。
+
 # Next.js 15 ベストプラクティスガイド
 
 > **情報源**: Next.js 16 E2Eテストスイート（125以上のフィクスチャ）から抽出された実証済みパターン

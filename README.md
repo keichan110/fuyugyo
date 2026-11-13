@@ -10,11 +10,11 @@
 - **言語**: TypeScript 6.0 (厳格設定)
 - **ビルド**: Vite 8 + @cloudflare/vite-plugin
 - **ORM**: Drizzle ORM + Drizzle Kit
-- **スタイリング**: Tailwind CSS 4 + shadcn/ui
+- **スタイリング**: Mantine 9 + CSS Modules
 - **テスト**: Vitest + @cloudflare/vitest-pool-workers
 - **開発ツール**: ESLint 9, Wrangler
 - **認証**: LINE Login API, jose (JWT)
-- **その他**: Zod (バリデーション), Lucide React (アイコン)
+- **その他**: Zod (バリデーション), Tabler Icons (アイコン)
 - **パッケージマネージャー**: pnpm
 - **Node.js**: >=26.0.0
 
@@ -33,7 +33,11 @@ pnpm run db:generate
 pnpm run db:migrate:local
 ```
 
-3. 開発サーバーの起動:
+3. ローカル認証用の設定:
+
+`.env.example` の内容を `.dev.vars` にコピーし、`JWT_SECRET` と `LINE_CHANNEL_SECRET` を設定する。非機密値の既定値は `wrangler.toml` の `[vars]` を参照。`.dev.vars` はコミットしない。
+
+4. 開発サーバーの起動:
 
 ```bash
 pnpm run dev
@@ -48,12 +52,11 @@ pnpm run dev
 │   ├── main.tsx                  # React エントリポイント（SPA）
 │   ├── routeTree.gen.ts          # TanStack Router 自動生成ルートツリー
 │   ├── styles.css                # グローバルスタイル
-│   ├── components/
-│   │   └── ui/                   # shadcn/ui コンポーネント
+│   ├── components/               # Mantine ラッパー（AppButton 等）・共通 UI
 │   ├── features/                 # 機能別モジュール（colocation）
 │   │   ├── auth/                 # LINE 認証（API・ガード・コンポーネント）
 │   │   ├── certifications/       # 資格マスタ管理
-│   │   ├── departments/          # 部門管理
+│   │   ├── departments/          # 部門のスキーマ・表示定義
 │   │   ├── health/               # ヘルスチェック
 │   │   ├── instructors/          # インストラクター管理
 │   │   ├── invitations/          # 招待システム
@@ -111,7 +114,6 @@ features/<name>/
 
 - `/api/health` - ヘルスチェック
 - `/api/auth` - LINE 認証（login, callback, logout, me）
-- `/api/departments` - 部門管理 (CRUD)
 - `/api/instructors` - インストラクター管理 (CRUD)
 - `/api/certifications` - 資格管理 (CRUD)
 - `/api/shifts` - シフト管理 (CRUD)

@@ -1,17 +1,5 @@
-# /entities ガイド
+# ドメインの共有
 
-## 責務
-- 複数 Feature から参照される小さめの横断ドメイン（User, Project 等）。
+独立した entities ディレクトリは設けていない。ドメインの型や Zod スキーマは `src/features/<name>/schema.ts` に共置し、必要な機能から参照する。例: 部門の共有定義は `src/features/departments/`。
 
-## ルール
-- API / Query は持たず、**型/スキーマ/小UI** を中心にする。
-- 大きくなり始めたら独立した Feature へ昇格を検討。
-
-## 判断基準
-- **entities に配置**: 3つ以上の Feature から参照される + 独自 CRUD なし + 単純な型/小UI
-- **features に配置**: 独自の CRUD API を持つ or 複雑なビジネスロジック
-- **迷ったら**: まず features に配置し、3箇所目の参照時に entities へ昇格を検討
-
-## チェックリスト
-- [ ] 本当に横断的か？（Feature で閉じられないか見直す）
-- [ ] 独自の CRUD API を持たないか？（持つなら Feature へ）
+DB の正本は `src/server/db/schema.ts`。ブラウザで必要な入出力型は共有スキーマから定義し、サーバーコードへの値の依存を避ける。

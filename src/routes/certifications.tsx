@@ -5,8 +5,11 @@ import { ensureAuthenticated } from '@/features/auth/auth-guard';
 import { CertificationList } from '@/features/certifications/components/CertificationList';
 
 export const Route = createFileRoute('/certifications')({
-  beforeLoad: async ({ context }) => {
-    const result = await ensureAuthenticated(context.queryClient, '/certifications');
+  beforeLoad: async ({ context, location }) => {
+    const result = await ensureAuthenticated(
+      context.queryClient,
+      location.pathname + location.searchStr,
+    );
     if (!result.authenticated) {
       throw redirect({ to: result.loginTo });
     }

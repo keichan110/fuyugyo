@@ -3,6 +3,7 @@ import { Box, Center, Stack, Text, Title } from '@mantine/core';
 import { ErrorAlert } from '@/components/AppAlert';
 import { AppBadge } from '@/components/AppBadge';
 
+import { getLineLoginUrl } from '../login-policy';
 import { LineLoginButton } from './LineLoginButton';
 import classes from './LoginPage.module.css';
 
@@ -21,11 +22,7 @@ type LoginPageProps = {
  */
 export function LoginPage({ redirectUrl = '/', inviteToken, error }: LoginPageProps) {
   const handleLineLogin = () => {
-    const params = new URLSearchParams({ redirect: redirectUrl });
-    if (inviteToken) {
-      params.set('invite', inviteToken);
-    }
-    window.location.href = `/api/auth/line/login?${params.toString()}`;
+    window.location.href = getLineLoginUrl({ redirect: redirectUrl, invite: inviteToken });
   };
 
   return (

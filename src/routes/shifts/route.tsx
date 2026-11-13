@@ -10,7 +10,10 @@ import { ensureAuthenticated } from '@/features/auth/auth-guard';
  */
 export const Route = createFileRoute('/shifts')({
   beforeLoad: async ({ context, location }) => {
-    const result = await ensureAuthenticated(context.queryClient, location.pathname);
+    const result = await ensureAuthenticated(
+      context.queryClient,
+      location.pathname + location.searchStr,
+    );
     if (!result.authenticated) {
       throw redirect({ to: result.loginTo });
     }

@@ -1,12 +1,13 @@
 import { env } from 'cloudflare:test';
 import { Hono } from 'hono';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { decodeJwt, SignJWT } from 'jose';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { meResponseSchema } from '../src/features/auth/schema';
 import app from '../src/index';
-import { signJwt, type UserRole } from '../src/server/auth/jwt';
+import { signJwt, verifyJwt, type UserRole } from '../src/server/auth/jwt';
 import { createDb } from '../src/server/db/client';
-import { instructors, users } from '../src/server/db/schema';
+import { instructors, invitationTokens, users } from '../src/server/db/schema';
 import { requireAuth, requireRole, type AuthVariables } from '../src/server/middleware/auth';
 import type { Env } from '../src/server/types';
 
@@ -97,8 +98,189 @@ async function tokenFor(
 beforeEach(async () => {
   // 各テストを独立させるため User・Instructor を全削除する（外部キー依存順）
   const db = createDb(env.DB);
+  await db.delete(invitationTokens);
   await db.delete(users);
   await db.delete(instructors);
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+});
+
+describe('セッションのスライディング更新と絶対期限', () => {
+  const sessionApp = new Hono<{ Bindings: Env; Variables: AuthVariables }>()
+    .get('/session', requireAuth, (c) => c.json(c.get('user')))
+    .get('/manager', requireAuth, requireRole('MANAGER'), (c) => c.json({ ok: true }));
+
+  /** 初回ログイン時刻と発行時刻を指定した署名済みトークンを作る。旧形式も再現する */
+  async function sessionToken(
+    user: Awaited<ReturnType<typeof seedUser>>,
+    issuedAt: number,
+    authTime: unknown = issuedAt,
+    expiresAt = issuedAt + 7200,
+  ) {
+    return new SignJWT({
+      userId: user.id,
+      lineUserId: user.lineUserId,
+      displayName: user.displayName,
+      role: user.role,
+      isActive: user.isActive,
+      ...(authTime === null ? {} : { authTime }),
+    })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setIssuer('fuyugyo')
+      .setAudience('fuyugyo-users')
+      .setIssuedAt(issuedAt)
+      .setExpirationTime(expiresAt)
+      .sign(new TextEncoder().encode(env.JWT_SECRET));
+  }
+
+  it('15分未満では更新せず、15分経過すると同じ初回ログイン時刻で2時間延長する', async () => {
+    const user = await seedUser();
+    const start = Math.floor(Date.now() / 1000);
+    const token = await sessionToken(user, start);
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime((start + 899) * 1000);
+    const before = await sessionApp.request('/session', cookieHeader(token), envWith({}));
+    expect(before.status).toBe(200);
+    expect(before.headers.get('set-cookie')).toBeNull();
+
+    vi.setSystemTime((start + 900) * 1000);
+    const refreshed = await sessionApp.request('/session', cookieHeader(token), envWith({}));
+    expect(refreshed.status).toBe(200);
+    const cookie = refreshed.headers.get('set-cookie') ?? '';
+    expect(cookie).toContain('Max-Age=7200');
+    expect(cookie).toContain('HttpOnly');
+    expect(cookie).toContain('SameSite=Lax');
+    const refreshedToken = cookie.match(/auth-token=([^;]+)/)?.[1] ?? '';
+    const verified = await verifyJwt(refreshedToken, env.JWT_SECRET);
+    expect(verified).toMatchObject({
+      success: true,
+      payload: { authTime: start, iat: start + 900 },
+    });
+    expect(decodeJwt(refreshedToken).exp).toBe(start + 8100);
+
+    vi.setSystemTime((start + 7200) * 1000);
+    const continued = await sessionApp.request(
+      '/session',
+      cookieHeader(refreshedToken),
+      envWith({}),
+    );
+    expect(continued.status).toBe(200);
+    const idle = await sessionApp.request('/session', cookieHeader(token), envWith({}));
+    expect(idle.status).toBe(401);
+    expect(idle.headers.get('set-cookie')).toBeNull();
+  });
+
+  it('更新時のDBのロール降格を同じリクエストの権限判定に反映する', async () => {
+    const user = await seedUser({ role: 'MANAGER' });
+    const now = Math.floor(Date.now() / 1000);
+    const token = await sessionToken(user, now - 900);
+    await env.DB.prepare('UPDATE users SET role = ?, display_name = ? WHERE id = ?')
+      .bind('MEMBER', '変更後の名前', user.id)
+      .run();
+    const res = await sessionApp.request('/manager', cookieHeader(token), envWith({}));
+    expect(res.status).toBe(403);
+    const cookie = res.headers.get('set-cookie') ?? '';
+    const refreshedToken = cookie.match(/auth-token=([^;]+)/)?.[1] ?? '';
+    expect(await verifyJwt(refreshedToken, env.JWT_SECRET)).toMatchObject({
+      success: true,
+      payload: { role: 'MEMBER', displayName: '変更後の名前' },
+    });
+  });
+
+  it('更新間隔と絶対期限は環境変数で変更できる', async () => {
+    const user = await seedUser();
+    const now = Math.floor(Date.now() / 1000);
+    const token = await sessionToken(user, now - 60, now - 3600);
+    const refreshed = await sessionApp.request(
+      '/session',
+      cookieHeader(token),
+      envWith({
+        JWT_REFRESH_INTERVAL: '1m',
+        JWT_EXPIRES_IN: '1h',
+        JWT_ABSOLUTE_EXPIRES_IN: '2h',
+        APP_URL: 'https://example.com',
+      }),
+    );
+    expect(refreshed.status).toBe(200);
+    expect(refreshed.headers.get('set-cookie')).toContain('Max-Age=3600');
+    expect(refreshed.headers.get('set-cookie')).toContain('Secure');
+    const expired = await sessionApp.request(
+      '/session',
+      cookieHeader(token),
+      envWith({
+        JWT_ABSOLUTE_EXPIRES_IN: '1h',
+      }),
+    );
+    expect(expired.status).toBe(401);
+  });
+
+  it('Authorization ヘッダ経由でも同じ方式で更新する', async () => {
+    const user = await seedUser();
+    const token = await sessionToken(user, Math.floor(Date.now() / 1000) - 900);
+    const res = await sessionApp.request(
+      '/session',
+      { headers: { authorization: `Bearer ${token}` } },
+      envWith({}),
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers.get('set-cookie')).toContain('auth-token=');
+  });
+
+  it('DBで無効化されたユーザーは更新時に403になり再発行しない', async () => {
+    const user = await seedUser();
+    const token = await sessionToken(user, Math.floor(Date.now() / 1000) - 900);
+    await env.DB.prepare('UPDATE users SET is_active = 0 WHERE id = ?').bind(user.id).run();
+    const res = await sessionApp.request('/session', cookieHeader(token), envWith({}));
+    expect(res.status).toBe(403);
+    expect(res.headers.get('set-cookie')).toBeNull();
+  });
+
+  it('DBから削除されたユーザーは更新時に401になる', async () => {
+    const user = await seedUser();
+    const token = await sessionToken(user, Math.floor(Date.now() / 1000) - 900);
+    await env.DB.prepare('DELETE FROM users WHERE id = ?').bind(user.id).run();
+    const res = await sessionApp.request('/session', cookieHeader(token), envWith({}));
+    expect(res.status).toBe(401);
+    expect(res.headers.get('set-cookie')).toBeNull();
+  });
+
+  it('発行直後でも初回ログインから7日経過した時点で401になる', async () => {
+    const user = await seedUser();
+    const now = Math.floor(Date.now() / 1000);
+    const token = await sessionToken(user, now, now - 604800);
+    const res = await sessionApp.request('/session', cookieHeader(token), envWith({}));
+    expect(res.status).toBe(401);
+    expect(res.headers.get('set-cookie')).toBeNull();
+  });
+
+  it('7日の直前は利用できるが、更新間隔未満でも絶対期限に達すると401になる', async () => {
+    const user = await seedUser();
+    const now = Math.floor(Date.now() / 1000);
+    const token = await sessionToken(user, now, now - 604799);
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(now * 1000);
+    expect((await sessionApp.request('/session', cookieHeader(token), envWith({}))).status).toBe(
+      200,
+    );
+    vi.setSystemTime((now + 1) * 1000);
+    expect((await sessionApp.request('/session', cookieHeader(token), envWith({}))).status).toBe(
+      401,
+    );
+  });
+
+  it.each([null, 'invalid', -1])(
+    '初回ログイン時刻が不正なJWT（%s）は401になる',
+    async (authTime) => {
+      const user = await seedUser();
+      const token = await sessionToken(user, Math.floor(Date.now() / 1000), authTime);
+      expect((await sessionApp.request('/session', cookieHeader(token), envWith({}))).status).toBe(
+        401,
+      );
+    },
+  );
 });
 
 describe('GET /api/auth/line/login', () => {
@@ -114,6 +296,64 @@ describe('GET /api/auth/line/login', () => {
     expect(location).toContain('https://access.line.me/oauth2/v2.1/authorize');
     const setCookie = res.headers.get('set-cookie') ?? '';
     expect(setCookie).toContain('auth-session=');
+  });
+});
+
+describe('LINE OAuth コールバック', () => {
+  it('招待経由で初回ログイン時刻を持つJWTを発行し、元のパスとクエリへ戻る', async () => {
+    const owner = await seedUser({ role: 'ADMIN' });
+    const db = createDb(env.DB);
+    await db.insert(invitationTokens).values({
+      token: 'test-invitation',
+      createdBy: owner.id,
+      expiresAt: new Date(Date.now() + 3600000),
+      maxUses: 1,
+    });
+    const reqEnv = envWith({ AUTH_RATE_LIMITER: makeRateLimiter(20) });
+    const login = await app.request(
+      '/api/auth/line/login?redirect=%2Fshifts%3Fdate%3D2026-01&invite=test-invitation',
+      {},
+      reqEnv,
+    );
+    const state = new URL(login.headers.get('location') ?? '').searchParams.get('state') ?? '';
+    const sessionCookie = (login.headers.get('set-cookie') ?? '').split(';')[0] ?? '';
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(Response.json({ access_token: 'line-access-token' }))
+      .mockResolvedValueOnce(
+        Response.json({ userId: 'new-line-user', displayName: '新規ユーザー' }),
+      );
+
+    const res = await app.request(
+      `/api/auth/line/callback?code=test-code&state=${encodeURIComponent(state)}`,
+      {
+        headers: { cookie: sessionCookie },
+      },
+      reqEnv,
+    );
+
+    expect(res.status).toBe(302);
+    expect(res.headers.get('location')).toBe(`${reqEnv.APP_URL}/shifts?date=2026-01`);
+    const cookie = res.headers.get('set-cookie') ?? '';
+    expect(cookie).toContain('Max-Age=7200');
+    const token = cookie.match(/auth-token=([^;]+)/)?.[1] ?? '';
+    const verified = await verifyJwt(token, reqEnv.JWT_SECRET);
+    expect(verified).toMatchObject({
+      success: true,
+      payload: { lineUserId: 'new-line-user', role: 'MEMBER' },
+    });
+    const claims = decodeJwt(token);
+    expect(claims.authTime).toBe(claims.iat);
+    expect(claims.exp).toBe(Number(claims.iat) + 7200);
+  });
+
+  it('OAuth エラー時は自動ログインを停止する error パラメーター付きで戻る', async () => {
+    const res = await app.request(
+      '/api/auth/line/callback?error=access_denied',
+      {},
+      envWith({ AUTH_RATE_LIMITER: makeRateLimiter(20) }),
+    );
+    expect(res.status).toBe(302);
+    expect(res.headers.get('location')).toBe(`${env.APP_URL}/login?error=auth_failed`);
   });
 });
 

@@ -1,7 +1,4 @@
-import {
-  cloudflareTest,
-  readD1Migrations,
-} from '@cloudflare/vitest-pool-workers';
+import { cloudflareTest, readD1Migrations } from '@cloudflare/vitest-pool-workers';
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
@@ -23,6 +20,10 @@ export default defineConfig({
             // 認証テスト用の固定シークレット（本番は `wrangler secret` で注入）
             JWT_SECRET: 'test-jwt-secret-at-least-32-bytes-long-000',
             LINE_CHANNEL_SECRET: '0123456789abcdef0123456789abcdef',
+            // ローカルの .env にある旧設定に左右されず、セッション仕様を検証する
+            JWT_EXPIRES_IN: '2h',
+            JWT_REFRESH_INTERVAL: '15m',
+            JWT_ABSOLUTE_EXPIRES_IN: '7d',
           },
         },
       };

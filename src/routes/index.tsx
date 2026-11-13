@@ -15,8 +15,11 @@ import { parseDate, todayString, WEEKDAY_LABELS } from '@/features/shifts/view-u
  * ホーム（ルートパス）。通知と直近の勤務予定、シフト希望を表示する。
  */
 export const Route = createFileRoute('/')({
-  beforeLoad: async ({ context }) => {
-    const result = await ensureAuthenticated(context.queryClient, '/');
+  beforeLoad: async ({ context, location }) => {
+    const result = await ensureAuthenticated(
+      context.queryClient,
+      location.pathname + location.searchStr,
+    );
     if (!result.authenticated) {
       throw redirect({ to: result.loginTo });
     }

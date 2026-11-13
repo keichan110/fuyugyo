@@ -31,8 +31,13 @@ export type JwtPayload = {
   isActive: boolean;
 };
 
-/** 署名対象のペイロード（標準クレームは jose が付与する） */
-type JwtClaims = JwtPayload;
+/** 検証済みセッション。更新時にも初回ログイン時刻を引き継ぐ */
+export type JwtSession = JwtPayload & {
+  /** JWT の発行時刻（Unix 秒） */
+  iat: number;
+  /** 初回ログイン時刻（Unix 秒） */
+  authTime: number;
+};
 
 /** シークレット文字列を jose 用の鍵に変換する */
 function toSecretKey(secret: string): Uint8Array {
@@ -44,16 +49,17 @@ function toSecretKey(secret: string): Uint8Array {
  *
  * @param payload - トークンに含めるユーザー情報
  * @param secret - 署名用シークレット（`c.env.JWT_SECRET`）
- * @param expiresIn - 有効期限文字列（例: "12h"。`c.env.JWT_EXPIRES_IN`）
+ * @param expiresIn - 有効期限文字列（例: "2h"。`c.env.JWT_EXPIRES_IN`）
+ * @param authTime - 初回ログイン時刻。省略時は現在時刻、再発行時は元の値を指定する
  * @returns 署名済み JWT 文字列
  */
 export async function signJwt(
   payload: JwtPayload,
   secret: string,
   expiresIn: string,
+  authTime = Math.floor(Date.now() / 1000),
 ): Promise<string> {
-  const claims: JwtClaims = payload;
-  return await new SignJWT({ ...claims })
+  return await new SignJWT({ ...payload, authTime })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setIssuer(JWT_ISSUER)
@@ -64,7 +70,7 @@ export async function signJwt(
 
 /** JWT 検証結果 */
 export type JwtVerifyResult =
-  { success: true; payload: JwtPayload } | { success: false; error: string };
+  { success: true; payload: JwtSession } | { success: false; error: string };
 
 /** role 値が UserRole か判定する */
 function isUserRole(value: unknown): value is UserRole {
@@ -72,21 +78,28 @@ function isUserRole(value: unknown): value is UserRole {
 }
 
 /**
- * jose の検証済みペイロードを型安全に `JwtPayload` へ写す。
+ * jose の検証済みペイロードを型安全に `JwtSession` へ写す。
  * 型アサーションを避け、フィールドごとに型を確認する。
  */
-function parsePayload(claims: Record<string, unknown>): JwtPayload | null {
-  const { userId, lineUserId, displayName, role, isActive } = claims;
+function parsePayload(claims: Record<string, unknown>): JwtSession | null {
+  const { userId, lineUserId, displayName, role, isActive, iat, authTime } = claims;
   if (
     typeof userId !== 'string' ||
     typeof lineUserId !== 'string' ||
     typeof displayName !== 'string' ||
     !isUserRole(role) ||
-    typeof isActive !== 'boolean'
+    typeof isActive !== 'boolean' ||
+    typeof iat !== 'number' ||
+    !Number.isSafeInteger(iat) ||
+    typeof authTime !== 'number' ||
+    !Number.isSafeInteger(authTime) ||
+    authTime < 0 ||
+    authTime > iat ||
+    iat > Math.floor(Date.now() / 1000)
   ) {
     return null;
   }
-  return { userId, lineUserId, displayName, role, isActive };
+  return { userId, lineUserId, displayName, role, isActive, iat, authTime };
 }
 
 /**
@@ -105,6 +118,8 @@ export async function verifyJwt(token: string, secret: string): Promise<JwtVerif
     const { payload } = await jwtVerify(token, toSecretKey(secret), {
       issuer: JWT_ISSUER,
       audience: JWT_AUDIENCE,
+      algorithms: ['HS256'],
+      requiredClaims: ['iat', 'exp', 'authTime'],
     });
 
     const parsed = parsePayload(payload);

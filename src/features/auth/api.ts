@@ -10,7 +10,7 @@ import {
   SESSION_COOKIE,
   sessionCookieOptions,
 } from '@/server/auth/cookies';
-import { signJwt, VALID_ROLES, type JwtPayload, type UserRole } from '@/server/auth/jwt';
+import { signJwt } from '@/server/auth/jwt';
 import {
   buildLineAuthUrl,
   exchangeCodeForToken,
@@ -21,6 +21,7 @@ import {
   type LineUserProfile,
 } from '@/server/auth/line';
 import { durationToSeconds } from '@/server/auth/roles';
+import { toJwtPayload, toUserRole } from '@/server/auth/user';
 import { createDb, type Database } from '@/server/db/client';
 import { isUniqueViolation } from '@/server/db/errors';
 import { instructors, invitationTokens, users } from '@/server/db/schema';
@@ -71,11 +72,6 @@ function loginErrorUrl(env: Env, reason: string): string {
   return `${env.APP_URL}/login?error=${encodeURIComponent(reason)}`;
 }
 
-/** DB の role 文字列を UserRole に絞り込む（不正値は MEMBER 扱い） */
-function toUserRole(role: string): UserRole {
-  return VALID_ROLES.includes(role as UserRole) ? (role as UserRole) : 'MEMBER';
-}
-
 /** User レコードから `/me` 系レスポンス（MeResponse 形）を作る */
 function toMeResponse(user: typeof users.$inferSelect) {
   return {
@@ -85,23 +81,6 @@ function toMeResponse(user: typeof users.$inferSelect) {
     pictureUrl: user.pictureUrl,
     role: toUserRole(user.role),
     instructorId: user.instructorId,
-    isActive: user.isActive,
-  };
-}
-
-/** User レコードから JWT ペイロードを作る */
-function toJwtPayload(user: {
-  id: string;
-  lineUserId: string;
-  displayName: string;
-  role: string;
-  isActive: boolean;
-}): JwtPayload {
-  return {
-    userId: user.id,
-    lineUserId: user.lineUserId,
-    displayName: user.displayName,
-    role: toUserRole(user.role),
     isActive: user.isActive,
   };
 }
@@ -215,7 +194,7 @@ export const authRoute = new Hono<{
   })
   /**
    * LINE 認証コールバック。state を検証し、コード交換 → プロフィール取得 →
-   * User の取得/作成 → JWT 発行（12h）→ Cookie 設定の順に処理する。
+   * User の取得/作成 → JWT 発行 → Cookie 設定の順に処理する。
    * Rate Limit 適用。失敗時はログインページへエラー付きリダイレクトする。
    */
   .get('/line/callback', rateLimit('callback'), async (c) => {
@@ -263,7 +242,7 @@ export const authRoute = new Hono<{
       return c.redirect(loginErrorUrl(c.env, 'inactive_user'), 302);
     }
 
-    // JWT 発行（12h）→ Cookie に載せてログインセッションとする
+    // JWT 発行 → Cookie に載せてログインセッションとする
     const token = await signJwt(toJwtPayload(result.user), c.env.JWT_SECRET, c.env.JWT_EXPIRES_IN);
     const maxAge = durationToSeconds(c.env.JWT_EXPIRES_IN);
     setCookie(c, AUTH_COOKIE, token, authCookieOptions(maxAge, isProduction(c.env)));

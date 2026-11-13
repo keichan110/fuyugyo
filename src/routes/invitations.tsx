@@ -5,8 +5,11 @@ import { ensureAuthenticated } from '@/features/auth/auth-guard';
 import { InvitationManager } from '@/features/invitations/components/InvitationManager';
 
 export const Route = createFileRoute('/invitations')({
-  beforeLoad: async ({ context }) => {
-    const result = await ensureAuthenticated(context.queryClient, '/invitations');
+  beforeLoad: async ({ context, location }) => {
+    const result = await ensureAuthenticated(
+      context.queryClient,
+      location.pathname + location.searchStr,
+    );
     if (!result.authenticated) {
       throw redirect({ to: result.loginTo });
     }

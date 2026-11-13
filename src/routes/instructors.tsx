@@ -5,8 +5,11 @@ import { ensureAuthenticated } from '@/features/auth/auth-guard';
 import { InstructorList } from '@/features/instructors/components/InstructorList';
 
 export const Route = createFileRoute('/instructors')({
-  beforeLoad: async ({ context }) => {
-    const result = await ensureAuthenticated(context.queryClient, '/instructors');
+  beforeLoad: async ({ context, location }) => {
+    const result = await ensureAuthenticated(
+      context.queryClient,
+      location.pathname + location.searchStr,
+    );
     if (!result.authenticated) {
       throw redirect({ to: result.loginTo });
     }

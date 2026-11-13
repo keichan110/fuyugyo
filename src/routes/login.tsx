@@ -1,13 +1,8 @@
-import { createFileRoute, redirect } from '@tanstack/react-router';
+import { createFileRoute } from '@tanstack/react-router';
 
-import { isAuthenticated } from '@/features/auth/auth-guard';
+import { guardLoginPage } from '@/features/auth/auth-guard';
 import { LoginPage } from '@/features/auth/components/LoginPage';
-
-type LoginSearch = {
-  redirect?: string | undefined;
-  invite?: string | undefined;
-  error?: string | undefined;
-};
+import type { LoginSearch } from '@/features/auth/login-policy';
 
 export const Route = createFileRoute('/login')({
   validateSearch: (search: Record<string, unknown>): LoginSearch => ({
@@ -15,12 +10,12 @@ export const Route = createFileRoute('/login')({
     invite: typeof search.invite === 'string' ? search.invite : undefined,
     error: typeof search.error === 'string' ? search.error : undefined,
   }),
-  // 既にログイン済みならホームへ送る（未認証のみログイン UI を表示）
-  beforeLoad: async ({ context, search }) => {
-    if (await isAuthenticated(context.queryClient)) {
-      throw redirect({ to: search.redirect ?? '/' });
-    }
-  },
+  beforeLoad: ({ context, search }) =>
+    guardLoginPage(
+      context.queryClient,
+      search,
+      typeof window === 'undefined' ? '' : window.navigator.userAgent,
+    ),
   component: LoginRoute,
 });
 

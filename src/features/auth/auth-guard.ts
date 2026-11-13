@@ -1,5 +1,8 @@
 import type { QueryClient } from '@tanstack/react-query';
+import { redirect } from '@tanstack/react-router';
 
+import { readAutoLoginAttempt, saveAutoLoginAttempt } from './auto-login-attempt';
+import { getLineAutoLoginUrl, type LoginSearch } from './login-policy';
 import { meQueryOptions } from './queries';
 import type { MeResponse } from './schema';
 
@@ -34,4 +37,31 @@ export async function ensureAuthenticated(
 /** ログインページ用。既に認証済みかどうかを返す（認証済みなら遷移先を弾く） */
 export async function isAuthenticated(queryClient: QueryClient): Promise<boolean> {
   return (await fetchMe(queryClient)) !== null;
+}
+
+/** 認証済みなら戻り先へ、未認証の LINE 内ブラウザなら OAuth へ遷移する */
+export async function guardLoginPage(
+  queryClient: QueryClient,
+  search: LoginSearch,
+  userAgent: string,
+): Promise<void> {
+  if (await isAuthenticated(queryClient)) {
+    throw redirect({ to: search.redirect ?? '/' });
+  }
+  const href = getLineAutoLoginUrl(userAgent, search);
+  if (href) {
+    const pending = readAutoLoginAttempt();
+    if (pending || !saveAutoLoginAttempt(search)) {
+      throw redirect({
+        to: '/login',
+        search: {
+          redirect: search.redirect ?? pending?.redirect,
+          invite: search.invite ?? pending?.invite,
+          error: pending ? 'auto_login_failed' : 'auto_login_unavailable',
+        },
+        replace: true,
+      });
+    }
+    throw redirect({ href, reloadDocument: true, replace: true });
+  }
 }

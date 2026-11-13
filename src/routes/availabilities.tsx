@@ -21,8 +21,11 @@ export const Route = createFileRoute('/availabilities')({
         ? search.month
         : todayString().slice(0, 7),
   }),
-  beforeLoad: async ({ context }) => {
-    const result = await ensureAuthenticated(context.queryClient, '/availabilities');
+  beforeLoad: async ({ context, location }) => {
+    const result = await ensureAuthenticated(
+      context.queryClient,
+      location.pathname + location.searchStr,
+    );
     if (!result.authenticated) throw redirect({ to: result.loginTo });
   },
   component: AvailabilitiesPage,

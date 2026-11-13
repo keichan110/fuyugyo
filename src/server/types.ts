@@ -9,8 +9,12 @@ export type Env = {
   DB: D1Database;
   /** SPA 静的アセット配信用バインディング */
   ASSETS: Fetcher;
-  /** JWT 有効期限（例: "12h"）。ADR 0003 により約1営業日相当に設定する */
+  /** JWT と Cookie の有効期限（例: "2h"） */
   JWT_EXPIRES_IN: string;
+  /** JWT を再発行する間隔（例: "15m"） */
+  JWT_REFRESH_INTERVAL: string;
+  /** 初回ログインからの絶対期限（例: "7d"） */
+  JWT_ABSOLUTE_EXPIRES_IN: string;
   /** 招待トークンのデフォルト有効期限（例: "168h"） */
   INVITE_DEFAULT_EXPIRES: string;
   /** JWT 署名用シークレット（`wrangler secret`/`.dev.vars` で注入） */

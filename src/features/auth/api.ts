@@ -3,6 +3,7 @@ import { Hono } from 'hono';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { HTTPException } from 'hono/http-exception';
 import { validator } from 'hono/validator';
+import { z } from 'zod';
 
 import {
   AUTH_COOKIE,
@@ -10,7 +11,7 @@ import {
   SESSION_COOKIE,
   sessionCookieOptions,
 } from '@/server/auth/cookies';
-import { signJwt, VALID_ROLES, type JwtPayload, type UserRole } from '@/server/auth/jwt';
+import { signJwt } from '@/server/auth/jwt';
 import {
   buildLineAuthUrl,
   exchangeCodeForToken,
@@ -21,6 +22,7 @@ import {
   type LineUserProfile,
 } from '@/server/auth/line';
 import { durationToSeconds } from '@/server/auth/roles';
+import { toJwtPayload, toUserRole } from '@/server/auth/user';
 import { createDb, type Database } from '@/server/db/client';
 import { isUniqueViolation } from '@/server/db/errors';
 import { instructors, invitationTokens, users } from '@/server/db/schema';
@@ -51,12 +53,14 @@ function lineConfig(env: Env): LineConfig {
 }
 
 /** OAuth フロー中に一時保管するセッション情報 */
-type AuthSession = {
-  state: string;
-  inviteToken?: string;
-  redirectUrl: string;
-  createdAt: number;
-};
+const authSessionSchema = z.object({
+  state: z.string().min(1),
+  inviteToken: z.string().optional(),
+  redirectUrl: z.string(),
+  createdAt: z.number().int().nonnegative(),
+});
+
+type AuthSession = z.infer<typeof authSessionSchema>;
 
 /** Open Redirect を防ぐため、アプリ内パス（先頭が `/`）のみ許可する */
 function safeRedirectPath(value: string | undefined): string {
@@ -67,13 +71,17 @@ function safeRedirectPath(value: string | undefined): string {
 }
 
 /** ログインページへエラー付きでリダイレクトする URL を作る */
-function loginErrorUrl(env: Env, reason: string): string {
-  return `${env.APP_URL}/login?error=${encodeURIComponent(reason)}`;
-}
-
-/** DB の role 文字列を UserRole に絞り込む（不正値は MEMBER 扱い） */
-function toUserRole(role: string): UserRole {
-  return VALID_ROLES.includes(role as UserRole) ? (role as UserRole) : 'MEMBER';
+function loginErrorUrl(
+  env: Env,
+  reason: string,
+  retry?: { redirectUrl: string; inviteToken: string | undefined },
+): string {
+  const params = new URLSearchParams({ error: reason });
+  if (retry) {
+    params.set('redirect', safeRedirectPath(retry.redirectUrl));
+    if (retry.inviteToken) params.set('invite', retry.inviteToken);
+  }
+  return `${env.APP_URL}/login?${params.toString()}`;
 }
 
 /** User レコードから `/me` 系レスポンス（MeResponse 形）を作る */
@@ -85,23 +93,6 @@ function toMeResponse(user: typeof users.$inferSelect) {
     pictureUrl: user.pictureUrl,
     role: toUserRole(user.role),
     instructorId: user.instructorId,
-    isActive: user.isActive,
-  };
-}
-
-/** User レコードから JWT ペイロードを作る */
-function toJwtPayload(user: {
-  id: string;
-  lineUserId: string;
-  displayName: string;
-  role: string;
-  isActive: boolean;
-}): JwtPayload {
-  return {
-    userId: user.id,
-    lineUserId: user.lineUserId,
-    displayName: user.displayName,
-    role: toUserRole(user.role),
     isActive: user.isActive,
   };
 }
@@ -215,13 +206,13 @@ export const authRoute = new Hono<{
   })
   /**
    * LINE 認証コールバック。state を検証し、コード交換 → プロフィール取得 →
-   * User の取得/作成 → JWT 発行（12h）→ Cookie 設定の順に処理する。
+   * User の取得/作成 → JWT 発行 → Cookie 設定の順に処理する。
    * Rate Limit 適用。失敗時はログインページへエラー付きリダイレクトする。
    */
   .get('/line/callback', rateLimit('callback'), async (c) => {
     const code = c.req.query('code');
     const receivedState = c.req.query('state');
-    if (c.req.query('error') || !(code && receivedState)) {
+    if (!receivedState) {
       return c.redirect(loginErrorUrl(c.env, 'auth_failed'), 302);
     }
 
@@ -232,7 +223,7 @@ export const authRoute = new Hono<{
     }
     let session: AuthSession;
     try {
-      session = JSON.parse(rawSession) as AuthSession;
+      session = authSessionSchema.parse(JSON.parse(rawSession));
     } catch {
       return c.redirect(loginErrorUrl(c.env, 'invalid_session'), 302);
     }
@@ -242,28 +233,41 @@ export const authRoute = new Hono<{
       return c.redirect(loginErrorUrl(c.env, 'invalid_state'), 302);
     }
 
-    // コード交換 → プロフィール取得（LINE への外部呼び出し）
-    const accessToken = await exchangeCodeForToken(lineConfig(c.env), code);
-    if (!accessToken) {
-      return c.redirect(loginErrorUrl(c.env, 'token_exchange_failed'), 302);
+    // state を検証できた場合だけ、元の戻り先と招待情報を再試行へ引き継ぐ。
+    const retry = {
+      redirectUrl: session.redirectUrl,
+      inviteToken: session.inviteToken ?? stateCheck.inviteToken,
+    };
+    if (c.req.query('error') !== undefined || !code) {
+      return c.redirect(loginErrorUrl(c.env, 'auth_failed', retry), 302);
     }
-    const profile = await fetchLineUserProfile(accessToken);
+
+    // コード交換 → プロフィール取得（LINE への外部呼び出し）
+    let profile: LineUserProfile | null;
+    try {
+      const accessToken = await exchangeCodeForToken(lineConfig(c.env), code);
+      if (!accessToken) {
+        return c.redirect(loginErrorUrl(c.env, 'token_exchange_failed', retry), 302);
+      }
+      profile = await fetchLineUserProfile(accessToken);
+    } catch {
+      return c.redirect(loginErrorUrl(c.env, 'auth_failed', retry), 302);
+    }
     if (!profile) {
-      return c.redirect(loginErrorUrl(c.env, 'profile_fetch_failed'), 302);
+      return c.redirect(loginErrorUrl(c.env, 'profile_fetch_failed', retry), 302);
     }
 
     // User 取得/作成（招待トークンは session 由来を優先）
     const db = createDb(c.env.DB);
-    const inviteToken = session.inviteToken ?? stateCheck.inviteToken;
-    const result = await getOrCreateUser(db, profile, inviteToken);
+    const result = await getOrCreateUser(db, profile, retry.inviteToken);
     if (!result.ok) {
-      return c.redirect(loginErrorUrl(c.env, result.reason), 302);
+      return c.redirect(loginErrorUrl(c.env, result.reason, retry), 302);
     }
     if (!result.user.isActive) {
-      return c.redirect(loginErrorUrl(c.env, 'inactive_user'), 302);
+      return c.redirect(loginErrorUrl(c.env, 'inactive_user', retry), 302);
     }
 
-    // JWT 発行（12h）→ Cookie に載せてログインセッションとする
+    // JWT 発行 → Cookie に載せてログインセッションとする
     const token = await signJwt(toJwtPayload(result.user), c.env.JWT_SECRET, c.env.JWT_EXPIRES_IN);
     const maxAge = durationToSeconds(c.env.JWT_EXPIRES_IN);
     setCookie(c, AUTH_COOKIE, token, authCookieOptions(maxAge, isProduction(c.env)));

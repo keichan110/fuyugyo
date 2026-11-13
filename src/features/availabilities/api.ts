@@ -5,13 +5,13 @@ import { HTTPException } from 'hono/http-exception';
 import { validator } from 'hono/validator';
 
 import { dateStringSchema } from '@/features/shifts/schema';
+import { scheduleMaximumDate, scheduleToday } from '@/lib/schedule-date-range';
 import { createDb } from '@/server/db/client';
 import { instructorAvailabilities, shiftAssignments, shifts, users } from '@/server/db/schema';
 import { rethrowShiftWriteError } from '@/server/db/shift-writes';
 import { requireAuth, requireRole, type AuthVariables } from '@/server/middleware/auth';
 import type { Env } from '@/server/types';
 
-import { availabilityMaximumDate, availabilityToday } from './date-range';
 import { updateMyAvailabilitiesSchema } from './schema';
 
 /** YYYY-MM-DD 文字列を UTC 0時の Date に正規化する。 */
@@ -134,9 +134,9 @@ export const availabilitiesRoute = new Hono<{ Bindings: Env; Variables: AuthVari
       const db = createDb(c.env.DB);
       const instructorId = await resolveInstructorId(db, c.get('user').userId);
       const input = c.req.valid('json');
-      const currentDate = availabilityToday();
+      const currentDate = scheduleToday();
       const minimumDate = parseDate(currentDate);
-      const maximumDate = availabilityMaximumDate(currentDate);
+      const maximumDate = scheduleMaximumDate(currentDate);
 
       for (const change of input.changes) {
         if (!isValidCalendarDate(change.date)) {

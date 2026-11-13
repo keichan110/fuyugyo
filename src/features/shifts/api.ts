@@ -20,6 +20,7 @@ import { HTTPException } from 'hono/http-exception';
 import { validator } from 'hono/validator';
 
 import { DEPARTMENT_LABELS, departmentCodeSchema } from '@/features/departments/schema';
+import { scheduleMaximumDate, scheduleToday } from '@/lib/schedule-date-range';
 import { selectInstructorIdsWithFrameCertification } from '@/server/db/certification-requirements';
 import { createDb } from '@/server/db/client';
 import type { Database } from '@/server/db/client';
@@ -56,6 +57,14 @@ import {
 } from './schema';
 import { buildSeasonStats } from './season-stats';
 import { seasonRangeForDate } from './workload';
+
+/** 保存・公開の対象月が翌年同月の上限を超えていないことを検証する。過去月は許可する。 */
+function validateWritableMonth(month: string): void {
+  const maximumDate = scheduleMaximumDate(scheduleToday());
+  if (month > maximumDate.slice(0, 7)) {
+    throw new HTTPException(400, { message: `シフトは ${maximumDate} まで指定できます` });
+  }
+}
 
 /**
  * YYYY-MM-DD 文字列を UTC 0時の Date に変換する。
@@ -1492,6 +1501,7 @@ export const shiftsRoute = new Hono<{
     }),
     async (c) => {
       const input = c.req.valid('json');
+      validateWritableMonth(input.month);
       if (
         new Set(input.dates.map((item) => item.date)).size !== input.dates.length ||
         input.dates.some(
@@ -1640,6 +1650,7 @@ export const shiftsRoute = new Hono<{
     }),
     async (c) => {
       const input = c.req.valid('json');
+      validateWritableMonth(input.month);
       const db = createDb(c.env.DB);
 
       // 全セル・必要人数の日付が実在する暦日で、かつ対象月内にあることを検証

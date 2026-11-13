@@ -17,8 +17,8 @@ import { ErrorAlert, WarningAlert } from '@/components/AppAlert';
 import { AppButton } from '@/components/AppButton';
 import { UnsavedChangesBar } from '@/components/UnsavedChangesBar';
 import { addDays, addMonths, getCalendarDayColor, toMonth } from '@/features/shifts/view-utils';
+import { clampScheduleMonth, scheduleMaximumDate, scheduleToday } from '@/lib/schedule-date-range';
 
-import { availabilityMaximumDate, availabilityToday, clampAvailabilityMonth } from '../date-range';
 import {
   applyBulkAvailability,
   buildAvailabilityChanges,
@@ -36,7 +36,7 @@ import { AvailabilityDayModal } from './AvailabilityDayModal';
 /** 本人が月間カレンダー上で勤務可・要調整・勤務不可をまとめて申告する画面。 */
 export function AvailabilityCalendar({ initialMonth }: { initialMonth?: string }) {
   const [month, setMonth] = useState(() =>
-    clampAvailabilityMonth(initialMonth ?? availabilityToday().slice(0, 7), availabilityToday()),
+    clampScheduleMonth(initialMonth ?? scheduleToday().slice(0, 7), scheduleToday()),
   );
   const availabilityQuery = useMyAvailabilities(month);
   const updateMutation = useUpdateMyAvailabilities();
@@ -78,7 +78,7 @@ export function AvailabilityCalendar({ initialMonth }: { initialMonth?: string }
   );
   // 入力可能（過去日・公開済みシフト日を除く）なのに申告がない日を、未保存の編集も含めて数える。
   const unfilledCount = useMemo(() => {
-    const today = availabilityToday();
+    const today = scheduleToday();
     return listMonthDates(month).filter(
       (date) =>
         getDateEditability(date, today, lockedDates) === 'editable' && getValue(date) === undefined,
@@ -96,7 +96,7 @@ export function AvailabilityCalendar({ initialMonth }: { initialMonth?: string }
     setMonth(nextMonth);
   };
   const requestMonthChange = (requestedMonth: string) => {
-    const nextMonth = clampAvailabilityMonth(requestedMonth, availabilityToday());
+    const nextMonth = clampScheduleMonth(requestedMonth, scheduleToday());
     if (nextMonth === month) return;
     if (hasChanges) {
       setPendingMonth(nextMonth);
@@ -161,7 +161,7 @@ export function AvailabilityCalendar({ initialMonth }: { initialMonth?: string }
         opened={bulkOpened}
         onClose={() => setBulkOpened(false)}
         month={month}
-        today={availabilityToday()}
+        today={scheduleToday()}
         lockedDates={lockedDates}
         getCurrent={getValue}
         onApply={(targetDates, type) =>
@@ -278,8 +278,8 @@ function AvailabilityMonthView({
   onEditDate: (date: string) => void;
   onOpenBulk: () => void;
 }) {
-  const today = availabilityToday();
-  const maximumMonth = availabilityMaximumDate(today).slice(0, 7);
+  const today = scheduleToday();
+  const maximumMonth = scheduleMaximumDate(today).slice(0, 7);
   // 可否表示と、公開済みシフト日の日付見出しへ重ねるロック表示を同じ MonthView のイベントとして合成する。
   const events = useMemo<ScheduleEventData<AvailabilityEventPayload>[]>(() => {
     const calendarEvents: ScheduleEventData<AvailabilityEventPayload>[] = [];

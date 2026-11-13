@@ -241,7 +241,7 @@ describe('GET /api/shifts/calendar', () => {
   });
 
   it('シフト・割り当てが D1 のバインドパラメータ上限（100個）を超えても取得できる', async () => {
-    // 1部門 × 4シフト種別 × 31日 = 124件のシフトを1回の月次一括 upsert で作成する。
+    // 1部門 × 4シフト種別 × 31日 = 124件のシフトを種別ごとの月次 upsert で作成する。
     // shiftId の inArray に頼ると 100 個を超えるバインドパラメータでクエリが失敗するため、
     // JOIN ベースの絞り込みへ書き換えたことの回帰テストとして、意図的に上限超えの件数を用意する。
     const ski = await seedDepartment('スキー', 'ski');
@@ -263,15 +263,21 @@ describe('GET /api/shifts/calendar', () => {
     }
     expect(cells.length).toBeGreaterThan(100);
 
-    const upsertRes = await app.request(
-      '/api/shifts/assignments',
-      {
-        method: 'PUT',
-        ...authJsonRequest(managerToken, { month: '2026-01', departmentCode: ski, cells }),
-      },
-      envWith({}),
-    );
-    expect(upsertRes.status).toBe(200);
+    for (const shiftTypeId of shiftTypeIds) {
+      const upsertRes = await app.request(
+        '/api/shifts/assignments',
+        {
+          method: 'PUT',
+          ...authJsonRequest(managerToken, {
+            month: '2026-01',
+            departmentCode: ski,
+            cells: cells.filter((cell) => cell.shiftTypeId === shiftTypeId),
+          }),
+        },
+        envWith({}),
+      );
+      expect(upsertRes.status).toBe(200);
+    }
 
     const saved = await createDb(env.DB).select().from(shifts);
     for (const type of shiftTypeIds) {

@@ -1,6 +1,6 @@
 import { addDays, isJapaneseHoliday, weekdayIndex } from '@/features/shifts/view-utils';
+import { scheduleMaximumDate } from '@/lib/schedule-date-range';
 
-import { availabilityMaximumDate } from './date-range';
 import type { Availability, UpdateMyAvailabilitiesInput } from './schema';
 
 export type StagedAvailability = Pick<Availability, 'type' | 'note'>;
@@ -39,7 +39,7 @@ export function getDateEditability(
   lockedDates: ReadonlySet<string>,
 ): DateEditability {
   if (date < today) return 'past';
-  if (date > availabilityMaximumDate(today)) return 'future';
+  if (date > scheduleMaximumDate(today)) return 'future';
   if (lockedDates.has(date)) return 'locked';
   return 'editable';
 }

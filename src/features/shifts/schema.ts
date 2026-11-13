@@ -104,12 +104,25 @@ export const staffingRequirementListSchema = z.array(staffingRequirementSchema);
  * cells には保存したい変更差分のみを含める（含まれないセルは変更しない）。
  * requirements は必要人数だけの変更差分で、cells と同一の Shift に原子的に保存する。
  */
-export const upsertMonthlyAssignmentsSchema = z.object({
-  month: monthStringSchema,
-  departmentCode: departmentCodeSchema,
-  cells: z.array(monthlyAssignmentCellSchema),
-  requirements: z.array(staffingRequirementInputSchema).default([]),
-});
+export const upsertMonthlyAssignmentsSchema = z
+  .object({
+    month: monthStringSchema,
+    departmentCode: departmentCodeSchema,
+    cells: z.array(monthlyAssignmentCellSchema).max(31),
+    requirements: z.array(staffingRequirementInputSchema).max(31).default([]),
+  })
+  .superRefine((input, ctx) => {
+    const shiftTypeIds = new Set([
+      ...input.cells.map((cell) => cell.shiftTypeId),
+      ...input.requirements.map((requirement) => requirement.shiftTypeId),
+    ]);
+    if (shiftTypeIds.size > 1) {
+      ctx.addIssue({
+        code: 'custom',
+        message: '一度に保存できるシフト種別は1つです',
+      });
+    }
+  });
 
 export type UpsertMonthlyAssignmentsInput = z.infer<typeof upsertMonthlyAssignmentsSchema>;
 

@@ -1,10 +1,21 @@
 # GitHub Release の自動生成リリースノート（gh release create --generate-notes）のカテゴリ設定
 # https://docs.github.com/en/repositories/releasing-projects-on-github/automatically-generated-release-notes
+#
+# 1つの PR は上から最初に当てはまるカテゴリにだけ載る。
+# リリース前に確認したい順（セキュリティ → DB マイグレーション → …）に並べている。
+# ラベルは .github/workflows/pr-labels.yml が PR タイトルの Gitmoji と変更ファイルから自動で付ける。
 changelog:
   exclude:
     labels:
       - skip-changelog
   categories:
+    - title: 🔒 セキュリティ
+      labels:
+        - security
+    # ロールバックで DB は戻らないため、機能・修正より先に目に入るようにする
+    - title: 🗃 DB マイグレーションあり
+      labels:
+        - db-migration
     - title: ✨ 機能追加・改善
       labels:
         - enhancement
@@ -12,7 +23,7 @@ changelog:
       labels:
         - bug
     # Renovate 等の依存更新 PR はアプリの変更と分けてまとめる
-    - title: ⬆️ 依存関係の更新
+    - title: 📦 依存関係の更新
       labels:
         - dependencies
     - title: 🔧 CI・運用

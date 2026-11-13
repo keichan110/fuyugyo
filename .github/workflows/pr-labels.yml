@@ -1,0 +1,100 @@
+name: PR Labels
+
+# リリースノート（.github/release.yml）の分類に使うラベルを PR に自動で付ける。
+# - 種別: PR タイトル先頭の Gitmoji から（enhancement / bug / security / dependencies / ci-cd）
+# - db-migration: drizzle/ 配下を変更している場合
+# - user-facing: PR 本文の「利用者の画面・操作が変わる」にチェックがある場合
+#
+# pull_request_target を使うのは、ラベル付与に書き込み権限が必要なため。
+# PR のコードはチェックアウト・実行せず、タイトル・本文・変更ファイル名を API で読むだけにする。
+on:
+  pull_request_target:
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: pr-labels-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: github.repository == 'keichan110/fuyugyo'
+
+    steps:
+      - name: Apply labels
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const issue_number = pr.number;
+            const current = new Set(pr.labels.map((l) => l.name));
+
+            // --- 種別ラベル（Gitmoji → ラベル） ---
+            // 該当しない Gitmoji（📝 ♻️ ✅ 🔧 など）は種別ラベルを付けず「その他」に載せる
+            const TYPE_LABELS = ['security', 'enhancement', 'bug', 'dependencies', 'ci-cd'];
+            const GITMOJI_TO_LABEL = {
+              '🔒': 'security', '🔐': 'security', '🛂': 'security',
+              ':lock:': 'security', ':closed_lock_with_key:': 'security', ':passport_control:': 'security',
+              '✨': 'enhancement', '⚡': 'enhancement', '💄': 'enhancement', '📱': 'enhancement',
+              '🚸': 'enhancement', '♿': 'enhancement', '👔': 'enhancement', '🌐': 'enhancement',
+              ':sparkles:': 'enhancement', ':zap:': 'enhancement', ':lipstick:': 'enhancement',
+              ':iphone:': 'enhancement', ':children_crossing:': 'enhancement',
+              ':wheelchair:': 'enhancement', ':necktie:': 'enhancement', ':globe_with_meridians:': 'enhancement',
+              '🐛': 'bug', '🚑': 'bug', '🩹': 'bug',
+              ':bug:': 'bug', ':ambulance:': 'bug', ':adhesive_bandage:': 'bug',
+              '⬆': 'dependencies', '⬇': 'dependencies', '📌': 'dependencies', '➕': 'dependencies', '➖': 'dependencies',
+              ':arrow_up:': 'dependencies', ':arrow_down:': 'dependencies', ':pushpin:': 'dependencies',
+              ':heavy_plus_sign:': 'dependencies', ':heavy_minus_sign:': 'dependencies',
+              '👷': 'ci-cd', '💚': 'ci-cd', '🚀': 'ci-cd',
+              ':construction_worker:': 'ci-cd', ':green_heart:': 'ci-cd', ':rocket:': 'ci-cd',
+            };
+
+            const toAdd = [];
+            const toRemove = [];
+
+            // 手動で種別ラベルが付いている場合はそれを優先し、上書きしない
+            const hasTypeLabel = TYPE_LABELS.some((l) => current.has(l));
+            if (!hasTypeLabel) {
+              // 異体字セレクタ（U+FE0F）の有無で一致しなくなるのを防ぐ
+              const title = pr.title.trim().replace(/️/g, '');
+              const first = title.split(/\s+/)[0] ?? '';
+              const shortcode = title.match(/^:[a-z0-9_+-]+:/)?.[0];
+              const label = GITMOJI_TO_LABEL[shortcode ?? ''] ??
+                Object.entries(GITMOJI_TO_LABEL).find(([emoji]) => !emoji.startsWith(':') && first.startsWith(emoji))?.[1];
+              if (label) toAdd.push(label);
+            }
+
+            // --- db-migration（drizzle/ の変更） ---
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: issue_number,
+              per_page: 100,
+            });
+            const touchesMigration = files.some(
+              (f) => f.filename.startsWith('drizzle/') || f.previous_filename?.startsWith('drizzle/'),
+            );
+            if (touchesMigration) toAdd.push('db-migration');
+            else if (current.has('db-migration')) toRemove.push('db-migration');
+
+            // --- user-facing（PR テンプレートのチェック項目） ---
+            const body = pr.body ?? '';
+            if (/-\s*\[[xX]\]\s*利用者の画面・操作が変わる/.test(body)) toAdd.push('user-facing');
+            else if (/-\s*\[\s\]\s*利用者の画面・操作が変わる/.test(body) && current.has('user-facing')) {
+              // チェックを外した場合だけ外す（テンプレートを使っていない PR の手動ラベルは触らない）
+              toRemove.push('user-facing');
+            }
+
+            const adding = toAdd.filter((l) => !current.has(l));
+            if (adding.length > 0) {
+              await github.rest.issues.addLabels({ ...context.repo, issue_number, labels: adding });
+            }
+            for (const name of toRemove) {
+              await github.rest.issues.removeLabel({ ...context.repo, issue_number, name });
+            }
+            core.info(`added: ${adding.join(', ') || '-'} / removed: ${toRemove.join(', ') || '-'}`);

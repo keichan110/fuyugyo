@@ -153,7 +153,7 @@ body:
         例：
         - パッケージサイズの増加を最小限に抑える
         - サーバーメモリ使用量への配慮
-        - 既存のNext.js・TypeScript構成との整合性
+        - 既存の Vite・Hono・TypeScript 構成との整合性
         - モバイルデバイスでの動作保証
 
   - type: textarea

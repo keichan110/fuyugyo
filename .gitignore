@@ -24,6 +24,8 @@ pnpm-debug.log*
 .env*.local
 
 # Wrangler
+.dev.vars
+.dev.vars.*
 .wrangler/
 
 # IDE

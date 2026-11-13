@@ -105,6 +105,56 @@ afterEach(() => {
 });
 
 describe('PUT /api/availabilities/me', () => {
+  it.each([31, 32, 101])('%i件の更新は31件まで受け付ける', async (count) => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-13T03:00:00Z'));
+    const instructorId = await seedInstructor();
+    const token = await seedToken('MEMBER', instructorId);
+    const changes = Array.from({ length: count }, (_, index) => ({
+      date: new Date(Date.UTC(2027, 0, index + 1)).toISOString().slice(0, 10),
+      type: 'AVAILABLE',
+    }));
+    const response = await app.request(
+      '/api/availabilities/me',
+      {
+        method: 'PUT',
+        ...authJsonRequest(token, { changes }),
+      },
+      envWith({}),
+    );
+    expect(response.status).toBe(count <= 31 ? 200 : 400);
+    const rows = await createDb(env.DB).select().from(instructorAvailabilities);
+    expect(rows).toHaveLength(count <= 31 ? count : 0);
+  });
+
+  it.each([
+    ['2026-11-13', 200],
+    ['2027-11-30', 200],
+    ['2027-12-01', 400],
+    ['9999-12-31', 400],
+  ])('%s の更新は %i を返す', async (date, status) => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-12T15:00:00Z'));
+    const instructorId = await seedInstructor();
+    const token = await seedToken('MEMBER', instructorId);
+    const response = await app.request(
+      '/api/availabilities/me',
+      {
+        method: 'PUT',
+        ...authJsonRequest(token, {
+          changes: [
+            { date: '2026-11-14', type: 'AVAILABLE' },
+            { date, type: 'AVOID' },
+          ],
+        }),
+      },
+      envWith({}),
+    );
+    expect(response.status).toBe(status);
+    const rows = await createDb(env.DB).select().from(instructorAvailabilities);
+    expect(rows).toHaveLength(status === 200 ? 2 : 0);
+  });
+
   it('本人の申告を差分で原子的に作成・更新する', async () => {
     const instructorId = await seedInstructor();
     const token = await seedToken('MEMBER', instructorId);

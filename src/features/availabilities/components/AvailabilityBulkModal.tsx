@@ -64,9 +64,10 @@ function BulkForm({
         : null,
     [month, selected, type, today, lockedDates, getCurrent],
   );
-  const excludedTotal = plan ? plan.excluded.past + plan.excluded.locked : 0;
+  const excludedTotal = plan ? plan.excluded.past + plan.excluded.locked + plan.excluded.future : 0;
   const excludedReasons = plan
     ? [
+        plan.excluded.future > 0 ? `入力期間外 ${plan.excluded.future}` : null,
         plan.excluded.past > 0 ? `過去日 ${plan.excluded.past}` : null,
         plan.excluded.locked > 0 ? `公開済みシフト ${plan.excluded.locked}` : null,
       ].filter((reason) => reason !== null)

@@ -11,6 +11,7 @@ import { rethrowShiftWriteError } from '@/server/db/shift-writes';
 import { requireAuth, requireRole, type AuthVariables } from '@/server/middleware/auth';
 import type { Env } from '@/server/types';
 
+import { availabilityMaximumDate, availabilityToday } from './date-range';
 import { updateMyAvailabilitiesSchema } from './schema';
 
 /** YYYY-MM-DD 文字列を UTC 0時の Date に正規化する。 */
@@ -70,13 +71,6 @@ async function resolveInstructorId(
     throw new HTTPException(403, { message: 'インストラクターに紐づくユーザーのみ利用できます' });
   }
   return user.instructorId;
-}
-
-/** 日本時間の当日を、DBの日付表現に合わせたUTC 0時のDateとして返す。 */
-function today(): Date {
-  const now = new Date();
-  const jstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
-  return new Date(Date.UTC(jstNow.getUTCFullYear(), jstNow.getUTCMonth(), jstNow.getUTCDate()));
 }
 
 /**
@@ -140,11 +134,16 @@ export const availabilitiesRoute = new Hono<{ Bindings: Env; Variables: AuthVari
       const db = createDb(c.env.DB);
       const instructorId = await resolveInstructorId(db, c.get('user').userId);
       const input = c.req.valid('json');
-      const minimumDate = today();
+      const currentDate = availabilityToday();
+      const minimumDate = parseDate(currentDate);
+      const maximumDate = availabilityMaximumDate(currentDate);
 
       for (const change of input.changes) {
         if (!isValidCalendarDate(change.date)) {
           throw new HTTPException(400, { message: `${change.date} は実在しない日付です` });
+        }
+        if (change.date > maximumDate) {
+          throw new HTTPException(400, { message: `勤務可否は ${maximumDate} まで指定できます` });
         }
         if (parseDate(change.date) < minimumDate) {
           throw new HTTPException(400, { message: '過去日の勤務可否は変更できません' });

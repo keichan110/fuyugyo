@@ -16,14 +16,9 @@ import 'dayjs/locale/ja';
 import { ErrorAlert, WarningAlert } from '@/components/AppAlert';
 import { AppButton } from '@/components/AppButton';
 import { UnsavedChangesBar } from '@/components/UnsavedChangesBar';
-import {
-  addDays,
-  addMonths,
-  getCalendarDayColor,
-  todayString,
-  toMonth,
-} from '@/features/shifts/view-utils';
+import { addDays, addMonths, getCalendarDayColor, toMonth } from '@/features/shifts/view-utils';
 
+import { availabilityMaximumDate, availabilityToday, clampAvailabilityMonth } from '../date-range';
 import {
   applyBulkAvailability,
   buildAvailabilityChanges,
@@ -40,7 +35,9 @@ import { AvailabilityDayModal } from './AvailabilityDayModal';
 
 /** 本人が月間カレンダー上で勤務可・要調整・勤務不可をまとめて申告する画面。 */
 export function AvailabilityCalendar({ initialMonth }: { initialMonth?: string }) {
-  const [month, setMonth] = useState(() => initialMonth ?? todayString().slice(0, 7));
+  const [month, setMonth] = useState(() =>
+    clampAvailabilityMonth(initialMonth ?? availabilityToday().slice(0, 7), availabilityToday()),
+  );
   const availabilityQuery = useMyAvailabilities(month);
   const updateMutation = useUpdateMyAvailabilities();
   const [staged, setStaged] = useState<Map<string, StagedAvailability>>(new Map());
@@ -81,7 +78,7 @@ export function AvailabilityCalendar({ initialMonth }: { initialMonth?: string }
   );
   // 入力可能（過去日・公開済みシフト日を除く）なのに申告がない日を、未保存の編集も含めて数える。
   const unfilledCount = useMemo(() => {
-    const today = todayString();
+    const today = availabilityToday();
     return listMonthDates(month).filter(
       (date) =>
         getDateEditability(date, today, lockedDates) === 'editable' && getValue(date) === undefined,
@@ -98,7 +95,9 @@ export function AvailabilityCalendar({ initialMonth }: { initialMonth?: string }
     setBulkOpened(false);
     setMonth(nextMonth);
   };
-  const requestMonthChange = (nextMonth: string) => {
+  const requestMonthChange = (requestedMonth: string) => {
+    const nextMonth = clampAvailabilityMonth(requestedMonth, availabilityToday());
+    if (nextMonth === month) return;
     if (hasChanges) {
       setPendingMonth(nextMonth);
       return;
@@ -162,7 +161,7 @@ export function AvailabilityCalendar({ initialMonth }: { initialMonth?: string }
         opened={bulkOpened}
         onClose={() => setBulkOpened(false)}
         month={month}
-        today={todayString()}
+        today={availabilityToday()}
         lockedDates={lockedDates}
         getCurrent={getValue}
         onApply={(targetDates, type) =>
@@ -279,7 +278,8 @@ function AvailabilityMonthView({
   onEditDate: (date: string) => void;
   onOpenBulk: () => void;
 }) {
-  const today = todayString();
+  const today = availabilityToday();
+  const maximumMonth = availabilityMaximumDate(today).slice(0, 7);
   // 可否表示と、公開済みシフト日の日付見出しへ重ねるロック表示を同じ MonthView のイベントとして合成する。
   const events = useMemo<ScheduleEventData<AvailabilityEventPayload>[]>(() => {
     const calendarEvents: ScheduleEventData<AvailabilityEventPayload>[] = [];
@@ -330,6 +330,13 @@ function AvailabilityMonthView({
           <ScheduleHeader.MonthYearSelect
             labels={CALENDAR_LABELS}
             locale="ja"
+            endYear={Number(maximumMonth.slice(0, 4))}
+            getYearControlProps={(nextYear) => ({
+              disabled: `${nextYear}-${String(monthNumber).padStart(2, '0')}` > maximumMonth,
+            })}
+            getMonthControlProps={(nextMonthIndex) => ({
+              disabled: `${year}-${String(nextMonthIndex + 1).padStart(2, '0')}` > maximumMonth,
+            })}
             yearValue={year ?? 0}
             monthValue={(monthNumber ?? 1) - 1}
             onYearChange={(nextYear) =>
@@ -342,6 +349,7 @@ function AvailabilityMonthView({
             monthsListFormat={(date) => `${Number(date.slice(5, 7))}月`}
           />
           <ScheduleHeader.Next
+            disabled={month >= maximumMonth}
             labels={CALENDAR_LABELS}
             onClick={() => onMonthChange(`${addMonths(month, 1)}-01`)}
           />
@@ -375,9 +383,11 @@ function AvailabilityMonthView({
           const disabledReason =
             editability === 'locked'
               ? '割り当て済みのため変更できません'
-              : editability === 'past'
-                ? '過去日は編集できません'
-                : undefined;
+              : editability === 'future'
+                ? '翌年の同じ月まで入力できます'
+                : editability === 'past'
+                  ? '過去日は編集できません'
+                  : undefined;
           return {
             'data-availability': getValue(date)?.type,
             'data-disabled': disabled || undefined,

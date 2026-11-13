@@ -58,6 +58,8 @@ describe('buildAvailabilityChanges', () => {
 
 describe('getDateEditability', () => {
   it.each([
+    ['2027-05-31', '2026-05-01', [], 'editable'],
+    ['2027-06-01', '2026-05-01', [], 'future'],
     ['2026-05-10', '2026-05-01', [], 'editable'],
     ['2025-12-01', '2025-12-02', [], 'past'],
     ['2025-12-03', '2025-12-02', ['2025-12-03'], 'locked'],
@@ -70,6 +72,18 @@ describe('getDateEditability', () => {
 describe('一括設定', () => {
   const none = () => undefined;
   const base = { month: '2026-11', today: '2026-11-01', lockedDates: new Set<string>() };
+
+  it('入力期間より先の月は一括設定の対象から除外する', () => {
+    const plan = planBulkAvailability({
+      ...base,
+      month: '2027-12',
+      categories: new Set([0, 1, 2, 3, 4, 5, 6, 'holiday'] as const),
+      type: 'AVAILABLE',
+      getCurrent: none,
+    });
+    expect(plan.targetDates).toEqual([]);
+    expect(plan.excluded.future).toBe(31);
+  });
 
   it('平日の祝日は曜日分類ではなく祝日分類にのみ含まれる', () => {
     expect(getBulkCategory('2026-11-03')).toBe('holiday');
@@ -140,7 +154,7 @@ describe('一括設定', () => {
       type: 'UNAVAILABLE',
       getCurrent: none,
     });
-    expect(plan.excluded).toEqual({ past: 1, locked: 1 });
+    expect(plan.excluded).toEqual({ past: 1, locked: 1, future: 0 });
     expect(plan.targetDates).toEqual(['2026-11-21', '2026-11-28']);
     const next = applyBulkAvailability(new Map(), plan.targetDates, 'UNAVAILABLE', none);
     expect(next.has('2026-11-07')).toBe(false);

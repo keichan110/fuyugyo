@@ -5,6 +5,7 @@ import { HTTPException } from 'hono/http-exception';
 import { validator } from 'hono/validator';
 
 import { dateStringSchema } from '@/features/shifts/schema';
+import { scheduleMaximumDate, scheduleToday } from '@/lib/schedule-date-range';
 import { createDb } from '@/server/db/client';
 import { instructorAvailabilities, shiftAssignments, shifts, users } from '@/server/db/schema';
 import { rethrowShiftWriteError } from '@/server/db/shift-writes';
@@ -72,13 +73,6 @@ async function resolveInstructorId(
   return user.instructorId;
 }
 
-/** 日本時間の当日を、DBの日付表現に合わせたUTC 0時のDateとして返す。 */
-function today(): Date {
-  const now = new Date();
-  const jstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
-  return new Date(Date.UTC(jstNow.getUTCFullYear(), jstNow.getUTCMonth(), jstNow.getUTCDate()));
-}
-
 /**
  * インストラクター本人の勤務可否申告と、管理者向け一覧を提供する Hono ルート。
  * 本人の書き込みは未来の未割当日のみ許可し、全変更を単一 batch で原子的に反映する。
@@ -140,11 +134,16 @@ export const availabilitiesRoute = new Hono<{ Bindings: Env; Variables: AuthVari
       const db = createDb(c.env.DB);
       const instructorId = await resolveInstructorId(db, c.get('user').userId);
       const input = c.req.valid('json');
-      const minimumDate = today();
+      const currentDate = scheduleToday();
+      const minimumDate = parseDate(currentDate);
+      const maximumDate = scheduleMaximumDate(currentDate);
 
       for (const change of input.changes) {
         if (!isValidCalendarDate(change.date)) {
           throw new HTTPException(400, { message: `${change.date} は実在しない日付です` });
+        }
+        if (change.date > maximumDate) {
+          throw new HTTPException(400, { message: `勤務可否は ${maximumDate} まで指定できます` });
         }
         if (parseDate(change.date) < minimumDate) {
           throw new HTTPException(400, { message: '過去日の勤務可否は変更できません' });

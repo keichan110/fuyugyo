@@ -4,6 +4,7 @@ import { useBlocker } from '@tanstack/react-router';
 
 import { useAvailabilities } from '@/features/availabilities/queries';
 import type { DepartmentCode } from '@/features/departments/schema';
+import { clampScheduleMonth, scheduleToday } from '@/lib/schedule-date-range';
 
 import type { AutoAssignSolver } from '../auto-assign-solver-port';
 import { createWorkerSolver } from '../auto-assign-worker-solver';
@@ -17,7 +18,7 @@ import {
 } from '../queries';
 import type { ShiftViewItem } from '../schema';
 import { summarizeStaffing } from '../staffing';
-import { todayString, toMonth } from '../view-utils';
+import { toMonth } from '../view-utils';
 import {
   countCurrentMonthWorkDays,
   type CellAssignment,
@@ -53,7 +54,7 @@ const autoAssignSolver: AutoAssignSolver = createWorkerSolver();
 
 /** ShiftManager の編集状態、データ取得、副作用、操作ハンドラーをまとめて提供する。 */
 export function useShiftManagerController(departmentCode: DepartmentCode) {
-  const [month, setMonth] = useState(() => toMonth(todayString()));
+  const [month, setMonth] = useState(() => toMonth(scheduleToday()));
   const [selectedCell, setSelectedCell] = useState<SelectedCell | null>(null);
   const [assignmentPanelOpened, setAssignmentPanelOpened] = useState(false);
   const [stagedCells, setStagedCells] = useState<Map<string, StagedCell>>(new Map());
@@ -155,7 +156,7 @@ export function useShiftManagerController(departmentCode: DepartmentCode) {
       if (nav.type === 'month') setMonth(nav.nextMonth);
       else {
         setSelectedCell((current) => ({
-          date: current?.date ?? days[0] ?? todayString(),
+          date: current?.date ?? days[0] ?? scheduleToday(),
           shiftTypeId: nav.nextShiftTypeId,
         }));
       }
@@ -172,13 +173,17 @@ export function useShiftManagerController(departmentCode: DepartmentCode) {
   const requestNavigation = useCallback(
     (nav: PendingNavigation) => {
       if (isAutoAssigning) return;
+      if (nav.type === 'month') {
+        nav = { ...nav, nextMonth: clampScheduleMonth(nav.nextMonth, scheduleToday()) };
+        if (nav.nextMonth === month) return;
+      }
       if (!isDirty) {
         applyNavigation(nav);
         return;
       }
       setPendingNav(nav);
     },
-    [applyNavigation, isDirty, isAutoAssigning],
+    [applyNavigation, isDirty, isAutoAssigning, month],
   );
 
   const confirmNavigation = () => {

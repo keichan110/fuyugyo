@@ -1,9 +1,10 @@
 import { addDays, isJapaneseHoliday, weekdayIndex } from '@/features/shifts/view-utils';
+import { scheduleMaximumDate } from '@/lib/schedule-date-range';
 
 import type { Availability, UpdateMyAvailabilitiesInput } from './schema';
 
 export type StagedAvailability = Pick<Availability, 'type' | 'note'>;
-export type DateEditability = 'editable' | 'past' | 'locked';
+export type DateEditability = 'editable' | 'past' | 'locked' | 'future';
 
 /** 指定日の編集内容をステージ状態へ反映する。 */
 export function stageAvailability(
@@ -38,6 +39,7 @@ export function getDateEditability(
   lockedDates: ReadonlySet<string>,
 ): DateEditability {
   if (date < today) return 'past';
+  if (date > scheduleMaximumDate(today)) return 'future';
   if (lockedDates.has(date)) return 'locked';
   return 'editable';
 }
@@ -52,7 +54,7 @@ export type BulkAvailabilityPlan = {
   /** 対象のうち、現在値が存在し type が異なる（上書きになる）日数。 */
   overwriteCount: number;
   /** 編集不可のため除外した日数（理由別）。 */
-  excluded: { past: number; locked: number };
+  excluded: { past: number; locked: number; future: number };
 };
 
 /** 日付を一括設定の分類へ変換する。祝日（振替休日を含む）は曜日に関わらず 'holiday' のみ。 */
@@ -90,7 +92,7 @@ export function planBulkAvailability({
   const plan: BulkAvailabilityPlan = {
     targetDates: [],
     overwriteCount: 0,
-    excluded: { past: 0, locked: 0 },
+    excluded: { past: 0, locked: 0, future: 0 },
   };
   for (const date of listMonthDates(month)) {
     if (!categories.has(getBulkCategory(date))) continue;

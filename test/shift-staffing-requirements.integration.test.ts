@@ -1,5 +1,5 @@
 import { env } from 'cloudflare:test';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { staffingRequirementListSchema } from '../src/features/shifts/schema';
 import app from '../src/index';
@@ -274,5 +274,135 @@ describe('必要人数の入力検証と認可', () => {
       envWith(),
     );
     expect(res.status).toBe(400);
+  });
+});
+
+describe('シフト保存・公開の上限', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-12T15:00:00Z'));
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it.each(['cells', 'requirements'] as const)('%s は31件まで保存できる', async (field) => {
+    const token = await seedToken('MANAGER');
+    const shiftTypeId = await seedShiftType();
+    const items = Array.from({ length: 31 }, (_, index) => ({
+      date: `2027-01-${String(index + 1).padStart(2, '0')}`,
+      shiftTypeId,
+      ...(field === 'cells'
+        ? { instructorIds: [], description: '通常保存' }
+        : { requiredCount: 1 }),
+    }));
+    const response = await put(token, {
+      month: '2027-01',
+      departmentCode: 'ski',
+      cells: [],
+      [field]: items,
+    });
+    expect(response.status).toBe(200);
+    expect(await createDb(env.DB).select().from(shifts)).toHaveLength(31);
+  });
+
+  it.each(['cells', 'requirements'] as const)('%s の32件以上は保存せず400', async (field) => {
+    const token = await seedToken('MANAGER');
+    const shiftTypeId = await seedShiftType();
+    const items = Array.from({ length: 101 }, (_, index) => ({
+      date: `2027-01-${String((index % 31) + 1).padStart(2, '0')}`,
+      shiftTypeId,
+      instructorIds: [],
+      requiredCount: 1,
+    }));
+    for (const count of [32, 101]) {
+      const response = await put(token, {
+        month: '2027-01',
+        departmentCode: 'ski',
+        cells: [],
+        [field]: items.slice(0, count),
+      });
+      expect(response.status).toBe(400);
+      expect(await response.json()).toMatchObject({
+        message: expect.stringContaining('"too_big"'),
+      });
+    }
+    expect(await createDb(env.DB).select().from(shifts)).toHaveLength(0);
+  });
+
+  it.each(['cells', 'requirements', 'both'])(
+    '複数種別が %s にある場合は保存せず400',
+    async (field) => {
+      const token = await seedToken('MANAGER');
+      const first = await seedShiftType('午前');
+      const second = await seedShiftType('午後');
+      const cells = [first, second].map((shiftTypeId) => ({
+        date: '2027-01-01',
+        shiftTypeId,
+        description: '保存しない',
+        instructorIds: [],
+      }));
+      const requirements = [first, second].map((shiftTypeId) => ({
+        date: '2027-01-01',
+        shiftTypeId,
+        requiredCount: 1,
+      }));
+      const response = await put(token, {
+        month: '2027-01',
+        departmentCode: 'ski',
+        cells: field === 'cells' ? cells : field === 'both' ? cells.slice(0, 1) : [],
+        requirements:
+          field === 'requirements' ? requirements : field === 'both' ? requirements.slice(1) : [],
+      });
+      expect(response.status).toBe(400);
+      expect(await createDb(env.DB).select().from(shifts)).toHaveLength(0);
+    },
+  );
+
+  it('同一種別の割当と必要人数を31件ずつ同時に保存できる', async () => {
+    const token = await seedToken('MANAGER');
+    const shiftTypeId = await seedShiftType();
+    const items = Array.from({ length: 31 }, (_, index) => ({
+      date: `2027-01-${String(index + 1).padStart(2, '0')}`,
+      shiftTypeId,
+    }));
+    const response = await put(token, {
+      month: '2027-01',
+      departmentCode: 'ski',
+      cells: items.map((item) => ({ ...item, description: '同時保存', instructorIds: [] })),
+      requirements: items.map((item) => ({ ...item, requiredCount: 1 })),
+    });
+    expect(response.status).toBe(200);
+    expect(await createDb(env.DB).select().from(shifts)).toHaveLength(31);
+  });
+
+  it.each([
+    ['2025-01-01', 200],
+    ['2027-11-30', 200],
+    ['2027-12-01', 400],
+    ['9999-12-31', 400],
+  ] as const)('%s の割当・必要人数保存と公開は %i', async (date, status) => {
+    const token = await seedToken('MANAGER');
+    const shiftTypeId = await seedShiftType();
+    const base = { month: date.slice(0, 7), departmentCode: 'ski' };
+    const save = await put(token, {
+      ...base,
+      cells: [{ date, shiftTypeId, description: '上限確認', instructorIds: [] }],
+      requirements: [{ date, shiftTypeId, requiredCount: 1 }],
+    });
+    expect(save.status).toBe(status);
+    const rows = await createDb(env.DB).select().from(shifts);
+    expect(rows).toHaveLength(status === 200 ? 1 : 0);
+    for (const publicationStatus of ['PUBLISHED', 'DRAFT']) {
+      const response = await app.request(
+        '/api/shifts/publication',
+        jsonRequest(token, {
+          ...base,
+          shiftTypeId,
+          status: publicationStatus,
+          dates: [{ date, expectedRevision: publicationStatus === 'DRAFT' ? 1 : 0 }],
+        }),
+        envWith(),
+      );
+      expect(response.status).toBe(status);
+    }
   });
 });

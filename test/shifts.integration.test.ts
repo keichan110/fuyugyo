@@ -269,7 +269,7 @@ describe('PUT /api/shifts/assignments', () => {
   it('複数セルをまとめて作成し、それぞれ割り当てと備考が保存される', async () => {
     const deptId = await seedDepartment();
     const stMorning = await seedShiftType('午前');
-    const stAfternoon = await seedShiftType('午後');
+
     const inst1 = await seedInstructor('山田', '太郎');
     const inst2 = await seedInstructor('鈴木', '花子');
     const token = await seedToken('MANAGER');
@@ -290,7 +290,7 @@ describe('PUT /api/shifts/assignments', () => {
             },
             {
               date: '2026-02-15',
-              shiftTypeId: stAfternoon,
+              shiftTypeId: stMorning,
               instructorIds: [inst1, inst2],
             },
           ],
@@ -307,10 +307,10 @@ describe('PUT /api/shifts/assignments', () => {
     const list = await app.request('/api/shifts', authHeader(token), envWith({}));
     const shiftsBody = shiftListSchema.parse(await list.json());
     expect(shiftsBody).toHaveLength(2);
-    const first = shiftsBody.find((s) => s.shiftTypeId === stMorning);
+    const first = shiftsBody.find((s) => s.date.toISOString().startsWith('2026-02-01'));
     expect(first?.description).toBe('初日');
     expect(first?.assignedInstructorIds).toEqual([inst1]);
-    const second = shiftsBody.find((s) => s.shiftTypeId === stAfternoon);
+    const second = shiftsBody.find((s) => s.date.toISOString().startsWith('2026-02-15'));
     expect(second?.assignedInstructorIds.sort()).toEqual([inst1, inst2].sort());
   });
 
@@ -772,7 +772,7 @@ describe('GET /api/shifts', () => {
   });
 
   it('limit 未指定でも既定100件を超えない（D1 バインド上限のチャンク境界を跨ぐ割り当て取得も正しい）', async () => {
-    // 1部門 × 4シフト種別 × 31日 = 124件のシフトを月次一括 upsert で作成し、
+    // 1部門 × 4シフト種別 × 31日 = 124件のシフトを種別ごとの月次 upsert で作成し、
     // 既定 limit（100件）で切り捨てられること、割り当ても100件分だけ正しく紐づくことを確認する。
     // 100件という chunkArray（90件刻み）の境界を跨ぐ件数にすることで、
     // 割り当て取得のチャンク分割 (90 + 10) が正しく動作することも合わせて検証する。
@@ -786,24 +786,22 @@ describe('GET /api/shifts', () => {
     const inst = await seedInstructor('山田', '太郎');
     const token = await seedToken('MANAGER');
 
-    const cells = [];
-    for (let day = 1; day <= 31; day++) {
-      const date = `2026-01-${String(day).padStart(2, '0')}`;
-      for (const shiftTypeId of shiftTypeIds) {
-        cells.push({ date, shiftTypeId, instructorIds: [inst] });
-      }
+    for (const shiftTypeId of shiftTypeIds) {
+      const cells = Array.from({ length: 31 }, (_, index) => ({
+        date: `2026-01-${String(index + 1).padStart(2, '0')}`,
+        shiftTypeId,
+        instructorIds: [inst],
+      }));
+      const upsertRes = await app.request(
+        '/api/shifts/assignments',
+        {
+          method: 'PUT',
+          ...authJsonRequest(token, { month: '2026-01', departmentCode: deptId, cells }),
+        },
+        envWith({}),
+      );
+      expect(upsertRes.status).toBe(200);
     }
-    expect(cells.length).toBeGreaterThan(100);
-
-    const upsertRes = await app.request(
-      '/api/shifts/assignments',
-      {
-        method: 'PUT',
-        ...authJsonRequest(token, { month: '2026-01', departmentCode: deptId, cells }),
-      },
-      envWith({}),
-    );
-    expect(upsertRes.status).toBe(200);
 
     const res = await app.request('/api/shifts', authHeader(token), envWith({}));
     expect(res.status).toBe(200);

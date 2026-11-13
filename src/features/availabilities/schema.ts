@@ -33,7 +33,7 @@ export const availabilityChangeSchema = z.object({
 
 /** 本人の勤務可否を差分で更新するリクエスト。 */
 export const updateMyAvailabilitiesSchema = z
-  .object({ changes: z.array(availabilityChangeSchema) })
+  .object({ changes: z.array(availabilityChangeSchema).max(31) })
   .superRefine((value, ctx) => {
     const dates = new Set<string>();
     for (const [index, change] of value.changes.entries()) {

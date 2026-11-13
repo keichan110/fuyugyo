@@ -2,7 +2,8 @@ import { Group } from '@mantine/core';
 import { ScheduleHeader } from '@mantine/schedule';
 import dayjs from 'dayjs';
 
-import { todayString } from '../view-utils';
+import { scheduleMaximumDate, scheduleToday } from '@/lib/schedule-date-range';
+
 import { CalendarDisplayKey } from './CalendarDisplayKey';
 import classes from './ShiftManager.module.css';
 
@@ -15,6 +16,7 @@ type Props = {
 /** 月移動と今日・表示の見方を同じ行に配置し、補助操作を右端に固定する。 */
 export function ShiftCalendarHeader({ month, disabled, onMonthChange }: Props) {
   const date = dayjs(`${month}-01`);
+  const maximumMonth = scheduleMaximumDate(scheduleToday()).slice(0, 7);
   return (
     <ScheduleHeader
       className={classes.calendarHeader}
@@ -34,6 +36,13 @@ export function ShiftCalendarHeader({ month, disabled, onMonthChange }: Props) {
         />
         <ScheduleHeader.MonthYearSelect
           locale="ja"
+          endYear={Number(maximumMonth.slice(0, 4))}
+          getYearControlProps={(year) => ({
+            disabled: date.year(year).format('YYYY-MM') > maximumMonth,
+          })}
+          getMonthControlProps={(nextMonth) => ({
+            disabled: date.month(nextMonth).format('YYYY-MM') > maximumMonth,
+          })}
           yearValue={date.year()}
           monthValue={date.month()}
           onYearChange={(year) => onMonthChange(date.year(year).format('YYYY-MM-DD'))}
@@ -45,14 +54,14 @@ export function ShiftCalendarHeader({ month, disabled, onMonthChange }: Props) {
           w={{ base: 104, sm: 140 }}
         />
         <ScheduleHeader.Next
-          disabled={disabled}
+          disabled={disabled || month >= maximumMonth}
           onClick={() => onMonthChange(date.add(1, 'month').format('YYYY-MM-DD'))}
         />
       </Group>
       <ScheduleHeader.Today
         disabled={disabled}
         px={6}
-        onClick={() => onMonthChange(todayString())}
+        onClick={() => onMonthChange(scheduleToday())}
       />
       <Group ml="auto" wrap="nowrap">
         <CalendarDisplayKey />

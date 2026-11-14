@@ -77,13 +77,6 @@
     {
       "description": "本番依存と開発依存を分け、手動確認が必要な更新との混在を防ぐ",
       "matchManagers": ["npm"],
-      "matchPackageNames": ["wrangler", "@cloudflare/*"],
-      "matchUpdateTypes": ["minor", "patch"],
-      "groupName": "Cloudflare {{depType}}"
-    },
-    {
-      "description": "本番依存と開発依存を分け、手動確認が必要な更新との混在を防ぐ",
-      "matchManagers": ["npm"],
       "matchPackageNames": [
         "eslint",
         "@eslint/*",
@@ -107,6 +100,14 @@
       "matchCurrentVersion": "<1.0.0",
       "automerge": false,
       "groupName": null
+    },
+    {
+      "description": "Cloudflare 関連は0.x 系も含めてまとめ、全更新を手動確認する",
+      "matchManagers": ["npm"],
+      "matchPackageNames": ["wrangler", "@cloudflare/*"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "Cloudflare",
+      "automerge": false
     },
     {
       "description": "major は必ず手動確認する",

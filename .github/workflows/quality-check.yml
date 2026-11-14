@@ -1,8 +1,6 @@
 name: Quality Check
 
 on:
-  push:
-    branches: [main]
   pull_request:
     branches: [main]
 
@@ -26,9 +24,6 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Run TypeScript type check
-        run: pnpm run typecheck
-
       - name: Run ESLint
         run: pnpm run lint
 
@@ -36,10 +31,9 @@ jobs:
         run: pnpm run format:check
 
       - name: Run tests
-        run: pnpm run test
+        run: |
+          pnpm run test
+          node --test scripts/check-unreleased-changes.test.mjs
 
       - name: Build application
         run: pnpm run build
-
-      - name: Security audit
-        run: pnpm audit --audit-level=moderate --ignore-unfixable

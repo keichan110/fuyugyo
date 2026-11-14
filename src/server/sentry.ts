@@ -31,7 +31,7 @@ export function workerSentryOptions(env: Env): Sentry.CloudflareOptions {
 }
 
 /** 中央エラーハンドラが処理する例外のうち、想定内の HTTP 応答を除いて通知する。 */
-export function captureServerError(error: Error): void {
+export function captureServerError(error: unknown): void {
   if (error instanceof HTTPException && error.status < 500) return;
   Sentry.captureException(error);
 }

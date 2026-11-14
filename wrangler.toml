@@ -2,6 +2,8 @@ name = "fuyugyo"
 main = "src/index.ts"
 compatibility_date = "2024-11-01"
 compatibility_flags = ["nodejs_compat"]
+# SENTRY_DSN など、Cloudflare 側だけで管理する Vars をデプロイ時に保持する。
+keep_vars = true
 
 # D1 データベースバインディング（既存 DB をそのまま利用）
 [[d1_databases]]

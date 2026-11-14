@@ -4,14 +4,13 @@ Worker の fetch・scheduled を `@sentry/cloudflare` の `withSentry` で監視
 
 ## 設定
 
-- Cloudflare の **Workers & Pages → fuyugyo → Settings → Variables and Secrets** で、`SENTRY_DSN` を **Text** 型の Vars として登録する。値は Worker 用プロジェクト（`fuyugyo-worker`）の DSN を使う。
-- DSN は公開可能な送信先情報のため Secret として管理しない。値は Cloudflare 側だけで管理し、GitHub Actions Variables やリポジトリには保存しない。`wrangler.toml` の `keep_vars = true` により、デプロイ時にも Cloudflare 側の Vars を保持する。`[vars]` や `--var` に同名の値を指定するとそちらが優先されるため、`SENTRY_DSN` は指定しない。
+- `wrangler.toml` の `[vars]` に `SENTRY_DSN` を定義する。値は Worker 用プロジェクト（`fuyugyo-worker`）の DSN を使う。通常の Release ワークフローでデプロイすると Cloudflare Worker の Vars に反映される。
+- DSN は公開可能な送信先情報のため、`JWT_REFRESH_INTERVAL` などと同様に設定ファイルで管理する。GitHub Actions Variables や Cloudflare Secret への登録は不要。
 - `SENTRY_RELEASE` は Release ワークフローがデプロイ対象のコミット SHA を `wrangler deploy --var` で渡す。SPA と同じ SHA になる。
-- DSN 未設定なら通知を無効にする。ローカルで通知を試す場合だけ `.dev.vars` に `SENTRY_DSN` を設定する。テスト用の DSN は通常不要。
+- DSN が空なら通知を無効にする。ローカルで本番プロジェクトへ通知しないよう、`.dev.vars` に `SENTRY_DSN=""` を設定する。ローカルでも通知を試す場合は検証用プロジェクトの DSN に置き換える。
+- テストでは `vitest.config.ts` のバインディングで `SENTRY_DSN` を空に上書きし、本番への通知を無効にする。
 
-Cloudflare 管理画面で設定の保存・デプロイを行う。すでに同名の Secret を登録済みの場合は、リリース作業時に Text 型の Vars に置き換える。SDK の送信に `SENTRY_AUTH_TOKEN` は不要。ソースマップのアップロードに使う `SENTRY_AUTH_TOKEN` は引き続き GitHub Actions Secrets で管理する。
-
-`JWT_REFRESH_INTERVAL` などの共通設定は引き続き `wrangler.toml` の `[vars]` で管理し、デプロイ時に反映する。`keep_vars` による保持は `SENTRY_DSN` 以外の Cloudflare 側だけで管理する Vars にも適用される。
+すでに Cloudflare に同名の Secret を登録済みの場合は、Vars と競合するためリリース作業時に削除してからデプロイする。SDK の送信に `SENTRY_AUTH_TOKEN` は不要。ソースマップのアップロードに使う `SENTRY_AUTH_TOKEN` は引き続き GitHub Actions Secrets で管理する。
 
 ## 通知対象
 

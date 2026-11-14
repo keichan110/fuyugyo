@@ -2,8 +2,6 @@ name = "fuyugyo"
 main = "src/index.ts"
 compatibility_date = "2024-11-01"
 compatibility_flags = ["nodejs_compat"]
-# SENTRY_DSN など、Cloudflare 側だけで管理する Vars をデプロイ時に保持する。
-keep_vars = true
 
 # D1 データベースバインディング（既存 DB をそのまま利用）
 [[d1_databases]]
@@ -20,6 +18,8 @@ run_worker_first = ["/api/*"]
 
 # 環境変数（非機密情報のみ。JWT_SECRET / LINE_CHANNEL_SECRET は `wrangler secret` で管理）
 [vars]
+# Worker 用の公開可能な DSN。Secret ではなく設定ファイルで管理する。
+SENTRY_DSN = "https://3b2b96c84ed20cfb37ce85abca961166@o4512428975063040.ingest.us.sentry.io/4512428987252736"
 JWT_EXPIRES_IN = "2h"
 JWT_REFRESH_INTERVAL = "15m"
 JWT_ABSOLUTE_EXPIRES_IN = "7d"

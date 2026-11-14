@@ -16,6 +16,8 @@ export default defineConfig({
         miniflare: {
           d1Databases: ['DB'],
           bindings: {
+            // 本番 DSN を設定ファイルから継承せず、テストから通知しない。
+            SENTRY_DSN: '',
             TEST_MIGRATIONS: migrations,
             // 認証テスト用の固定シークレット（本番は `wrangler secret` で注入）
             JWT_SECRET: 'test-jwt-secret-at-least-32-bytes-long-000',

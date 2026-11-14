@@ -4,15 +4,12 @@ Worker の fetch・scheduled を `@sentry/cloudflare` の `withSentry` で監視
 
 ## 設定
 
-- Cloudflare Worker に `SENTRY_DSN` を secret として登録する。値は Worker 用 Sentry プロジェクトの DSN を使う。
+- GitHub リポジトリの **Settings → Secrets and variables → Actions → Variables** に `SENTRY_DSN` を登録する。値は Worker 用プロジェクト（`fuyugyo-worker`）の DSN を使う。Release ワークフローが `wrangler deploy --var` で Cloudflare Worker の Vars に渡す。
+- DSN は公開可能な送信先情報のため Secret として管理しない。Cloudflare 管理画面だけで設定するとデプロイ時に上書きされるため、GitHub Actions Variables を設定元とする。
 - `SENTRY_RELEASE` は Release ワークフローがデプロイ対象のコミット SHA を `wrangler deploy --var` で渡す。SPA と同じ SHA になる。
 - DSN 未設定なら通知を無効にする。ローカルで通知を試す場合だけ `.dev.vars` に `SENTRY_DSN` を設定する。テスト用の DSN は通常不要。
 
-```sh
-pnpm exec wrangler secret put SENTRY_DSN
-```
-
-`secret put` は本番 Worker の新バージョンをデプロイするため、実施時点を決めて運用担当者が行う。Release ワークフローから毎回登録しない。SDK の送信に `SENTRY_AUTH_TOKEN` は不要。
+GitHub Variables に登録後、Release ワークフローでデプロイすれば反映される。すでに Cloudflare に同名の Secret を登録済みの場合は、Vars と競合するためリリース作業時に削除してからデプロイする。SDK の送信に `SENTRY_AUTH_TOKEN` は不要。ソースマップのアップロードに使う `SENTRY_AUTH_TOKEN` は引き続き GitHub Actions Secrets で管理する。
 
 ## 通知対象
 

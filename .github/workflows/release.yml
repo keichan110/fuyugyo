@@ -151,6 +151,7 @@ jobs:
           pnpm exec wrangler deploy \
             --var "APP_URL:$APP_URL" \
             --var "LINE_CHANNEL_ID:$LINE_CHANNEL_ID" \
+            --var "SENTRY_DSN:$SENTRY_DSN" \
             --var "SENTRY_RELEASE:$RELEASE_SHA" \
             --tag "$RELEASE_TAG" \
             --message "Release $RELEASE_TAG (${RELEASE_SHA:0:7})"
@@ -160,6 +161,7 @@ jobs:
           APP_URL: ${{ vars.APP_URL }}
           LINE_CHANNEL_ID: ${{ vars.LINE_CHANNEL_ID }}
           RELEASE_TAG: ${{ steps.tag.outputs.tag }}
+          SENTRY_DSN: ${{ vars.SENTRY_DSN }}
           RELEASE_SHA: ${{ steps.tag.outputs.sha }}
 
   health-check:

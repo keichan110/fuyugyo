@@ -5,7 +5,7 @@ import type { D1Database, Fetcher, RateLimit } from '@cloudflare/workers-types';
  * シークレット（JWT_SECRET, LINE_CHANNEL_SECRET 等）は `wrangler secret` で注入する。
  */
 export type Env = {
-  /** Worker 用 DSN（`wrangler secret` で注入。未設定なら通知しない） */
+  /** Worker 用の公開可能な DSN（Vars で注入。未設定なら通知しない） */
   SENTRY_DSN?: string;
   /** デプロイ対象のコミット SHA */
   SENTRY_RELEASE?: string;

@@ -43,7 +43,7 @@ src/
 ├── features/[name]/  # ドメイン機能（下記「Feature 構造パターン」参照）
 ├── routes/           # TanStack Router ページ
 ├── components/       # Mantine ラッパー（AppButton 等）・共通 UI
-├── lib/              # 共有ライブラリ（rpc, query-client, utils）
+├── lib/              # 共有ライブラリ（rpc, query-client, theme, schedule-date-range）
 └── server/           # サーバー専用（auth, db, middleware, types）
 test/                 # Vitest 統合テスト（実D1使用）
 drizzle/              # マイグレーションSQL

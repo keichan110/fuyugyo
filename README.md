@@ -54,15 +54,21 @@ pnpm run dev
 │   ├── styles.css                # グローバルスタイル
 │   ├── components/               # Mantine ラッパー（AppButton 等）・共通 UI
 │   ├── features/                 # 機能別モジュール（colocation）
+│   │   ├── availabilities/       # 出勤可能日の登録・管理
 │   │   ├── auth/                 # LINE 認証（API・ガード・コンポーネント）
+│   │   ├── certification-requirements/ # 資格要件の設定
 │   │   ├── certifications/       # 資格マスタ管理
+│   │   ├── dashboard/            # ダッシュボード UI
+│   │   ├── department-shift-types/ # 部門別シフト種別
 │   │   ├── departments/          # 部門のスキーマ・表示定義
 │   │   ├── health/               # ヘルスチェック
 │   │   ├── instructors/          # インストラクター管理
 │   │   ├── invitations/          # 招待システム
+│   │   ├── season-analysis/      # シーズン分析
 │   │   ├── shift-types/          # シフト種別管理
 │   │   ├── shifts/               # シフト管理・表示
-│   │   └── users/                # ユーザー管理
+│   │   ├── users/                # ユーザー管理
+│   │   └── weather/              # 天気予報・予報地点設定
 │   ├── lib/                      # 共有ライブラリ（RPC クライアント・ユーティリティ）
 │   ├── routes/                   # TanStack Router ページ定義
 │   └── server/                   # サーバーサイド専用コード
@@ -84,7 +90,7 @@ pnpm run dev
 
 ### features ディレクトリ構成
 
-各 feature は以下のファイルで構成される:
+各 feature は責務に応じて以下のファイルを配置する（すべてが必須ではない）:
 
 ```
 features/<name>/
@@ -98,7 +104,7 @@ features/<name>/
 
 ### 管理者機能
 
-- **部門管理**: 部門の作成・編集・削除・有効化切り替え
+- **部門別設定**: 部門ごとのシフト種別・資格要件の設定
 - **資格マスタ管理**: 資格情報・必要資格レベル・部門関連付け
 - **インストラクター管理**: 個人情報・資格情報・有効状態管理
 - **シフト種別管理**: シフトの種類・時間帯・必要資格設定
@@ -106,9 +112,12 @@ features/<name>/
 - **ユーザー管理**: LINE 認証ユーザーの権限管理
 - **招待管理**: 招待 URL の発行・管理
 
-### 公開機能
+### メンバー向け機能（認証必須）
 
-- **週別・月別シフト表示**: インストラクター向け公開シフト表
+- **週別・月別シフト表示**: インストラクター向けシフト表
+- **出勤可能日**: 出勤可能日の登録・確認
+- **ダッシュボード・天気**: シフト情報と天気予報の表示
+- **シーズン分析**: シーズンごとの配置・稼働状況の分析
 
 ### API Routes
 
@@ -120,6 +129,11 @@ features/<name>/
 - `/api/shift-types` - シフト種別管理 (CRUD)
 - `/api/users` - ユーザー管理 (CRUD)
 - `/api/invitations` - 招待管理
+- `/api/availabilities` - 出勤可能日の登録・管理
+- `/api/certification-requirements` - 資格要件の設定
+- `/api/department-shift-types` - 部門別シフト種別の設定
+- `/api/season-analysis` - シーズン分析
+- `/api/weather` - 天気予報・予報地点設定
 
 ## 開発用コマンド
 

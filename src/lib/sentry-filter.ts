@@ -24,7 +24,7 @@ export function isIgnoredBrowserError(event: ErrorEvent, originalException: unkn
       // fetch の既知の通信エラーだけを除外し、他の TypeError は通知する。
       if (
         exception.type === 'TypeError' &&
-        /^(Failed to fetch|Load failed|NetworkError when attempting to fetch resource\.?)$/.test(
+        /^(Failed to fetch(?: \([^\r\n]+\))?|Load failed|NetworkError when attempting to fetch resource\.?)$/.test(
           message,
         )
       ) {

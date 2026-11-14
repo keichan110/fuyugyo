@@ -14,12 +14,14 @@ function event(type: string, value: string, filenames?: string[]) {
 }
 
 describe('ブラウザの通知除外', () => {
-  it.each(['Failed to fetch', 'Load failed', 'NetworkError when attempting to fetch resource.'])(
-    '通信断（%s）を除外する',
-    (message) => {
-      expect(isIgnoredBrowserError(event('TypeError', message), undefined)).toBe(true);
-    },
-  );
+  it.each([
+    'Failed to fetch',
+    'Failed to fetch (127.0.0.1:1)',
+    'Load failed',
+    'NetworkError when attempting to fetch resource.',
+  ])('通信断（%s）を除外する', (message) => {
+    expect(isIgnoredBrowserError(event('TypeError', message), undefined)).toBe(true);
+  });
 
   it('キャンセルを除外する', () => {
     expect(isIgnoredBrowserError({}, new DOMException('操作を中止', 'AbortError'))).toBe(true);

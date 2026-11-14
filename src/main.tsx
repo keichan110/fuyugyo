@@ -6,7 +6,9 @@ import { Notifications } from '@mantine/notifications';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { createRouter, RouterProvider } from '@tanstack/react-router';
 
+import { RouteError } from '@/components/RouteError';
 import { queryClient } from '@/lib/query-client';
+import { captureRouteError, initializeSentry } from '@/lib/sentry';
 import { theme } from '@/lib/theme';
 
 import { routeTree } from './routeTree.gen';
@@ -22,7 +24,14 @@ import './styles.css';
 // 将来のダークモード対応（ADR 0008）に備え、配色設定を localStorage に永続化する
 const colorSchemeManager = localStorageColorSchemeManager({ key: 'fuyugyo-color-scheme' });
 
-const router = createRouter({ routeTree, context: { queryClient } });
+initializeSentry();
+
+const router = createRouter({
+  routeTree,
+  context: { queryClient },
+  defaultErrorComponent: RouteError,
+  defaultOnCatch: captureRouteError,
+});
 
 declare module '@tanstack/react-router' {
   interface Register {

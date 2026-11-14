@@ -86,11 +86,23 @@ jobs:
               exit 1
             fi
           done
+          if [ -n "$VITE_SENTRY_DSN" ]; then
+            for name in SENTRY_AUTH_TOKEN SENTRY_ORG SENTRY_PROJECT; do
+              if [ -z "${!name}" ]; then
+                echo "::error::$name is required when VITE_SENTRY_DSN is set"
+                exit 1
+              fi
+            done
+          fi
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           APP_URL: ${{ vars.APP_URL }}
           LINE_CHANNEL_ID: ${{ vars.LINE_CHANNEL_ID }}
+          VITE_SENTRY_DSN: ${{ vars.VITE_SENTRY_DSN }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
 
       # Worker secret はデプロイごとに入れ直さない（secret put は新バージョンを即デプロイするため）。
       # Cloudflare 側に登録済みであることだけを確認する。
@@ -109,6 +121,20 @@ jobs:
 
       - name: Build application
         run: pnpm run build
+        env:
+          VITE_SENTRY_DSN: ${{ vars.VITE_SENTRY_DSN }}
+          VITE_SENTRY_RELEASE: ${{ steps.tag.outputs.sha }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+
+      # アップロード後の削除漏れがあればデプロイ前に停止する。
+      - name: Verify source maps are not public
+        run: |
+          if find dist/client -name '*.map' -type f -print -quit | grep -q .; then
+            echo "::error::Source maps remain in public assets"
+            exit 1
+          fi
 
       # 新コードが参照するスキーマを先に用意し、デプロイ中の 500 を防ぐ。
       # 失敗した migration は Wrangler がロールバックする。適用済み migration の巻き戻しは

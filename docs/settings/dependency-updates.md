@@ -6,7 +6,7 @@ Renovate の設定はルートの `renovate.json` で管理する。
 
 - 通常の更新 PR は毎日 0:00〜6:59、lockfile maintenance は毎週月曜日の同時間帯（Asia/Tokyo）に作成する。実際の時刻は Renovate の実行タイミングに依存し、両者の実行順序は指定しない。通常更新でも lockfile は一緒に更新する。
 - 公開から7日経過したバージョンを対象にする。`pnpm-workspace.yaml` の `minimumReleaseAge: 10080` と合わせ、`trustPolicy: no-downgrade` は維持する。
-- TanStack・Mantine・Cloudflare・ESLint・Vitest は関連パッケージをグループ化する。本番依存と開発依存、および minor と patch を分け、自動マージ対象と手動確認対象を混在させない。
+- TanStack・Mantine・Cloudflare・ESLint・Vitest は関連パッケージをグループ化する。原則として本番依存と開発依存、および minor と patch を分け、自動マージ対象と手動確認対象を混在させない。TanStack Router 本体・plugin・CLI は本番・開発依存をまたいでまとめ、patch は自動マージ、minor は手動確認する。TanStack Query は別グループにする。
 - 本番依存の patch、開発依存の minor/patch は必須チェック成功後に自動マージする。
 - major・0.x 系の全更新・本番依存の minor・GitHub Actions・lockfile 更新は手動確認する。0.x 系はグループから分離する。
 - GitHub Actions はコミット SHA で固定する。末尾のバージョンコメントも Renovate が更新する。

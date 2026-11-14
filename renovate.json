@@ -39,11 +39,33 @@
       "automerge": true
     },
     {
-      "description": "本番依存と開発依存を分け、手動確認が必要な更新との混在を防ぐ",
+      "description": "TanStack Query 関連を Router と分けてまとめる",
       "matchManagers": ["npm"],
-      "matchPackageNames": ["@tanstack/*"],
+      "matchPackageNames": ["@tanstack/*query*"],
       "matchUpdateTypes": ["minor", "patch"],
-      "groupName": "TanStack {{depType}}"
+      "groupName": "TanStack Query {{depType}}"
+    },
+    {
+      "description": "TanStack Router 本体と生成ツールを本番・開発依存をまたいでまとめる",
+      "matchManagers": ["npm"],
+      "matchPackageNames": [
+        "@tanstack/react-router",
+        "@tanstack/router-plugin",
+        "@tanstack/router-cli"
+      ],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "TanStack Router"
+    },
+    {
+      "description": "TanStack Router 関連の minor は開発依存も含めて手動確認する",
+      "matchManagers": ["npm"],
+      "matchPackageNames": [
+        "@tanstack/react-router",
+        "@tanstack/router-plugin",
+        "@tanstack/router-cli"
+      ],
+      "matchUpdateTypes": ["minor"],
+      "automerge": false
     },
     {
       "description": "本番依存と開発依存を分け、手動確認が必要な更新との混在を防ぐ",

@@ -5,3 +5,6 @@ allowBuilds:
 auditConfig: {}
 minimumReleaseAge: 10080
 trustPolicy: no-downgrade
+minimumReleaseAgeExclude:
+  # Renovate security update: hono@4.13.16
+  - hono@4.13.16

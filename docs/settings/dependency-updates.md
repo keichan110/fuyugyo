@@ -4,7 +4,7 @@ Renovate の設定はルートの `renovate.json` で管理する。
 
 ## 更新方針
 
-- 通常の更新 PR と lockfile 更新は毎週月曜日の 0:00〜6:59（Asia/Tokyo）に作成する。実際の時刻は Renovate の実行タイミングに依存する。
+- 通常の更新 PR は毎日 0:00〜6:59、lockfile maintenance は毎週月曜日の同時間帯（Asia/Tokyo）に作成する。実際の時刻は Renovate の実行タイミングに依存し、両者の実行順序は指定しない。通常更新でも lockfile は一緒に更新する。
 - 公開から7日経過したバージョンを対象にする。`pnpm-workspace.yaml` の `minimumReleaseAge: 10080` と合わせ、`trustPolicy: no-downgrade` は維持する。
 - TanStack・Mantine・Cloudflare・ESLint・Vitest は関連パッケージをグループ化する。本番依存と開発依存、および minor と patch を分け、自動マージ対象と手動確認対象を混在させない。
 - 本番依存の patch、開発依存の minor/patch は必須チェック成功後に自動マージする。
@@ -23,7 +23,7 @@ Renovate の設定はルートの `renovate.json` で管理する。
 
 ## 脆弱性への対応
 
-GitHub のアラートと OSV の検知を有効にする。脆弱性修正 PR は通常の週次スケジュールを待たず、Renovate の次回実行で作られる。ただし修正版にも7日の公開待機期間を適用し、pnpm のインストール条件と合わせる。待機期間内の緊急修正は、個別に待機期間の例外を検討する。
+GitHub のアラートと OSV の検知を有効にする。脆弱性修正 PR は通常の日次スケジュールを待たず、Renovate の次回実行で作られる。ただし修正版にも7日の公開待機期間を適用し、pnpm のインストール条件と合わせる。待機期間内の緊急修正は、個別に待機期間の例外を検討する。
 
 OSV による npm の検知は直接依存が対象。seroval などの間接依存は、親パッケージ（TanStack Router など）の更新か lockfile 更新で解消するかを確認する。
 

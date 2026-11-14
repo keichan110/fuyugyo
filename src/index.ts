@@ -69,6 +69,7 @@ export type AppType = typeof routes;
 /**
  * Cron Trigger のハンドラ。天気予報の取得を `waitUntil` に載せ、
  * Sentry が通知を flush する前に処理が完了するよう、同じ Promise を返す。
+ * 取得の開始と、成功・失敗の結果を Sentry Crons にチェックインする。
  */
 function scheduled(
   controller: ScheduledController,

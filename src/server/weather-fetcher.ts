@@ -196,7 +196,9 @@ export async function runWeatherFetch(
       .from(weatherPoints)
       .where(eq(weatherPoints.id, WEATHER_POINT_ID))
       .limit(1);
-    if (!point) return true;
+    if (!point) {
+      return true;
+    }
     pointId = point.id;
 
     const [state] = await db
@@ -207,7 +209,9 @@ export async function runWeatherFetch(
       )
       .limit(1);
     // Expires 前の再リクエストは規約で禁じられているため、ログも残さず何もしない
-    if (state?.expiresAt && state.expiresAt.getTime() > now.getTime()) return true;
+    if (state?.expiresAt && state.expiresAt.getTime() > now.getTime()) {
+      return true;
+    }
 
     const url = new URL(ENDPOINT);
     url.searchParams.set('lat', String(truncateCoordinate(point.latitude)));
@@ -256,7 +260,9 @@ export async function runWeatherFetch(
   } catch (error) {
     captureException(error, { tags: { endpoint: ENDPOINT, httpStatus: httpStatus ?? 'unknown' } });
     console.error('[weather] fetch failed:', error);
-    if (pointId === null) return false;
+    if (pointId === null) {
+      return false;
+    }
     try {
       await writeLog(db, {
         pointId,

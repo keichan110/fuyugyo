@@ -1,0 +1,102 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "timezone": "Asia/Tokyo",
+  "schedule": ["* 0-6 * * 1"],
+  "minimumReleaseAge": "7 days",
+  "dependencyDashboard": {
+    "enabled": true
+  },
+  "labels": ["dependencies"],
+  "automerge": false,
+  "automergeType": "pr",
+  "platformAutomerge": true,
+  "separateMajorMinor": true,
+  "separateMinorPatch": true,
+  "osvVulnerabilityAlerts": true,
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "addLabels": ["security"],
+    "minimumReleaseAge": "7 days"
+  },
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["* 0-6 * * 1"],
+    "automerge": false
+  },
+  "packageRules": [
+    {
+      "description": "本番依存の patch のみ自動マージする",
+      "matchManagers": ["npm"],
+      "matchDepTypes": ["dependencies"],
+      "matchUpdateTypes": ["patch"],
+      "automerge": true
+    },
+    {
+      "description": "開発依存の minor と patch は自動マージする",
+      "matchManagers": ["npm"],
+      "matchDepTypes": ["devDependencies"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "automerge": true
+    },
+    {
+      "description": "本番依存と開発依存を分け、手動確認が必要な更新との混在を防ぐ",
+      "matchManagers": ["npm"],
+      "matchPackageNames": ["@tanstack/*"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "TanStack {{depType}}"
+    },
+    {
+      "description": "本番依存と開発依存を分け、手動確認が必要な更新との混在を防ぐ",
+      "matchManagers": ["npm"],
+      "matchPackageNames": ["@mantine/*", "postcss-preset-mantine"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "Mantine {{depType}}"
+    },
+    {
+      "description": "本番依存と開発依存を分け、手動確認が必要な更新との混在を防ぐ",
+      "matchManagers": ["npm"],
+      "matchPackageNames": ["wrangler", "@cloudflare/*"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "Cloudflare {{depType}}"
+    },
+    {
+      "description": "本番依存と開発依存を分け、手動確認が必要な更新との混在を防ぐ",
+      "matchManagers": ["npm"],
+      "matchPackageNames": [
+        "eslint",
+        "@eslint/*",
+        "eslint-*",
+        "typescript-eslint",
+        "@typescript-eslint/*"
+      ],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "ESLint {{depType}}"
+    },
+    {
+      "description": "本番依存と開発依存を分け、手動確認が必要な更新との混在を防ぐ",
+      "matchManagers": ["npm"],
+      "matchPackageNames": ["vitest", "@vitest/*"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "Vitest {{depType}}"
+    },
+    {
+      "description": "0.x 系はグループから分離し、patch も含めて手動確認する",
+      "matchManagers": ["npm"],
+      "matchCurrentVersion": "<1.0.0",
+      "automerge": false,
+      "groupName": null
+    },
+    {
+      "description": "major は必ず手動確認する",
+      "matchUpdateTypes": ["major"],
+      "automerge": false,
+      "groupName": null
+    },
+    {
+      "description": "GitHub Actions をコミット SHA で固定し、更新は手動確認する",
+      "matchManagers": ["github-actions"],
+      "pinDigests": true,
+      "automerge": false
+    }
+  ]
+}

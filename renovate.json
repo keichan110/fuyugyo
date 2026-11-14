@@ -3,9 +3,7 @@
   "timezone": "Asia/Tokyo",
   "schedule": ["* 0-6 * * *"],
   "minimumReleaseAge": "7 days",
-  "dependencyDashboard": {
-    "enabled": true
-  },
+  "dependencyDashboard": true,
   "labels": ["dependencies"],
   "automerge": false,
   "automergeType": "pr",

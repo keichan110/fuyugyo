@@ -32,7 +32,7 @@ pnpm audit --prod --audit-level=high
 pnpm audit --audit-level=moderate
 ```
 
-上段は Issue #266 の本番依存の完了条件、下段は Quality Check と同じ監査。pnpm 11 の `--ignore-unfixable` は無視設定を更新して終了するため、CI の監査コマンドには付けない。導入時点で開発依存にも既知の脆弱性があるため、単独の修正 PR では残りの脆弱性により CI が失敗することがある。その場合は Renovate の更新をまとめて検証するなどして解消し、監査や必須チェックを無効にしない。導入用 PR 自体の監査失敗も、更新方針を導入できたこととは分けて記録する。
+上段は Issue #266 の本番依存の完了条件、下段は開発依存を含む手動確認用の監査。現在の Quality Check の audit は既存のままとし、PR からの削除と週次監査への移行は [Issue #267](https://github.com/keichan110/fuyugyo/issues/267) で対応する。
 
 導入から1週間経っても解消しない脆弱性は手動で更新する。Dependency Dashboard のエラーと PR の lockfile 生成結果も確認し、設定追加だけで解消したと判断しない。
 

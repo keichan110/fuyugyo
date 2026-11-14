@@ -6,10 +6,12 @@
 
 1. GitHub モバイルアプリ（または Web）でリポジトリを開く
 2. **Actions → Release → Run workflow** を選び、ブランチは `main` のまま実行する
-3. `deploy` → `health-check` → `release` の3ジョブがすべて成功したことを確認する
-4. Releases に `vYYYY.MM.DD` のリリースが作られ、前回リリース以降の PR が並んでいることを確認する
+3. `deploy` → `health-check` → `release` の順に成功したことを確認する（同じコミットの再デプロイでは `release` はスキップ）
+4. 新しいコミットをデプロイした場合、Releases に `vYYYY.MM.DD` のリリースが作られ、前回リリース以降の PR が並んでいることを確認する
 
 `main` 以外のブランチを選んで実行した場合、ワークフローは何もせずに終了する。
+
+最新の公開 Release（ドラフト・プレリリースを除く）のタグと `main` のコミット SHA が同じ場合も、デプロイとヘルスチェックは実行する。この場合は既存のリリースタグを Worker Version に再利用し、新しいタグ・GitHub Release は作成しない。前回の実行が失敗して Release が未作成なら、再実行が成功した時点で作成する。ファイルの内容が同じでもコミット SHA が異なる場合は新しいリリースとして扱う。
 
 ### タグの形式
 
@@ -35,7 +37,7 @@
 
 ## ワークフローの処理順
 
-1. `main` の最新をチェックアウトし、リリースタグを採番
+1. `main` の最新をチェックアウトし、最新の公開 Release と同じコミットならタグを再利用、異なる場合や初回はリリースタグを採番
 2. 依存関係の固定インストール
 3. GitHub secrets・variables の検証（`CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID` / `APP_URL` / `LINE_CHANNEL_ID`）
 4. Cloudflare 上に Worker secret（`JWT_SECRET` / `LINE_CHANNEL_SECRET`）が登録済みかを確認
@@ -43,7 +45,7 @@
 6. `wrangler d1 migrations apply fuyugyo --remote`
 7. `wrangler deploy --tag <リリースタグ> --message "Release <タグ> (<sha>)"`
 8. D1 にアクセスしない `/api/health` による Worker の応答確認
-9. 7・8 が成功した場合のみ、タグと GitHub Release を作成（`release` ジョブだけが `contents: write` を持つ）
+9. 新しいコミットがあり、7・8 が成功した場合のみ、タグと GitHub Release を作成（`release` ジョブだけが `contents: write` を持つ）
 
 build が失敗した場合は本番 DB を変更しない。migration が失敗した場合は Worker をデプロイしない。失敗した migration は Wrangler がロールバックし、それ以前に成功した migration は適用されたまま残る（適用済み migration の自動バックアップ・巻き戻しはないため、DB を戻す必要があるときは後述の Time Travel を使う）。deploy が失敗した場合は additive な DB 変更だけが残り、稼働中の旧 Worker はそのまま動作する。デプロイまたはヘルスチェックが失敗した場合、タグとリリースは作られない。公開 health endpoint は攻撃者による D1 リクエストの増幅を避けるため、DB readiness を確認しない。スキーマ適用の成否は migration コマンドの終了コードで判定する。
 

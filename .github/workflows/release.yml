@@ -22,6 +22,7 @@ jobs:
     outputs:
       tag: ${{ steps.tag.outputs.tag }}
       sha: ${{ steps.tag.outputs.sha }}
+      create-release: ${{ steps.tag.outputs.create-release }}
 
     steps:
       - name: Checkout main
@@ -29,11 +30,31 @@ jobs:
         with:
           ref: main
 
-      # JST の日付で vYYYY.MM.DD を採番し、同日2回目以降は .2, .3 ... を付ける。
+      # 最新の公開 Release と同じコミットなら既存タグで再デプロイする。
+      # 新しいコミットだけ JST の日付で vYYYY.MM.DD を採番し、同日2回目以降は .2, .3 ... を付ける。
       # concurrency で直列化しているため、採番からリリース作成までに他の実行と衝突しない。
       - name: Determine release tag
         id: tag
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
+          sha=$(git rev-parse HEAD)
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          latest_tag=$(gh release list --repo "$GITHUB_REPOSITORY" \
+            --exclude-drafts --exclude-pre-releases --limit 1 \
+            --json tagName --jq '.[0].tagName // empty')
+          if [ -n "$latest_tag" ]; then
+            git fetch --no-tags origin "refs/tags/$latest_tag"
+            latest_sha=$(git rev-parse 'FETCH_HEAD^{commit}')
+            if [ "$sha" = "$latest_sha" ]; then
+              echo "tag=$latest_tag" >> "$GITHUB_OUTPUT"
+              echo "create-release=false" >> "$GITHUB_OUTPUT"
+              echo "Redeploying $latest_tag ($sha); no new GitHub Release."
+              exit 0
+            fi
+          fi
+
+          echo "create-release=true" >> "$GITHUB_OUTPUT"
           base="v$(TZ=Asia/Tokyo date +%Y.%m.%d)"
           existing=$(git ls-remote --tags --refs origin "refs/tags/${base}*" | sed 's|.*refs/tags/||')
           tag="$base"
@@ -43,7 +64,6 @@ jobs:
             n=$((n + 1))
           done
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           echo "Release tag: $tag ($(git rev-parse --short HEAD))"
 
       - name: Install pnpm
@@ -137,12 +157,13 @@ jobs:
         env:
           APP_URL: ${{ vars.APP_URL }}
 
-  # デプロイとヘルスチェックが両方成功した場合のみタグと Release を作る。
+  # 新しいコミットがあり、デプロイとヘルスチェックが両方成功した場合のみタグと Release を作る。
   # 失敗時にリリースだけが残り、記録と本番が食い違うのを避けるため最後に置く。
   # 書き込み権限はこのジョブだけに限定する。
   release:
     runs-on: ubuntu-latest
     needs: [deploy, health-check]
+    if: needs.deploy.outputs.create-release == 'true'
     timeout-minutes: 5
     permissions:
       contents: write

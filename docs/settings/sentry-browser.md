@@ -12,7 +12,15 @@ Issue #270 の React SPA 向け設定。Worker の監視は #269 で導入する
 | `SENTRY_ORG`      | Sentry の組織 slug                       |
 | `SENTRY_PROJECT`  | Sentry のプロジェクト slug               |
 
-Actions Secret に `SENTRY_AUTH_TOKEN` を登録する。ソースマップのアップロード用であり、`VITE_` 接頭辞を付けない。
+リポジトリの **Settings → Secrets and variables → Actions → Secrets** に以下を登録する。
+
+| 名前                | 値・用途                                                                            |
+| ------------------- | ----------------------------------------------------------------------------------- |
+| `SENTRY_AUTH_TOKEN` | Sentry の認証トークン。ビルド時のソースマップのアップロードとリリース作成に使用する |
+
+トークンは Sentry の組織設定にある **Auth Tokens** から発行する。発行先は [Sentry 公式の設定手順](https://docs.sentry.io/platforms/javascript/guides/react/sourcemaps/uploading/vite/#configuration)を参照する。個人用トークンを使う場合は **Project: Read & Write** と **Release: Admin** の権限が必要。
+
+`SENTRY_AUTH_TOKEN` はビルド専用の秘密情報であり、公開可能な DSN とは用途が異なる。Actions Variables やブラウザ用環境変数には登録せず、`VITE_` 接頭辞も付けない。Release ワークフローが設定の検証とビルド時に使用する。Worker の実行環境では使わないため、Worker の secret 登録は不要。
 
 Release ワークフローが実際にチェックアウトしたコミット SHA を `VITE_SENTRY_RELEASE` として渡す。#269 の Worker 側でも `steps.tag.outputs.sha` を release に使用すること。
 

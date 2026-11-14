@@ -29,7 +29,10 @@ export function meQueryOptions() {
         return null;
       }
       if (!res.ok) {
-        throw new Error('ユーザー情報の取得に失敗しました');
+        // ルートガードで捕捉されたときも、通知対象外の 4xx を判別できるようにする。
+        throw Object.assign(new Error('ユーザー情報の取得に失敗しました'), {
+          status: res.status,
+        });
       }
       const user = meResponseSchema.parse(await res.json());
       clearAutoLoginAttempt();

@@ -4,7 +4,7 @@ import { cloudflare } from '@cloudflare/vite-plugin';
 import { sentryVitePlugin } from '@sentry/bundler-plugins/vite';
 import { tanstackRouter } from '@tanstack/router-plugin/vite';
 import react from '@vitejs/plugin-react';
-import { defineConfig } from 'vite';
+import { defineConfig, perEnvironmentPlugin } from 'vite';
 
 /**
  * dev サーバーのポート番号を解決する。
@@ -22,9 +22,13 @@ function resolveDevPort(): number {
   }
 }
 
+const sentryAuthToken = process.env.SENTRY_AUTH_TOKEN;
+
 export default defineConfig({
-  // アップロード可能なビルドだけで生成し、アップロード後に削除する。
-  build: { sourcemap: process.env.SENTRY_AUTH_TOKEN ? 'hidden' : false },
+  // Worker に継承させず、アップロード可能なクライアントビルドだけで生成する。
+  environments: {
+    client: { build: { sourcemap: sentryAuthToken ? 'hidden' : false } },
+  },
   server: {
     port: resolveDevPort(),
     // 自動で別ポートに退避すると worktree とポートの対応が崩れ、
@@ -36,23 +40,25 @@ export default defineConfig({
     tanstackRouter({ target: 'react', autoCodeSplitting: true }),
     react(),
     cloudflare(),
-    ...(process.env.SENTRY_AUTH_TOKEN
-      ? [
-          sentryVitePlugin({
-            ...(process.env.SENTRY_ORG ? { org: process.env.SENTRY_ORG } : {}),
-            ...(process.env.SENTRY_PROJECT ? { project: process.env.SENTRY_PROJECT } : {}),
-            authToken: process.env.SENTRY_AUTH_TOKEN,
-            release: process.env.VITE_SENTRY_RELEASE
-              ? { name: process.env.VITE_SENTRY_RELEASE }
-              : {},
-            telemetry: false,
-            sourcemaps: {
-              assets: './dist/client/**',
-              filesToDeleteAfterUpload: './dist/client/**/*.map',
-            },
-          }),
-        ]
-      : []),
+    sentryAuthToken
+      ? perEnvironmentPlugin('sentry-client', (environment) =>
+          environment.name === 'client'
+            ? sentryVitePlugin({
+                ...(process.env.SENTRY_ORG ? { org: process.env.SENTRY_ORG } : {}),
+                ...(process.env.SENTRY_PROJECT ? { project: process.env.SENTRY_PROJECT } : {}),
+                authToken: sentryAuthToken,
+                release: process.env.VITE_SENTRY_RELEASE
+                  ? { name: process.env.VITE_SENTRY_RELEASE }
+                  : {},
+                telemetry: false,
+                sourcemaps: {
+                  assets: './dist/client/**',
+                  filesToDeleteAfterUpload: './dist/client/**/*.map',
+                },
+              })
+            : false,
+        )
+      : false,
   ],
   resolve: {
     alias: {

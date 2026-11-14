@@ -18,10 +18,12 @@ import {
 } from '@tanstack/react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { fetchMe } from '../src/features/auth/auth-guard';
 import { logoutMutationOptions, ME_QUERY_KEY, meQueryOptions } from '../src/features/auth/queries';
 import { getUnauthenticatedRedirect } from '../src/features/auth/route-policy';
 import type { MeResponse } from '../src/features/auth/schema';
 import { mySeasonStatsQueryOptions, seasonStatsQueryKey } from '../src/features/shifts/queries';
+import { isIgnoredBrowserError } from '../src/lib/sentry-filter';
 import { RootLayout } from '../src/routes/components/RootLayout';
 
 const userA: MeResponse = {
@@ -40,6 +42,24 @@ afterEach(() => {
 });
 
 describe('認証済みクライアントセッション', () => {
+  it.each([404, 429, 500, 503])(
+    'ルートガードの HTTP %s を保持し、4xx だけ通知から除外する',
+    async (status) => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status })),
+      );
+      const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
+      const error = await fetchMe(queryClient).catch((error: unknown) => error);
+
+      expect(error).toBeInstanceOf(Error);
+      expect(error).toMatchObject({ status, message: 'ユーザー情報の取得に失敗しました' });
+      expect(isIgnoredBrowserError({}, error)).toBe(status < 500);
+      queryClient.clear();
+    },
+  );
+
   it('window focus 時に本人を再検証して未認証状態へ更新する', async () => {
     const fetchMock = vi
       .fn<typeof fetch>()

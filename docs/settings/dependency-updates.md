@@ -29,10 +29,10 @@ OSV による npm の検知は直接依存が対象。seroval などの間接依
 
 ```bash
 pnpm audit --prod --audit-level=high
-pnpm audit --audit-level=moderate --ignore-unfixable
+pnpm audit --audit-level=moderate
 ```
 
-上段は Issue #266 の本番依存の完了条件、下段は Quality Check と同じ監査。導入時点で開発依存にも既知の脆弱性があるため、単独の修正 PR では残りの脆弱性により CI が失敗することがある。その場合は Renovate の更新をまとめて検証するなどして解消し、監査や必須チェックを無効にしない。導入用 PR 自体の監査失敗も、更新方針を導入できたこととは分けて記録する。
+上段は Issue #266 の本番依存の完了条件、下段は Quality Check と同じ監査。pnpm 11 の `--ignore-unfixable` は無視設定を更新して終了するため、CI の監査コマンドには付けない。導入時点で開発依存にも既知の脆弱性があるため、単独の修正 PR では残りの脆弱性により CI が失敗することがある。その場合は Renovate の更新をまとめて検証するなどして解消し、監査や必須チェックを無効にしない。導入用 PR 自体の監査失敗も、更新方針を導入できたこととは分けて記録する。
 
 導入から1週間経っても解消しない脆弱性は手動で更新する。Dependency Dashboard のエラーと PR の lockfile 生成結果も確認し、設定追加だけで解消したと判断しない。
 

@@ -98,6 +98,12 @@
       "groupName": null
     },
     {
+      "description": "更新種別の判定前に Cloudflare の minor・patch 分離を無効にする",
+      "matchManagers": ["npm"],
+      "matchPackageNames": ["wrangler", "@cloudflare/*"],
+      "separateMinorPatch": false
+    },
+    {
       "description": "Cloudflare 関連は0.x 系も含めてまとめ、全更新を手動確認する",
       "matchManagers": ["npm"],
       "matchPackageNames": ["wrangler", "@cloudflare/*"],

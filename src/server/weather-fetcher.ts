@@ -176,16 +176,17 @@ async function writeLog(
 /**
  * 登録済みの予報地点の天気を MET Norway から取得して D1 に保存する（Cron から呼ぶ）。
  * 規約に従い、`Expires` までは再取得せず、`If-Modified-Since` を付けて取得する。
- * 失敗はログに残すだけで例外は外へ出さない（Cron を落とさないため）。
+ * 失敗はログに残し、例外は外へ出さずに戻り値で呼び出し元へ伝える。
  *
  * @param db - Drizzle クライアント
  * @param options.now - 現在時刻
  * @param options.fetchFn - HTTP 取得関数（テストで差し替える）
+ * @returns 取得成功または取得不要なら true、取得や保存に失敗したら false
  */
 export async function runWeatherFetch(
   db: Database,
   options: { now: Date; fetchFn: typeof fetch },
-): Promise<void> {
+): Promise<boolean> {
   const { now, fetchFn } = options;
   let pointId: string | null = null;
   let httpStatus: number | null = null;
@@ -195,7 +196,7 @@ export async function runWeatherFetch(
       .from(weatherPoints)
       .where(eq(weatherPoints.id, WEATHER_POINT_ID))
       .limit(1);
-    if (!point) return;
+    if (!point) return true;
     pointId = point.id;
 
     const [state] = await db
@@ -206,7 +207,7 @@ export async function runWeatherFetch(
       )
       .limit(1);
     // Expires 前の再リクエストは規約で禁じられているため、ログも残さず何もしない
-    if (state?.expiresAt && state.expiresAt.getTime() > now.getTime()) return;
+    if (state?.expiresAt && state.expiresAt.getTime() > now.getTime()) return true;
 
     const url = new URL(ENDPOINT);
     url.searchParams.set('lat', String(truncateCoordinate(point.latitude)));
@@ -230,7 +231,7 @@ export async function runWeatherFetch(
         rowsUpserted: 0,
         error: null,
       });
-      return;
+      return true;
     }
     if (res.status !== 200) {
       throw new Error(`Unexpected HTTP status: ${res.status}`);
@@ -251,10 +252,11 @@ export async function runWeatherFetch(
       rowsUpserted,
       error: null,
     });
+    return true;
   } catch (error) {
     captureException(error, { tags: { endpoint: ENDPOINT, httpStatus: httpStatus ?? 'unknown' } });
     console.error('[weather] fetch failed:', error);
-    if (pointId === null) return;
+    if (pointId === null) return false;
     try {
       await writeLog(db, {
         pointId,
@@ -268,5 +270,6 @@ export async function runWeatherFetch(
       captureException(logError, { tags: { operation: 'weather.writeLog' } });
       console.error('[weather] failed to write fetch log:', logError);
     }
+    return false;
   }
 }

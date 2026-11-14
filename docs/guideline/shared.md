@@ -6,3 +6,5 @@
 - アイコンは `@tabler/icons-react`、スタイリングは Mantine と CSS Modules を利用する。
 
 特定機能だけで使うコードはその機能に共置する。ブラウザとサーバーの境界を守り、サーバー専用モジュールを共通 UI から値 import しない。
+
+ナビゲーションやページレイアウトは `src/routes/components/` に配置する。複数機能を組み合わせる UI でも、データ取得・更新は feature の `queries.ts` にまとめ、責務に応じてフックまたは Props を使う。

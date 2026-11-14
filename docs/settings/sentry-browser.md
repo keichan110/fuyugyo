@@ -22,7 +22,7 @@ Issue #270 の React SPA 向け設定。Worker の監視は #269 で導入する
 
 `SENTRY_AUTH_TOKEN` はビルド専用の秘密情報であり、公開可能な DSN とは用途が異なる。Actions Variables やブラウザ用環境変数には登録せず、`VITE_` 接頭辞も付けない。Release ワークフローが設定の検証とビルド時に使用する。Worker の実行環境では使わないため、Worker の secret 登録は不要。
 
-Release ワークフローが実際にチェックアウトしたコミット SHA を `VITE_SENTRY_RELEASE` として渡す。#269 の Worker 側でも `steps.tag.outputs.sha` を release に使用すること。
+Release ワークフローが実際にチェックアウトしたコミット SHA を `VITE_SENTRY_RELEASE` として渡す。[Worker 側](./sentry-worker.md)にも同じ SHA を `SENTRY_RELEASE` として渡す。
 
 DSN が未設定なら SDK の初期化を行わず、通常どおり動作する。DSN が設定された本番ビルドではアップロード設定も必須とし、不足時はワークフローを停止する。
 

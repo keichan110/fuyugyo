@@ -1,32 +1,10 @@
-# /app/api ガイド（GET 専用・内部API）
+# Hono API
 
-## 方針
-- **GET 専用**。読み取りデータを提供する内部 API。
-- **POST/PUT/PATCH/DELETE は使用しない**（更新は **Server Actions** で実装）。
-- 例外：Webhook/OAuth コールバック等、**URL で受ける必要がある**もののみ API Route を使用可。
+- `src/features/<name>/api.ts` に Hono ルートを実装し、`src/index.ts` にマウントする。GET に加え POST/PATCH/DELETE 等もここで扱う。
+- `createDb(c.env.DB)` で Drizzle クライアントを生成し、バインディングは `src/server/types.ts` の `Env` を使う。
+- 認証は `requireAuth`、権限は `requireRole` 等の既存ミドルウェアを利用する。入力は Zod スキーマで検証する。
+- 成功時は `c.json(data, status)` で生データと HTTP ステータスを返す。失敗は `HTTPException` を投げ、中央の `onError` で整形する（ADR 0005）。
+- RPC の型推論を維持するため、既存の `certificationsRoute` のように Hono のメソッドチェーンで定義する。
+- 複数書き込みの原子性が必要な場合は D1 の制約を踏まえ `db.batch()` を利用する（ADR 0006）。
 
-## 「内部API」の定義
-- **呼び出し元**: サーバーコンポーネント（RSC）、クライアントコンポーネント（CSR）から使用
-- **認証**: 必要に応じて `authenticateFromRequest()` でチェック（公開エンドポイントも含む）
-- **外部公開**: 想定しない（CORS未設定、外部サービスからの直接呼び出しは例外ケースのみ）
-
-## ルール
-- `app/api/<name>/route.ts` に **GET** を実装。出力は **zod で検証**してから返す。
-- レスポンス形は `{ success: true, data }` / `{ success: false, error }` を推奨。
-- 認可が必要なら `cookies()`/ヘッダーでサーバー側チェック。
-
-## 例（GET）
-```ts
-// app/api/todos/route.ts
-import { NextResponse } from 'next/server';
-import { z } from 'zod';
-
-const Todo = z.object({ id: z.string(), title: z.string(), done: z.boolean() });
-const TodoList = z.array(Todo);
-
-const data = [{ id: '1', title: 'Learn Next', done: false }];
-
-export async function GET() {
-  return NextResponse.json({ success: true, data: TodoList.parse(data) });
-}
-```
+実例: `src/features/certifications/api.ts`。API のテストは `test/` の実 D1 統合テストを参照。

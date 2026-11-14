@@ -41,12 +41,13 @@ model: sonnet
 - エラーハンドリング
 - テストの有無
 
-### 5. Next.js特有
+### 5. SPA / API の境界
 
-- Server/Client Componentsの適切な使い分け
-- データフェッチングパターン
-- 画像最適化（next/image）
-- メタデータとSEO
+- TanStack Router のルートと認証ガード
+- Hono API 側の認証・認可と Zod 入力検証
+- Hono RPC + TanStack Query のエラー処理・キャッシュ無効化
+- クライアントからサーバー専用コードへの値 import の禁止
+- Mantine と既存の共通 UI ラッパーの利用
 
 ## レビュー出力形式
 

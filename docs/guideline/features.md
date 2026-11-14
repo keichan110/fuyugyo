@@ -1,128 +1,16 @@
-# /features ガイド（Feature-first 共置）
+# 機能の配置
 
-## 責務
-- 1機能を **UI / queries（Read） / api（Read fetcher） / actions（Write） / model / pages（任意）** で完結。  
-- 外部には `index.ts` で**公開面を明示**（内部直 import 禁止）。
+`src/features/<name>/` に機能単位で共置する。必要なファイルのみ作り、共通化は実際の利用に合わせて行う。
 
-## 標準構成
-```
-/features/<feature>/
-  /components    # CDDの実体（小〜中スコープ）。Story/Tests 近接
-  /queries       # TanStack Query（Read: keys, hooks, prefetch）
-  /api           # Read用 fetcher + zod スキーマ + endpoints（GETのみ）
-  /actions.ts    # Write用 Server Actions（'use server' + zod）
-  /model         # types + mapper + usecase
-  /pages         # 任意：組み立て用のページ断片
-  index.ts
+```text
+api.ts       Hono ルート・DB 操作（サーバー専用）
+schema.ts    Zod スキーマ・入出力の型（双方で共有）
+queries.ts   TanStack Query の取得・更新フック（クライアント専用）
+components/  機能固有の React UI
 ```
 
-## ルール
-- **Read（GET）**: `/app/api` → `/features/<feature>/api` → `/features/<feature>/queries`（UIは queries 経由）。
-  - RSC からの `fetch` は `next: { tags: ['<feature>.<resource>'] }` を必ず指定し、Server Action の `revalidateTag` と対応させる。
-- **Write（POST/PUT/PATCH/DELETE）**: **Server Actions** を `/features/<feature>/actions.ts` に共置。CSR では `useMutation` から直接呼ぶ or `<form action>`。
-- I/O は **zod** で検証。UI は安全な型のみ扱う。
-- GET レスポンスは `success` を discriminated union で検証し、`success: false` の場合は明示的に throw する。
-- `keys.ts` に `queryKey` を集中（`as const`）。
-- `prefetch` ヘルパーは RSC から呼び出し、`dehydrate` → `HydrateClient` の流れで初期キャッシュを渡す。
+クライアントから `api.ts` や `src/server/` の値を import しない。型のみの参照は `import type` を使う。API 呼び出しは `src/lib/rpc.ts` の `client` を使用する。
 
-## Server Actions の配置と命名
-- **基本**: `actions.ts` に集約（5個程度まで）
-- **複雑な場合**: `actions/` ディレクトリに分割し `index.ts` で再エクスポート
-- **命名**: `<動詞><名詞>Action` 形式（例: `createTodoAction`, `updateShiftAction`）
+新しい機能では既存の `src/features/certifications/` を参考に、[API](./app-api.md) と [データ取得](./fetch-data.md) を実装する。
 
-## サンプル（Server Actions: Write）
-```ts
-// features/todos/actions.ts
-'use server';
-import { z } from 'zod';
-import { revalidatePath, revalidateTag } from 'next/cache';
-
-const Create = z.object({ title: z.string().min(1) });
-
-export async function createTodoAction(input: unknown) {
-  const { title } = Create.parse(input);
-  // DB 書き込みなど…
-  revalidatePath('/todos');
-  revalidateTag('todos.list');
-  return { id: String(Date.now()), title, done: false };
-}
-```
-
-```ts
-// features/todos/queries/useCreateTodo.ts
-'use client';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { createTodoAction } from '../actions';
-import { todoKeys } from './keys';
-
-export function useCreateTodo() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (vars: { title: string }) => createTodoAction(vars),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: todoKeys.all });
-    },
-  });
-}
-```
-
-## サンプル（Read: GET + Query）
-```ts
-// features/todos/api/schema.ts
-import { z } from 'zod';
-export const Todo = z.object({ id: z.string(), title: z.string(), done: z.boolean() });
-export const TodoList = z.array(Todo);
-export const TodoResponse = z.discriminatedUnion('success', [
-  z.object({ success: z.literal(true), data: TodoList }),
-  z.object({
-    success: z.literal(false),
-    error: z.object({ code: z.string(), message: z.string().optional() }),
-  }),
-]);
-```
-
-```ts
-// features/todos/api/client.ts
-import { fetchJson } from '@/shared/lib/fetch';
-import { TodoList, TodoResponse } from './schema';
-
-export async function fetchTodos() {
-  const res = await fetchJson<unknown>('/api/todos', {
-    next: { tags: ['todos.list'], revalidate: 60 },
-  });
-  const parsed = TodoResponse.parse(res);
-  if (!parsed.success) {
-    throw new Error(parsed.error.code);
-  }
-  return TodoList.parse(parsed.data);
-}
-```
-
-```ts
-// features/todos/queries/keys.ts
-export const todoKeys = {
-  all: ['todos'] as const,
-  list: (filter?: string) => [...todoKeys.all, 'list', { filter }] as const,
-};
-```
-
-## queryKey 設計パターン
-- **階層構造**: `all` → `lists()` → `list(params)` → `details()` → `detail(id)` の順で詳細化
-- **無効化の粒度**: `all` で全体、`lists()` でリスト系のみ、`list(params)` で特定条件のみ
-- **複数パラメータ**: オブジェクトで渡し `{ departmentId, dateFrom, dateTo }` のように明示
-
-```ts
-// features/todos/queries/prefetch.ts
-import { QueryClient } from '@tanstack/react-query';
-import { todoKeys } from './keys';
-import { fetchTodos } from '../api/client';
-
-export async function prefetchTodos(qc: QueryClient, filter?: string) {
-  await qc.prefetchQuery({
-    queryKey: todoKeys.list(filter),
-    queryFn: () => fetchTodos(),
-  });
-}
-```
-
-> RSC では `const qc = getQueryClient(); await prefetchTodos(qc); const state = dehydrate(qc);` と順に呼び、`state` を `HydrateClient` に渡す。
+ドメインの型や Zod スキーマは所有する feature の `schema.ts` に共置し、他機能から必要に応じて参照する（例: `src/features/departments/`）。DB の正本は `src/server/db/schema.ts` とし、ブラウザの入出力型は共有スキーマから定義する。

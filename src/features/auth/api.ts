@@ -28,6 +28,7 @@ import { isUniqueViolation } from '@/server/db/errors';
 import { instructors, invitationTokens, users } from '@/server/db/schema';
 import { requireAuth, type AuthVariables } from '@/server/middleware/auth';
 import { rateLimit } from '@/server/middleware/rate-limit';
+import { captureServerError } from '@/server/sentry';
 import type { Env } from '@/server/types';
 
 import { linkInstructorSchema } from './schema';
@@ -250,7 +251,8 @@ export const authRoute = new Hono<{
         return c.redirect(loginErrorUrl(c.env, 'token_exchange_failed', retry), 302);
       }
       profile = await fetchLineUserProfile(accessToken);
-    } catch {
+    } catch (error) {
+      captureServerError(error);
       return c.redirect(loginErrorUrl(c.env, 'auth_failed', retry), 302);
     }
     if (!profile) {

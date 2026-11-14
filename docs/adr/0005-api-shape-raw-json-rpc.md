@@ -13,6 +13,7 @@ accepted
 - **ミューテーション経路は単一**化される。Server Actions は廃止され、全ミューテーションが「Hono ルート → Hono RPC → TanStack Query `useMutation`」を通る。
 - **レスポンスは生データ + HTTP ステータス**を採用する。成功は `c.json(data)` でデータそのものを返す。エンベロープ `{success, data, error}` は廃止。
   - エラーは Hono の `throw new HTTPException(status, { message })` + 中央 `onError` ハンドラで統一形に変換。成功ルートの型を汚さない。
+  - 中央 `onError` では通常の例外とステータス 500 以上の `HTTPException` を Sentry に通知する。4xx は通知しない。通常の例外は `{ message: 'Internal Server Error' }` の 500、`HTTPException` は従来の message・status を維持する（#269）。
   - クライアントは「`!res.ok` なら throw」を共通フックに1回書き、TanStack Query のエラー機構に委ねる。
 - **`/api/usecases` 名前空間は廃止**。各 feature の `api.ts` に CRUD と集約エンドポイントを同居させる（例: `GET /api/shifts`, `GET /api/shifts/weekly`）。
 

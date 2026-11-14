@@ -1,4 +1,5 @@
 import type { ExecutionContext, ScheduledController } from '@cloudflare/workers-types';
+import { withSentry } from '@sentry/cloudflare';
 import { Hono } from 'hono';
 import { csrf } from 'hono/csrf';
 import { HTTPException } from 'hono/http-exception';
@@ -18,6 +19,7 @@ import { shiftsRoute } from '@/features/shifts/api';
 import { usersRoute } from '@/features/users/api';
 import { weatherRoute } from '@/features/weather/api';
 import { createDb } from '@/server/db/client';
+import { captureServerError, workerSentryOptions } from '@/server/sentry';
 import type { Env } from '@/server/types';
 import { runWeatherFetch } from '@/server/weather-fetcher';
 
@@ -36,6 +38,7 @@ app.use('*', csrf());
  * 成功ルートのレスポンス型を汚さないため、エラーはここに集約する。
  */
 app.onError((err, c) => {
+  captureServerError(err);
   if (err instanceof HTTPException) {
     return c.json({ message: err.message }, err.status);
   }
@@ -65,11 +68,17 @@ export type AppType = typeof routes;
 
 /**
  * Cron Trigger のハンドラ。天気予報の取得を `waitUntil` に載せ、
- * 完了を待たずにハンドラを返す（失敗は `runWeatherFetch` がログに残す）。
+ * Sentry が通知を flush する前に処理が完了するよう、同じ Promise を返す。
  */
-function scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): void {
-  ctx.waitUntil(runWeatherFetch(createDb(env.DB), { now: new Date(), fetchFn: fetch }));
+function scheduled(
+  _controller: ScheduledController,
+  env: Env,
+  ctx: ExecutionContext,
+): Promise<void> {
+  const task = runWeatherFetch(createDb(env.DB), { now: new Date(), fetchFn: fetch });
+  ctx.waitUntil(task);
+  return task;
 }
 
 // Hono アプリに scheduled を足して export する。`fetch` / `request` はそのまま使える
-export default Object.assign(routes, { scheduled });
+export default withSentry(workerSentryOptions, Object.assign(routes, { scheduled }));

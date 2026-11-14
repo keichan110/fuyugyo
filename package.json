@@ -4,7 +4,7 @@
   "description": "Fuyugyō - 運営管理システム",
   "private": true,
   "type": "module",
-  "packageManager": "pnpm@11.1.2",
+  "packageManager": "pnpm@11.11.0",
   "scripts": {
     "dev": "vite",
     "build": "pnpm run typecheck && vite build",

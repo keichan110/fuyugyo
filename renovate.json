@@ -10,11 +10,9 @@
   "platformAutomerge": true,
   "separateMajorMinor": true,
   "separateMinorPatch": true,
-  "osvVulnerabilityAlerts": true,
+  "osvVulnerabilityAlerts": false,
   "vulnerabilityAlerts": {
-    "enabled": true,
-    "addLabels": ["security"],
-    "minimumReleaseAge": "7 days"
+    "enabled": false
   },
   "lockFileMaintenance": {
     "enabled": true,

@@ -23,9 +23,11 @@ Renovate の設定はルートの `renovate.json` で管理する。
 
 ## 脆弱性への対応
 
-GitHub のアラートと OSV の検知を有効にする。脆弱性修正 PR は通常の日次スケジュールを待たず、Renovate の次回実行で作られる。ただし修正版にも7日の公開待機期間を適用し、pnpm のインストール条件と合わせる。待機期間内の緊急修正は、個別に待機期間の例外を検討する。
+Renovate のセキュリティ専用更新は、`vulnerabilityAlerts.enabled: false` と `osvVulnerabilityAlerts: false` で無効にする。セキュリティ更新の処理が pnpm の `minimumReleaseAgeExclude` に例外を追加し、7日待機を回避するため。GitHub の脆弱性アラート経由と OSV 経由は別の設定なので、両方を明示する。
 
-OSV による npm の検知は直接依存が対象。seroval などの間接依存は、親パッケージ（TanStack Router など）の更新か lockfile 更新で解消するかを確認する。
+脆弱性修正版も通常更新として、公開後7日の待機と日次スケジュールに従って取り込む。自動マージ条件は通常更新と同じ。間接依存は親パッケージの更新か週次の lockfile maintenance で更新する。Renovate の OSV 専用検知は使わず、実際に使用中の依存に残る脆弱性は `pnpm audit` で確認する。週次監査の追加は Issue #267 で対応する。
+
+既存の `[SECURITY]` PR は閉じて通常更新に切り替え、Renovate が追加した待機例外は削除する。緊急時に7日待機を外すかは個別に判断し、自動では追加しない。`pnpm audit --fix` も待機例外を追加することがあるため、監査のみを行う場合は `--fix` を付けない。
 
 ```bash
 pnpm audit --prod --audit-level=high
@@ -39,8 +41,10 @@ pnpm audit --audit-level=moderate
 ## 設定の検証
 
 ```bash
-npm exec --yes --package=node@26.13.0 --package=renovate@44.239.1 -- renovate-config-validator --strict renovate.json
+npm exec --yes --package=node@26.13.0 --package=renovate@44.228.0 -- renovate-config-validator --strict renovate.json
 ```
+
+検証する版は Mend の実行ログにある Renovate の版に合わせる。上記は初回実行時の版。
 
 ## 参照
 

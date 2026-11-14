@@ -1,3 +1,4 @@
+import { captureException } from '@sentry/cloudflare';
 import { and, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
 
@@ -251,6 +252,7 @@ export async function runWeatherFetch(
       error: null,
     });
   } catch (error) {
+    captureException(error, { tags: { endpoint: ENDPOINT, httpStatus: httpStatus ?? 'unknown' } });
     console.error('[weather] fetch failed:', error);
     if (pointId === null) return;
     try {
@@ -263,6 +265,7 @@ export async function runWeatherFetch(
         error: error instanceof Error ? error.message : String(error),
       });
     } catch (logError) {
+      captureException(logError, { tags: { operation: 'weather.writeLog' } });
       console.error('[weather] failed to write fetch log:', logError);
     }
   }

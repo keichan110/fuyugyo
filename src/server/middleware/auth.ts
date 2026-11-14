@@ -1,3 +1,4 @@
+import { setUser } from '@sentry/cloudflare';
 import { eq } from 'drizzle-orm';
 import type { Context } from 'hono';
 import { getCookie, setCookie } from 'hono/cookie';
@@ -93,6 +94,7 @@ export const requireAuth = createMiddleware<{
   }
 
   c.set('user', user);
+  setUser({ id: user.userId });
   await next();
 });
 

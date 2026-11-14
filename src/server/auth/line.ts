@@ -4,6 +4,11 @@
  * シークレット等は呼び出し側が `c.env` から渡す（モジュールはステートレス）。
  */
 
+import { captureExternalApiError } from '@/server/sentry';
+
+const TOKEN_ENDPOINT = 'https://api.line.me/oauth2/v2.1/token';
+const PROFILE_ENDPOINT = 'https://api.line.me/v2/profile';
+
 /** LINE 認証に必要な設定（`c.env` から組み立てる） */
 export type LineConfig = {
   channelId: string;
@@ -100,13 +105,22 @@ export async function exchangeCodeForToken(
     client_secret: config.channelSecret,
   });
 
-  const response = await fetch('https://api.line.me/oauth2/v2.1/token', {
+  const response = await fetch(TOKEN_ENDPOINT, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: params.toString(),
   });
 
   if (!response.ok) {
+    // 使用済み・期限切れコードは再ログインで解消するため、400 の invalid_grant だけ除外する。
+    const body: unknown = await response.json().catch(() => null);
+    const invalidGrant =
+      response.status === 400 &&
+      typeof body === 'object' &&
+      body !== null &&
+      'error' in body &&
+      body.error === 'invalid_grant';
+    if (!invalidGrant) captureExternalApiError(TOKEN_ENDPOINT, response.status);
     return null;
   }
 
@@ -120,11 +134,12 @@ export async function exchangeCodeForToken(
  * @returns プロフィール。失敗時は null
  */
 export async function fetchLineUserProfile(accessToken: string): Promise<LineUserProfile | null> {
-  const response = await fetch('https://api.line.me/v2/profile', {
+  const response = await fetch(PROFILE_ENDPOINT, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
 
   if (!response.ok) {
+    captureExternalApiError(PROFILE_ENDPOINT, response.status);
     return null;
   }
 

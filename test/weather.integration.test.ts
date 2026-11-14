@@ -445,7 +445,7 @@ describe('runWeatherFetch', () => {
     const db = createDb(env.DB);
     const { fetchFn } = fakeFetch(() => new Response('error', { status: 500 }));
     vi.spyOn(console, 'error').mockImplementation(() => {});
-    await expect(runWeatherFetch(db, { now: NOW, fetchFn })).resolves.toBeUndefined();
+    await expect(runWeatherFetch(db, { now: NOW, fetchFn })).resolves.toBe(false);
 
     const [log] = await db.select().from(weatherFetchLogs);
     expect(log).toMatchObject({ ok: false, httpStatus: 500 });
@@ -460,7 +460,7 @@ describe('runWeatherFetch', () => {
       throw new Error('network down');
     });
     vi.spyOn(console, 'error').mockImplementation(() => {});
-    await expect(runWeatherFetch(db, { now: NOW, fetchFn })).resolves.toBeUndefined();
+    await expect(runWeatherFetch(db, { now: NOW, fetchFn })).resolves.toBe(false);
 
     const [log] = await db.select().from(weatherFetchLogs);
     expect(log).toMatchObject({ ok: false, httpStatus: null, error: 'network down' });
@@ -476,6 +476,21 @@ describe('runWeatherFetch', () => {
     const [log] = await db.select().from(weatherFetchLogs);
     expect(log).toMatchObject({ ok: false, httpStatus: 200 });
     expect(await db.select().from(weatherSteps)).toHaveLength(0);
+  });
+
+  it('保存と失敗ログの書き込みが両方失敗しても false を返す', async () => {
+    await seedPoint();
+    const db = createDb(env.DB);
+    const { fetchFn } = fakeFetch(() => okResponse());
+    const insert = vi.spyOn(db, 'insert').mockImplementation(() => {
+      throw new Error('D1 write failed');
+    });
+    try {
+      await expect(runWeatherFetch(db, { now: NOW, fetchFn })).resolves.toBe(false);
+      expect(insert).toHaveBeenCalledTimes(2);
+    } finally {
+      insert.mockRestore();
+    }
   });
 });
 

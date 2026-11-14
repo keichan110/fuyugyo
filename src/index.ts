@@ -1,5 +1,5 @@
 import type { ExecutionContext, ScheduledController } from '@cloudflare/workers-types';
-import { withSentry } from '@sentry/cloudflare';
+import { captureCheckIn, withSentry } from '@sentry/cloudflare';
 import { Hono } from 'hono';
 import { csrf } from 'hono/csrf';
 import { HTTPException } from 'hono/http-exception';
@@ -69,13 +69,34 @@ export type AppType = typeof routes;
 /**
  * Cron Trigger のハンドラ。天気予報の取得を `waitUntil` に載せ、
  * Sentry が通知を flush する前に処理が完了するよう、同じ Promise を返す。
+ * 取得の開始と、成功・失敗の結果を Sentry Crons にチェックインする。
  */
 function scheduled(
-  _controller: ScheduledController,
+  controller: ScheduledController,
   env: Env,
   ctx: ExecutionContext,
 ): Promise<void> {
-  const task = runWeatherFetch(createDb(env.DB), { now: new Date(), fetchFn: fetch });
+  const monitorSlug = 'weather-fetch';
+  const checkInId = captureCheckIn(
+    { monitorSlug, status: 'in_progress' },
+    {
+      schedule: { type: 'crontab', value: controller.cron },
+      timezone: 'Etc/UTC',
+      checkinMargin: 5,
+      maxRuntime: 5,
+      failureIssueThreshold: 1,
+      recoveryThreshold: 1,
+    },
+  );
+  const task = (async () => {
+    let ok = false;
+    try {
+      ok = await runWeatherFetch(createDb(env.DB), { now: new Date(), fetchFn: fetch });
+    } finally {
+      // 取得側で捕捉した失敗も、開始時と同じチェックインの失敗として記録する。
+      captureCheckIn({ monitorSlug, checkInId, status: ok ? 'ok' : 'error' });
+    }
+  })();
   ctx.waitUntil(task);
   return task;
 }

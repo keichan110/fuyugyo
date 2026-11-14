@@ -7,20 +7,23 @@ import { WEATHER_POINT_ID } from '../src/features/weather/schema';
 import app from '../src/index';
 import { exchangeCodeForToken, fetchLineUserProfile } from '../src/server/auth/line';
 import { createDb } from '../src/server/db/client';
-import { weatherFetchLogs, weatherPoints } from '../src/server/db/schema';
+import { weatherFetchLogs, weatherFetchState, weatherPoints } from '../src/server/db/schema';
 import { workerSentryOptions } from '../src/server/sentry';
 
-const { captureException } = vi.hoisted(() => {
+const { captureException, captureCheckIn } = vi.hoisted(() => {
   vi.resetModules();
-  return { captureException: vi.fn() };
+  return { captureException: vi.fn(), captureCheckIn: vi.fn(() => 'check-in-id') };
 });
 
 vi.mock('@sentry/cloudflare', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@sentry/cloudflare')>()),
   captureException,
+  captureCheckIn,
 }));
 
-afterEach(() => {
+afterEach(async () => {
+  await createDb(env.DB).delete(weatherPoints);
+  vi.restoreAllMocks();
   vi.clearAllMocks();
   vi.unstubAllGlobals();
 });
@@ -65,6 +68,119 @@ describe('Worker の通知', () => {
     });
     const [log] = await db.select().from(weatherFetchLogs);
     expect(log).toMatchObject({ ok: false, httpStatus: 503 });
+    expect(captureCheckIn).toHaveBeenLastCalledWith({
+      monitorSlug: 'weather-fetch',
+      checkInId: 'check-in-id',
+      status: 'error',
+    });
+  });
+
+  it.each([
+    ['200', () => Response.json({ properties: { timeseries: [] } }), 'ok'],
+    ['304', () => new Response(null, { status: 304 }), 'ok'],
+    ['不正な JSON', () => new Response('invalid json'), 'error'],
+    [
+      '通信失敗',
+      () => {
+        throw new Error('network down');
+      },
+      'error',
+    ],
+  ])('Cron の %s を同じチェックインの完了として記録する', async (_label, response, status) => {
+    await createDb(env.DB).insert(weatherPoints).values({
+      id: WEATHER_POINT_ID,
+      name: 'テスト地点',
+      latitude: 36,
+      longitude: 137,
+      elevationM: 1500,
+    });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn<typeof fetch>().mockImplementation(async () => {
+        expect(captureCheckIn).toHaveBeenCalledTimes(1);
+        return response();
+      }),
+    );
+    const ctx = createExecutionContext();
+    // トリガーの変更が監視スケジュールにも反映されることを確認する。
+    await app.scheduled(
+      { cron: '23 */6 * * *', scheduledTime: Date.now(), noRetry() {} },
+      env,
+      ctx,
+    );
+    await waitOnExecutionContext(ctx);
+    expect(captureCheckIn).toHaveBeenNthCalledWith(
+      1,
+      { monitorSlug: 'weather-fetch', status: 'in_progress' },
+      {
+        schedule: { type: 'crontab', value: '23 */6 * * *' },
+        timezone: 'Etc/UTC',
+        checkinMargin: 5,
+        maxRuntime: 5,
+        failureIssueThreshold: 1,
+        recoveryThreshold: 1,
+      },
+    );
+    expect(captureCheckIn).toHaveBeenNthCalledWith(2, {
+      monitorSlug: 'weather-fetch',
+      checkInId: 'check-in-id',
+      status,
+    });
+    expect(captureCheckIn).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([false, true])(
+    '取得不要な Cron も成功として記録する（地点登録: %s）',
+    async (registered) => {
+      const db = createDb(env.DB);
+      if (registered) {
+        await db.insert(weatherPoints).values({
+          id: WEATHER_POINT_ID,
+          name: 'テスト地点',
+          latitude: 36,
+          longitude: 137,
+          elevationM: 1500,
+        });
+        await db.insert(weatherFetchState).values({
+          pointId: WEATHER_POINT_ID,
+          source: 'metno:locationforecast',
+          expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+        });
+      }
+      const fetchFn = vi.fn<typeof fetch>();
+      vi.stubGlobal('fetch', fetchFn);
+      const ctx = createExecutionContext();
+      await app.scheduled(
+        { cron: '23 */3 * * *', scheduledTime: Date.now(), noRetry() {} },
+        env,
+        ctx,
+      );
+      await waitOnExecutionContext(ctx);
+      expect(fetchFn).not.toHaveBeenCalled();
+      expect(captureCheckIn).toHaveBeenLastCalledWith({
+        monitorSlug: 'weather-fetch',
+        checkInId: 'check-in-id',
+        status: 'ok',
+      });
+    },
+  );
+
+  it('地点の読み取りに失敗しても Cron の失敗を記録する', async () => {
+    vi.spyOn(env.DB, 'prepare').mockImplementationOnce(() => {
+      throw new Error('D1 unavailable');
+    });
+    const ctx = createExecutionContext();
+    await app.scheduled(
+      { cron: '23 */3 * * *', scheduledTime: Date.now(), noRetry() {} },
+      env,
+      ctx,
+    );
+    await waitOnExecutionContext(ctx);
+    expect(captureCheckIn).toHaveBeenLastCalledWith({
+      monitorSlug: 'weather-fetch',
+      checkInId: 'check-in-id',
+      status: 'error',
+    });
   });
   it.each([
     ['unexpected', 500, 'Internal Server Error', 1],

@@ -1,26 +1,14 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 
 import { AUTH_COOKIE, authCookieOptions } from '../src/server/auth/cookies';
 import { signJwt } from '../src/server/auth/jwt';
 import { toJwtPayload } from '../src/server/auth/user';
 import { E2E_BASE_URL, E2E_JWT_EXPIRES_IN, E2E_JWT_SECRET } from './env.ts';
-import { E2E_USERS, type E2eUser } from './fixtures/users.ts';
+import { AUTH_STATE_DIR, authStatePath } from './fixtures/auth-state.ts';
+import { E2E_USERS } from './fixtures/users.ts';
 
 /** JWT 有効期限（E2E_JWT_EXPIRES_IN = "1d"）に揃えた Cookie の有効秒数 */
 const COOKIE_MAX_AGE_SECONDS = 24 * 60 * 60;
-
-/** ロール別ログイン状態（storageState）の保存先ディレクトリ */
-export const AUTH_STATE_DIR = resolve(import.meta.dirname, '.auth');
-
-/**
- * 認証状態ファイルのパスを返す。
- *
- * @param key - E2E ユーザーのキー
- */
-export function authStatePath(key: E2eUser['key']): string {
-  return resolve(AUTH_STATE_DIR, `${key}.json`);
-}
 
 /**
  * 全 E2E ユーザーの JWT を署名し、`auth-token` Cookie を載せた storageState を保存する。

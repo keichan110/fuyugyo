@@ -1,8 +1,10 @@
 import { authStatePath } from '../fixtures/auth-state.ts';
+import { resetSmokeAssignment } from '../fixtures/business-data.ts';
 import { expect, test } from '../fixtures/test.ts';
 
 test.describe('シフト管理（手動割当）', () => {
   test.use({ storageState: authStatePath('admin') });
+  test.beforeEach(async () => resetSmokeAssignment());
 
   test(
     '空きのあるシフトにインストラクターを割り当てて保存でき、リロード後も残る',

@@ -31,6 +31,9 @@ function ShiftsIndexPage() {
       <ShiftAgendaViewer
         date={search.date}
         onVisibleDateChange={(date) => {
+          // 戻る操作の直後は、旧画面のObserverがアンマウント前に通知することがある。
+          // 実際のURLを確認し、移動先の履歴を旧シフト表で上書きしない。
+          if (!/^\/shifts\/?$/.test(window.location.pathname)) return;
           void navigate({ search: { date }, replace: true, resetScroll: false });
         }}
       />

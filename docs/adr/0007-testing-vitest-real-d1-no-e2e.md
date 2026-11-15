@@ -4,6 +4,8 @@
 
 accepted
 
+E2E非採用・Vitestのみの方針は [ADR 0016](0016-e2e-release-gate.md) により更新。単体・実D1統合テストを主役とする方針は継続する。
+
 ## Context
 
 現行テストは34ファイルあるが全て重いモック（Prisma, NextResponse, NextRequest, auth）で、「モックの振る舞いをテストしているだけ」で実動作の保証が弱い。新アーキは Hono RPC + Drizzle + Zod により型安全性が大幅に上がるため、型で防げるものはテストで書かない。開発者は1人で、最優先は開発速度。依存は増やさない方針。

@@ -521,6 +521,18 @@ describe('LINE OAuth コールバック', () => {
 });
 
 describe('GET /api/auth/me', () => {
+  it('未認証の保護APIはDBに触れず401を返す', async () => {
+    const inaccessibleDb = new Proxy(env.DB, {
+      get() {
+        throw new Error('未認証リクエストがDBへ到達しました');
+      },
+    });
+    for (const path of ['/api/auth/me', '/api/users', '/api/shifts']) {
+      const res = await app.request(path, {}, envWith({ DB: inaccessibleDb }));
+      expect(res.status).toBe(401);
+    }
+  });
+
   it('未認証は 401 を返す', async () => {
     const res = await app.request('/api/auth/me', {}, envWith({}));
     expect(res.status).toBe(401);

@@ -64,10 +64,3 @@ export const E2E_USERS: readonly E2eUser[] = [
     instructorId: null,
   },
 ];
-
-/** key から E2E ユーザーを取得する。未定義なら例外 */
-export function getE2eUser(key: E2eUser['key']): E2eUser {
-  const user = E2E_USERS.find((candidate) => candidate.key === key);
-  if (!user) throw new Error(`E2E ユーザーが未定義です: ${key}`);
-  return user;
-}

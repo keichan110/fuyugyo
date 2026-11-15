@@ -19,12 +19,11 @@ import {
 
 const builtConfigPath = resolve('dist/fuyugyo/wrangler.json');
 const builtConfig = z
-  .object({
+  .looseObject({
     main: z.string(),
-    assets: z.object({ directory: z.string() }).passthrough(),
+    assets: z.looseObject({ directory: z.string() }),
     vars: z.record(z.string(), z.unknown()),
   })
-  .passthrough()
   .parse(JSON.parse(readFileSync(builtConfigPath, 'utf8')));
 
 const previewRoot = resolve('.wrangler/e2e-preview');

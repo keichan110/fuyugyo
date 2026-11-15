@@ -89,7 +89,13 @@ export function MobileNavigation({ user }: { user: MeResponse }) {
           </UnstyledButton>
         </nav>
       </AppShell.Footer>
-      <Drawer id="mobile-more-menu" opened={opened} onClose={close} title="その他">
+      <Drawer
+        id="mobile-more-menu"
+        opened={opened}
+        onClose={close}
+        title="その他"
+        closeButtonProps={{ 'aria-label': 'メニューを閉じる' }}
+      >
         <Stack gap="xs">
           <NavigationMenu user={user} onNavigate={close} excludedPaths={tabs.map(({ to }) => to)} />
           <Divider my="sm" />

@@ -80,3 +80,138 @@ test.describe('デスクトップのナビゲーション', () => {
     ).toBeVisible();
   });
 });
+
+test.describe('モバイルの固定領域と編集', () => {
+  test.use({ storageState: authStatePath('admin'), viewport: { width: 320, height: 740 } });
+
+  test('狭い幅でも5タブを収め、シフト管理だけを選択状態にする', async ({ page }) => {
+    await page.goto('/shifts/manage');
+    const navigation = page.getByRole('navigation', { name: 'メインナビゲーション' });
+    await expect(navigation.getByRole('link', { name: 'シフト管理' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    await expect(
+      navigation.getByRole('link', { name: 'シフト表', exact: true }),
+    ).not.toHaveAttribute('aria-current');
+    for (const tab of await navigation.locator('a, button').all()) {
+      const bounds = await tab.boundingBox();
+      expect(bounds).not.toBeNull();
+      if (bounds) {
+        expect(bounds.x).toBeGreaterThanOrEqual(0);
+        expect(bounds.x + bounds.width).toBeLessThanOrEqual(320);
+        expect(bounds.height).toBeGreaterThanOrEqual(44);
+      }
+    }
+    await page.emulateMedia({ media: 'print' });
+    await expect(navigation).toBeHidden();
+  });
+
+  test('未保存バーをタブの上に表示し、移動前に破棄を確認する', async ({ page }) => {
+    await page.goto('/availabilities?month=2026-01');
+    await page.getByRole('button', { name: '2026年1月20日', exact: true }).click();
+    await page.getByRole('combobox', { name: '状態', exact: true }).click();
+    await page.getByRole('option', { name: '勤務可', exact: false }).click();
+    await page.getByRole('button', { name: '反映', exact: true }).click();
+    const saveBar = page.getByRole('region').filter({ hasText: '未保存の変更' });
+    await expect(saveBar).toBeVisible();
+    const navigation = page.getByRole('navigation', { name: 'メインナビゲーション' });
+    const barBounds = await saveBar.boundingBox();
+    const navBounds = await navigation.boundingBox();
+    expect(barBounds).not.toBeNull();
+    expect(navBounds).not.toBeNull();
+    if (barBounds && navBounds) {
+      expect(barBounds.y + barBounds.height).toBeLessThanOrEqual(navBounds.y);
+    }
+    await navigation.getByRole('button', { name: 'その他' }).click();
+    await expect(page.getByRole('dialog', { name: 'その他' })).toBeVisible();
+    await expect(page.getByRole('dialog', { name: '未保存の変更があります' })).toBeHidden();
+    await page.getByRole('button', { name: 'メニューを閉じる' }).click();
+    await navigation.getByRole('link', { name: 'ホーム' }).click();
+    await expect(page.getByRole('dialog', { name: '未保存の変更があります' })).toBeVisible();
+    await page.getByRole('button', { name: 'このページに残る' }).click();
+    await expect(saveBar).toBeVisible();
+    await navigation.getByRole('link', { name: 'ホーム' }).click();
+    await page.getByRole('button', { name: '破棄して移動' }).click();
+    await expect(page).toHaveURL('/');
+    await expect(saveBar).toBeHidden();
+  });
+
+  test('入力中に表示領域が縮むとタブを隠し、戻ると再表示する', async ({ page }) => {
+    await page.goto('/instructors');
+    const navigation = page.getByRole('navigation', { name: 'メインナビゲーション' });
+    await expect(navigation).toBeVisible();
+    // Chromiumエミュレーションにはソフトウェアキーボードがないため、公開ブラウザAPIの変化を再現する。
+    const fullHeight = await page.evaluate(() => window.visualViewport?.height ?? 0);
+    expect(fullHeight).toBeGreaterThan(0);
+    await page.getByPlaceholder('氏名・カナで検索').focus();
+    await page.evaluate((height) => {
+      const viewport = window.visualViewport;
+      if (!viewport) throw new Error('VisualViewport が必要です');
+      Object.defineProperty(viewport, 'height', { configurable: true, value: height - 80 });
+      viewport.dispatchEvent(new Event('resize'));
+    }, fullHeight);
+    await expect(navigation).toBeVisible();
+    await page.evaluate((height) => {
+      const viewport = window.visualViewport;
+      if (!viewport) throw new Error('VisualViewport が必要です');
+      Object.defineProperty(viewport, 'height', { configurable: true, value: height - 300 });
+      viewport.dispatchEvent(new Event('resize'));
+    }, fullHeight);
+    await expect(navigation).toBeHidden();
+    await page.evaluate((height) => {
+      const viewport = window.visualViewport;
+      if (!viewport) throw new Error('VisualViewport が必要です');
+      Object.defineProperty(viewport, 'height', { configurable: true, value: height });
+      viewport.dispatchEvent(new Event('resize'));
+    }, fullHeight);
+    await expect(navigation).toBeVisible();
+  });
+});
+
+test.describe('連携状態の変更', () => {
+  test.use({ storageState: authStatePath('manager') });
+
+  test('シフト希望の表示中に連携解除しても5タブの位置を維持する', async ({ page }) => {
+    let linked = true;
+    await page.route('**/api/auth/me', async (route) => {
+      const response = await route.fetch();
+      const user = await response.json();
+      await route.fulfill({
+        response,
+        json: { ...user, instructorId: linked ? user.instructorId : null },
+      });
+    });
+    await page.route('**/api/auth/me/link-instructor', async (route) => {
+      expect(['DELETE', 'POST']).toContain(route.request().method());
+      const response = await page.request.get('/api/auth/me');
+      const user = await response.json();
+      linked = route.request().method() === 'POST';
+      await route.fulfill({ json: { ...user, instructorId: linked ? user.instructorId : null } });
+    });
+    await page.goto('/availabilities');
+    const navigation = page.getByRole('navigation', { name: 'メインナビゲーション' });
+    await expect(page.getByRole('button', { name: '一括設定' })).toBeVisible();
+    const before = await navigation
+      .getByRole('link', { name: 'シフト希望', exact: true })
+      .boundingBox();
+    await navigation.getByRole('button', { name: 'その他' }).click();
+    await page.getByRole('button', { name: '連携解除', exact: true }).click();
+    await page.getByRole('button', { name: 'メニューを閉じる' }).click();
+    const disabled = navigation.getByRole('button', { name: /シフト希望/ });
+    await expect(disabled).toBeDisabled();
+    await expect(navigation.locator('a, button')).toHaveCount(5);
+    expect(await disabled.boundingBox()).toEqual(before);
+    await expect(page.getByRole('button', { name: '一括設定' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: '連携する', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: '連携する', exact: true }).click();
+    const linkModal = page.getByRole('dialog', { name: 'インストラクターと連携', exact: true });
+    await linkModal.getByRole('combobox', { name: 'インストラクター', exact: true }).click();
+    await page.getByRole('option', { name: '佐藤 花子', exact: true }).click();
+    await linkModal.getByRole('button', { name: '連携する', exact: true }).click();
+    await expect(linkModal).toBeHidden();
+    await expect(navigation.getByRole('link', { name: 'シフト希望', exact: true })).toBeVisible();
+    await expect(navigation.locator('a, button')).toHaveCount(5);
+    await expect(page.getByRole('button', { name: '一括設定' })).toBeVisible();
+  });
+});

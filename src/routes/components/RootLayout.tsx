@@ -8,13 +8,16 @@ import { getUnauthenticatedRedirect } from '@/features/auth/route-policy';
 import { MemberInstructorLinkPrompt } from './MemberInstructorLinkPrompt';
 import { MobileNavigation } from './MobileNavigation';
 import { NavigationMenu } from './NavigationMenu';
-import classes from './RootLayout.module.css';
+import { useMobileKeyboardOpen } from './useMobileKeyboardOpen';
 import { UserMenu } from './UserMenu';
+
+const MOBILE_NAVIGATION_HEIGHT = 64;
 
 /** 認証状態に応じてログイン画面または認証済みアプリシェルを描画する。 */
 export function RootLayout() {
   const { data: user, isLoading } = useMe();
   const location = useLocation();
+  const mobileKeyboardOpened = useMobileKeyboardOpen();
   const [desktopNavbarOpened, { toggle: toggleDesktopNavbar }] = useDisclosure(true);
 
   if (isLoading) {
@@ -30,9 +33,16 @@ export function RootLayout() {
 
   return (
     <AppShell
-      className={classes.shell}
+      style={{ '--mobile-navigation-height': `${MOBILE_NAVIGATION_HEIGHT}px` }}
+      data-mobile-keyboard-open={mobileKeyboardOpened || undefined}
       header={{ height: { base: 0, sm: 60 } }}
-      footer={{ height: { base: 'var(--mobile-navigation-offset)', sm: 0 } }}
+      footer={{
+        height: {
+          base: `calc(${MOBILE_NAVIGATION_HEIGHT}px + env(safe-area-inset-bottom, 0px))`,
+          sm: 0,
+        },
+        collapsed: mobileKeyboardOpened,
+      }}
       navbar={{
         width: 260,
         breakpoint: 'sm',

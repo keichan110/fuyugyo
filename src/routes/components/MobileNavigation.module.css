@@ -2,11 +2,15 @@
   padding-bottom: env(safe-area-inset-bottom, 0px);
   padding-inline: env(safe-area-inset-left, 0px) env(safe-area-inset-right, 0px);
   background: var(--mantine-color-body);
+
+  :global([data-mobile-keyboard-open]) & {
+    display: none;
+  }
 }
 
 .tabs {
   display: flex;
-  height: 64px;
+  height: var(--mobile-navigation-height);
 }
 
 .tab {
@@ -49,4 +53,10 @@
   top: 1px;
   font-size: 9px;
   line-height: 1;
+}
+
+@media print {
+  .footer {
+    display: none !important;
+  }
 }

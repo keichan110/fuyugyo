@@ -30,6 +30,9 @@ const fixedId = (kind: string, n: number) =>
 /** shifts.date は UTC 午前0時で保存する（API の parseShiftDate と同じ。秒への変換は Drizzle が行う） */
 const toDate = (date: string) => new Date(`${date}T00:00:00.000Z`);
 
+/** E2E の業務データはすべてスキー部門に置く */
+const DEPARTMENT_CODE = 'ski';
+
 const CERTIFICATION_ID = fixedId('c001', 1);
 const SHIFT_TYPE_ID = fixedId('d001', 1);
 const DEPARTMENT_SHIFT_TYPE_ID = fixedId('e001', 1);
@@ -96,19 +99,10 @@ const SHIFTS: readonly SeedShift[] = [
 type Db = ReturnType<typeof drizzle>;
 
 /**
- * 投入クエリを組み立てる。全行が固定 ID のため `onConflictDoNothing` で再実行しても行が増えない。
- * 外部キーの参照先が先に入るよう、マスタ → 紐付け → シフト → 割当の順に並べる。
+ * インストラクター・ユーザー・資格の投入クエリを組み立てる。
+ * 全行が固定 ID のため `onConflictDoNothing` で再実行しても行が増えない。
  */
-function buildQueries(db: Db) {
-  const shiftAssignmentRows = SHIFTS.flatMap((shift, shiftIndex) =>
-    shift.assignedInstructorIds.map((instructorId, index) => ({
-      id: fixedId('a201', shiftIndex * 10 + index + 1),
-      shiftId: shift.id,
-      instructorId,
-      assignedAt: toDate(shift.date),
-    })),
-  );
-
+function buildInstructorQueries(db: Db) {
   return [
     db
       .insert(instructors)
@@ -132,7 +126,7 @@ function buildQueries(db: Db) {
       .insert(certifications)
       .values({
         id: CERTIFICATION_ID,
-        departmentCode: 'ski',
+        departmentCode: DEPARTMENT_CODE,
         name: '公認スキー指導員',
         shortName: '指導員',
         organization: 'SAJ',
@@ -148,12 +142,30 @@ function buildQueries(db: Db) {
         })),
       )
       .onConflictDoNothing(),
+  ] as const;
+}
+
+/**
+ * シフト種類・資格要件・シフト・割当の投入クエリを組み立てる。
+ * 全行が固定 ID のため `onConflictDoNothing` で再実行しても行が増えない。
+ */
+function buildShiftQueries(db: Db) {
+  const shiftAssignmentRows = SHIFTS.flatMap((shift, shiftIndex) =>
+    shift.assignedInstructorIds.map((instructorId, index) => ({
+      id: fixedId('a201', shiftIndex * 10 + index + 1),
+      shiftId: shift.id,
+      instructorId,
+      assignedAt: toDate(shift.date),
+    })),
+  );
+
+  return [
     db.insert(shiftTypes).values({ id: SHIFT_TYPE_ID, name: '一般レッスン' }).onConflictDoNothing(),
     db
       .insert(departmentShiftTypes)
       .values({
         id: DEPARTMENT_SHIFT_TYPE_ID,
-        departmentCode: 'ski',
+        departmentCode: DEPARTMENT_CODE,
         shiftTypeId: SHIFT_TYPE_ID,
         sortOrder: 1,
       })
@@ -173,7 +185,7 @@ function buildQueries(db: Db) {
         SHIFTS.map((shift) => ({
           id: shift.id,
           date: toDate(shift.date),
-          departmentCode: 'ski',
+          departmentCode: DEPARTMENT_CODE,
           shiftTypeId: SHIFT_TYPE_ID,
           requiredCount: shift.requiredCount,
           status: shift.status,
@@ -198,8 +210,9 @@ export async function seedE2e(): Promise<void> {
   const client = createClient({ url: `file:${sqlitePath}` });
   try {
     const db = drizzle(client);
-    // batch は1トランザクションで実行されるため、途中で失敗しても中途半端な状態を残さない
-    await db.batch(buildQueries(db));
+    // batch は1トランザクションで実行されるため、途中で失敗しても中途半端な状態を残さない。
+    // シフト側は資格・インストラクターを外部キーで参照するため、インストラクター側を先に並べる
+    await db.batch([...buildInstructorQueries(db), ...buildShiftQueries(db)]);
   } finally {
     client.close();
   }

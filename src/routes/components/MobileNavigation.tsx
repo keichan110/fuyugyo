@@ -1,11 +1,12 @@
 import { AppShell, Divider, Drawer, Stack, UnstyledButton } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import {
-  IconCalendarCheck,
   IconCalendarCog,
   IconCalendarWeek,
-  IconDots,
+  IconClipboardCheck,
   IconHome,
+  IconLock,
+  IconMenu2,
 } from '@tabler/icons-react';
 import { Link, useLocation } from '@tanstack/react-router';
 
@@ -19,7 +20,7 @@ import { useMobileNavigationScroll } from './useMobileNavigationScroll';
 const MEMBER_TABS = [
   { to: '/', label: 'ホーム', icon: IconHome },
   { to: '/shifts', label: 'シフト表', icon: IconCalendarWeek },
-  { to: '/availabilities', label: 'シフト希望', icon: IconCalendarCheck },
+  { to: '/availabilities', label: 'シフト希望', icon: IconClipboardCheck },
 ];
 const MANAGE_TAB = { to: '/shifts/manage', label: 'シフト管理', icon: IconCalendarCog };
 
@@ -48,12 +49,7 @@ export function MobileNavigation({ user }: { user: MeResponse }) {
         <nav className={classes.tabs} aria-label="メインナビゲーション">
           {tabs.map(({ to, label, icon: Icon }) => {
             const disabled = to === '/availabilities' && !user.instructorId;
-            const contents = (
-              <>
-                <Icon size={22} stroke={1.75} aria-hidden />
-                <span className={classes.label}>{label}</span>
-              </>
-            );
+            const contents = <Icon size={26} stroke={1.75} aria-hidden />;
 
             return disabled ? (
               <UnstyledButton
@@ -63,12 +59,14 @@ export function MobileNavigation({ user }: { user: MeResponse }) {
                 aria-label="シフト希望（インストラクターとの連携が必要です）"
               >
                 {contents}
-                <span className={classes.requireLink}>要連携</span>
+                <IconLock size={12} stroke={2} className={classes.requireLink} aria-hidden />
               </UnstyledButton>
             ) : (
               <Link
                 key={to}
                 to={to}
+                aria-label={label}
+                title={label}
                 search={{}}
                 className={classes.tab}
                 data-active={activePath === to || undefined}
@@ -82,13 +80,14 @@ export function MobileNavigation({ user }: { user: MeResponse }) {
           <UnstyledButton
             className={classes.tab}
             onClick={open}
+            aria-label="その他"
+            title="その他"
             data-active={opened || !activePath || undefined}
             aria-expanded={opened}
             aria-controls="mobile-more-menu"
             aria-haspopup="dialog"
           >
-            <IconDots size={22} stroke={1.75} aria-hidden />
-            <span className={classes.label}>その他</span>
+            <IconMenu2 size={26} stroke={1.75} aria-hidden />
           </UnstyledButton>
         </nav>
       </AppShell.Footer>

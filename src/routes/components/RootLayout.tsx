@@ -11,7 +11,7 @@ import { NavigationMenu } from './NavigationMenu';
 import { useMobileKeyboardOpen } from './useMobileKeyboardOpen';
 import { UserMenu } from './UserMenu';
 
-const MOBILE_NAVIGATION_HEIGHT = 64;
+const MOBILE_NAVIGATION_HEIGHT = 48;
 
 /** 認証状態に応じてログイン画面または認証済みアプリシェルを描画する。 */
 export function RootLayout() {

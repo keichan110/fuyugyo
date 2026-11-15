@@ -1,8 +1,13 @@
 /**
- * production build の Worker と静的アセットを再ビルドせずにローカル配信する。
- * 差し替えるのは実行時変数と永続化先だけで、dist とデプロイ設定には書き込まない。
+ * production buildをViteのpreviewで配信する。
+ * 開発用の再読み込みプロキシを介さず、成果物は変更せずに実行時設定だけを隔離する。
  */
-import { spawn } from 'node:child_process';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+
+import { cloudflare } from '@cloudflare/vite-plugin';
+import { preview } from 'vite';
+import { z } from 'zod';
 
 import {
   E2E_BASE_URL,
@@ -12,45 +17,66 @@ import {
   E2E_PORT,
 } from './env.ts';
 
-const variables = {
-  JWT_SECRET: E2E_JWT_SECRET,
-  JWT_EXPIRES_IN: E2E_JWT_EXPIRES_IN,
-  JWT_REFRESH_INTERVAL: '15m',
-  JWT_ABSOLUTE_EXPIRES_IN: '7d',
-  LINE_CHANNEL_SECRET: 'e2e-dummy-line-channel-secret',
-  APP_URL: E2E_BASE_URL,
-  SENTRY_DSN: '',
-};
+const builtConfigPath = resolve('dist/fuyugyo/wrangler.json');
+const builtConfig = z
+  .object({
+    main: z.string(),
+    assets: z.object({ directory: z.string() }).passthrough(),
+    vars: z.record(z.string(), z.unknown()),
+  })
+  .passthrough()
+  .parse(JSON.parse(readFileSync(builtConfigPath, 'utf8')));
 
-const worker = spawn(
-  'pnpm',
-  [
-    'exec',
-    'wrangler',
-    'dev',
-    '--config',
-    'dist/fuyugyo/wrangler.json',
-    '--local',
-    '--ip',
-    '127.0.0.1',
-    '--port',
-    String(E2E_PORT),
-    '--persist-to',
-    E2E_PERSIST_DIR,
-    '--inspector-port',
-    '0',
-    ...Object.entries(variables).flatMap(([key, value]) => ['--var', `${key}:${value}`]),
-  ],
-  { stdio: 'inherit' },
+const previewRoot = resolve('.wrangler/e2e-preview');
+const previewConfigPath = resolve(previewRoot, 'wrangler.json');
+const deployDirectory = resolve(previewRoot, '.wrangler/deploy');
+mkdirSync(deployDirectory, { recursive: true });
+writeFileSync(
+  previewConfigPath,
+  JSON.stringify({
+    ...builtConfig,
+    main: resolve(dirname(builtConfigPath), builtConfig.main),
+    assets: {
+      ...builtConfig.assets,
+      directory: resolve(dirname(builtConfigPath), builtConfig.assets.directory),
+    },
+    vars: {
+      ...builtConfig.vars,
+      JWT_SECRET: E2E_JWT_SECRET,
+      JWT_EXPIRES_IN: E2E_JWT_EXPIRES_IN,
+      JWT_REFRESH_INTERVAL: '15m',
+      JWT_ABSOLUTE_EXPIRES_IN: '7d',
+      LINE_CHANNEL_SECRET: 'e2e-dummy-line-channel-secret',
+      APP_URL: E2E_BASE_URL,
+      SENTRY_DSN: '',
+    },
+  }),
+);
+// previewが参照する生成設定を専用ディレクトリに置き、本番のデプロイ設定を保持する。
+writeFileSync(
+  resolve(deployDirectory, 'config.json'),
+  JSON.stringify({
+    configPath: previewConfigPath,
+    auxiliaryWorkers: [],
+  }),
 );
 
+const server = await preview({
+  root: previewRoot,
+  configFile: false,
+  plugins: [
+    cloudflare({
+      persistState: { path: resolve(E2E_PERSIST_DIR) },
+      remoteBindings: false,
+      inspectorPort: false,
+    }),
+  ],
+  preview: { host: '127.0.0.1', port: E2E_PORT, strictPort: true },
+});
+
 for (const signal of ['SIGTERM', 'SIGINT'] as const) {
-  process.on(signal, () => worker.kill(signal));
+  process.once(signal, async () => {
+    await server.close();
+    process.exit(0);
+  });
 }
-worker.on('error', (error) => {
-  console.error(error);
-  process.exitCode = 1;
-});
-worker.on('exit', (code, signal) => {
-  process.exitCode = code ?? (signal ? 1 : 0);
-});

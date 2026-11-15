@@ -1,13 +1,25 @@
 /**
  * E2E 用の決定的なシード。乱数・現在日時に依存せず、全行に固定 ID を使うため何度実行しても同じ結果になる。
  * 書き込み先は E2E 専用のローカル D1（`.wrangler/e2e-state`）に限定する。
- * （src の schema.ts は node 直接実行で import できないため、素の SQL で投入する）
+ * tsx で実行するため、src の schema.ts を import して Drizzle で型安全に投入する。
  */
 import { isAbsolute, relative, resolve } from 'node:path';
 
-import { createClient, type InStatement } from '@libsql/client';
+import { createClient } from '@libsql/client';
+import { drizzle } from 'drizzle-orm/libsql';
 
 import { getLocalD1Path } from '../scripts/lib/get-local-d1-path.ts';
+import {
+  certificationRequirements,
+  certifications,
+  departmentShiftTypes,
+  instructorCertifications,
+  instructors,
+  shiftAssignments,
+  shifts,
+  shiftTypes,
+  users,
+} from '../src/server/db/schema.ts';
 import { E2E_PERSIST_DIR } from './env.ts';
 import { E2E_LINKED_INSTRUCTOR_IDS, E2E_USERS } from './fixtures/users.ts';
 
@@ -15,8 +27,8 @@ import { E2E_LINKED_INSTRUCTOR_IDS, E2E_USERS } from './fixtures/users.ts';
 const fixedId = (kind: string, n: number) =>
   `00000000-0000-4000-8000-${kind}${String(n).padStart(8, '0')}`;
 
-/** shifts.date は UTC 午前0時の epoch 秒で保存する（API の parseShiftDate と同じ） */
-const toDateSeconds = (date: string) => Date.parse(`${date}T00:00:00.000Z`) / 1000;
+/** shifts.date は UTC 午前0時で保存する（API の parseShiftDate と同じ。秒への変換は Drizzle が行う） */
+const toDate = (date: string) => new Date(`${date}T00:00:00.000Z`);
 
 const CERTIFICATION_ID = fixedId('c001', 1);
 const SHIFT_TYPE_ID = fixedId('d001', 1);
@@ -81,77 +93,95 @@ const SHIFTS: readonly SeedShift[] = [
   },
 ];
 
-/** 投入する SQL 文を組み立てる。`INSERT OR IGNORE` で再実行しても行が増えない */
-function buildStatements(): InStatement[] {
-  const statements: InStatement[] = [];
+type Db = ReturnType<typeof drizzle>;
 
-  for (const instructor of INSTRUCTORS) {
-    statements.push({
-      sql: "INSERT OR IGNORE INTO instructors (id, last_name, first_name, status) VALUES (?, ?, ?, 'ACTIVE')",
-      args: [instructor.id, instructor.lastName, instructor.firstName],
-    });
-  }
-
-  for (const user of E2E_USERS) {
-    statements.push({
-      sql: 'INSERT OR IGNORE INTO users (id, line_user_id, display_name, role, is_active, instructor_id) VALUES (?, ?, ?, ?, ?, ?)',
-      args: [
-        user.id,
-        user.lineUserId,
-        user.displayName,
-        user.role,
-        user.isActive ? 1 : 0,
-        user.instructorId,
-      ],
-    });
-  }
-
-  // 割当候補に出るには部門の資格が必要なため、スキー部門の資格を全員に付与する
-  statements.push({
-    sql: "INSERT OR IGNORE INTO certifications (id, department_code, name, short_name, organization) VALUES (?, 'ski', '公認スキー指導員', '指導員', 'SAJ')",
-    args: [CERTIFICATION_ID],
-  });
-  INSTRUCTORS.forEach((instructor, index) => {
-    statements.push({
-      sql: 'INSERT OR IGNORE INTO instructor_certifications (id, instructor_id, certification_id) VALUES (?, ?, ?)',
-      args: [fixedId('c101', index + 1), instructor.id, CERTIFICATION_ID],
-    });
-  });
-
-  statements.push(
-    {
-      sql: "INSERT OR IGNORE INTO shift_types (id, name) VALUES (?, '一般レッスン')",
-      args: [SHIFT_TYPE_ID],
-    },
-    {
-      sql: "INSERT OR IGNORE INTO department_shift_types (id, department_code, shift_type_id, sort_order) VALUES (?, 'ski', ?, 1)",
-      args: [DEPARTMENT_SHIFT_TYPE_ID, SHIFT_TYPE_ID],
-    },
-    {
-      sql: 'INSERT OR IGNORE INTO certification_requirements (id, department_shift_type_id, certification_id, tier_rank) VALUES (?, ?, ?, 1)',
-      args: [REQUIREMENT_ID, DEPARTMENT_SHIFT_TYPE_ID, CERTIFICATION_ID],
-    },
+/**
+ * 投入クエリを組み立てる。全行が固定 ID のため `onConflictDoNothing` で再実行しても行が増えない。
+ * 外部キーの参照先が先に入るよう、マスタ → 紐付け → シフト → 割当の順に並べる。
+ */
+function buildQueries(db: Db) {
+  const shiftAssignmentRows = SHIFTS.flatMap((shift, shiftIndex) =>
+    shift.assignedInstructorIds.map((instructorId, index) => ({
+      id: fixedId('a201', shiftIndex * 10 + index + 1),
+      shiftId: shift.id,
+      instructorId,
+      assignedAt: toDate(shift.date),
+    })),
   );
 
-  SHIFTS.forEach((shift, shiftIndex) => {
-    statements.push({
-      sql: "INSERT OR IGNORE INTO shifts (id, date, department_code, shift_type_id, required_count, status) VALUES (?, ?, 'ski', ?, ?, ?)",
-      args: [shift.id, toDateSeconds(shift.date), SHIFT_TYPE_ID, shift.requiredCount, shift.status],
-    });
-    shift.assignedInstructorIds.forEach((instructorId, index) => {
-      statements.push({
-        sql: 'INSERT OR IGNORE INTO shift_assignments (id, shift_id, instructor_id, assigned_at) VALUES (?, ?, ?, ?)',
-        args: [
-          fixedId('a201', shiftIndex * 10 + index + 1),
-          shift.id,
-          instructorId,
-          toDateSeconds(shift.date),
-        ],
-      });
-    });
-  });
-
-  return statements;
+  return [
+    db
+      .insert(instructors)
+      .values(INSTRUCTORS.map((instructor) => ({ ...instructor, status: 'ACTIVE' })))
+      .onConflictDoNothing(),
+    db
+      .insert(users)
+      .values(
+        E2E_USERS.map((user) => ({
+          id: user.id,
+          lineUserId: user.lineUserId,
+          displayName: user.displayName,
+          role: user.role,
+          isActive: user.isActive,
+          instructorId: user.instructorId,
+        })),
+      )
+      .onConflictDoNothing(),
+    // 割当候補に出るには部門の資格が必要なため、スキー部門の資格を全員に付与する
+    db
+      .insert(certifications)
+      .values({
+        id: CERTIFICATION_ID,
+        departmentCode: 'ski',
+        name: '公認スキー指導員',
+        shortName: '指導員',
+        organization: 'SAJ',
+      })
+      .onConflictDoNothing(),
+    db
+      .insert(instructorCertifications)
+      .values(
+        INSTRUCTORS.map((instructor, index) => ({
+          id: fixedId('c101', index + 1),
+          instructorId: instructor.id,
+          certificationId: CERTIFICATION_ID,
+        })),
+      )
+      .onConflictDoNothing(),
+    db.insert(shiftTypes).values({ id: SHIFT_TYPE_ID, name: '一般レッスン' }).onConflictDoNothing(),
+    db
+      .insert(departmentShiftTypes)
+      .values({
+        id: DEPARTMENT_SHIFT_TYPE_ID,
+        departmentCode: 'ski',
+        shiftTypeId: SHIFT_TYPE_ID,
+        sortOrder: 1,
+      })
+      .onConflictDoNothing(),
+    db
+      .insert(certificationRequirements)
+      .values({
+        id: REQUIREMENT_ID,
+        departmentShiftTypeId: DEPARTMENT_SHIFT_TYPE_ID,
+        certificationId: CERTIFICATION_ID,
+        tierRank: 1,
+      })
+      .onConflictDoNothing(),
+    db
+      .insert(shifts)
+      .values(
+        SHIFTS.map((shift) => ({
+          id: shift.id,
+          date: toDate(shift.date),
+          departmentCode: 'ski',
+          shiftTypeId: SHIFT_TYPE_ID,
+          requiredCount: shift.requiredCount,
+          status: shift.status,
+        })),
+      )
+      .onConflictDoNothing(),
+    db.insert(shiftAssignments).values(shiftAssignmentRows).onConflictDoNothing(),
+  ] as const;
 }
 
 /**
@@ -167,7 +197,9 @@ export async function seedE2e(): Promise<void> {
 
   const client = createClient({ url: `file:${sqlitePath}` });
   try {
-    await client.batch(buildStatements(), 'write');
+    const db = drizzle(client);
+    // batch は1トランザクションで実行されるため、途中で失敗しても中途半端な状態を残さない
+    await db.batch(buildQueries(db));
   } finally {
     client.close();
   }

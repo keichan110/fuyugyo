@@ -14,6 +14,7 @@ export default defineConfig({
   testDir: 'e2e',
   // Vitest の include（test/**/*.{test,spec}.ts）と衝突しない拡張子にする
   testMatch: '**/*.e2e.ts',
+  globalSetup: './e2e/global-setup.ts',
   // 共有 D1 を書き換えるテストがあるため直列で実行する
   fullyParallel: false,
   workers: 1,

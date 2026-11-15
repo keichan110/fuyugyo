@@ -9,6 +9,7 @@ if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
 }
 
 const isCI = Boolean(process.env.CI);
+const useBuiltWorker = process.env.E2E_BUILT === '1';
 
 export default defineConfig({
   testDir: 'e2e',
@@ -32,15 +33,16 @@ export default defineConfig({
       // モバイル縦持ち（Chromium のエミュレーション）
       use: { ...devices['Pixel 7'] },
     },
+    ...(useBuiltWorker ? [{ name: 'mobile-webkit', use: { ...devices['iPhone 13'] } }] : []),
   ],
   webServer: {
-    command: 'pnpm run dev',
-    port: E2E_PORT,
+    command: useBuiltWorker ? 'pnpm exec tsx e2e/serve-built.ts' : 'pnpm run dev',
+    url: `${E2E_BASE_URL}/api/health`,
     // 実行中サーバーが参照する D1 を消す事故を防ぐため、常に新規起動する
     reuseExistingServer: false,
     timeout: 120_000,
     env: {
-      CLOUDFLARE_ENV: 'e2e',
+      ...(useBuiltWorker ? {} : { CLOUDFLARE_ENV: 'e2e' }),
       E2E_PORT: String(E2E_PORT),
       E2E_PERSIST_DIR,
       // .env のクライアント側 Sentry DSN を空で上書きして送信を無効にする

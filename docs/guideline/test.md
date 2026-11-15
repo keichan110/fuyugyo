@@ -7,4 +7,21 @@
 - DB や認証の振る舞いを大量のモックで置き換えず、実際の境界で検証する。
 - 計算・集計等のロジックは、意味のある境界値を単体テストする。
 
-テスト方針は ADR 0007 を参照。現行設定の正本は `vitest.config.ts` と `package.json`。
+## E2E
+
+- `pnpm run test:e2e:smoke`: PR向けのChromiumスモーク。開発サーバーで実行する。
+- `pnpm run test:e2e`: production buildからChromium・モバイルWebKitの全シナリオまでを1コマンドで実行する。
+- `pnpm run test:e2e:release`: ビルド済みの `dist/` を再ビルドせず検証するRelease向けの入口。事前に `pnpm run build` が必要。
+- 初回は `pnpm exec playwright install chromium webkit` でブラウザを導入する（Linuxでは `--with-deps` も指定）。
+
+フルE2Eはコードカバレッジ100%を意味しない。勤務可否の申告→シフト作成・割当→公開→本人確認、招待発行、ADMINのユーザー編集、権限不足・無効ユーザーの拒否を重点的に確認する。保存後の再読み込みまで確認し、自社APIとDBはモックしない。未認証でDBに到達しないことは、DBへのアクセスを検出する統合テストで補完する。
+
+履歴遷移の回帰テストでは、「戻る」直後に旧シフト表の可視日付通知が届く順序を意図的に再現する。単に繰り返し成功するだけでなく、移動先のURLが旧画面の通知で上書きされないことを確認する。
+
+フル実行はproduction buildのWorkerと静的アセットを `wrangler dev --local` で配信し、実行時変数とDBだけをE2E専用に差し替える。`dist/` や `.wrangler/deploy/config.json` は書き換えない。ビルドに埋め込まれた公開環境変数は本番ビルドと同じであり、本番secretの値や外部OAuthの成功を検証した意味ではない。
+
+開発用DBとは別の `.wrangler/e2e-state` をコマンド開始時に作り直す。同じ作業ディレクトリでE2Eコマンドを同時実行しない。workers=1を維持し、更新系は各テストで対象データをリセットする。従来の表示テストは2026年1月にブラウザ時計を固定するが、勤務可否の書込みはサーバーが過去日を拒否するため、業務テストでは実行日の翌月20日を使う。
+
+ナビゲーション等にはAPI応答を差し替える補助UIテストもある。これらを実DBの業務フロー検証の代わりには数えない。LINE OAuth、push通知、本番データへのE2Eは対象外とする。
+
+テスト方針は ADR 0007 と、そのE2E非採用方針を更新する ADR 0016 を参照。現行設定の正本は `vitest.config.ts`、`playwright.config.ts` と `package.json`。

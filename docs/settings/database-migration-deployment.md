@@ -42,10 +42,21 @@
 3. GitHub secrets・variables の検証（`CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID` / `APP_URL` / `LINE_CHANNEL_ID`）
 4. Cloudflare 上に Worker secret（`JWT_SECRET` / `LINE_CHANNEL_SECRET`）が登録済みかを確認
 5. production build
-6. `wrangler d1 migrations apply fuyugyo --remote`
-7. `wrangler deploy --tag <リリースタグ> --message "Release <タグ> (<sha>)"`
-8. D1 にアクセスしない `/api/health` による Worker の応答確認
-9. 新しいコミットがあり、7・8 が成功した場合のみ、タグと GitHub Release を作成（`release` ジョブだけが `contents: write` を持つ）
+6. 同じビルド成果物をローカルWorker・専用D1で起動し、Chromium・モバイルWebKitのフルE2E（`pnpm run test:e2e:release`）を実行
+7. `wrangler d1 migrations apply fuyugyo --remote`
+8. `wrangler deploy --tag <リリースタグ> --message "Release <タグ> (<sha>)"`
+9. D1 にアクセスしない `/api/health` による Worker の応答確認
+10. 新しいコミットがあり、8・9 が成功した場合のみ、タグと GitHub Release を作成（`release` ジョブだけが `contents: write` を持つ）
+
+### E2E失敗時
+
+フルE2Eが失敗すると、後続の本番migration・deploy・GitHub Release作成は実行されない。キャンセルやtimeout時も同様。テストによる書込みはローカルの専用D1だけで、本番データには触れない。
+
+1. Actionsの失敗ステップと `release-playwright-results` artifactのレポート・スクリーンショット・traceを確認する（保持3日）。認証Cookie等を含み得るため、証跡を公開のIssueにそのまま添付しない。
+2. 対象実行の `Determine release tag` が記録したSHAを確認し、そのコミットで `pnpm install --frozen-lockfile`、`pnpm exec playwright install chromium webkit`、`pnpm run test:e2e` を実行する。公開環境変数による差異も確認する。
+3. traceは `pnpm exec playwright show-trace <trace.zipのパス>` で調べる。修正をmainへ反映し、Releaseを再実行する。通常リリースでE2Eを迂回しない。
+
+合格しても本番設定・外部OAuth・既存データへのmigrationの成功までは保証しない。migration互換性の確認とデプロイ後のhealth・監視は引き続き必要。失敗時に本番無変更となるのはE2Eゲート以前の失敗であり、migrationやdeploy開始後の失敗では以下の復旧手順を使う。
 
 build が失敗した場合は本番 DB を変更しない。migration が失敗した場合は Worker をデプロイしない。失敗した migration は Wrangler がロールバックし、それ以前に成功した migration は適用されたまま残る（適用済み migration の自動バックアップ・巻き戻しはないため、DB を戻す必要があるときは後述の Time Travel を使う）。deploy が失敗した場合は additive な DB 変更だけが残り、稼働中の旧 Worker はそのまま動作する。デプロイまたはヘルスチェックが失敗した場合、タグとリリースは作られない。公開 health endpoint は攻撃者による D1 リクエストの増幅を避けるため、DB readiness を確認しない。スキーマ適用の成否は migration コマンドの終了コードで判定する。
 

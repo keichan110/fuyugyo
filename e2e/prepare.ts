@@ -36,6 +36,8 @@ const migrate = spawnSync(
   [
     'exec',
     'wrangler',
+    '--config',
+    'wrangler.toml',
     'd1',
     'migrations',
     'apply',

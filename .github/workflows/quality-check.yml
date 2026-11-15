@@ -38,6 +38,14 @@ jobs:
       - name: Run tests
         run: pnpm run test
 
+      # scripts/ は typecheck・lint・テストの対象外のため、開発用 seed が
+      # import 解決やスキーマ変更で壊れていないかを空のローカル D1 への投入で確かめる
+      - name: Verify local dev seed
+        run: |
+          pnpm run db:migrate:local
+          pnpm run db:seed:auth
+          pnpm run db:seed:demo
+
       - name: Get Playwright version
         id: playwright-version
         run: echo "version=$(pnpm exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"

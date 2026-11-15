@@ -2,6 +2,7 @@ import { Container, Stack, Title } from '@mantine/core';
 import { createFileRoute, redirect } from '@tanstack/react-router';
 
 import { ensureAuthenticated } from '@/features/auth/auth-guard';
+import { useMe } from '@/features/auth/queries';
 import { AvailabilityCalendar } from '@/features/availabilities/components/AvailabilityCalendar';
 import { todayString } from '@/features/shifts/view-utils';
 
@@ -33,12 +34,15 @@ export const Route = createFileRoute('/availabilities')({
 
 function AvailabilitiesPage() {
   const search = Route.useSearch();
+  const { data: user } = useMe();
 
   return (
     <Container size="sm" py="md">
       <Stack gap="md">
         <Title order={2}>シフト希望</Title>
-        <AvailabilityCalendar initialMonth={search.month} />
+        {user?.instructorId && (
+          <AvailabilityCalendar key={user.instructorId} initialMonth={search.month} />
+        )}
       </Stack>
     </Container>
   );

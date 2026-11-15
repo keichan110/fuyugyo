@@ -42,7 +42,7 @@ export function DashboardNotifications({ instructorId }: DashboardNotificationsP
       id: 'instructor-link',
       level: 'warn',
       title: 'インストラクターと連携してください',
-      description: '連携すると、すべての機能が使えるようになります。',
+      description: 'シフト希望の提出には、インストラクターとの連携が必要です。',
       action: (
         <AppButton
           intent="secondary"

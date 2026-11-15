@@ -8,12 +8,16 @@ import { getUnauthenticatedRedirect } from '@/features/auth/route-policy';
 import { MemberInstructorLinkPrompt } from './MemberInstructorLinkPrompt';
 import { MobileNavigation } from './MobileNavigation';
 import { NavigationMenu } from './NavigationMenu';
+import { useMobileKeyboardOpen } from './useMobileKeyboardOpen';
 import { UserMenu } from './UserMenu';
+
+const MOBILE_NAVIGATION_HEIGHT = 48;
 
 /** 認証状態に応じてログイン画面または認証済みアプリシェルを描画する。 */
 export function RootLayout() {
   const { data: user, isLoading } = useMe();
   const location = useLocation();
+  const mobileKeyboardOpened = useMobileKeyboardOpen();
   const [desktopNavbarOpened, { toggle: toggleDesktopNavbar }] = useDisclosure(true);
 
   if (isLoading) {
@@ -29,7 +33,16 @@ export function RootLayout() {
 
   return (
     <AppShell
-      header={{ height: 60 }}
+      style={{ '--mobile-navigation-height': `${MOBILE_NAVIGATION_HEIGHT}px` }}
+      data-mobile-keyboard-open={mobileKeyboardOpened || undefined}
+      header={{ height: { base: 0, sm: 60 } }}
+      footer={{
+        height: {
+          base: `calc(${MOBILE_NAVIGATION_HEIGHT}px + env(safe-area-inset-bottom, 0px))`,
+          sm: 0,
+        },
+        collapsed: mobileKeyboardOpened,
+      }}
       navbar={{
         width: 260,
         breakpoint: 'sm',
@@ -37,7 +50,7 @@ export function RootLayout() {
       }}
       padding="md"
     >
-      <AppShell.Header>
+      <AppShell.Header visibleFrom="sm">
         <Group h="100%" px={{ base: 'xs', sm: 'md' }} justify="space-between" wrap="nowrap">
           <Group gap="xs" wrap="nowrap">
             <Burger
@@ -52,7 +65,6 @@ export function RootLayout() {
             </Text>
           </Group>
           <Group gap="xs" wrap="nowrap">
-            <MobileNavigation user={user} />
             <Group visibleFrom="sm" gap={0} wrap="nowrap">
               <UserMenu user={user} />
             </Group>
@@ -64,6 +76,7 @@ export function RootLayout() {
           <NavigationMenu user={user} />
         </AppShell.Section>
       </AppShell.Navbar>
+      <MobileNavigation key={location.pathname} user={user} />
       <AppShell.Main>
         <MemberInstructorLinkPrompt user={user} />
         <Outlet />

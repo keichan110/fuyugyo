@@ -15,12 +15,14 @@
 
 @media (max-width: 48em) {
   :global(.mantine-AppShell-main):has(.bar) {
-    padding-bottom: calc(140px + env(safe-area-inset-bottom));
+    padding-bottom: calc(
+      140px + max(var(--app-shell-footer-offset, 0px), env(safe-area-inset-bottom, 0px))
+    );
   }
 
   .bar {
     inset-inline-end: 10px;
-    bottom: 10px;
+    bottom: calc(10px + max(var(--app-shell-footer-offset, 0px), env(safe-area-inset-bottom, 0px)));
     width: calc(100vw - 20px);
   }
 

@@ -4,6 +4,7 @@ import {
   IconCalendarWeek,
   IconCertificate,
   IconChartBar,
+  IconClipboardCheck,
   IconCloud,
   IconHome,
   IconSettings,
@@ -38,6 +39,7 @@ const NAVIGATION_GROUPS: NavigationGroup[] = [
     label: 'シフト運用',
     items: [
       { to: '/shifts', label: 'シフト表', icon: IconCalendarWeek },
+      { to: '/availabilities', label: 'シフト希望', icon: IconClipboardCheck },
       { to: '/shifts/manage', label: 'シフト管理', icon: IconCalendarCog, minimumRole: 'MANAGER' },
     ],
   },
@@ -77,15 +79,20 @@ const NAVIGATION_GROUPS: NavigationGroup[] = [
 export function NavigationMenu({
   user,
   onNavigate = NOOP,
+  excludedPaths = [],
 }: {
   user: MeResponse;
   onNavigate?: () => void;
+  excludedPaths?: readonly string[];
 }) {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const excluded = new Set(excludedPaths);
   const navigationGroups = NAVIGATION_GROUPS.map((group) => ({
     ...group,
     items: group.items.filter(
-      (item) => !item.minimumRole || hasMinimumRole(user.role, item.minimumRole),
+      (item) =>
+        !excluded.has(item.to) &&
+        (!item.minimumRole || hasMinimumRole(user.role, item.minimumRole)),
     ),
   }));
   const matchingNavigationItems: NavigationItem[] = [];
@@ -112,28 +119,35 @@ export function NavigationMenu({
                 {group.label}
               </Text>
             )}
-            {group.items.map(({ to, label, icon: Icon }) => (
-              <NavLink
-                key={to}
-                renderRoot={(props) =>
-                  to === '/shifts/manage' ? (
-                    <Link
-                      {...props}
-                      to="/shifts/manage"
-                      search={{}}
-                      activeOptions={{ exact: true, includeSearch: false }}
-                    />
-                  ) : (
-                    <Link {...props} to={to} activeOptions={{ exact: true }} />
-                  )
-                }
-                label={label}
-                leftSection={<Icon size={18} stroke={1.75} />}
-                active={activePath === to}
-                variant="light"
-                onClick={onNavigate}
-              />
-            ))}
+            {group.items.map(({ to, label, icon: Icon }) => {
+              const disabled = to === '/availabilities' && !user.instructorId;
+              return (
+                <NavLink
+                  key={to}
+                  renderRoot={(props) =>
+                    disabled ? (
+                      <button {...props} type="button" disabled />
+                    ) : to === '/shifts/manage' ? (
+                      <Link
+                        {...props}
+                        to="/shifts/manage"
+                        search={{}}
+                        activeOptions={{ exact: true, includeSearch: false }}
+                      />
+                    ) : (
+                      <Link {...props} to={to} activeOptions={{ exact: true }} />
+                    )
+                  }
+                  label={label}
+                  disabled={disabled}
+                  description={disabled ? 'インストラクターとの連携が必要です' : undefined}
+                  leftSection={<Icon size={18} stroke={1.75} />}
+                  active={activePath === to}
+                  variant="light"
+                  onClick={onNavigate}
+                />
+              );
+            })}
           </Stack>
         );
       })}

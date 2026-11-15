@@ -33,7 +33,7 @@ export function InstructorLinkPrompt() {
           onClose={() => setIsAlertVisible(false)}
         >
           <Group justify="space-between" align="center">
-            <Text size="sm">連携すると、すべての機能が使えるようになります。</Text>
+            <Text size="sm">シフト希望の提出には、インストラクターとの連携が必要です。</Text>
             <AppButton intent="secondary" type="button" onClick={() => setOpened(true)}>
               連携する
             </AppButton>

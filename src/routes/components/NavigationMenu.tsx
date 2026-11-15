@@ -77,15 +77,20 @@ const NAVIGATION_GROUPS: NavigationGroup[] = [
 export function NavigationMenu({
   user,
   onNavigate = NOOP,
+  excludedPaths = [],
 }: {
   user: MeResponse;
   onNavigate?: () => void;
+  excludedPaths?: readonly string[];
 }) {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const excluded = new Set(excludedPaths);
   const navigationGroups = NAVIGATION_GROUPS.map((group) => ({
     ...group,
     items: group.items.filter(
-      (item) => !item.minimumRole || hasMinimumRole(user.role, item.minimumRole),
+      (item) =>
+        !excluded.has(item.to) &&
+        (!item.minimumRole || hasMinimumRole(user.role, item.minimumRole)),
     ),
   }));
   const matchingNavigationItems: NavigationItem[] = [];

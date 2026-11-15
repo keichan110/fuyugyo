@@ -8,6 +8,7 @@ import { getUnauthenticatedRedirect } from '@/features/auth/route-policy';
 import { MemberInstructorLinkPrompt } from './MemberInstructorLinkPrompt';
 import { MobileNavigation } from './MobileNavigation';
 import { NavigationMenu } from './NavigationMenu';
+import classes from './RootLayout.module.css';
 import { UserMenu } from './UserMenu';
 
 /** 認証状態に応じてログイン画面または認証済みアプリシェルを描画する。 */
@@ -29,7 +30,9 @@ export function RootLayout() {
 
   return (
     <AppShell
-      header={{ height: 60 }}
+      className={classes.shell}
+      header={{ height: { base: 0, sm: 60 } }}
+      footer={{ height: { base: 'var(--mobile-navigation-offset)', sm: 0 } }}
       navbar={{
         width: 260,
         breakpoint: 'sm',
@@ -37,7 +40,7 @@ export function RootLayout() {
       }}
       padding="md"
     >
-      <AppShell.Header>
+      <AppShell.Header visibleFrom="sm">
         <Group h="100%" px={{ base: 'xs', sm: 'md' }} justify="space-between" wrap="nowrap">
           <Group gap="xs" wrap="nowrap">
             <Burger
@@ -52,7 +55,6 @@ export function RootLayout() {
             </Text>
           </Group>
           <Group gap="xs" wrap="nowrap">
-            <MobileNavigation user={user} />
             <Group visibleFrom="sm" gap={0} wrap="nowrap">
               <UserMenu user={user} />
             </Group>
@@ -64,6 +66,7 @@ export function RootLayout() {
           <NavigationMenu user={user} />
         </AppShell.Section>
       </AppShell.Navbar>
+      <MobileNavigation user={user} />
       <AppShell.Main>
         <MemberInstructorLinkPrompt user={user} />
         <Outlet />

@@ -16,7 +16,9 @@ import { defineConfig, perEnvironmentPlugin } from 'vite';
 function resolveDevPort(): number {
   // E2E は開発用 dev サーバーと同時起動できるよう、専用ポートを環境変数で明示する
   const e2ePort = Number.parseInt(process.env.E2E_PORT ?? '', 10);
-  if (Number.isInteger(e2ePort)) return e2ePort;
+  if (Number.isInteger(e2ePort)) {
+    return e2ePort;
+  }
   try {
     const raw = readFileSync(new URL('./.dev-port', import.meta.url), 'utf8');
     const port = Number.parseInt(raw.trim(), 10);

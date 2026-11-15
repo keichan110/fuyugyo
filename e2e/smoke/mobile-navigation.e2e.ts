@@ -23,6 +23,7 @@ for (const role of ['member', 'manager', 'admin'] as const) {
       await expect(drawer).toBeVisible();
       await expect(drawer.getByRole('link', { name: 'ホーム', exact: true })).toHaveCount(0);
       await expect(drawer.getByRole('link', { name: 'シフト表', exact: true })).toHaveCount(0);
+      await expect(drawer.getByRole('link', { name: 'シフト希望', exact: true })).toHaveCount(0);
       await expect(drawer.getByRole('link', { name: 'シフト管理', exact: true })).toHaveCount(0);
       await expect(drawer.getByRole('button', { name: 'ログアウト' })).toBeVisible();
       await expect(drawer.getByRole('link', { name: 'ユーザー', exact: true })).toHaveCount(
@@ -89,6 +90,34 @@ test.describe('デスクトップのナビゲーション', () => {
     ).toBeVisible();
   });
 });
+
+for (const role of ['member', 'manager', 'admin'] as const) {
+  test.describe(`${role} のPC版シフト希望メニュー`, () => {
+    test.use({ storageState: authStatePath(role), viewport: { width: 1280, height: 800 } });
+
+    test('サイドバーから希望を開け、未連携時は理由を付けて無効化する', async ({ page }) => {
+      await page.goto('/');
+      const link = page
+        .getByRole('link', { name: 'シフト希望', exact: true })
+        .filter({ visible: true });
+      await expect(link).toHaveCount(1);
+      await link.click();
+      await expect(page.getByRole('heading', { name: 'シフト希望', exact: true })).toBeVisible();
+      await expect(link).toHaveAttribute('data-active', 'true');
+      await page.route('**/api/auth/me', async (route) => {
+        const response = await route.fetch();
+        const user = await response.json();
+        await route.fulfill({ response, json: { ...user, instructorId: null } });
+      });
+      await page.reload();
+      const disabled = page.getByRole('button', { name: /シフト希望/ }).filter({ visible: true });
+      await expect(disabled).toBeDisabled();
+      await expect(disabled).toContainText('インストラクターとの連携が必要です');
+      await expect(link).toHaveCount(0);
+      await expect(page.getByRole('button', { name: '連携する', exact: true })).toBeVisible();
+    });
+  });
+}
 
 test.describe('モバイルの固定領域と編集', () => {
   test.use({ storageState: authStatePath('admin'), viewport: { width: 320, height: 740 } });

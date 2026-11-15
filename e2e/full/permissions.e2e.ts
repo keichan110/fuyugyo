@@ -9,7 +9,10 @@ for (const role of ['member', 'manager'] as const) {
     test.use({ storageState: authStatePath(role) });
     test.beforeEach(async () => resetBusinessData());
 
-    test('ADMIN限定の画面とロール変更を拒否する', async ({ page, playwright }) => {
+    test('ADMIN限定の画面・ロール変更・無効化を拒否し、ユーザーを変更しない', async ({
+      page,
+      playwright,
+    }) => {
       await page.goto('/users');
       await expect(page).toHaveURL('/');
       await expect(page.getByRole('heading', { name: 'ユーザー管理' })).toHaveCount(0);
@@ -21,6 +24,13 @@ for (const role of ['member', 'manager'] as const) {
           })
         ).status(),
       ).toBe(403);
+      expect(
+        (
+          await page.request.post(`/api/users/${ROLE_TARGET_ID}/deactivate`, {
+            data: {},
+          })
+        ).status(),
+      ).toBe(403);
       const admin = await playwright.request.newContext({
         baseURL: E2E_BASE_URL,
         storageState: authStatePath('admin'),
@@ -28,7 +38,10 @@ for (const role of ['member', 'manager'] as const) {
       try {
         const target = await admin.get(`/api/users/${ROLE_TARGET_ID}`);
         expect(target.ok()).toBe(true);
-        expect(userSchema.parse(await target.json()).role).toBe('MEMBER');
+        expect(userSchema.parse(await target.json())).toMatchObject({
+          role: 'MEMBER',
+          isActive: true,
+        });
       } finally {
         await admin.dispose();
       }

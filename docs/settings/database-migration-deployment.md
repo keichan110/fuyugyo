@@ -52,6 +52,8 @@
 
 フルE2Eが失敗すると、後続の本番migration・deploy・GitHub Release作成は実行されない。キャンセルやtimeout時も同様。テストによる書込みはローカルの専用D1だけで、本番データには触れない。
 
+E2Eより前のproduction buildでは、Sentryを設定している場合にsourcemapをアップロードする。このためE2Eが失敗してもSentry側にはアップロード済みの情報が残り得る。「本番DB・Worker・GitHub Releaseの変更を開始しない」範囲の保証であり、すべての外部サービスが無変更となる保証ではない。
+
 1. Actionsの失敗ステップと `release-playwright-results` artifactのレポート・スクリーンショット・traceを確認する（保持3日）。認証Cookie等を含み得るため、証跡を公開のIssueにそのまま添付しない。
 2. 対象実行の `Determine release tag` が記録したSHAを確認し、そのコミットで `pnpm install --frozen-lockfile`、`pnpm exec playwright install chromium webkit`、`pnpm run test:e2e` を実行する。公開環境変数による差異も確認する。
 3. traceは `pnpm exec playwright show-trace <trace.zipのパス>` で調べる。修正をmainへ反映し、Releaseを再実行する。通常リリースでE2Eを迂回しない。

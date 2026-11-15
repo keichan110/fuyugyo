@@ -1,14 +1,12 @@
-import { devices } from '@playwright/test';
-
 import {
   availabilityListResponseSchema,
   availabilityListSchema,
 } from '../../src/features/availabilities/schema.ts';
 import { shiftListSchema } from '../../src/features/shifts/schema.ts';
-import { E2E_BASE_URL } from '../env.ts';
 import { authStatePath } from '../fixtures/auth-state.ts';
 import { resetBusinessData } from '../fixtures/business-data.ts';
 import { BUSINESS_DATE, BUSINESS_DATE_LABEL, BUSINESS_MONTH } from '../fixtures/business-date.ts';
+import { blockExternalRequests } from '../fixtures/network.ts';
 import { expect, test } from '../fixtures/test.ts';
 import { E2E_LINKED_INSTRUCTOR_IDS } from '../fixtures/users.ts';
 
@@ -18,18 +16,15 @@ test.beforeEach(async () => resetBusinessData());
 test('勤務可否の申告からシフトの新規作成・割当・公開・本人確認まで通る', async ({
   page,
   browser,
-}, testInfo) => {
+}) => {
   // 2ロールの複数画面を通すため、単一操作のテストより長い実行枠を確保する。
   test.setTimeout(60_000);
+  // 端末・baseURL等はPlaywrightが現在のテスト設定から継承し、認証状態だけを変更する。
   const member = await browser.newContext({
-    ...devices[testInfo.project.name === 'mobile-webkit' ? 'iPhone 13' : 'Pixel 7'],
-    baseURL: E2E_BASE_URL,
     storageState: authStatePath('member'),
   });
   try {
-    await member.route('**/*', (route) =>
-      new URL(route.request().url()).origin === E2E_BASE_URL ? route.continue() : route.abort(),
-    );
+    await blockExternalRequests(member);
     const memberPage = await member.newPage();
     await memberPage.clock.setFixedTime(`${BUSINESS_DATE}T09:00:00+09:00`);
     await page.clock.setFixedTime(`${BUSINESS_DATE}T09:00:00+09:00`);

@@ -1,6 +1,7 @@
 import { test as base } from '@playwright/test';
 
-import { E2E_BASE_URL, E2E_FIXED_NOW } from '../env.ts';
+import { E2E_FIXED_NOW } from '../env.ts';
+import { blockExternalRequests } from './network.ts';
 
 /**
  * ブラウザ時計の固定と外部通信の遮断を行う拡張 test。
@@ -9,11 +10,7 @@ import { E2E_BASE_URL, E2E_FIXED_NOW } from '../env.ts';
  */
 export const test = base.extend({
   context: async ({ context }, provide) => {
-    // 本番ビルドに公開DSNが埋め込まれていても、Sentryや外部OAuthへ通信しない。
-    const origin = new URL(E2E_BASE_URL).origin;
-    await context.route('**/*', (route) =>
-      new URL(route.request().url()).origin === origin ? route.continue() : route.abort(),
-    );
+    await blockExternalRequests(context);
     await provide(context);
     await context.unrouteAll({ behavior: 'wait' });
   },

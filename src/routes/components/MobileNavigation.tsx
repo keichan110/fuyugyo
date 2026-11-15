@@ -1,4 +1,4 @@
-import { AppShell, Divider, Drawer, Stack, Text, UnstyledButton } from '@mantine/core';
+import { AppShell, Divider, Drawer, Stack, UnstyledButton } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import {
   IconCalendarCheck,
@@ -42,9 +42,7 @@ export function MobileNavigation({ user }: { user: MeResponse }) {
             const contents = (
               <>
                 <Icon size={22} stroke={1.75} aria-hidden />
-                <Text component="span" className={classes.label}>
-                  {label}
-                </Text>
+                <span className={classes.label}>{label}</span>
               </>
             );
 
@@ -56,9 +54,7 @@ export function MobileNavigation({ user }: { user: MeResponse }) {
                 aria-label="シフト希望（インストラクターとの連携が必要です）"
               >
                 {contents}
-                <Text component="span" className={classes.requireLink}>
-                  要連携
-                </Text>
+                <span className={classes.requireLink}>要連携</span>
               </UnstyledButton>
             ) : (
               <Link
@@ -83,9 +79,7 @@ export function MobileNavigation({ user }: { user: MeResponse }) {
             aria-haspopup="dialog"
           >
             <IconDots size={22} stroke={1.75} aria-hidden />
-            <Text component="span" className={classes.label}>
-              その他
-            </Text>
+            <span className={classes.label}>その他</span>
           </UnstyledButton>
         </nav>
       </AppShell.Footer>

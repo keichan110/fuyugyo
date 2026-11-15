@@ -107,6 +107,49 @@ test.describe('モバイルの固定領域と編集', () => {
     await expect(navigation).toBeHidden();
   });
 
+  test('320px・iPhone SE幅でラベルを1行に保ち、選択は文字とアイコンの色だけで示す', async ({
+    page,
+  }) => {
+    await page.goto('/');
+    const navigation = page.getByRole('navigation', { name: 'メインナビゲーション' });
+    for (const width of [320, 375]) {
+      await page.setViewportSize({ width, height: 667 });
+      await expect(navigation).toBeVisible();
+      for (const tab of await navigation.locator('a, button').all()) {
+        const label = tab.locator('span').first();
+        await expect(label).toHaveCSS('white-space', 'nowrap');
+        const layout = await label.evaluate((element) => {
+          const range = document.createRange();
+          range.selectNodeContents(element);
+          const bounds = range.getBoundingClientRect();
+          return {
+            height: bounds.height,
+            width: bounds.width,
+            lineHeight: Number.parseFloat(getComputedStyle(element).lineHeight),
+            tabWidth: element.parentElement?.clientWidth ?? 0,
+          };
+        });
+        expect(layout.height).toBeLessThanOrEqual(layout.lineHeight + 1);
+        expect(layout.width).toBeLessThanOrEqual(layout.tabWidth);
+        await expect(tab.locator('svg')).toHaveCSS('height', '22px');
+        await expect(tab).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+      }
+      const active = navigation.getByRole('link', { name: 'ホーム', exact: true });
+      const inactive = navigation.getByRole('link', { name: 'シフト表', exact: true });
+      const activeColor = await active.evaluate((element) => getComputedStyle(element).color);
+      const inactiveColor = await inactive.evaluate((element) => getComputedStyle(element).color);
+      expect(activeColor).not.toBe(inactiveColor);
+      await expect(active.locator('svg')).toHaveCSS('color', activeColor);
+      await expect(active.locator('span')).toHaveCSS('color', activeColor);
+      await navigation.getByRole('button', { name: 'その他' }).click();
+      const more = navigation.getByRole('button', { name: 'その他' });
+      await expect(more).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+      await expect(more.locator('svg')).toHaveCSS('color', activeColor);
+      await expect(more.locator('span')).toHaveCSS('color', activeColor);
+      await page.getByRole('button', { name: 'メニューを閉じる' }).click();
+    }
+  });
+
   test('未保存バーをタブの上に表示し、移動前に破棄を確認する', async ({ page }) => {
     await page.goto('/availabilities?month=2026-01');
     await page.getByRole('button', { name: '2026年1月20日', exact: true }).click();

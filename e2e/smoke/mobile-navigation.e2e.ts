@@ -288,14 +288,66 @@ test.describe('シフト表の固定ボタン', () => {
     });
   });
 
+  for (const path of ['/', '/shifts']) {
+    test(`${path}では下スクロールでタブを隠し、上スクロールで戻す`, async ({ page }) => {
+      await page.goto(path);
+      const navigation = page.getByRole('navigation', { name: 'メインナビゲーション' });
+      await expect(navigation).toBeVisible();
+      if (path === '/shifts') await expect(page.getByText('1/16（金）')).toBeVisible();
+      const padding = await page
+        .locator('main')
+        .evaluate((element) => getComputedStyle(element).paddingBottom);
+      await page.evaluate(() => window.scrollTo({ top: 360, behavior: 'instant' }));
+      await expect(navigation).toBeHidden();
+      expect(
+        await page.locator('main').evaluate((element) => getComputedStyle(element).paddingBottom),
+      ).toBe(padding);
+      await page.evaluate(() => window.scrollBy({ top: -10, behavior: 'instant' }));
+      await expect(navigation).toBeHidden();
+      await page.evaluate(() => window.scrollBy({ top: -50, behavior: 'instant' }));
+      await expect(navigation).toBeVisible();
+      await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
+      await expect(navigation).toBeVisible();
+      await page.evaluate(() => window.scrollTo({ top: 360, behavior: 'instant' }));
+      await expect(navigation).toBeHidden();
+      await page.evaluate(() => window.scrollBy({ top: -60, behavior: 'instant' }));
+      await expect(navigation).toBeVisible();
+      await navigation.getByRole('link', { name: 'シフト希望', exact: true }).click();
+      await expect(page.getByRole('heading', { name: 'シフト希望', exact: true })).toBeVisible();
+      await expect(navigation).toBeVisible();
+    });
+  }
+
   test('上へ戻るボタンが下部タブと重ならず、先頭へ戻れる', async ({ page }) => {
     await page.goto('/shifts');
     await expect(page.getByText('1/16（金）')).toBeVisible();
     await page.evaluate(() => window.scrollTo({ top: 360, behavior: 'instant' }));
     const backToTop = page.getByRole('button', { name: '↑ 上へ戻る' });
     await expect(backToTop).toBeVisible();
-    // 自動非表示を導入した後も、上方向へ戻してタブが現れる場面で重なりを確認する。
-    await page.evaluate(() => window.scrollBy({ top: -60, behavior: 'instant' }));
+    // 表示完了後だけでなく、タブが復帰するアニメーション中も重ならないことを確認する。
+    const overlap = await page.evaluate(async () => {
+      const nav = document.querySelector('nav[aria-label="メインナビゲーション"]');
+      const button = [...document.querySelectorAll('button')].find((element) =>
+        element.textContent?.includes('上へ戻る'),
+      );
+      if (!nav || !button) throw new Error('固定ボタンとタブが必要です');
+      let maximumOverlap = -Infinity;
+      const started = performance.now();
+      window.scrollBy({ top: -60, behavior: 'instant' });
+      await new Promise<void>((resolve) => {
+        const sample = () => {
+          maximumOverlap = Math.max(
+            maximumOverlap,
+            button.getBoundingClientRect().bottom - nav.getBoundingClientRect().top,
+          );
+          if (performance.now() - started < 250) requestAnimationFrame(sample);
+          else resolve();
+        };
+        requestAnimationFrame(sample);
+      });
+      return maximumOverlap;
+    });
+    expect(overlap).toBeLessThanOrEqual(0);
     const navigation = page.getByRole('navigation', { name: 'メインナビゲーション' });
     await expect(navigation).toBeVisible();
     await expect

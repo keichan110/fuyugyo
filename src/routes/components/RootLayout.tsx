@@ -76,7 +76,7 @@ export function RootLayout() {
           <NavigationMenu user={user} />
         </AppShell.Section>
       </AppShell.Navbar>
-      <MobileNavigation user={user} />
+      <MobileNavigation key={location.pathname} user={user} />
       <AppShell.Main>
         <MemberInstructorLinkPrompt user={user} />
         <Outlet />

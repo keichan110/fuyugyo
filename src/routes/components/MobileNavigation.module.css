@@ -64,3 +64,26 @@
     display: none !important;
   }
 }
+
+/* 本文の余白は維持し、表示中のタブ高だけをポータル内の固定ボタンにも共有する。 */
+:global(:root):has(.footer[data-scroll-hidden='true']) {
+  --mobile-navigation-visible-offset: 0px;
+}
+
+.footer[data-scroll-hidden] {
+  transition:
+    transform 180ms ease,
+    visibility 180ms ease;
+}
+
+.footer[data-scroll-hidden='true'] {
+  transform: translateY(100%);
+  visibility: hidden;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .footer[data-scroll-hidden] {
+    transition: none;
+  }
+}

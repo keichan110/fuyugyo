@@ -32,3 +32,14 @@
   border-radius: 2px;
   flex-shrink: 0;
 }
+
+/* タブの出入りと同じ時間で固定ボタンを動かし、切り替え途中の重なりも防ぐ。 */
+.backToTop {
+  transition: bottom 180ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .backToTop {
+    transition: none;
+  }
+}

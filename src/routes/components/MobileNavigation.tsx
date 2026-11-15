@@ -14,6 +14,7 @@ import { hasMinimumRole, type MeResponse } from '@/features/auth/schema';
 import { MobileAccountActions } from './MobileAccountActions';
 import classes from './MobileNavigation.module.css';
 import { NavigationMenu } from './NavigationMenu';
+import { useMobileNavigationScroll } from './useMobileNavigationScroll';
 
 const MEMBER_TABS = [
   { to: '/', label: 'ホーム', icon: IconHome },
@@ -26,6 +27,9 @@ const MANAGE_TAB = { to: '/shifts/manage', label: 'シフト管理', icon: IconC
 export function MobileNavigation({ user }: { user: MeResponse }) {
   const [opened, { close, open }] = useDisclosure(false);
   const { pathname } = useLocation();
+  const scrollHidden = useMobileNavigationScroll(
+    !opened && (pathname === '/' || pathname === '/shifts' || pathname === '/shifts/'),
+  );
   const tabs = hasMinimumRole(user.role, 'MANAGER') ? [...MEMBER_TABS, MANAGE_TAB] : MEMBER_TABS;
   // 詳細なパスを優先し、シフト管理中にシフト表まで選択状態になるのを防ぐ。
   const activePath = tabs
@@ -35,7 +39,12 @@ export function MobileNavigation({ user }: { user: MeResponse }) {
 
   return (
     <>
-      <AppShell.Footer hiddenFrom="sm" className={classes.footer}>
+      <AppShell.Footer
+        hiddenFrom="sm"
+        className={classes.footer}
+        data-scroll-hidden={scrollHidden}
+        inert={scrollHidden}
+      >
         <nav className={classes.tabs} aria-label="メインナビゲーション">
           {tabs.map(({ to, label, icon: Icon }) => {
             const disabled = to === '/availabilities' && !user.instructorId;

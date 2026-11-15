@@ -16,7 +16,7 @@ export function MemberInstructorLinkPrompt({ user }: { user: MeResponse }) {
 
   return (
     <Container size="sm" pt="md">
-      <InstructorLinkPrompt />
+      <InstructorLinkPrompt dismissible={pathname !== '/availabilities'} />
     </Container>
   );
 }

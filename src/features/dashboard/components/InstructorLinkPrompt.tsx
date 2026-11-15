@@ -11,7 +11,7 @@ import { useInstructors } from '@/features/instructors/queries';
  * ダッシュボード以外の MEMBER 向け画面で、インストラクター未連携時に表示する案内。
  * ダッシュボードでは受信箱形式の通知へ置き換える。
  */
-export function InstructorLinkPrompt() {
+export function InstructorLinkPrompt({ dismissible = true }: { dismissible?: boolean }) {
   const { data: instructors } = useInstructors();
   const linkInstructor = useLinkInstructor();
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -25,10 +25,10 @@ export function InstructorLinkPrompt() {
 
   return (
     <>
-      {isAlertVisible && (
+      {(!dismissible || isAlertVisible) && (
         <WarningAlert
           title="インストラクターと連携してください"
-          withCloseButton
+          withCloseButton={dismissible}
           closeButtonLabel="連携案内を閉じる"
           onClose={() => setIsAlertVisible(false)}
         >

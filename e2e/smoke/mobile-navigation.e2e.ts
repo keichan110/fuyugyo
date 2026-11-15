@@ -73,6 +73,15 @@ for (const role of ['member', 'manager', 'admin'] as const) {
       await expect(page.getByRole('heading', { name: 'シフト希望', exact: true })).toBeVisible();
       await expect(page.getByRole('button', { name: '連携する', exact: true })).toBeVisible();
       await expect(page.getByRole('button', { name: '一括設定' })).toHaveCount(0);
+      await expect(page.getByRole('button', { name: '連携案内を閉じる' })).toHaveCount(0);
+      // シフト表で案内を閉じても、履歴で戻ったシフト希望には連携導線を残す。
+      await navigation.getByRole('link', { name: 'シフト表', exact: true }).click();
+      await page.getByRole('button', { name: '連携案内を閉じる' }).click();
+      await expect(page.getByRole('button', { name: '連携する', exact: true })).toBeHidden();
+      await page.goBack();
+      await expect(page.getByRole('heading', { name: 'シフト希望', exact: true })).toBeVisible();
+      await expect(page.getByRole('button', { name: '連携する', exact: true })).toBeVisible();
+      await expect(page.getByRole('button', { name: '連携案内を閉じる' })).toHaveCount(0);
       expect(availabilityRequested).toBe(false);
     });
   });

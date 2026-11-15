@@ -9,7 +9,7 @@ import { createClient, type InStatement } from '@libsql/client';
 
 import { getLocalD1Path } from '../scripts/lib/get-local-d1-path.ts';
 import { E2E_PERSIST_DIR } from './env.ts';
-import { E2E_USERS } from './fixtures/users.ts';
+import { E2E_LINKED_INSTRUCTOR_IDS, E2E_USERS } from './fixtures/users.ts';
 
 /** 固定 ID の組み立て（UUID 形式） */
 const fixedId = (kind: string, n: number) =>
@@ -23,24 +23,27 @@ const SHIFT_TYPE_ID = fixedId('d001', 1);
 const DEPARTMENT_SHIFT_TYPE_ID = fixedId('e001', 1);
 const REQUIREMENT_ID = fixedId('f001', 1);
 
-/** ユーザー紐付け分（E2E_USERS の instructorId）＋割当候補のインストラクター */
+const ADMIN_I = E2E_LINKED_INSTRUCTOR_IDS.admin;
+const MANAGER_I = E2E_LINKED_INSTRUCTOR_IDS.manager;
+const MEMBER_I = E2E_LINKED_INSTRUCTOR_IDS.member;
+const CANDIDATE_I = '00000000-0000-4000-8000-00000000b004';
+
+/** ユーザー紐付け分（E2E_LINKED_INSTRUCTOR_IDS）＋割当候補のインストラクター */
 const INSTRUCTORS: readonly { id: string; lastName: string; firstName: string }[] = [
-  { id: '00000000-0000-4000-8000-00000000b001', lastName: '山田', firstName: '太郎' },
-  { id: '00000000-0000-4000-8000-00000000b002', lastName: '佐藤', firstName: '花子' },
-  { id: '00000000-0000-4000-8000-00000000b003', lastName: '鈴木', firstName: '次郎' },
-  { id: '00000000-0000-4000-8000-00000000b004', lastName: '高橋', firstName: '一郎' },
+  { id: ADMIN_I, lastName: '山田', firstName: '太郎' },
+  { id: MANAGER_I, lastName: '佐藤', firstName: '花子' },
+  { id: MEMBER_I, lastName: '鈴木', firstName: '次郎' },
+  { id: CANDIDATE_I, lastName: '高橋', firstName: '一郎' },
   { id: '00000000-0000-4000-8000-00000000b005', lastName: '伊藤', firstName: '二郎' },
   { id: '00000000-0000-4000-8000-00000000b006', lastName: '渡辺', firstName: '三郎' },
 ];
-
-const [ADMIN_I, MANAGER_I, MEMBER_I, CANDIDATE_I] = INSTRUCTORS.map((instructor) => instructor.id);
 
 type SeedShift = {
   id: string;
   date: string;
   status: 'DRAFT' | 'PUBLISHED';
   requiredCount: number;
-  assignedInstructorIds: readonly (string | undefined)[];
+  assignedInstructorIds: readonly string[];
 };
 
 /**
@@ -136,7 +139,6 @@ function buildStatements(): InStatement[] {
       args: [shift.id, toDateSeconds(shift.date), SHIFT_TYPE_ID, shift.requiredCount, shift.status],
     });
     shift.assignedInstructorIds.forEach((instructorId, index) => {
-      if (!instructorId) throw new Error('割当対象のインストラクター ID が未定義です');
       statements.push({
         sql: 'INSERT OR IGNORE INTO shift_assignments (id, shift_id, instructor_id, assigned_at) VALUES (?, ?, ?, ?)',
         args: [

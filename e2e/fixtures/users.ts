@@ -18,6 +18,14 @@ export type E2eUser = {
   instructorId: string | null;
 };
 
+/** ユーザーに紐付けるインストラクターの固定 ID。seed のインストラクター投入もここを参照する */
+export const E2E_LINKED_INSTRUCTOR_IDS = {
+  admin: '00000000-0000-4000-8000-00000000b001',
+  manager: '00000000-0000-4000-8000-00000000b002',
+  member: '00000000-0000-4000-8000-00000000b003',
+} as const;
+
+/** seed と global-setup が共有する E2E ユーザー一覧（3ロール＋無効ユーザー） */
 export const E2E_USERS: readonly E2eUser[] = [
   {
     key: 'admin',
@@ -26,7 +34,7 @@ export const E2E_USERS: readonly E2eUser[] = [
     displayName: 'E2E管理者',
     role: 'ADMIN',
     isActive: true,
-    instructorId: '00000000-0000-4000-8000-00000000b001',
+    instructorId: E2E_LINKED_INSTRUCTOR_IDS.admin,
   },
   {
     key: 'manager',
@@ -35,7 +43,7 @@ export const E2E_USERS: readonly E2eUser[] = [
     displayName: 'E2Eマネージャー',
     role: 'MANAGER',
     isActive: true,
-    instructorId: '00000000-0000-4000-8000-00000000b002',
+    instructorId: E2E_LINKED_INSTRUCTOR_IDS.manager,
   },
   {
     key: 'member',
@@ -44,7 +52,7 @@ export const E2E_USERS: readonly E2eUser[] = [
     displayName: 'E2Eメンバー',
     role: 'MEMBER',
     isActive: true,
-    instructorId: '00000000-0000-4000-8000-00000000b003',
+    instructorId: E2E_LINKED_INSTRUCTOR_IDS.member,
   },
   {
     key: 'inactive',

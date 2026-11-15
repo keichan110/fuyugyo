@@ -11,8 +11,14 @@ import { defineConfig, perEnvironmentPlugin } from 'vite';
  *
  * worktree ごとの固定ポートは `scripts/worktree-setup.sh` が `.dev-port` に払い出す。
  * ファイルが無いプライマリチェックアウトでは Vite 既定の 5173 を使う。
+ * `E2E_PORT` が設定されている場合はそれを最優先する。
  */
 function resolveDevPort(): number {
+  // E2E は開発用 dev サーバーと同時起動できるよう、専用ポートを環境変数で明示する
+  const e2ePort = Number.parseInt(process.env.E2E_PORT ?? '', 10);
+  if (Number.isInteger(e2ePort)) {
+    return e2ePort;
+  }
   try {
     const raw = readFileSync(new URL('./.dev-port', import.meta.url), 'utf8');
     const port = Number.parseInt(raw.trim(), 10);
@@ -23,6 +29,8 @@ function resolveDevPort(): number {
 }
 
 const sentryAuthToken = process.env.SENTRY_AUTH_TOKEN;
+// E2E 実行時のみ、ローカル D1 の永続化先を開発用（.wrangler/state）から切り離す
+const e2ePersistDir = process.env.E2E_PERSIST_DIR;
 
 export default defineConfig({
   // Worker に継承させず、アップロード可能なクライアントビルドだけで生成する。
@@ -39,7 +47,7 @@ export default defineConfig({
     // tanstackRouter は react プラグインより前に置く必要がある
     tanstackRouter({ target: 'react', autoCodeSplitting: true }),
     react(),
-    cloudflare(),
+    cloudflare(e2ePersistDir ? { persistState: { path: e2ePersistDir } } : {}),
     sentryAuthToken
       ? perEnvironmentPlugin('sentry-client', (environment) =>
           environment.name === 'client'

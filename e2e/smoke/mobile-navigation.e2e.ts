@@ -1,3 +1,4 @@
+import { shiftAgendaResponseSchema } from '../../src/features/shifts/schema.ts';
 import { authStatePath } from '../fixtures/auth-state.ts';
 import { expect, test } from '../fixtures/test.ts';
 
@@ -256,5 +257,56 @@ test.describe('連携状態の変更', () => {
     await expect(navigation.getByRole('link', { name: 'シフト希望', exact: true })).toBeVisible();
     await expect(navigation.locator('a, button')).toHaveCount(5);
     await expect(page.getByRole('button', { name: '一括設定' })).toBeVisible();
+  });
+});
+
+test.describe('シフト表の固定ボタン', () => {
+  test.use({ storageState: authStatePath('admin'), viewport: { width: 375, height: 667 } });
+
+  test.beforeEach(async ({ page }) => {
+    // シフト一覧APIの境界で長い画面を再現し、共有D1のシフトを増やさずスクロールを検証する。
+    await page.route('**/api/shifts/agenda?**', async (route) => {
+      const response = await route.fetch();
+      const agenda = shiftAgendaResponseSchema.parse(await response.json());
+      const source = agenda.days.at(0);
+      if (!source) throw new Error('シフト表の検証にはseedの稼働日が必要です');
+      const days = Array.from({ length: 12 }, (_, index) => {
+        const date = `2026-01-${String(15 + index).padStart(2, '0')}`;
+        return {
+          date,
+          shifts: source.shifts.map((shift) => ({ ...shift, id: `${shift.id}-${date}`, date })),
+        };
+      });
+      await route.fulfill({
+        response,
+        json: {
+          ...agenda,
+          days,
+          pageInfo: { ...agenda.pageInfo, nextCursor: null, previousCursor: null },
+        },
+      });
+    });
+  });
+
+  test('上へ戻るボタンが下部タブと重ならず、先頭へ戻れる', async ({ page }) => {
+    await page.goto('/shifts');
+    await expect(page.getByText('1/16（金）')).toBeVisible();
+    await page.evaluate(() => window.scrollTo({ top: 360, behavior: 'instant' }));
+    const backToTop = page.getByRole('button', { name: '↑ 上へ戻る' });
+    await expect(backToTop).toBeVisible();
+    // 自動非表示を導入した後も、上方向へ戻してタブが現れる場面で重なりを確認する。
+    await page.evaluate(() => window.scrollBy({ top: -60, behavior: 'instant' }));
+    const navigation = page.getByRole('navigation', { name: 'メインナビゲーション' });
+    await expect(navigation).toBeVisible();
+    await expect
+      .poll(async () => {
+        const button = await backToTop.boundingBox();
+        const nav = await navigation.boundingBox();
+        return button && nav ? button.y + button.height <= nav.y : false;
+      })
+      .toBe(true);
+    await backToTop.click();
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+    await expect(navigation).toBeVisible();
   });
 });

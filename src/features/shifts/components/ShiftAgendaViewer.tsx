@@ -228,7 +228,13 @@ export function ShiftAgendaViewer({ date, onVisibleDateChange }: ShiftAgendaView
 
       <ShiftPrintDialog month={printMonth} onClose={() => setPrintMonth(null)} />
 
-      <Affix position={{ bottom: 20, right: 20 }}>
+      <Affix
+        position={{
+          bottom:
+            'calc(20px + max(var(--app-shell-footer-offset, 0px), env(safe-area-inset-bottom, 0px)))',
+          right: 20,
+        }}
+      >
         <Transition transition="slide-up" mounted={scroll.y > 240}>
           {(transitionStyles) => (
             <Button

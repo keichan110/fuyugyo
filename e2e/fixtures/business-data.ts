@@ -41,7 +41,7 @@ export async function resetBusinessData(): Promise<void> {
         .onConflictDoUpdate({ target: users.id, set: { role: 'MEMBER', isActive: true } }),
     ]);
   } finally {
-    client.close();
+    await client.close();
   }
 }
 
@@ -58,6 +58,6 @@ export async function resetSmokeAssignment(): Promise<void> {
         ),
       );
   } finally {
-    client.close();
+    await client.close();
   }
 }

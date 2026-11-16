@@ -140,9 +140,7 @@ describe('GET /api/users', () => {
     const json: unknown = await res.json();
     const body = userListSchema.parse(json);
     // LINE ユーザー ID はログイン時の特定にのみ使うため、レスポンスに含めない
-    expect(
-      Array.isArray(json) && json.some((row) => Object.hasOwn(Object(row), 'lineUserId')),
-    ).toBe(false);
+    expect(json).not.toContainEqual(expect.objectContaining({ lineUserId: expect.anything() }));
     // ADMIN 自身 + 追加した2名 = 3件
     expect(body.length).toBe(3);
   });
@@ -388,12 +386,7 @@ describe('POST /api/users/:id/link-instructor', () => {
     const res = await app.request('/api/users', authHeader(token), envWith({}));
     expect(res.status).toBe(200);
 
-    const json: unknown = await res.json();
-    const body = userListSchema.parse(json);
-    // LINE ユーザー ID はログイン時の特定にのみ使うため、レスポンスに含めない
-    expect(
-      Array.isArray(json) && json.some((row) => Object.hasOwn(Object(row), 'lineUserId')),
-    ).toBe(false);
+    const body = userListSchema.parse(await res.json());
     // ADMIN 自身 + 追加した2名 = 3件（全員 instructorId が null）
     expect(body.length).toBe(3);
     expect(body.every((u) => u.instructorId === null)).toBe(true);

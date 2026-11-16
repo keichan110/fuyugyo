@@ -85,7 +85,9 @@ async function userIdByLineUserId(lineUserId: string): Promise<string> {
     .from(users)
     .where(eq(users.lineUserId, lineUserId))
     .limit(1);
-  if (!user) throw new Error(`User not found: ${lineUserId}`);
+  if (!user) {
+    throw new Error(`User not found: ${lineUserId}`);
+  }
   return user.id;
 }
 

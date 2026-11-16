@@ -34,7 +34,6 @@ pnpm run db:migrate:local # ローカルD1にマイグレーション適用
 - テストは `e2e/**/*.e2e.ts`。スモーク対象には `test()` のオプションで `{ tag: '@smoke' }` を付ける
 - 実行のたびに E2E 専用のローカル D1（`.wrangler/e2e-state`）を作り直して seed を投入する。開発用 D1 には影響しない
 - ポート 5180 でサーバーを常に新規起動する（既存サーバーは再利用しない）。ポートが使用中だと失敗する
-- 対象範囲と方針は ADR 0016（`docs/adr/0016-e2e-release-gate.md`）
 
 # アーキテクチャ
 
@@ -42,7 +41,7 @@ pnpm run db:migrate:local # ローカルD1にマイグレーション適用
 
 - **サーバー**: Hono (Cloudflare Workers) — `src/server/` と `src/features/**/api.ts`
 - **クライアント**: React SPA — `src/routes/`、`src/components/`、`src/features/**/queries.ts`
-- **境界の強制**: ESLint `no-restricted-imports` でクライアントからサーバーモジュール（`api.ts`, `server/`）の値 import を禁止。`import type` のみ許可（ADR 0002）
+- **境界の強制**: ESLint `no-restricted-imports` でクライアントからサーバーモジュール（`api.ts`, `server/`）の値 import を禁止。`import type` のみ許可
 - **RPC**: Hono RPC で型安全な API 呼び出し（`src/lib/rpc.ts`）
 
 ## Feature 構造パターン

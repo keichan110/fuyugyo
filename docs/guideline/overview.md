@@ -9,4 +9,4 @@ Vite + React SPA を Cloudflare Workers の静的アセットとして配信し�
 - [共有コード](./shared.md): 共通 UI とユーティリティ
 - [テスト](./test.md): Vitest + 実 D1
 
-ディレクトリを増やす前に既存の配置を確認する。サーバーの認証・認可が権限判定の正本で、画面のガードだけに依存しない。現行スキーマの正本は `src/server/db/schema.ts` と `drizzle/`、設計判断の経緯は `docs/adr/` を参照する。
+ディレクトリを増やす前に既存の配置を確認する。サーバーの認証・認可が権限判定の正本で、画面のガードだけに依存しない。現行スキーマの正本は `src/server/db/schema.ts` と `drizzle/`、設計方針は `AGENTS.md` を参照する。

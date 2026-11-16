@@ -197,4 +197,4 @@ pnpm run db:studio         # Drizzle Studio 起動
 ## 詳細ドキュメント
 
 - [AGENTS.md](./AGENTS.md) - AI 開発ガイダンス（Claude Code・Codex 共通）
-- [docs/](./docs/) - 設計ドキュメント・ADR
+- [docs/](./docs/) - 設計ドキュメント

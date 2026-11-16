@@ -7,7 +7,7 @@ type LineLoginButtonProps = {
 
 /**
  * LINE ログインボタン。LINE ブランドガイドラインの制約でデザインが固定のため、
- * Mantine Button ではなく CSS Modules を当てたネイティブ button で実装する（ADR 0008）。
+ * Mantine Button ではなく CSS Modules を当てたネイティブ button で実装する。
  */
 export function LineLoginButton({ onClick, text = 'LINEでログイン' }: LineLoginButtonProps) {
   return (

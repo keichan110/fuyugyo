@@ -14,7 +14,7 @@ import { users } from '@/server/db/schema';
 import type { Env } from '@/server/types';
 
 /**
- * 認証ミドルウェア（ADR 0003）。旧 `authenticateFromRequest`/`withAuth` の二重化を解消し、
+ * 認証ミドルウェア。旧 `authenticateFromRequest`/`withAuth` の二重化を解消し、
  * Hono のチェーンに一本化する。通常は JWT のみで検証し、更新間隔に達した際に
  * DB のユーザー情報を読み直して再発行する。初回ログインからの絶対期限は毎回検証する。
  */

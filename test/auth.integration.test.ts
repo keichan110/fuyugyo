@@ -14,7 +14,7 @@ import type { Env } from '../src/server/types';
 
 /**
  * 認証の統合テスト（実 D1・seed した User）。Hono の HTTP 境界 × 実 D1 を継ぎ目として、
- * login / me / ロール強制 / Rate Limit / logout を検証する（ADR 0003/0004、PRD テスト方針）。
+ * login / me / ロール強制 / Rate Limit / logout を検証する（PRD テスト方針）。
  */
 
 /** テスト中に件数を数える擬似 Rate Limiter。CF ネイティブ binding はローカルで決定論的に動かせないため注入する */

@@ -40,7 +40,7 @@ _Avoid_: シフトカテゴリ／種別を単一部門に固定して語らな�
 
 **DepartmentShiftType（部門別シフト種別）**:
 「ある Department がある ShiftType を使えるか」と「その部門内での表示順」を表す、Department × ShiftType の可用性の結合。部門ごとに使う種別を絞り込み、優先度順に並べるための唯一の真実。ここに無い (部門, 種別) の組では新規 Shift を作成できない（既存 Shift の表示・保持には影響しない）。
-_Avoid_: 「シフト種別そのもの」と混同しない（それは ShiftType）／部門コードは固定語彙（ADR 0011）
+_Avoid_: 「シフト種別そのもの」と混同しない（それは ShiftType）／部門コードは固定語彙（Department 参照）
 
 **ShiftAssignment（シフト割り当て）**:
 1つの Shift に1人の Instructor を割り当てた関係。Shift と Instructor の多対多を表す結合。「インストラクター個人の勤務予定1件」はこれを指す。

@@ -29,7 +29,7 @@ export type Env = {
   LINE_CHANNEL_SECRET: string;
   /** アプリのベース URL。LINE コールバック URL とログイン後リダイレクトの基点 */
   APP_URL: string;
-  /** 認証系エンドポイント用の CF ネイティブ Rate Limiter（ADR 0004） */
+  /** 認証系エンドポイント用の CF ネイティブ Rate Limiter */
   AUTH_RATE_LIMITER: RateLimit;
   /** 認証済み高コスト read 用の CF ネイティブ Rate Limiter（userId キー、issue #214） */
   READ_RATE_LIMITER: RateLimit;

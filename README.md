@@ -43,6 +43,8 @@ pnpm run db:migrate:local
 pnpm run dev
 ```
 
+並列開発では [T3 Code・worktree のセットアップ手順](docs/settings/worktree-development.md) を参照してください。
+
 ## プロジェクト構成
 
 ```
@@ -196,5 +198,5 @@ pnpm run db:studio         # Drizzle Studio 起動
 
 ## 詳細ドキュメント
 
-- [CLAUDE.md](./CLAUDE.md) - AI 開発ガイダンス
-- [docs/](./docs/) - 設計ドキュメント・ADR
+- [AGENTS.md](./AGENTS.md) - AI 開発ガイダンス（Claude Code・Codex 共通）
+- [docs/](./docs/) - 設計ドキュメント

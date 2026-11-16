@@ -34,7 +34,7 @@ import type { Env } from '@/server/types';
 import { linkInstructorSchema } from './schema';
 
 /**
- * 認証 feature の Hono ルート（ADR 0003/0004）。
+ * 認証 feature の Hono ルート。
  * LINE OAuth による login → callback で JWT を発行し、logout・/me を提供する。
  * 認証系（login/callback）は CF Rate Limit を適用する。
  */

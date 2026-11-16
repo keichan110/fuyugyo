@@ -2,7 +2,7 @@ import { isJapaneseHoliday, weekdayIndex } from './view-utils';
 
 /**
  * 必要人数と配置人数から導く充足状況。
- * 行なし（required が null）は未設定、0 は開講予定なしを表す（ADR 0015）。
+ * 行なし（required が null）は未設定、0 は開講予定なしを表す。
  */
 export type StaffingStatus = 'UNSET' | 'NOT_PLANNED' | 'SHORT' | 'FILLED';
 

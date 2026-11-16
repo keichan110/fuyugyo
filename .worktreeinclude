@@ -1,5 +1,5 @@
 .env
-.wrangler
+.dev.vars
 .agents
 .claude/skills
 .claude/settings.local.json

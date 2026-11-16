@@ -29,7 +29,7 @@ APP_URL = "http://localhost:5173"
 # LINE Login のチャネル ID（機密ではないため vars で管理。本番値に差し替える）
 LINE_CHANNEL_ID = "0000000000"
 
-# 認証系エンドポイント用の CF ネイティブ Rate Limiting バインディング（ADR 0004）。
+# 認証系エンドポイント用の CF ネイティブ Rate Limiting バインディング。
 # 未認証の攻撃面（login/callback/招待検証）のみに適用する。60 秒あたり 20 リクエストまで。
 [[ratelimits]]
 name = "AUTH_RATE_LIMITER"

@@ -38,7 +38,7 @@ jobs:
       - name: Run tests
         run: pnpm run test
 
-      # scripts/ は typecheck・lint・テストの対象外のため、開発用 seed が
+      # 開発用 seed は静的チェック・回帰テストの対象外のため、
       # import 解決やスキーマ変更で壊れていないかを空のローカル D1 への投入で確かめる
       - name: Verify local dev seed
         run: |

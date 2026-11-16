@@ -11,7 +11,7 @@ export const roleSchema = z.enum(['ADMIN', 'MANAGER', 'MEMBER']);
 export type Role = z.infer<typeof roleSchema>;
 
 /**
- * ロールの序列（ADR 0003）。ADMIN > MANAGER > MEMBER。
+ * ロールの序列。ADMIN > MANAGER > MEMBER。
  * クライアント側の表示制御用。サーバー側の判定は `server/auth/roles.ts` の同名ロジックを使う
  * （クライアントは ESLint 境界ルールにより `server/` 配下を import できないため）。
  */

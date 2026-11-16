@@ -65,7 +65,7 @@ e2e/
 
 ## ログイン状態の作り方
 
-本番に検証用ログインの口は開けない。代わりに、認証が ADR 0003 のステートレス JWT（`requireAuth` は DB を参照しない）であることを使い、統合テストと同じ方式でログイン状態を作る。
+本番に検証用ログインの口は開けない。代わりに、認証がステートレス JWT（`requireAuth` は DB を参照しない）であることを使い、統合テストと同じ方式でログイン状態を作る。
 
 - `global-setup.ts` が、アプリ本体の `signJwt`（`src/server/auth/jwt.ts`）を import して、E2E 専用の固定 `JWT_SECRET` で署名する（署名処理は複製しない）。
 - 署名したトークンを `auth-token` Cookie（`AUTH_COOKIE`）に載せた `storageState` を `e2e/.auth/{admin,manager,member,inactive}.json` に保存する。

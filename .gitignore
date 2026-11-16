@@ -46,6 +46,7 @@ tsconfig.tsbuildinfo
 
 # worktree ごとの dev サーバーポート（scripts/worktree-setup.sh が生成）
 .dev-port
+.e2e-port
 
 # Playwright（E2E）
 playwright-report/

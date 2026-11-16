@@ -1,7 +1,7 @@
 import type { UserRole } from './jwt';
 
 /**
- * ロールの序列（ADR 0003）。ADMIN > MANAGER > MEMBER。
+ * ロールの序列。ADMIN > MANAGER > MEMBER。
  * 数値が大きいほど強い権限を表す。
  */
 export const ROLE_HIERARCHY: Record<UserRole, number> = {

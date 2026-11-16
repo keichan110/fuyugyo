@@ -628,127 +628,25 @@ describe('GET /api/auth/me', () => {
   });
 });
 
-describe('POST /api/auth/me/link-instructor', () => {
-  it('未認証は 401 を返す', async () => {
-    const instructorId = await seedInstructor();
-    const res = await app.request(
-      '/api/auth/me/link-instructor',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ instructorId }),
-      },
-      envWith({}),
-    );
-    expect(res.status).toBe(401);
-  });
-
-  it('本人を任意の Instructor にセルフサービスでリンクできる（ロール制限なし）', async () => {
+describe('/api/auth/me/link-instructor（廃止済み）', () => {
+  it('セルフ紐付け・解除のルートは存在せず 404 を返す', async () => {
     const user = await seedUser({ role: 'MEMBER' });
     const token = await tokenFor(user, 'MEMBER');
     const instructorId = await seedInstructor();
 
-    const res = await app.request(
+    const post = await app.request(
       '/api/auth/me/link-instructor',
       { method: 'POST', ...cookieJsonRequest(token, { instructorId }) },
       envWith({}),
     );
-    expect(res.status).toBe(200);
+    expect(post.status).toBe(404);
 
-    const body = meResponseSchema.parse(await res.json());
-    expect(body.instructorId).toBe(instructorId);
-  });
-
-  it('1 Instructor に複数 User をリンクしようとすると 409（UNIQUE 制約違反）', async () => {
-    const user1 = await seedUser({ displayName: 'ユーザーA' });
-    const user2 = await seedUser({ displayName: 'ユーザーB' });
-    const token1 = await tokenFor(user1, 'MEMBER');
-    const token2 = await tokenFor(user2, 'MEMBER');
-    const instructorId = await seedInstructor();
-
-    const res1 = await app.request(
-      '/api/auth/me/link-instructor',
-      { method: 'POST', ...cookieJsonRequest(token1, { instructorId }) },
-      envWith({}),
-    );
-    expect(res1.status).toBe(200);
-
-    const res2 = await app.request(
-      '/api/auth/me/link-instructor',
-      { method: 'POST', ...cookieJsonRequest(token2, { instructorId }) },
-      envWith({}),
-    );
-    expect(res2.status).toBe(409);
-  });
-
-  it('存在しない Instructor へのリンクは 404 を返す', async () => {
-    const user = await seedUser();
-    const token = await tokenFor(user, 'MEMBER');
-
-    const res = await app.request(
-      '/api/auth/me/link-instructor',
-      {
-        method: 'POST',
-        ...cookieJsonRequest(token, { instructorId: 'nonexistent-instructor-id' }),
-      },
-      envWith({}),
-    );
-    expect(res.status).toBe(404);
-  });
-});
-
-describe('DELETE /api/auth/me/link-instructor', () => {
-  it('未認証は 401 を返す', async () => {
-    const res = await app.request(
-      '/api/auth/me/link-instructor',
-      { method: 'DELETE', headers: { 'sec-fetch-site': 'same-origin' } },
-      envWith({}),
-    );
-    expect(res.status).toBe(401);
-  });
-
-  it('リンク済みの本人は解除でき、再度別の Instructor へリンクできる', async () => {
-    const user = await seedUser();
-    const token = await tokenFor(user, 'MEMBER');
-    const instructorId = await seedInstructor('山田', '太郎');
-
-    const linkRes = await app.request(
-      '/api/auth/me/link-instructor',
-      { method: 'POST', ...cookieJsonRequest(token, { instructorId }) },
-      envWith({}),
-    );
-    expect(linkRes.status).toBe(200);
-
-    const unlinkRes = await app.request(
+    const del = await app.request(
       '/api/auth/me/link-instructor',
       { method: 'DELETE', ...cookieHeader(token) },
       envWith({}),
     );
-    expect(unlinkRes.status).toBe(200);
-    const unlinkBody = meResponseSchema.parse(await unlinkRes.json());
-    expect(unlinkBody.instructorId).toBeNull();
-
-    const otherInstructorId = await seedInstructor('鈴木', '次郎');
-    const relinkRes = await app.request(
-      '/api/auth/me/link-instructor',
-      { method: 'POST', ...cookieJsonRequest(token, { instructorId: otherInstructorId }) },
-      envWith({}),
-    );
-    expect(relinkRes.status).toBe(200);
-    const relinkBody = meResponseSchema.parse(await relinkRes.json());
-    expect(relinkBody.instructorId).toBe(otherInstructorId);
-  });
-
-  it('未リンクの本人が解除しようとすると 409 を返す', async () => {
-    const user = await seedUser();
-    const token = await tokenFor(user, 'MEMBER');
-
-    const res = await app.request(
-      '/api/auth/me/link-instructor',
-      { method: 'DELETE', ...cookieHeader(token) },
-      envWith({}),
-    );
-    expect(res.status).toBe(409);
+    expect(del.status).toBe(404);
   });
 });
 

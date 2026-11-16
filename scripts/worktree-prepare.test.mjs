@@ -29,6 +29,7 @@ test('worktree ごとのポートと環境変数を安全に準備する', async
     for (const file of [
       'scripts/worktree-prepare.ts',
       'scripts/lib/local-ports.ts',
+      'scripts/lib/worktree-lock.ts',
       '.env.example',
     ]) {
       cpSync(resolve(file), join(primary, file));

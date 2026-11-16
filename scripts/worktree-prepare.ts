@@ -1,42 +1,19 @@
 import { execFileSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import {
-  copyFileSync,
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  realpathSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
+import { copyFileSync, existsSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { setTimeout } from 'node:timers/promises';
 import { pathToFileURL } from 'node:url';
 
 import { localDevPort, localE2ePort, readLocalPort } from './lib/local-ports.ts';
+import { acquireWorktreeLock } from './lib/worktree-lock.ts';
 
 const root = realpathSync(process.cwd());
 const commonDir = execFileSync('git', ['rev-parse', '--git-common-dir'], {
   encoding: 'utf8',
 }).trim();
 const lock = resolve(commonDir, 'fuyugyo-worktree-setup.lock');
-const deadline = Date.now() + 30_000;
-
-// 全 worktree で共有するロックを使い、同時作成時の二重払い出しを防ぐ。
-while (true) {
-  try {
-    mkdirSync(lock);
-    break;
-  } catch (error) {
-    if (!(error instanceof Error) || !('code' in error) || error.code !== 'EEXIST') throw error;
-    if (Date.now() >= deadline) {
-      throw new Error(
-        `セットアップのロック待ちがタイムアウトしました。他のセットアップ終了後、残存時のみ削除してください: ${lock}`,
-      );
-    }
-    await setTimeout(100);
-  }
-}
+// 全 worktree 共通で払い出しを直列化し、異常終了した所有者のロックは安全に回収する。
+const releaseLock = await acquireWorktreeLock(lock);
 
 try {
   const worktrees = execFileSync('git', ['worktree', 'list', '--porcelain', '-z'], {
@@ -110,5 +87,5 @@ try {
   }
   console.log(`開発URL: http://localhost:${dev}\nE2E URL: http://localhost:${e2e}`);
 } finally {
-  rmSync(lock, { recursive: true });
+  releaseLock();
 }

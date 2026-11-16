@@ -34,6 +34,7 @@ writeFileSync(
   previewConfigPath,
   JSON.stringify({
     ...builtConfig,
+    // 設定の移動で相対パスの基準が変わるため、元の成果物を指す絶対パスにする。
     main: resolve(dirname(builtConfigPath), builtConfig.main),
     assets: {
       ...builtConfig.assets,
@@ -75,7 +76,14 @@ const server = await preview({
 
 for (const signal of ['SIGTERM', 'SIGINT'] as const) {
   process.once(signal, async () => {
-    await server.close();
-    process.exit(0);
+    let exitCode = 0;
+    try {
+      await server.close();
+    } catch (error) {
+      console.error('E2E previewの終了処理に失敗しました', error);
+      exitCode = 1;
+    } finally {
+      process.exit(exitCode);
+    }
   });
 }

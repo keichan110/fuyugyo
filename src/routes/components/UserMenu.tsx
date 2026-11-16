@@ -1,8 +1,7 @@
 import { Avatar, Group, Menu, Text, UnstyledButton } from '@mantine/core';
 import { useNavigate } from '@tanstack/react-router';
 
-import { AppButton } from '@/components/AppButton';
-import { useLogout, useUnlinkInstructor } from '@/features/auth/queries';
+import { useLogout } from '@/features/auth/queries';
 import type { MeResponse } from '@/features/auth/schema';
 import { useInstructor } from '@/features/instructors/queries';
 
@@ -41,10 +40,9 @@ export function UserMenu({ user }: { user: MeResponse }) {
   );
 }
 
-/** アバターメニュー内に連携中のインストラクターと解除操作を表示する。 */
+/** アバターメニュー内に連携中のインストラクターを表示する。 */
 function InstructorLinkMenuSection({ instructorId }: { instructorId: string }) {
   const { data: instructor } = useInstructor(instructorId);
-  const unlinkInstructor = useUnlinkInstructor();
 
   return (
     <>
@@ -54,22 +52,7 @@ function InstructorLinkMenuSection({ instructorId }: { instructorId: string }) {
         <Text size="sm" truncate flex={1}>
           {instructor ? `${instructor.lastName} ${instructor.firstName}` : '連携情報を読み込み中'}
         </Text>
-        <AppButton
-          intent="danger"
-          compact
-          type="button"
-          size="compact-xs"
-          loading={unlinkInstructor.isPending}
-          onClick={() => unlinkInstructor.mutate()}
-        >
-          解除
-        </AppButton>
       </Group>
-      {unlinkInstructor.isError && (
-        <Text c="red" size="xs" px="sm" pt="xs">
-          {unlinkInstructor.error.message}
-        </Text>
-      )}
     </>
   );
 }

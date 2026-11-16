@@ -2,7 +2,7 @@ import { Avatar, Group, Stack, Text } from '@mantine/core';
 import { useNavigate } from '@tanstack/react-router';
 
 import { AppButton } from '@/components/AppButton';
-import { useLogout, useUnlinkInstructor } from '@/features/auth/queries';
+import { useLogout } from '@/features/auth/queries';
 import type { MeResponse } from '@/features/auth/schema';
 import { useInstructor } from '@/features/instructors/queries';
 
@@ -51,10 +51,9 @@ export function MobileAccountActions({ user }: { user: MeResponse }) {
   );
 }
 
-/** モバイル用ドロワー内でインストラクター連携を表示・解除する。 */
+/** モバイル用ドロワー内でインストラクター連携を表示する。 */
 function MobileInstructorLinkSection({ instructorId }: { instructorId: string }) {
   const { data: instructor } = useInstructor(instructorId);
-  const unlinkInstructor = useUnlinkInstructor();
 
   return (
     <Stack gap={0}>
@@ -62,22 +61,7 @@ function MobileInstructorLinkSection({ instructorId }: { instructorId: string })
         <Text size="sm" truncate flex={1}>
           {instructor ? `${instructor.lastName} ${instructor.firstName}` : '連携情報を読み込み中'}
         </Text>
-        <AppButton
-          intent="danger"
-          compact
-          type="button"
-          size="compact-xs"
-          loading={unlinkInstructor.isPending}
-          onClick={() => unlinkInstructor.mutate()}
-        >
-          連携解除
-        </AppButton>
       </Group>
-      {unlinkInstructor.isError && (
-        <Text c="red" size="xs">
-          {unlinkInstructor.error.message}
-        </Text>
-      )}
     </Stack>
   );
 }

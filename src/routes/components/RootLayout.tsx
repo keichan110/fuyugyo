@@ -5,7 +5,6 @@ import { Link, Navigate, Outlet, useLocation } from '@tanstack/react-router';
 import { useMe } from '@/features/auth/queries';
 import { getUnauthenticatedRedirect } from '@/features/auth/route-policy';
 
-import { MemberInstructorLinkPrompt } from './MemberInstructorLinkPrompt';
 import { MobileNavigation } from './MobileNavigation';
 import { NavigationMenu } from './NavigationMenu';
 import { useMobileKeyboardOpen } from './useMobileKeyboardOpen';
@@ -78,7 +77,6 @@ export function RootLayout() {
       </AppShell.Navbar>
       <MobileNavigation key={location.pathname} user={user} />
       <AppShell.Main>
-        <MemberInstructorLinkPrompt user={user} />
         <Outlet />
       </AppShell.Main>
     </AppShell>

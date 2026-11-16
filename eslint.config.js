@@ -32,6 +32,10 @@ export default tseslint.config(
       'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
     },
   },
+  {
+    files: ['scripts/**/*.mjs'],
+    languageOptions: { globals: globals.node },
+  },
   // routes/ は TanStack Router の配線専用で
   // component と定数（Route）の同居が前提のため Fast Refresh 検査を外す
   {

@@ -48,4 +48,4 @@ E2Eは `.e2e-port` を参照し、各 worktree の `.wrangler/e2e-state` を再�
 
 作業終了時は、その worktree の開発サーバーを止めてからT3側で worktree を削除する。ポートは現存する worktree の設定から判断するため、削除済み worktree の割り当ては再利用される。
 
-セットアップの回帰テストは `node --test scripts/worktree-prepare.test.mjs` で実行する。
+セットアップとロックの回帰テストは `pnpm run test:scripts` で実行する。`pnpm run test` の先頭でも実行するため、CIでも必ず検証される。

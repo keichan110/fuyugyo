@@ -56,7 +56,6 @@ async function seedManagerToken(): Promise<string> {
   return await signJwt(
     {
       userId: user.id,
-      lineUserId: user.lineUserId,
       displayName: user.displayName,
       role: 'MANAGER',
       isActive: true,
@@ -82,7 +81,6 @@ async function seedMemberToken(): Promise<string> {
   return await signJwt(
     {
       userId: user.id,
-      lineUserId: user.lineUserId,
       displayName: user.displayName,
       role: 'MEMBER',
       isActive: true,

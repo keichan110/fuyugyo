@@ -8,14 +8,12 @@ export function toUserRole(role: string): UserRole {
 /** DB から取得した最新のユーザー情報を JWT ペイロードへ変換する */
 export function toJwtPayload(user: {
   id: string;
-  lineUserId: string;
   displayName: string;
   role: string;
   isActive: boolean;
 }): JwtPayload {
   return {
     userId: user.id,
-    lineUserId: user.lineUserId,
     displayName: user.displayName,
     role: toUserRole(user.role),
     isActive: user.isActive,

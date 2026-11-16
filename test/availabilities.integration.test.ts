@@ -63,7 +63,6 @@ async function seedToken(
   return signJwt(
     {
       userId: user.id,
-      lineUserId: user.lineUserId,
       displayName: user.displayName,
       role,
       isActive: true,

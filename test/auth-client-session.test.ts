@@ -28,7 +28,6 @@ import { RootLayout } from '../src/routes/components/RootLayout';
 
 const userA: MeResponse = {
   id: 'user-a',
-  lineUserId: 'line-user-a',
   displayName: 'User A',
   pictureUrl: null,
   role: 'MEMBER',

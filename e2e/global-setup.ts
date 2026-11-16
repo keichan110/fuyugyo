@@ -24,7 +24,6 @@ export default async function globalSetup(): Promise<void> {
     const token = await signJwt(
       toJwtPayload({
         id: user.id,
-        lineUserId: user.lineUserId,
         displayName: user.displayName,
         role: user.role,
         isActive: user.isActive,

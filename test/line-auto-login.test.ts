@@ -42,7 +42,6 @@ async function loadLogin(userAgent: string, path: string, authenticated = false)
       authenticated
         ? Response.json({
             id: 'user',
-            lineUserId: 'line-user',
             displayName: 'テスト太郎',
             role: 'MEMBER',
             isActive: true,
@@ -146,7 +145,6 @@ describe('ログインルートの認証ガード', () => {
       vi.fn<typeof fetch>().mockResolvedValue(
         Response.json({
           id: 'user',
-          lineUserId: 'line-user',
           displayName: 'テスト太郎',
           role: 'MEMBER',
           isActive: true,

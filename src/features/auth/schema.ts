@@ -29,7 +29,6 @@ export function hasMinimumRole(role: Role, required: Role): boolean {
 /** `GET /api/auth/me` のレスポンス契約。現在ログイン中の User を表す */
 export const meResponseSchema = z.object({
   id: z.string(),
-  lineUserId: z.string(),
   displayName: z.string(),
   pictureUrl: z.string().nullable(),
   role: roleSchema,

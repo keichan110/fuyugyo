@@ -47,7 +47,6 @@ async function seedToken(role: 'ADMIN' | 'MANAGER' | 'MEMBER'): Promise<string> 
   return signJwt(
     {
       userId: user.id,
-      lineUserId: user.lineUserId,
       displayName: user.displayName,
       role,
       isActive: true,

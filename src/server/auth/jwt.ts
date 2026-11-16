@@ -23,8 +23,6 @@ export type UserRole = (typeof VALID_ROLES)[number];
 export type JwtPayload = {
   /** ユーザー ID */
   userId: string;
-  /** LINE ユーザー ID */
-  lineUserId: string;
   /** 表示名 */
   displayName: string;
   /** ユーザーロール */
@@ -82,12 +80,12 @@ function isUserRole(value: unknown): value is UserRole {
 /**
  * jose の検証済みペイロードを型安全に `JwtSession` へ写す。
  * 型アサーションを避け、フィールドごとに型を確認する。
+ * 既知のクレームだけを取り出すため、旧形式トークンに残る `lineUserId` などの余分なクレームは無視される。
  */
 function parsePayload(claims: Record<string, unknown>): JwtSession | null {
-  const { userId, lineUserId, displayName, role, isActive, iat, authTime } = claims;
+  const { userId, displayName, role, isActive, iat, authTime } = claims;
   if (
     typeof userId !== 'string' ||
-    typeof lineUserId !== 'string' ||
     typeof displayName !== 'string' ||
     !isUserRole(role) ||
     typeof isActive !== 'boolean' ||
@@ -101,7 +99,7 @@ function parsePayload(claims: Record<string, unknown>): JwtSession | null {
   ) {
     return null;
   }
-  return { userId, lineUserId, displayName, role, isActive, iat, authTime };
+  return { userId, displayName, role, isActive, iat, authTime };
 }
 
 /**

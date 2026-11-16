@@ -64,7 +64,7 @@ async function setup() {
       .returning();
     if (!user) throw new Error('ユーザー作成失敗');
     return signJwt(
-      { userId: user.id, lineUserId: user.lineUserId, displayName: role, role, isActive: true },
+      { userId: user.id, displayName: role, role, isActive: true },
       env.JWT_SECRET,
       env.JWT_EXPIRES_IN,
     );

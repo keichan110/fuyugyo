@@ -12,7 +12,6 @@ export type UserRole = z.infer<typeof userRoleSchema>;
 /** User の単一レコード */
 export const userSchema = z.object({
   id: z.string(),
-  lineUserId: z.string(),
   displayName: z.string(),
   pictureUrl: z.string().nullable(),
   role: userRoleSchema,

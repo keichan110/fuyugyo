@@ -14,6 +14,22 @@ import { changeRoleSchema, linkInstructorSchema } from './schema';
 type Db = ReturnType<typeof createDb>;
 
 /**
+ * API で返す User のカラム。
+ * `lineUserId` はログイン時のユーザー特定にのみ使う識別子のため、レスポンスには含めない。
+ * `users` にカラムを追加して API で返す場合は、ここと `userSchema` の両方を更新する。
+ */
+const userColumns = {
+  id: users.id,
+  displayName: users.displayName,
+  pictureUrl: users.pictureUrl,
+  role: users.role,
+  isActive: users.isActive,
+  instructorId: users.instructorId,
+  createdAt: users.createdAt,
+  updatedAt: users.updatedAt,
+};
+
+/**
  * isActive フラグを更新する共通ヘルパー（deactivate/activate で使用）。
  * 存在確認 → update → returning を一本化し DRY を守る。
  */
@@ -24,7 +40,11 @@ async function setUserActive(db: Db, id: string, isActive: boolean) {
     throw new HTTPException(404, { message: 'User not found' });
   }
 
-  const [updated] = await db.update(users).set({ isActive }).where(eq(users.id, id)).returning();
+  const [updated] = await db
+    .update(users)
+    .set({ isActive })
+    .where(eq(users.id, id))
+    .returning(userColumns);
 
   if (!updated) {
     throw new HTTPException(500, {
@@ -43,17 +63,17 @@ export const usersRoute = new Hono<{
   Bindings: Env;
   Variables: AuthVariables;
 }>()
-  /** ユーザー一覧を返す（ADMIN のみ）。ロール・isActive を含む全フィールドを返す */
+  /** ユーザー一覧を返す（ADMIN のみ）。ロール・isActive を含む管理用フィールドを返す */
   .get('/', requireAuth, requireRole('ADMIN'), async (c) => {
     const db = createDb(c.env.DB);
-    const rows = await db.select().from(users);
+    const rows = await db.select(userColumns).from(users);
     return c.json(rows);
   })
   /** ユーザーを1件取得する（ADMIN のみ） */
   .get('/:id', requireAuth, requireRole('ADMIN'), async (c) => {
     const db = createDb(c.env.DB);
     const [row] = await db
-      .select()
+      .select(userColumns)
       .from(users)
       .where(eq(users.id, c.req.param('id')))
       .limit(1);
@@ -99,7 +119,7 @@ export const usersRoute = new Hono<{
         .update(users)
         .set({ role: input.role })
         .where(eq(users.id, id))
-        .returning();
+        .returning(userColumns);
 
       if (!updated) {
         throw new HTTPException(500, { message: 'Failed to change role' });
@@ -167,7 +187,7 @@ export const usersRoute = new Hono<{
           .update(users)
           .set({ instructorId: input.instructorId })
           .where(eq(users.id, id))
-          .returning();
+          .returning(userColumns);
 
         if (!updated) {
           throw new HTTPException(500, { message: 'Failed to link instructor' });
@@ -206,7 +226,7 @@ export const usersRoute = new Hono<{
       .update(users)
       .set({ instructorId: null })
       .where(eq(users.id, id))
-      .returning();
+      .returning(userColumns);
 
     if (!updated) {
       throw new HTTPException(500, { message: 'Failed to unlink instructor' });

@@ -89,7 +89,6 @@ function loginErrorUrl(
 function toMeResponse(user: typeof users.$inferSelect) {
   return {
     id: user.id,
-    lineUserId: user.lineUserId,
     displayName: user.displayName,
     pictureUrl: user.pictureUrl,
     role: toUserRole(user.role),

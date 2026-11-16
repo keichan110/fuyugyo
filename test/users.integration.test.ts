@@ -45,7 +45,6 @@ async function seedAdminToken(): Promise<{ token: string; userId: string }> {
   const token = await signJwt(
     {
       userId: user.id,
-      lineUserId: user.lineUserId,
       displayName: user.displayName,
       role: 'ADMIN',
       isActive: true,
@@ -73,7 +72,6 @@ async function seedManagerToken(): Promise<string> {
   return await signJwt(
     {
       userId: user.id,
-      lineUserId: user.lineUserId,
       displayName: user.displayName,
       role: 'MANAGER',
       isActive: true,
@@ -139,7 +137,10 @@ describe('GET /api/users', () => {
     const res = await app.request('/api/users', authHeader(token), envWith({}));
     expect(res.status).toBe(200);
 
-    const body = userListSchema.parse(await res.json());
+    const json: unknown = await res.json();
+    const body = userListSchema.parse(json);
+    // LINE ユーザー ID はログイン時の特定にのみ使うため、レスポンスに含めない
+    expect(json).not.toContainEqual(expect.objectContaining({ lineUserId: expect.anything() }));
     // ADMIN 自身 + 追加した2名 = 3件
     expect(body.length).toBe(3);
   });
@@ -155,7 +156,9 @@ describe('GET /api/users/:id', () => {
     const res = await app.request(`/api/users/${userId}`, authHeader(token), envWith({}));
     expect(res.status).toBe(200);
 
-    const body = userSchema.parse(await res.json());
+    const json: unknown = await res.json();
+    expect(json).not.toHaveProperty('lineUserId');
+    const body = userSchema.parse(json);
     expect(body.id).toBe(userId);
     expect(body.displayName).toBe('対象ユーザー');
   });
@@ -181,7 +184,9 @@ describe('POST /api/users/:id/change-role', () => {
     );
     expect(res.status).toBe(200);
 
-    const body = userSchema.parse(await res.json());
+    const json: unknown = await res.json();
+    expect(json).not.toHaveProperty('lineUserId');
+    const body = userSchema.parse(json);
     expect(body.role).toBe('MANAGER');
   });
 

@@ -1,4 +1,5 @@
 import { env } from 'cloudflare:test';
+import { eq } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { decodeJwt, SignJWT } from 'jose';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -77,16 +78,28 @@ async function seedUser(overrides: Partial<typeof users.$inferInsert> = {}) {
   return user;
 }
 
+/** LINE ユーザー ID から作成済み User の ID を引く（ログインで登録・特定された User の確認用） */
+async function userIdByLineUserId(lineUserId: string): Promise<string> {
+  const [user] = await createDb(env.DB)
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.lineUserId, lineUserId))
+    .limit(1);
+  if (!user) {
+    throw new Error(`User not found: ${lineUserId}`);
+  }
+  return user.id;
+}
+
 /** seed した User に対応する JWT を発行する */
 async function tokenFor(
-  user: { id: string; lineUserId: string; displayName: string },
+  user: { id: string; displayName: string },
   role: UserRole,
   isActive = true,
 ) {
   return await signJwt(
     {
       userId: user.id,
-      lineUserId: user.lineUserId,
       displayName: user.displayName,
       role,
       isActive,
@@ -120,14 +133,15 @@ describe('セッションのスライディング更新と絶対期限', () => {
     issuedAt: number,
     authTime: unknown = issuedAt,
     expiresAt = issuedAt + 7200,
+    extraClaims: Record<string, unknown> = {},
   ) {
     return new SignJWT({
       userId: user.id,
-      lineUserId: user.lineUserId,
       displayName: user.displayName,
       role: user.role,
       isActive: user.isActive,
       ...(authTime === null ? {} : { authTime }),
+      ...extraClaims,
     })
       .setProtectedHeader({ alg: 'HS256' })
       .setIssuer('fuyugyo')
@@ -172,6 +186,28 @@ describe('セッションのスライディング更新と絶対期限', () => {
     const idle = await sessionApp.request('/session', cookieHeader(token), envWith({}));
     expect(idle.status).toBe(401);
     expect(idle.headers.get('set-cookie')).toBeNull();
+  });
+
+  it('lineUserId を含む旧形式のJWTも受け付け、更新後のJWTからは lineUserId を除く', async () => {
+    const user = await seedUser();
+    const start = Math.floor(Date.now() / 1000);
+    const token = await sessionToken(user, start, start, start + 7200, {
+      lineUserId: user.lineUserId,
+    });
+    vi.useFakeTimers({ toFake: ['Date'] });
+
+    vi.setSystemTime((start + 1) * 1000);
+    const before = await sessionApp.request('/session', cookieHeader(token), envWith({}));
+    expect(before.status).toBe(200);
+    expect(await before.json()).not.toHaveProperty('lineUserId');
+
+    vi.setSystemTime((start + 900) * 1000);
+    const refreshed = await sessionApp.request('/session', cookieHeader(token), envWith({}));
+    expect(refreshed.status).toBe(200);
+    const refreshedToken =
+      refreshed.headers.get('set-cookie')?.match(/auth-token=([^;]+)/)?.[1] ?? '';
+    expect(decodeJwt(refreshedToken)).toMatchObject({ userId: user.id, authTime: start });
+    expect(decodeJwt(refreshedToken)).not.toHaveProperty('lineUserId');
   });
 
   it('更新時のDBのロール降格を同じリクエストの権限判定に反映する', async () => {
@@ -416,10 +452,12 @@ describe('LINE OAuth コールバック', () => {
     expect(success.status).toBe(302);
     expect(success.headers.get('location')).toBe(`${retry.reqEnv.APP_URL}/shifts?date=2026-01`);
     const token = success.headers.get('set-cookie')?.match(/auth-token=([^;]+)/)?.[1] ?? '';
+    const created = await userIdByLineUserId('retry-user');
     expect(await verifyJwt(token, retry.reqEnv.JWT_SECRET)).toMatchObject({
       success: true,
-      payload: { lineUserId: 'retry-user' },
+      payload: { userId: created },
     });
+    expect(decodeJwt(token)).not.toHaveProperty('lineUserId');
   });
 
   it('state の不一致やセッション不正時には検証できていない再試行情報を引き継がない', async () => {
@@ -500,13 +538,40 @@ describe('LINE OAuth コールバック', () => {
     expect(cookie).toContain('Max-Age=7200');
     const token = cookie.match(/auth-token=([^;]+)/)?.[1] ?? '';
     const verified = await verifyJwt(token, reqEnv.JWT_SECRET);
+    const created = await userIdByLineUserId('new-line-user');
     expect(verified).toMatchObject({
       success: true,
-      payload: { lineUserId: 'new-line-user', role: 'MEMBER' },
+      payload: { userId: created, role: 'MEMBER' },
     });
     const claims = decodeJwt(token);
+    expect(claims).not.toHaveProperty('lineUserId');
     expect(claims.authTime).toBe(claims.iat);
     expect(claims.exp).toBe(Number(claims.iat) + 7200);
+  });
+
+  it('既存ユーザーは招待なしでログインでき、JWTに lineUserId を含めない', async () => {
+    const user = await seedUser({ role: 'MANAGER' });
+    const { reqEnv, state, cookie } = await startOAuth('/api/auth/line/login?redirect=%2Fshifts');
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(Response.json({ access_token: 'line-access-token' }))
+      .mockResolvedValueOnce(
+        Response.json({ userId: user.lineUserId, displayName: user.displayName }),
+      );
+
+    const res = await app.request(
+      `/api/auth/line/callback?code=test-code&state=${encodeURIComponent(state)}`,
+      { headers: { cookie } },
+      reqEnv,
+    );
+
+    expect(res.status).toBe(302);
+    expect(res.headers.get('location')).toBe(`${reqEnv.APP_URL}/shifts`);
+    const token = res.headers.get('set-cookie')?.match(/auth-token=([^;]+)/)?.[1] ?? '';
+    expect(await verifyJwt(token, reqEnv.JWT_SECRET)).toMatchObject({
+      success: true,
+      payload: { userId: user.id, role: 'MANAGER' },
+    });
+    expect(decodeJwt(token)).not.toHaveProperty('lineUserId');
   });
 
   it('OAuth エラー時は自動ログインを停止する error パラメーター付きで戻る', async () => {
@@ -545,7 +610,9 @@ describe('GET /api/auth/me', () => {
     const res = await app.request('/api/auth/me', cookieHeader(token), envWith({}));
 
     expect(res.status).toBe(200);
-    const body = meResponseSchema.parse(await res.json());
+    const json: unknown = await res.json();
+    expect(json).not.toHaveProperty('lineUserId');
+    const body = meResponseSchema.parse(json);
     expect(body.id).toBe(user.id);
     expect(body.role).toBe('MANAGER');
     expect(body.isActive).toBe(true);

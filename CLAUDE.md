@@ -43,6 +43,8 @@ pnpm run db:migrate:local # ローカルD1にマイグレーション適用
 - `queries.ts` — TanStack Query hooks（クライアント専用、RPC 経由）
 - `components/` — 機能固有 UI
 
+共通 UI は `src/components/` に置き、Mantine の部品は直接使わず `AppButton` などの `App*` ラッパーを優先する。
+
 ## スキーマ変更手順
 
 `src/server/db/schema.ts` 編集 → `pnpm run db:generate` → `pnpm run db:migrate:local` → 型チェック

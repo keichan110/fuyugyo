@@ -22,8 +22,8 @@ import type { User } from '../schema';
 import { UserDrawer, type UserDrawerState } from './UserDrawer';
 
 /**
- * ユーザー一覧と検索・絞り込み、編集への導線を提供するコンポーネント（ADMIN 専用）。
- * ユーザーは LINE 招待経由で登録されるため作成導線は持たず、ロール変更・
+ * ユーザー一覧と検索・絞り込み、編集への導線を提供するコンポーネント（MANAGER 以上）。
+ * ユーザーは LINE 招待経由で登録されるため作成導線は持たず、ロール変更（ADMIN のみ）・
  * Instructor リンク・ステータス変更は UserDrawer に集約する。
  */
 export function UserList() {

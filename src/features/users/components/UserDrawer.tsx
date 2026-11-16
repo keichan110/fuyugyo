@@ -17,6 +17,8 @@ import { notifications } from '@mantine/notifications';
 import { ErrorAlert } from '@/components/AppAlert';
 import { AppBadge } from '@/components/AppBadge';
 import { FormFooterButtons } from '@/components/FormFooterButtons';
+import { useMe } from '@/features/auth/queries';
+import { hasMinimumRole, type MeResponse } from '@/features/auth/schema';
 import { useInstructor, useInstructors } from '@/features/instructors/queries';
 import type {
   InstructorListItem,
@@ -141,6 +143,19 @@ function EditPanel({ userId, onClose }: { userId: string; onClose: () => void })
   return <EditForm key={user.id} user={user} onClose={onClose} />;
 }
 
+/**
+ * ステータス変更ができない理由を返す（変更できるなら null）。
+ * 自分自身の無効化は不可。MANAGER は MEMBER のみ変更でき、ADMIN は自分以外の全員を変更できる。
+ * サーバー側（`setUserActive`）の判定と揃えること。
+ */
+function getStatusLock(me: MeResponse | null | undefined, target: User): string | null {
+  if (!me) return '操作者の情報を取得できません';
+  if (me.id === target.id) return '自分自身のステータスは変更できません';
+  if (hasMinimumRole(me.role, 'ADMIN')) return null;
+  if (target.role !== 'MEMBER') return 'マネージャー・管理者のステータスは管理者のみ変更できます';
+  return null;
+}
+
 type EditFormProps = {
   user: User;
   onClose: () => void;
@@ -157,6 +172,11 @@ function EditForm({ user, onClose }: EditFormProps) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const { data: me } = useMe();
+  // ロール変更は ADMIN のみ。MANAGER には読み取り専用で見せ、保存時にも送らない
+  const canChangeRole = me ? hasMinimumRole(me.role, 'ADMIN') : false;
+  const statusLock = getStatusLock(me, user);
+
   const changeRole = useChangeRole(user.id);
   const activate = useActivateUser(user.id);
   const deactivate = useDeactivateUser(user.id);
@@ -170,10 +190,10 @@ function EditForm({ user, onClose }: EditFormProps) {
     try {
       // ロール・ステータスの差分は互いに独立しているため並列実行してよい
       const tasks: Promise<unknown>[] = [];
-      if (role !== user.role) {
+      if (canChangeRole && role !== user.role) {
         tasks.push(changeRole.mutateAsync({ role }));
       }
-      if (isActive !== user.isActive) {
+      if (!statusLock && isActive !== user.isActive) {
         tasks.push(isActive ? activate.mutateAsync() : deactivate.mutateAsync());
       }
       await Promise.all(tasks);
@@ -225,6 +245,8 @@ function EditForm({ user, onClose }: EditFormProps) {
           label="ロール"
           data={userRoleSchema.options.map((r) => ({ value: r, label: USER_ROLE_META[r].label }))}
           value={role}
+          disabled={!canChangeRole}
+          description={canChangeRole ? undefined : 'ロールの変更は管理者のみ可能です'}
           onChange={(value) => setRole(userRoleSchema.parse(value))}
         />
 
@@ -246,8 +268,18 @@ function EditForm({ user, onClose }: EditFormProps) {
             <Text c="dimmed" size="xs">
               {isActive ? '有効' : '無効'}
             </Text>
+            {statusLock && (
+              <Text c="dimmed" size="xs">
+                {statusLock}
+              </Text>
+            )}
           </div>
-          <Switch checked={isActive} onChange={(e) => setIsActive(e.currentTarget.checked)} />
+          <Switch
+            checked={isActive}
+            disabled={statusLock !== null}
+            aria-label="ステータス"
+            onChange={(e) => setIsActive(e.currentTarget.checked)}
+          />
         </Group>
 
         {error && <ErrorAlert>{error}</ErrorAlert>}

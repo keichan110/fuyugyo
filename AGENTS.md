@@ -60,6 +60,16 @@ pnpm run db:migrate:local # ローカルD1にマイグレーション適用
 
 `src/server/db/schema.ts` 編集 → `pnpm run db:generate` → `pnpm run db:migrate:local` → 型チェック
 
+## 設計方針
+
+- **API レスポンス**: 成功は `c.json(data)` で生データと HTTP ステータスを返す。失敗は `HTTPException` を投げ、中央の `onError`（`src/index.ts`）で整形する。`{ success, data }` のようなエンベロープは使わない
+- **DB 書き込み**: 複数行の原子的な書き込みは `db.batch([...])` で行う（D1 はインタラクティブトランザクション非対応）。read-then-write のレースはアプリ側の事前チェックに頼らず、ユニーク制約と `ON CONFLICT` に寄せる。ID は `crypto.randomUUID()`
+- **認証**: ステートレス JWT（ロールは JWT クレームで保持）。KV セッションは使わない。Rate Limit は未認証で到達できる認証系エンドポイントにのみ適用し、認証済み API には適用しない
+- **部門**: `DepartmentCode` はコード側の固定語彙。DB に FK・CHECK 制約は置かず、API 境界の `z.enum` で整合性を担保する。部門ごとの表示設定は `Record<DepartmentCode, ...>` の全域マップで持ち、部門追加時の設定漏れを型で検出する
+- **シフト**: Shift の明示的な作成・削除 API は作らない。`(date, departmentCode, shiftTypeId)` 単位で割り当て集合を丸ごと upsert し、割り当てが0件で備考もなければ Shift を削除する。必要人数は Shift とは別テーブルに保存する（意味は `CONTEXT.md` 参照）
+- **テスト**: 実 D1 の統合テストを主役にし、純粋関数のユニットテストはロジックが濃い所に絞る。型で保証される部分（RPC・Drizzle の型）はテストしない。E2E は主要業務のハッピーパスと重大な禁止操作に限る
+- **見送った設計**: Cache API による共有 read キャッシュは、認可・鮮度・キャッシュ汚染の安全性担保が重いため採用していない
+
 # コーディング規約
 
 ## 命名規則

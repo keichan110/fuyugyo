@@ -96,6 +96,9 @@ export function MobileNavigation({ user }: { user: MeResponse }) {
         opened={opened}
         onClose={close}
         title="その他"
+        position="bottom"
+        size="auto"
+        classNames={{ body: classes.moreMenuBody }}
         closeButtonProps={{ 'aria-label': 'メニューを閉じる' }}
       >
         <Stack gap="xs">

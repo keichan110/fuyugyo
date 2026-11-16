@@ -8,6 +8,7 @@ Fuyugyō - スキー・スノーボードスクールの運営管理システム
 - コメントは全て日本語。複雑なロジック（複数ステップの計算・条件分岐の意図等）には付与し、自明なコードには不要
 - 型アサーションは可能な限り避ける（大幅に複雑化する場合はユーザーに許可を求める）
 - コロケーションの原則を遵守
+- `src/routeTree.gen.ts` は TanStack Router の自動生成ファイルのため編集禁止
 - 設定ファイル（`.claude/settings.json`、`tsconfig.json`、`eslint.config.js` 等）の変更は、理由を述べユーザーの明示的承認を得てから実施
 
 # コマンド
@@ -32,23 +33,6 @@ pnpm run db:migrate:local # ローカルD1にマイグレーション適用
 - **クライアント**: React SPA — `src/routes/`、`src/components/`、`src/features/**/queries.ts`
 - **境界の強制**: ESLint `no-restricted-imports` でクライアントからサーバーモジュール（`api.ts`, `server/`）の値 import を禁止。`import type` のみ許可（ADR 0002）
 - **RPC**: Hono RPC で型安全な API 呼び出し（`src/lib/rpc.ts`）
-
-## プロジェクト構造
-
-```
-src/
-├── index.ts          # Hono アプリ（APIルート集約 + エラーハンドラ）
-├── main.tsx          # React エントリ（TanStack Router）
-├── routeTree.gen.ts  # TanStack Router 自動生成（編集禁止）
-├── features/[name]/  # ドメイン機能（下記「Feature 構造パターン」参照）
-├── routes/           # TanStack Router ページ
-├── components/       # Mantine ラッパー（AppButton 等）・共通 UI
-├── lib/              # 共有ライブラリ（rpc, query-client, theme, schedule-date-range）
-└── server/           # サーバー専用（auth, db, middleware, types）
-test/                 # Vitest 統合テスト（実D1使用）
-drizzle/              # マイグレーションSQL
-docs/                 # ADR・設計ドキュメント
-```
 
 ## Feature 構造パターン
 

@@ -6,34 +6,62 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
+# PR では新しい push が来たら古い実行を止めて実行時間を節約する。
+# main への push は全コミットの結果を残すため止めない
+concurrency:
+  group: quality-check-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# 失敗箇所を PR のチェック欄で判別できるよう、性質ごとにジョブを分ける。
+# セットアップの重複と分単位の課金の切り上げを抑えるため、これ以上は細かく分けない
 jobs:
-  quality-check:
+  static:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - name: Setup
+        id: setup
+        uses: ./.github/actions/setup
 
-      - name: Setup Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version-file: '.node-version'
-          cache: 'pnpm'
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
+      # 静的チェックは互いに独立しているため、前段が落ちても後続を実行して結果を一度に出す
       - name: Run TypeScript type check
         run: pnpm run typecheck
 
       - name: Run ESLint
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: pnpm run lint
 
       - name: Check Prettier formatting
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: pnpm run format:check
+
+      # pnpm run build は typecheck を含み上で実行済みのため、バンドルだけを確かめる
+      - name: Build application
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: pnpm exec vite build
+
+      - name: Security audit
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: pnpm audit --audit-level=moderate --ignore-unfixable
+
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Setup
+        id: setup
+        uses: ./.github/actions/setup
 
       - name: Run tests
         run: pnpm run test
@@ -41,10 +69,23 @@ jobs:
       # 開発用 seed は静的チェック・回帰テストの対象外のため、
       # import 解決やスキーマ変更で壊れていないかを空のローカル D1 への投入で確かめる
       - name: Verify local dev seed
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: |
           pnpm run db:migrate:local
           pnpm run db:seed:auth
           pnpm run db:seed:demo
+
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Setup
+        id: setup
+        uses: ./.github/actions/setup
 
       - name: Get Playwright version
         id: playwright-version
@@ -77,9 +118,3 @@ jobs:
             test-results/
             playwright-report/
           retention-days: 7
-
-      - name: Build application
-        run: pnpm run build
-
-      - name: Security audit
-        run: pnpm audit --audit-level=moderate --ignore-unfixable

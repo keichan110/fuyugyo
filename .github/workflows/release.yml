@@ -9,20 +9,25 @@ on:
 permissions:
   contents: read
 
+# マイグレーションやデプロイの途中で止めると本番が中途半端な状態になるため、
+# 後続の実行は待たせるだけで実行中のものは取り消さない
 concurrency:
   group: deploy-production
   cancel-in-progress: false
 
+# 失敗箇所をジョブ名で判別できるよう build → e2e → deploy に分ける。
+# 3ジョブは build の成果物を受け渡し、E2E で検証したものと同じ成果物を本番に出す
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
     # 実行ブランチの選択に関わらず main 上の定義からのみ実行する
     if: github.repository == 'keichan110/fuyugyo' && github.ref == 'refs/heads/main'
-    timeout-minutes: 20
+    timeout-minutes: 10
     outputs:
       tag: ${{ steps.tag.outputs.tag }}
       sha: ${{ steps.tag.outputs.sha }}
       create-release: ${{ steps.tag.outputs.create-release }}
+      playwright-version: ${{ steps.playwright-version.outputs.version }}
 
     steps:
       - name: Checkout main
@@ -66,18 +71,10 @@ jobs:
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "Release tag: $tag ($(git rev-parse --short HEAD))"
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - name: Setup
+        uses: ./.github/actions/setup
 
-      - name: Setup Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version-file: '.node-version'
-          cache: 'pnpm'
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
+      # 設定漏れは時間のかかる E2E より前に検出する
       - name: Validate required secrets and variables
         run: |
           for name in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID APP_URL LINE_CHANNEL_ID; do
@@ -136,22 +133,49 @@ jobs:
             exit 1
           fi
 
+      # e2e ジョブのコンテナイメージを lockfile の Playwright と同じ版に揃えるため後続へ渡す
       - name: Get Playwright version
         id: playwright-version
         run: echo "version=$(pnpm exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
 
-      - name: Cache Playwright browsers
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      # wrangler deploy は .wrangler/deploy/config.json 経由で dist の設定を読むため、隠しディレクトリも含める
+      - name: Upload build output
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}-chromium-webkit
+          name: release-build
+          path: |
+            dist/
+            .wrangler/deploy/config.json
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
 
-      # キャッシュがあってもOS依存は毎回導入する。ブラウザ本体は導入済みなら再取得しない。
-      - name: Install Playwright browsers and system dependencies
-        run: pnpm exec playwright install --with-deps chromium webkit
+  # ブラウザと OS 依存を同梱した公式イメージで実行し、毎回の導入時間を省く
+  e2e:
+    runs-on: ubuntu-latest
+    needs: build
+    timeout-minutes: 20
+    container:
+      image: mcr.microsoft.com/playwright:v${{ needs.build.outputs.playwright-version }}-noble
+      options: --user 1001
 
-      # 直前にbuildした成果物をローカルWorker + 専用D1で検証する。
-      # E2E失敗・キャンセル・timeout時は後続の本番操作を一切開始しない。
+    steps:
+      # 採番後に main が進んでも、採番したコミットを検証する
+      - name: Checkout release commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ needs.build.outputs.sha }}
+
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      - name: Download build output
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: release-build
+
+      # build ジョブの成果物をローカルWorker + 専用D1で検証する。
+      # E2E失敗・キャンセル・timeout時は deploy ジョブを開始しない。
       - name: Run full E2E release gate
         run: pnpm run test:e2e:release
 
@@ -164,6 +188,27 @@ jobs:
             test-results/
             playwright-report/
           retention-days: 3
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: [build, e2e]
+    # build と全件の E2E が成功したときだけ本番操作に進む（失敗・skip・キャンセルでは実行しない）
+    if: needs.build.result == 'success' && needs.e2e.result == 'success'
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout release commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ needs.build.outputs.sha }}
+
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      - name: Download build output
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: release-build
 
       # 新コードが参照するスキーマを先に用意し、デプロイ中の 500 を防ぐ。
       # 失敗した migration は Wrangler がロールバックする。適用済み migration の巻き戻しは
@@ -188,8 +233,8 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           APP_URL: ${{ vars.APP_URL }}
           LINE_CHANNEL_ID: ${{ vars.LINE_CHANNEL_ID }}
-          RELEASE_TAG: ${{ steps.tag.outputs.tag }}
-          RELEASE_SHA: ${{ steps.tag.outputs.sha }}
+          RELEASE_TAG: ${{ needs.build.outputs.tag }}
+          RELEASE_SHA: ${{ needs.build.outputs.sha }}
 
   health-check:
     runs-on: ubuntu-latest
@@ -218,8 +263,8 @@ jobs:
   # 書き込み権限はこのジョブだけに限定する。
   release:
     runs-on: ubuntu-latest
-    needs: [deploy, health-check]
-    if: needs.deploy.outputs.create-release == 'true'
+    needs: [build, deploy, health-check]
+    if: needs.build.outputs.create-release == 'true'
     timeout-minutes: 5
     permissions:
       contents: write
@@ -235,5 +280,5 @@ jobs:
             --latest
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ needs.deploy.outputs.tag }}
-          RELEASE_SHA: ${{ needs.deploy.outputs.sha }}
+          RELEASE_TAG: ${{ needs.build.outputs.tag }}
+          RELEASE_SHA: ${{ needs.build.outputs.sha }}

@@ -18,12 +18,23 @@ pnpm run dev              # 開発サーバー起動（Vite + Cloudflare Workers
 pnpm run build            # プロダクションビルド（typecheck含む）
 pnpm run test             # 全テスト実行（Vitest + 実D1）
 
+pnpm run test:e2e:smoke   # E2E スモーク（開発サーバー・Chromium、@smoke タグのみ。PR の CI と同じ）
+pnpm run test:e2e         # フル E2E（build → ビルド済み Worker で Chromium + モバイル WebKit。リリースゲートと同じ）
+
 pnpm run db:generate      # Drizzle マイグレーションSQL生成（スキーマ変更時必須）
 pnpm run db:migrate:local # ローカルD1にマイグレーション適用
 ```
 
 - typecheck / lint / format は Stop hook（Claude Code・Codex 共通の `scripts/quality-check.sh`）で自動実行されるため手動実行不要
 - 本番操作（deploy・リモートD1マイグレーション等）は AI エージェントでは実行しない
+
+## E2E（Playwright）
+
+- 初回はブラウザの導入が必要: `pnpm exec playwright install chromium webkit`（スモークだけなら `chromium` のみ）
+- テストは `e2e/**/*.e2e.ts`。スモーク対象には `test()` のオプションで `{ tag: '@smoke' }` を付ける
+- 実行のたびに E2E 専用のローカル D1（`.wrangler/e2e-state`）を作り直して seed を投入する。開発用 D1 には影響しない
+- ポート 5180 でサーバーを常に新規起動する（既存サーバーは再利用しない）。ポートが使用中だと失敗する
+- 対象範囲と方針は ADR 0016（`docs/adr/0016-e2e-release-gate.md`）
 
 # アーキテクチャ
 

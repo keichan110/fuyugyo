@@ -9,6 +9,12 @@ on:
 permissions:
   contents: read
 
+# PR では新しい push が来たら古い実行を止めて実行時間を節約する。
+# main への push は全コミットの結果を残すため止めない
+concurrency:
+  group: quality-check-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 # 失敗箇所を PR のチェック欄で判別できるよう、性質ごとにジョブを分ける。
 # セットアップの重複と分単位の課金の切り上げを抑えるため、これ以上は細かく分けない
 jobs:

@@ -1,7 +1,7 @@
 import { errors, jwtVerify, SignJWT } from 'jose';
 
 /**
- * ステートレス JWT の発行・検証（ADR 0003）。
+ * ステートレス JWT の発行・検証。
  * KV セッションは持たず、JWT そのものがログインセッションとなる。
  * jose を用いるため Cloudflare Workers の isolate 上で外部アクセス0で完結する。
  */

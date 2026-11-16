@@ -39,7 +39,7 @@ export default tseslint.config(
     rules: { 'react-refresh/only-export-components': 'off' },
   },
   // クライアントコードからサーバー専用モジュール（api.ts・server/・Worker エントリ）の
-  // 値 import を禁止する。type import（`import type`）は RPC 型取得のため許可する（ADR 0002）。
+  // 値 import を禁止する。type import（`import type`）は RPC 型取得のため許可する。
   // feature 配下のクライアントファイルを広く対象にし、サーバー側の api.ts のみ除外する。
   // schema.ts は isomorphic（zod のみ依存）なので対象に含めても違反は生じない。
   {

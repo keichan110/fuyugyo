@@ -5,7 +5,7 @@ import { type AuthVariables } from '@/server/middleware/auth';
 import type { Env } from '@/server/types';
 
 /**
- * Rate Limit ミドルウェア（ADR 0004）。
+ * Rate Limit ミドルウェア。
  * 未認証でアクセスできる認証系エンドポイント（LINE login/callback・招待検証）のみに適用し、
  * 認証済みの一般 CRUD には適用しない。方式は CF ネイティブ Rate Limiting バインディングで、
  * isolate 横断で正しく動作しインメモリ実装の問題（状態非共有）を持たない。

@@ -1,8 +1,8 @@
 import { Card, createTheme, Drawer, Menu } from '@mantine/core';
 
 /**
- * アプリ共通テーマ。ブランドカラーはブルー系（ADR 0008）。
- * 各コンポーネントの既定値も定義し、全使用箇所で共通していた props をここに集約する（ADR 0008）
+ * アプリ共通テーマ。ブランドカラーはブルー系。
+ * 各コンポーネントの既定値も定義し、全使用箇所で共通していた props をここに集約する
  */
 export const theme = createTheme({
   primaryColor: 'blue',

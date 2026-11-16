@@ -573,8 +573,8 @@ function parseListLimit(value: string | undefined): number {
 }
 
 /**
- * Shift + ShiftAssignment の Hono ルート（ADR 0005）。
- * Shift 本体と複数割り当ての作成/更新は `db.batch` で原子的に行う（ADR 0006）。
+ * Shift + ShiftAssignment の Hono ルート。
+ * Shift 本体と複数割り当ての作成/更新は `db.batch` で原子的に行う。
  * 重複枠は DB ユニーク制約（date × 部門 × 種別）で弾き、UNIQUE 違反は 409 に変換する。
  * レスポンスは生データ + HTTP ステータス。書き込み系は MANAGER 以上を要求する。
  */

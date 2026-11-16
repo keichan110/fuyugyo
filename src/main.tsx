@@ -21,7 +21,7 @@ import '@mantine/notifications/styles.css';
 import '@mantine/schedule/styles.css';
 import './styles.css';
 
-// 将来のダークモード対応（ADR 0008）に備え、配色設定を localStorage に永続化する
+// 将来のダークモード対応に備え、配色設定を localStorage に永続化する
 const colorSchemeManager = localStorageColorSchemeManager({ key: 'fuyugyo-color-scheme' });
 
 initializeSentry();

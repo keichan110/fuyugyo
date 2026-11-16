@@ -13,7 +13,7 @@ import type { Env } from '@/server/types';
 import { createInvitationSchema } from './schema';
 
 /**
- * Invitation 管理の Hono ルート（ADR 0005/0006）。
+ * Invitation 管理の Hono ルート。
  * 作成・一覧・無効化は ADMIN/MANAGER のみ。
  * 検証エンドポイントは未認証で利用可能（Rate Limit 対象）。
  */

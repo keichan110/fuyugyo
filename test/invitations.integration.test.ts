@@ -487,7 +487,7 @@ describe('GET /api/invitations/:token/verify', () => {
 describe('used_count の原子的インクリメント（consumeInvitation 相当）', () => {
   /**
    * auth/api.ts の `consumeInvitation` と同等の DB 操作を実行する。
-   * 条件付き UPDATE で read-then-write レースを DB 制約に寄せる ADR 0006 の動作を検証する。
+   * 条件付き UPDATE で read-then-write レースを DB 制約に寄せる動作を検証する。
    */
   async function consumeInvitation(token: string): Promise<boolean> {
     const db = createDb(env.DB);

@@ -35,7 +35,7 @@ async function setUserActive(db: Db, id: string, isActive: boolean) {
 }
 
 /**
- * User 管理の Hono ルート（ADR 0005）。
+ * User 管理の Hono ルート。
  * 一覧・ロール変更・無効化・Instructor リンクを提供する。
  * 書き込み系（ロール変更・無効化・リンク操作）は ADMIN のみ。
  */

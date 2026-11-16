@@ -12,7 +12,7 @@ import type { Env } from '@/server/types';
 import { createCertificationSchema, updateCertificationSchema } from './schema';
 
 /**
- * Certification CRUD の Hono ルート（ADR 0005）。
+ * Certification CRUD の Hono ルート。
  * レスポンスは生データ + HTTP ステータス（`c.json(data, status)`）。
  * エラーは HTTPException で投げ、中央 `onError` が整形する。
  * 書き込み系（POST/PATCH）は MANAGER 以上を要求する。

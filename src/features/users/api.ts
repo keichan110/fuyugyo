@@ -16,6 +16,7 @@ type Db = ReturnType<typeof createDb>;
 /**
  * API で返す User のカラム。
  * `lineUserId` はログイン時のユーザー特定にのみ使う識別子のため、レスポンスには含めない。
+ * `users` にカラムを追加して API で返す場合は、ここと `userSchema` の両方を更新する。
  */
 const userColumns = {
   id: users.id,

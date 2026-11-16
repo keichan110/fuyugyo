@@ -43,6 +43,8 @@ pnpm run db:migrate:local
 pnpm run dev
 ```
 
+並列開発では [T3 Code・worktree のセットアップ手順](docs/settings/worktree-development.md) を参照してください。
+
 ## プロジェクト構成
 
 ```

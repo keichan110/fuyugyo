@@ -1,10 +1,12 @@
+import { localE2ePort } from '../scripts/lib/local-ports.ts';
+
 /**
  * E2E 実行で共有する定数の単一の出所。
  * playwright.config.ts・prepare.ts・global-setup.ts・seed がここを参照する。
  */
 
 /** E2E 専用の dev サーバーポート（開発用の 5173 と同時起動できるよう分離） */
-export const E2E_PORT = 5180;
+export const E2E_PORT = localE2ePort();
 
 /** E2E 専用のローカル D1 永続化先。開発用の `.wrangler/state` とは別ディレクトリ */
 export const E2E_PERSIST_DIR = '.wrangler/e2e-state';

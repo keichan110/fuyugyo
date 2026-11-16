@@ -11,6 +11,7 @@ import { drizzle } from 'drizzle-orm/libsql';
 
 import { invitationTokens, users } from '../src/server/db/schema.ts';
 import { getLocalD1Path } from './lib/get-local-d1-path.ts';
+import { localDevPort } from './lib/local-ports.ts';
 
 /** シードで使う placeholder User の line_user_id（実際の LINE アカウントとは紐付かない） */
 const SEED_PLACEHOLDER_LINE_USER_ID = 'dev-seed-placeholder';
@@ -60,7 +61,9 @@ async function main() {
     }
 
     console.log('シード完了');
-    console.log(`招待URL: http://localhost:5173/api/auth/line/login?invite=${DEV_INVITE_TOKEN}`);
+    console.log(
+      `招待URL: http://localhost:${localDevPort()}/api/auth/line/login?invite=${DEV_INVITE_TOKEN}`,
+    );
   } finally {
     client.close();
   }

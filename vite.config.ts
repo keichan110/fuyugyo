@@ -1,10 +1,10 @@
-import { readFileSync } from 'node:fs';
-
 import { cloudflare } from '@cloudflare/vite-plugin';
 import { sentryVitePlugin } from '@sentry/bundler-plugins/vite';
 import { tanstackRouter } from '@tanstack/router-plugin/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig, perEnvironmentPlugin } from 'vite';
+
+import { localDevPort } from './scripts/lib/local-ports';
 
 /**
  * dev サーバーのポート番号を解決する。
@@ -19,13 +19,7 @@ function resolveDevPort(): number {
   if (Number.isInteger(e2ePort)) {
     return e2ePort;
   }
-  try {
-    const raw = readFileSync(new URL('./.dev-port', import.meta.url), 'utf8');
-    const port = Number.parseInt(raw.trim(), 10);
-    return Number.isInteger(port) ? port : 5173;
-  } catch {
-    return 5173;
-  }
+  return localDevPort();
 }
 
 const sentryAuthToken = process.env.SENTRY_AUTH_TOKEN;

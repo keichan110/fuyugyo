@@ -12,6 +12,7 @@ import { requireAuth, requireRole, type AuthVariables } from '@/server/middlewar
 import type { Env } from '@/server/types';
 
 import { changeRoleSchema, linkInstructorSchema } from './schema';
+import { canChangeUserStatus } from './status-policy';
 
 type Db = ReturnType<typeof createDb>;
 
@@ -47,8 +48,7 @@ async function setUserActive(db: Db, id: string, isActive: boolean, actorRole: U
     throw new HTTPException(404, { message: 'User not found' });
   }
 
-  // MANAGER が MANAGER/ADMIN を無効化・有効化できると権限の逆転・ADMIN 排除が起こるため MEMBER に限る
-  if (actorRole !== 'ADMIN' && toUserRole(existing.role) !== 'MEMBER') {
+  if (!canChangeUserStatus(actorRole, toUserRole(existing.role))) {
     throw new HTTPException(403, { message: 'Forbidden' });
   }
 

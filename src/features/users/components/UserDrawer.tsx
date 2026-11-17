@@ -35,6 +35,7 @@ import {
 } from '../queries';
 import { USER_ROLE_META } from '../role-meta';
 import { userRoleSchema, type User, type UserRole } from '../schema';
+import { canChangeUserStatus } from '../status-policy';
 
 /** Drawer が表示する状態（対象ユーザーの ID）。users には作成 API がないため編集モードのみ持つ。 */
 export type UserDrawerState = { userId: string };
@@ -146,13 +147,14 @@ function EditPanel({ userId, onClose }: { userId: string; onClose: () => void })
 /**
  * ステータス変更ができない理由を返す（変更できるなら null）。
  * 自分自身の無効化は不可。MANAGER は MEMBER のみ変更でき、ADMIN は自分以外の全員を変更できる。
- * サーバー側（`setUserActive`）の判定と揃えること。
+ * ロールによる可否はサーバーと共通の `canChangeUserStatus` で判定する。
  */
 function getStatusLock(me: MeResponse | null | undefined, target: User): string | null {
   if (!me) return '操作者の情報を取得できません';
   if (me.id === target.id) return '自分自身のステータスは変更できません';
-  if (hasMinimumRole(me.role, 'ADMIN')) return null;
-  if (target.role !== 'MEMBER') return 'マネージャー・管理者のステータスは管理者のみ変更できます';
+  if (!canChangeUserStatus(me.role, target.role)) {
+    return 'マネージャー・管理者のステータスは管理者のみ変更できます';
+  }
   return null;
 }
 

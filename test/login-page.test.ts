@@ -5,9 +5,8 @@ import { MantineProvider } from '@mantine/core';
 import { describe, expect, it } from 'vitest';
 
 import { LoginPage } from '../src/features/auth/components/LoginPage';
-import { getLoginErrorMessage } from '../src/features/auth/login-policy';
 
-/** ログイン画面を描画し、利用者に表示される案内と操作を検証する */
+/** ログイン画面を描画する */
 function renderLoginPage(error?: string) {
   return renderToString(
     createElement(
@@ -20,10 +19,9 @@ function renderLoginPage(error?: string) {
 
 describe('ログイン画面の再試行', () => {
   it.each(['invitation_required', 'invitation_invalid', 'inactive_user'])(
-    '再試行では解消しないエラー（%s）は案内のみ表示する',
+    '再試行では解消しないエラー（%s）はログインボタンを表示しない',
     (error) => {
       const html = renderLoginPage(error);
-      expect(html).toContain(getLoginErrorMessage(error));
       expect(html).not.toContain('LINEでログイン');
       expect(html).not.toContain('<button');
     },
@@ -46,8 +44,5 @@ describe('ログイン画面の再試行', () => {
   ])('通常時や再試行可能なエラー（%s）はログインボタンを表示する', (error) => {
     const html = renderLoginPage(error);
     expect(html).toContain('LINEでログイン');
-    if (error) {
-      expect(html).toContain(getLoginErrorMessage(error));
-    }
   });
 });

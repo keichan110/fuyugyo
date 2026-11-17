@@ -3,7 +3,7 @@ import { Box, Center, Stack, Text, Title } from '@mantine/core';
 import { ErrorAlert } from '@/components/AppAlert';
 import { AppBadge } from '@/components/AppBadge';
 
-import { getLoginErrorMessage } from '../login-policy';
+import { getLoginErrorMessage, isRetryableLoginError } from '../login-policy';
 import { LineLoginButton } from './LineLoginButton';
 import classes from './LoginPage.module.css';
 
@@ -19,9 +19,7 @@ type LoginPageProps = {
  * 「招待を受けた方のみ利用可能」の趣旨を踏襲する。
  */
 export function LoginPage({ onLineLogin, error }: LoginPageProps) {
-  const canRetry =
-    error === undefined ||
-    !['invitation_required', 'invitation_invalid', 'inactive_user'].includes(error);
+  const canRetry = isRetryableLoginError(error);
 
   return (
     <Box mih="100dvh" p="md" className={classes.heroBackground}>

@@ -22,6 +22,18 @@ export function getLineAutoLoginUrl(userAgent: string, search: LoginSearch): str
   return getLineLoginUrl(search);
 }
 
+/** 再試行しても解消しないため、ログインボタンを表示しないエラー */
+const NON_RETRYABLE_LOGIN_ERRORS: readonly string[] = [
+  'invitation_required',
+  'invitation_invalid',
+  'inactive_user',
+];
+
+/** エラーなし、または再試行で解消し得るエラーなら true を返す */
+export function isRetryableLoginError(error: string | undefined): boolean {
+  return error === undefined || !NON_RETRYABLE_LOGIN_ERRORS.includes(error);
+}
+
 /** ログイン失敗の理由に応じて、再試行・招待の取得・管理者への連絡を案内する */
 export function getLoginErrorMessage(error: string): string {
   if (error === 'invitation_required') {

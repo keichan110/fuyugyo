@@ -224,6 +224,37 @@ describe('ログインルートの認証ガード', () => {
 });
 
 describe('ログイン失敗時の案内', () => {
+  it.each([
+    [
+      'invitation_required',
+      'このLINEアカウントは登録されていません。登録済みの方は、登録したLINEアカウントでログインし直してください。初めての方は、管理者から届いた招待リンクを開いてください。',
+    ],
+    [
+      'invitation_invalid',
+      'この招待リンクは利用できません。管理者に招待リンクの再発行を依頼してください。',
+    ],
+    ['inactive_user', 'このアカウントは現在利用停止中です。管理者にお問い合わせください。'],
+  ])('再試行では解消しないエラー（%s）は原因と次の行動を案内する', (error, message) => {
+    expect(getLoginErrorMessage(error)).toBe(message);
+  });
+
+  it.each([
+    'auth_failed',
+    'token_exchange_failed',
+    'profile_fetch_failed',
+    'user_creation_failed',
+    'unknown_error',
+    '',
+  ])('その他のエラー（%s）は従来どおり再試行を案内する', (error) => {
+    expect(getLoginErrorMessage(error)).toBe('ログインに失敗しました。もう一度お試しください。');
+  });
+
+  it('自動ログインを開始できなければボタンからのログインを案内する', () => {
+    expect(getLoginErrorMessage('auto_login_unavailable')).toBe(
+      '自動ログインを開始できませんでした。下のボタンからログインしてください。',
+    );
+  });
+
   it('自動ログイン後の認証確認失敗ではCookie設定と手動再試行を案内する', () => {
     expect(getLoginErrorMessage('auto_login_failed')).toContain('Cookie設定');
   });
@@ -257,7 +288,7 @@ describe('LINE 内ブラウザの自動ログイン', () => {
     expect(getLineAutoLoginUrl(lineUserAgent, {})).toBe('/api/auth/line/login?redirect=%2F');
   });
 
-  it.each(['auth_failed', 'inactive_user', 'invalid_invitation', 'rate_limited', ''])(
+  it.each(['auth_failed', 'inactive_user', 'invitation_invalid', 'rate_limited', ''])(
     'エラー（%s）があれば自動ログインを止める',
     (error) => {
       expect(getLineAutoLoginUrl(lineUserAgent, { error, invite: 'invite-token' })).toBeNull();

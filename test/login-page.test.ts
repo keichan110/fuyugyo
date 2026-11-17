@@ -10,7 +10,11 @@ import { getLoginErrorMessage } from '../src/features/auth/login-policy';
 /** ログイン画面を描画し、利用者に表示される案内と操作を検証する */
 function renderLoginPage(error?: string) {
   return renderToString(
-    createElement(MantineProvider, null, createElement(LoginPage, { error })),
+    createElement(
+      MantineProvider,
+      null,
+      createElement(LoginPage, { error, onLineLogin: () => undefined }),
+    ),
   );
 }
 

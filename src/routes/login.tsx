@@ -2,7 +2,7 @@ import { createFileRoute } from '@tanstack/react-router';
 
 import { guardLoginPage } from '@/features/auth/auth-guard';
 import { LoginPage } from '@/features/auth/components/LoginPage';
-import type { LoginSearch } from '@/features/auth/login-policy';
+import { getLineLoginUrl, type LoginSearch } from '@/features/auth/login-policy';
 
 export const Route = createFileRoute('/login')({
   validateSearch: (search: Record<string, unknown>): LoginSearch => ({
@@ -24,8 +24,9 @@ function LoginRoute() {
   return (
     <LoginPage
       error={search.error}
-      inviteToken={search.invite}
-      redirectUrl={search.redirect ?? '/'}
+      onLineLogin={() => {
+        window.location.href = getLineLoginUrl(search);
+      }}
     />
   );
 }

@@ -3,15 +3,13 @@ import { Box, Center, Stack, Text, Title } from '@mantine/core';
 import { ErrorAlert } from '@/components/AppAlert';
 import { AppBadge } from '@/components/AppBadge';
 
-import { getLineLoginUrl, getLoginErrorMessage } from '../login-policy';
+import { getLoginErrorMessage } from '../login-policy';
 import { LineLoginButton } from './LineLoginButton';
 import classes from './LoginPage.module.css';
 
 type LoginPageProps = {
-  /** 認証後の戻り先 */
-  redirectUrl?: string | undefined;
-  /** 招待トークン */
-  inviteToken?: string | undefined;
+  /** LINE ログインを開始する */
+  onLineLogin: () => void;
   /** 認証エラー理由（コールバックからのリダイレクト時に付与される） */
   error?: string | undefined;
 };
@@ -20,14 +18,10 @@ type LoginPageProps = {
  * ログインページ。認証エラーに応じた案内と、再試行可能な場合にログインボタンを表示する。
  * 「招待を受けた方のみ利用可能」の趣旨を踏襲する。
  */
-export function LoginPage({ redirectUrl = '/', inviteToken, error }: LoginPageProps) {
+export function LoginPage({ onLineLogin, error }: LoginPageProps) {
   const canRetry =
     error === undefined ||
     !['invitation_required', 'invitation_invalid', 'inactive_user'].includes(error);
-
-  const handleLineLogin = () => {
-    window.location.href = getLineLoginUrl({ redirect: redirectUrl, invite: inviteToken });
-  };
 
   return (
     <Box mih="100dvh" p="md" className={classes.heroBackground}>
@@ -47,7 +41,7 @@ export function LoginPage({ redirectUrl = '/', inviteToken, error }: LoginPagePr
 
           {error && <ErrorAlert>{getLoginErrorMessage(error)}</ErrorAlert>}
 
-          {canRetry && <LineLoginButton onClick={handleLineLogin} />}
+          {canRetry && <LineLoginButton onClick={onLineLogin} />}
         </Stack>
       </Center>
     </Box>

@@ -682,7 +682,7 @@ describe('ロールミドルウェア（requireRole）', () => {
 });
 
 describe('Rate Limit（認証系のみ）', () => {
-  it('上限を超えた login リクエストは 429 を返す', async () => {
+  it('上限を超えた login リクエストはログイン画面へ rate_limited 付きで戻す', async () => {
     const limiter = makeRateLimiter(2);
     const reqEnv = envWith({ AUTH_RATE_LIMITER: limiter });
 
@@ -690,9 +690,61 @@ describe('Rate Limit（認証系のみ）', () => {
     const second = await app.request('/api/auth/line/login', {}, reqEnv);
     const third = await app.request('/api/auth/line/login', {}, reqEnv);
 
-    expect(first.status).toBe(302);
-    expect(second.status).toBe(302);
-    expect(third.status).toBe(429);
+    expect(first.headers.get('location')).toContain('https://access.line.me/');
+    expect(second.headers.get('location')).toContain('https://access.line.me/');
+    expect(third.status).toBe(302);
+    expect(third.headers.get('location')).toBe(
+      `${reqEnv.APP_URL}/login?error=rate_limited&redirect=%2F`,
+    );
+    // 超過時は OAuth を開始しないため、auth-session Cookie を発行しない
+    expect(third.headers.get('set-cookie')).toBeNull();
+  });
+
+  it('login の超過時は再試行用に招待と戻り先を引き継ぐ', async () => {
+    const reqEnv = envWith({ AUTH_RATE_LIMITER: makeRateLimiter(0) });
+    const res = await app.request(
+      '/api/auth/line/login?redirect=%2Fshifts%3Fdate%3D2026-01&invite=test-invitation',
+      {},
+      reqEnv,
+    );
+
+    expect(res.status).toBe(302);
+    expect(res.headers.get('location')).toBe(
+      `${reqEnv.APP_URL}/login?error=rate_limited&redirect=%2Fshifts%3Fdate%3D2026-01&invite=test-invitation`,
+    );
+  });
+
+  it('login の超過時も外部への戻り先は引き継がない', async () => {
+    const reqEnv = envWith({ AUTH_RATE_LIMITER: makeRateLimiter(0) });
+    const res = await app.request(
+      '/api/auth/line/login?redirect=https%3A%2F%2Fevil.example.com',
+      {},
+      reqEnv,
+    );
+
+    expect(res.headers.get('location')).toBe(
+      `${reqEnv.APP_URL}/login?error=rate_limited&redirect=%2F`,
+    );
+  });
+
+  it('callback の超過時は再試行情報を引き継がずにログイン画面へ戻し、auth-session Cookie を残す', async () => {
+    const reqEnv = envWith({ AUTH_RATE_LIMITER: makeRateLimiter(0) });
+    const session = JSON.stringify({
+      state: 'state',
+      redirectUrl: '/shifts',
+      inviteToken: 'test-invitation',
+      createdAt: Date.now(),
+    });
+    const res = await app.request(
+      '/api/auth/line/callback?code=code&state=state',
+      { headers: { cookie: `auth-session=${encodeURIComponent(session)}` } },
+      reqEnv,
+    );
+
+    expect(res.status).toBe(302);
+    expect(res.headers.get('location')).toBe(`${reqEnv.APP_URL}/login?error=rate_limited`);
+    // Cookie を削除・上書きしないので、招待リンクを開き直せば再開できる
+    expect(res.headers.get('set-cookie')).toBeNull();
   });
 
   it('認証済み一般 API（/me）には Rate Limit を適用しない', async () => {

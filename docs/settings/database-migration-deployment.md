@@ -11,7 +11,9 @@
 - **Allow administrators to bypass configured protection rules** を無効にする。
 - Deployment branches and tags は `main` のブランチだけを許可する。
 
-ワークフローは準備時と本番操作前に、Required reviewers が登録済みで管理者バイパスが無効なことを検証する。未設定・削除・API の参照失敗では停止し、承認なしで本番へ進まない。既存の repository secrets・variables はそのまま利用する。Environment secrets へ移す場合、build でも必要な値を不用意に移さないこと。
+ワークフローは準備時と本番操作前に、Required reviewers が登録済みで管理者バイパスが無効なことを検証する。未設定・削除・API の参照失敗では停止し、承認なしで本番へ進まない。本番用の `CLOUDFLARE_API_TOKEN` は `production` の Environment secret に登録し、同名の repository secret と、このリポジトリへ共有されている organization secret は削除・共有解除する。同名の repository secret を残すと、承認前の別ジョブから本番トークンを利用できるため、Environment への追加だけでは隔離にならない。GitHub の secrets は値を読み出せないため、手元のトークンを登録するか Cloudflare で再発行して登録する。トークンは必要な本番 Worker・D1 への最小権限に限定する。
+
+`CLOUDFLARE_ACCOUNT_ID` は認証情報ではないため、既存の repository secret のまま利用できる。`APP_URL`・`LINE_CHANNEL_ID` などの variables と、build で使う Sentry の設定は既存のスコープを維持する。承認前の build へ本番 Cloudflare トークンは渡さず、認証情報と Worker secrets の存在確認は承認後の deploy で行う。このため Cloudflare 側の設定漏れは承認後に検出される。
 
 Required reviewers は public リポジトリなら利用できる。private に戻す場合、Enterprise 以外では利用できないため、事前に承認方式を別の手動ワークフロー等へ変更する。private 化だけで同じ運用を続けない。
 
@@ -25,7 +27,7 @@ Required reviewers は public リポジトリなら利用できる。private に
 4. `build`・`e2e` 成功後、Actions の **Review deployments → production → Approve and deploy** で承認する。見送る場合は Reject または実行をキャンセルする。
 5. `deploy` → `health-check` → `release` の成功を確認する。ドラフトのタイトルと本文を保持したまま正式公開される。GitHub Releases の Publish ボタンは承認に使わない。
 
-`main` 以外で実行した場合は何もせず終了する。同じ最新公開リリースの SHA を再デプロイする場合も、ビルド・E2E・承認は必要。既存タグを再利用し、新しいドラフトの作成や公開は行わない。
+`main` 以外で実行した場合は何もせず終了する。同じ最新公開リリースの SHA を再デプロイする場合も、ビルド・E2E・承認は必要。既存タグを再利用し、新しいドラフトの作成や公開は行わない。ただし管理対象の未公開ドラフトが残っている場合は、候補を上書きせず停止する。本番状態とドラフトの意図を確認し、不要な候補を取り下げてから再デプロイする。
 
 ### ドラフトの更新
 
@@ -60,9 +62,9 @@ Required reviewers は public リポジトリなら利用できる。private に
 ## ワークフローの処理順
 
 1. `prepare`: 承認設定を検証し、固定 SHA のドラフトを作成・更新する（最新公開版と同じ SHA なら再デプロイ扱い）。
-2. `build`: secrets・variables・Worker secret の存在確認、production build、公開成果物の sourcemap 残留チェック、成果物保存。
+2. `build`: ビルド用の secrets・variables の存在確認、production build、公開成果物の sourcemap 残留チェック、成果物保存。
 3. `e2e`: 同じ成果物をローカル Worker・専用 D1 で起動し、Chromium・モバイル WebKit のフル E2E を実行。
-4. `deploy`: production の承認後、同じ実行の成果物を取得する。ドラフトの ID・タグ・SHA・管理情報の実行 ID と承認設定を再検証し、デプロイ開始を記録する。
+4. `deploy`: production の承認後、同じ実行の成果物を取得する。本番認証情報と Worker secrets の存在確認もこのジョブで行う。ドラフトの ID・タグ・SHA・管理情報の実行 ID と承認設定を再検証し、デプロイ開始を記録する。
 5. `wrangler d1 migrations apply fuyugyo --remote` → `wrangler deploy`。
 6. `health-check`: `/api/health` で応答確認する。D1 へのアクセスは行わない。
 7. `release`: ドラフトが同じ候補のままであることを再検証し、本文を再生成せず公開する。
@@ -81,7 +83,7 @@ Required reviewers は public リポジトリなら利用できる。private に
 
 フル E2E をローカルで再現する場合は候補 SHA を checkout し、`pnpm install --frozen-lockfile`、`pnpm exec playwright install chromium webkit`、`pnpm run test:e2e` を実行する。trace は `pnpm exec playwright show-trace <trace.zipのパス>` で確認する。通常リリースで E2E を迂回しない。
 
-候補管理の回帰テストは `node --test .github/scripts/release.test.mjs` で実行できる。GitHub API を差し替えるため本番操作は行わない。
+候補管理の回帰テストは PR の CI の `pnpm run test:scripts` に含まれる。単独では `node --test .github/scripts/release.test.mjs` で実行できる。GitHub API を差し替えるため本番操作は行わない。
 
 ヘルスチェックは D1 readiness を確認しない。migration の成否はコマンド終了コードで判定し、外部 OAuth や既存データとの互換性は運用確認・監視で補う。
 

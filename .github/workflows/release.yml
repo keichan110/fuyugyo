@@ -37,6 +37,11 @@ jobs:
         with:
           ref: ${{ github.sha }}
 
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: '.node-version'
+
       - name: Test release lifecycle
         run: node --test .github/scripts/release.test.mjs
 
@@ -65,7 +70,7 @@ jobs:
       # 設定漏れは時間のかかる E2E より前に検出する
       - name: Validate required secrets and variables
         run: |
-          for name in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID APP_URL LINE_CHANNEL_ID; do
+          for name in APP_URL LINE_CHANNEL_ID; do
             if [ -z "${!name}" ]; then
               echo "::error::$name is not set"
               exit 1
@@ -80,29 +85,12 @@ jobs:
             done
           fi
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           APP_URL: ${{ vars.APP_URL }}
           LINE_CHANNEL_ID: ${{ vars.LINE_CHANNEL_ID }}
           VITE_SENTRY_DSN: ${{ vars.VITE_SENTRY_DSN }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_ORG: ${{ vars.SENTRY_ORG }}
           SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
-
-      # Worker secret はデプロイごとに入れ直さない（secret put は新バージョンを即デプロイするため）。
-      # Cloudflare 側に登録済みであることだけを確認する。
-      - name: Verify Worker secrets exist
-        run: |
-          secrets=$(pnpm exec wrangler secret list --format json | jq -r '.[].name')
-          for name in JWT_SECRET LINE_CHANNEL_SECRET; do
-            if ! printf '%s\n' "$secrets" | grep -qxF "$name"; then
-              echo "::error::Worker secret $name is not set on Cloudflare"
-              exit 1
-            fi
-          done
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
       - name: Build application
         run: pnpm run build
@@ -215,6 +203,33 @@ jobs:
           RELEASE_SHA: ${{ needs.prepare.outputs.sha }}
           RELEASE_DRAFT: ${{ needs.prepare.outputs.draft }}
 
+      - name: Validate production credentials
+        run: |
+          for name in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID; do
+            if [ -z "${!name}" ]; then
+              echo "::error::$name is not set"
+              exit 1
+            fi
+          done
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      # Worker secret はデプロイごとに入れ直さない（secret put は新バージョンを即デプロイするため）。
+      # Cloudflare 側に登録済みであることだけを確認する。
+      - name: Verify Worker secrets exist
+        run: |
+          secrets=$(pnpm exec wrangler secret list --format json | jq -r '.[].name')
+          for name in JWT_SECRET LINE_CHANNEL_SECRET; do
+            if ! printf '%s\n' "$secrets" | grep -qxF "$name"; then
+              echo "::error::Worker secret $name is not set on Cloudflare"
+              exit 1
+            fi
+          done
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
       # 新コードが参照するスキーマを先に用意し、デプロイ中の 500 を防ぐ。
       # 失敗した migration は Wrangler がロールバックする。適用済み migration の巻き戻しは
       # 自動では行われないため、DB の復元が必要な場合は D1 Time Travel を使う。
@@ -277,6 +292,11 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ needs.prepare.outputs.sha }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: '.node-version'
 
       - name: Publish GitHub Release
         run: node .github/scripts/release.mjs publish

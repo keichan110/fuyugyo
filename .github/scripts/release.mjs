@@ -13,11 +13,15 @@ function metadata(release) {
 
 function ghApi(path, method = 'GET', data) {
   const args = ['api', path, '--method', method];
-  if (data !== undefined) args.push('--input', '-');
-  return JSON.parse(execFileSync('gh', args, {
-    input: data === undefined ? undefined : JSON.stringify(data),
-    encoding: 'utf8',
-  }));
+  if (data !== undefined) {
+    args.push('--input', '-');
+  }
+  return JSON.parse(
+    execFileSync('gh', args, {
+      input: data === undefined ? undefined : JSON.stringify(data),
+      encoding: 'utf8',
+    }),
+  );
 }
 
 async function listAll(api, path) {
@@ -25,7 +29,9 @@ async function listAll(api, path) {
   for (let page = 1; ; page++) {
     const items = await api(`${path}?per_page=100&page=${page}`);
     result.push(...items);
-    if (items.length < 100) return result;
+    if (items.length < 100) {
+      return result;
+    }
   }
 }
 
@@ -34,7 +40,9 @@ function updateBody(release, state, notes) {
   if (notes !== undefined) {
     const start = body.indexOf(notesStart);
     const end = body.indexOf(notesEnd);
-    if (start < 0 || end < start) throw new Error('自動生成部分のマーカーを復元してください。');
+    if (start < 0 || end < start) {
+      throw new Error('自動生成部分のマーカーを復元してください。');
+    }
     body = body.slice(0, start + notesStart.length) + `\n${notes}\n` + body.slice(end);
   }
   body = body.replace(marker, '').trimEnd();
@@ -43,17 +51,158 @@ function updateBody(release, state, notes) {
 
 async function assertApproval(api, repo) {
   const environment = await api(`${repo}/environments/production`);
-  const reviewers = environment.protection_rules?.find((rule) => rule.type === 'required_reviewers');
+  const reviewers = environment.protection_rules?.find(
+    (rule) => rule.type === 'required_reviewers',
+  );
   if (!reviewers?.reviewers?.length || environment.can_admins_bypass !== false) {
-    throw new Error('production に Required reviewers を登録し、管理者による保護ルールのバイパスを無効にしてください。');
+    throw new Error(
+      'production に Required reviewers を登録し、管理者による保護ルールのバイパスを無効にしてください。',
+    );
   }
 }
 
 async function assertTag(api, repo, release, sha, refs) {
   if (refs.some((ref) => ref.ref === `refs/tags/${release.tag_name}`)) {
     const commit = await api(`${repo}/commits/${encodeURIComponent(release.tag_name)}`);
-    if (commit.sha !== sha) throw new Error('既存タグの SHA がリリース候補と一致しません。');
+    if (commit.sha !== sha) {
+      throw new Error('既存タグの SHA がリリース候補と一致しません。');
+    }
   }
+}
+
+function nextTag(releases, refs) {
+  const date = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Tokyo' }).format(new Date());
+  const base = `v${date.replaceAll('-', '.')}`;
+  const existing = new Set([
+    ...releases.map((release) => release.tag_name),
+    ...refs.map((ref) => ref.ref.replace('refs/tags/', '')),
+  ]);
+  let tag = base;
+  for (let n = 2; existing.has(tag); n++) {
+    tag = `${base}.${n}`;
+  }
+  return tag;
+}
+
+async function saveDraft(api, repo, env, draft, latest, tag) {
+  const sha = env.RELEASE_SHA;
+  const previous = draft && metadata(draft);
+  let notes;
+  if (!draft || previous.sha !== sha) {
+    const generated = await api(`${repo}/releases/generate-notes`, 'POST', {
+      tag_name: tag,
+      target_commitish: sha,
+      ...(latest ? { previous_tag_name: latest.tag_name } : {}),
+    });
+    notes = generated.body;
+  }
+  const state = {
+    sha,
+    runId: env.GITHUB_RUN_ID,
+    deployStarted: previous?.sha === sha && previous.deployStarted === true,
+  };
+  const release = await api(
+    draft ? `${repo}/releases/${draft.id}` : `${repo}/releases`,
+    draft ? 'PATCH' : 'POST',
+    {
+      tag_name: tag,
+      target_commitish: sha,
+      name: draft?.name ?? tag,
+      body: updateBody(draft, state, notes),
+      draft: true,
+      prerelease: false,
+    },
+  );
+  return { tag, sha, id: release.id, draft: true, url: release.html_url };
+}
+
+async function prepareRelease(api, repo, env) {
+  await assertApproval(api, repo);
+  const releases = await listAll(api, `${repo}/releases`);
+  const refs = await api(`${repo}/git/matching-refs/tags/`);
+  const drafts = releases.filter((release) => release.draft && metadata(release));
+  if (drafts.length > 1) {
+    throw new Error('管理対象ドラフトを1件に整理してください。');
+  }
+  const draft = drafts[0];
+  const previous = draft && metadata(draft);
+  const sha = env.RELEASE_SHA;
+  // 本番操作の途中で失敗した候補は別コミットで上書きせず、復旧するまで固定する。
+  if (previous?.deployStarted && previous.sha !== sha) {
+    throw new Error('デプロイ開始済みのドラフトが残っています。同じ SHA で復旧してください。');
+  }
+  const latest = releases
+    .filter((release) => !release.draft && !release.prerelease)
+    .sort((a, b) => b.published_at.localeCompare(a.published_at))[0];
+  if (latest) {
+    const commit = await api(`${repo}/commits/${encodeURIComponent(latest.tag_name)}`);
+    if (commit.sha === sha) {
+      // 再デプロイで未解決の候補を上書きしたり、同じ内容のリリースを増やしたりしない。
+      if (draft) {
+        throw new Error(
+          '未公開のドラフトが残っています。候補を確認・整理してから再デプロイしてください。',
+        );
+      }
+      return { tag: latest.tag_name, sha, id: latest.id, draft: false, url: latest.html_url };
+    }
+  }
+  const tag = draft?.tag_name ?? nextTag(releases, refs);
+  // 公開済みタグは動かさない。失敗時などにタグだけ存在する候補も同じ SHA に限定する。
+  await assertTag(api, repo, { tag_name: tag }, sha, refs);
+  return saveDraft(api, repo, env, draft, latest, tag);
+}
+
+async function loadCandidate(api, repo, env) {
+  const release = await api(`${repo}/releases/${env.RELEASE_ID}`);
+  if (release.tag_name !== env.RELEASE_TAG) {
+    throw new Error('リリースタグが変更されています。');
+  }
+  const refs = await api(`${repo}/git/matching-refs/tags/`);
+  await assertTag(api, repo, release, env.RELEASE_SHA, refs);
+  if (env.RELEASE_DRAFT !== 'true') {
+    if (
+      release.draft ||
+      release.prerelease ||
+      !refs.some((ref) => ref.ref === `refs/tags/${release.tag_name}`)
+    ) {
+      throw new Error('再デプロイ対象は公開済みの正式リリースである必要があります。');
+    }
+    return { release };
+  }
+  const state = metadata(release);
+  if (
+    !release.draft ||
+    release.prerelease ||
+    release.target_commitish !== env.RELEASE_SHA ||
+    state?.sha !== env.RELEASE_SHA ||
+    state.runId !== env.GITHUB_RUN_ID
+  ) {
+    throw new Error('ドラフトが更新または公開されています。候補を準備し直してください。');
+  }
+  return { release, state };
+}
+
+async function verifyRelease(api, repo, candidate) {
+  await assertApproval(api, repo);
+  if (candidate.state) {
+    await api(`${repo}/releases/${candidate.release.id}`, 'PATCH', {
+      body: updateBody(candidate.release, { ...candidate.state, deployStarted: true }),
+    });
+  }
+}
+
+async function publishRelease(api, repo, candidate) {
+  if (!candidate.state) {
+    return;
+  }
+  if (!candidate.state.deployStarted) {
+    throw new Error('デプロイ開始が記録されていません。');
+  }
+  // 確認済みのタイトルと本文をそのまま公開する。ノートの再生成は行わない。
+  await api(`${repo}/releases/${candidate.release.id}`, 'PATCH', {
+    draft: false,
+    make_latest: 'true',
+  });
 }
 
 /**
@@ -62,87 +211,23 @@ async function assertTag(api, repo, release, sha, refs) {
  */
 export async function runRelease(command, env, api = ghApi) {
   const repo = `repos/${env.GITHUB_REPOSITORY}`;
-  const sha = env.RELEASE_SHA;
-  if (!/^[a-f0-9]{40}$/.test(sha ?? '')) throw new Error('完全なコミット SHA が必要です。');
-  if (!env.GITHUB_RUN_ID) throw new Error('実行 ID が必要です。');
-
+  if (!/^[a-f0-9]{40}$/.test(env.RELEASE_SHA ?? '')) {
+    throw new Error('完全なコミット SHA が必要です。');
+  }
+  if (!env.GITHUB_RUN_ID) {
+    throw new Error('実行 ID が必要です。');
+  }
   if (command === 'prepare') {
-    await assertApproval(api, repo);
-    const releases = await listAll(api, `${repo}/releases`);
-    const refs = await api(`${repo}/git/matching-refs/tags/`);
-    const drafts = releases.filter((release) => release.draft && metadata(release));
-    if (drafts.length > 1) throw new Error('管理対象ドラフトを1件に整理してください。');
-    const draft = drafts[0];
-    const previous = draft && metadata(draft);
-    // 本番操作の途中で失敗した候補は別コミットで上書きせず、復旧するまで固定する。
-    if (previous?.deployStarted && previous.sha !== sha) {
-      throw new Error('デプロイ開始済みのドラフトが残っています。同じ SHA で復旧してください。');
-    }
-    const latest = releases.filter((release) => !release.draft && !release.prerelease)
-      .sort((a, b) => b.published_at.localeCompare(a.published_at))[0];
-    if (latest && !draft) {
-      const commit = await api(`${repo}/commits/${encodeURIComponent(latest.tag_name)}`);
-      if (commit.sha === sha) {
-        return { tag: latest.tag_name, sha, id: latest.id, draft: false, url: latest.html_url };
-      }
-    }
-
-    let tag = draft?.tag_name;
-    if (!tag) {
-      const date = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Tokyo' }).format(new Date());
-      const base = `v${date.replaceAll('-', '.')}`;
-      const existing = new Set([...releases.map((release) => release.tag_name),
-        ...refs.map((ref) => ref.ref.replace('refs/tags/', ''))]);
-      tag = base;
-      for (let n = 2; existing.has(tag); n++) tag = `${base}.${n}`;
-    }
-    // 公開済みタグは動かさない。失敗時などにタグだけ存在する候補も同じ SHA に限定する。
-    await assertTag(api, repo, { tag_name: tag }, sha, refs);
-    let notes;
-    if (!draft || previous.sha !== sha) {
-      const generated = await api(`${repo}/releases/generate-notes`, 'POST', {
-        tag_name: tag, target_commitish: sha,
-        ...(latest ? { previous_tag_name: latest.tag_name } : {}),
-      });
-      notes = generated.body;
-    }
-    const state = { sha, runId: env.GITHUB_RUN_ID,
-      deployStarted: previous?.sha === sha && previous.deployStarted === true };
-    const release = await api(draft ? `${repo}/releases/${draft.id}` : `${repo}/releases`,
-      draft ? 'PATCH' : 'POST', {
-        tag_name: tag, target_commitish: sha, name: draft?.name ?? tag,
-        body: updateBody(draft, state, notes), draft: true, prerelease: false,
-      });
-    return { tag, sha, id: release.id, draft: true, url: release.html_url };
+    return prepareRelease(api, repo, env);
   }
-
-  if (!['verify', 'publish'].includes(command)) throw new Error('未対応の操作です。');
-  const release = await api(`${repo}/releases/${env.RELEASE_ID}`);
-  if (release.tag_name !== env.RELEASE_TAG) throw new Error('リリースタグが変更されています。');
-  const refs = await api(`${repo}/git/matching-refs/tags/`);
-  await assertTag(api, repo, release, sha, refs);
-  if (env.RELEASE_DRAFT !== 'true') {
-    if (release.draft || release.prerelease || !refs.some((ref) => ref.ref === `refs/tags/${release.tag_name}`)) {
-      throw new Error('再デプロイ対象は公開済みの正式リリースである必要があります。');
-    }
-    if (command === 'verify') await assertApproval(api, repo);
-    return;
+  if (!['verify', 'publish'].includes(command)) {
+    throw new Error('未対応の操作です。');
   }
-  const state = metadata(release);
-  if (!release.draft || release.prerelease || release.target_commitish !== sha ||
-      state?.sha !== sha || state.runId !== env.GITHUB_RUN_ID) {
-    throw new Error('ドラフトが更新または公開されています。候補を準備し直してください。');
-  }
+  const candidate = await loadCandidate(api, repo, env);
   if (command === 'verify') {
-    await assertApproval(api, repo);
-    await api(`${repo}/releases/${release.id}`, 'PATCH', {
-      body: updateBody(release, { ...state, deployStarted: true }),
-    });
-  } else {
-    if (!state.deployStarted) throw new Error('デプロイ開始が記録されていません。');
-    // 確認済みのタイトルと本文をそのまま公開する。ノートの再生成は行わない。
-    await api(`${repo}/releases/${release.id}`, 'PATCH', { draft: false, make_latest: 'true' });
+    return verifyRelease(api, repo, candidate);
   }
+  return publishRelease(api, repo, candidate);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
@@ -151,8 +236,10 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     for (const [key, value] of Object.entries(result)) {
       appendFileSync(process.env.GITHUB_OUTPUT, `${key}=${value}\n`);
     }
-    appendFileSync(process.env.GITHUB_STEP_SUMMARY,
+    appendFileSync(
+      process.env.GITHUB_STEP_SUMMARY,
       `## リリース候補\n\n- SHA: \`${result.sha}\`\n- [${result.tag}](${result.url})\n\n` +
-      '内容・運用メモと品質チェック結果を確認後、production の承認を行ってください。\n');
+        '内容・運用メモと品質チェック結果を確認後、production の承認を行ってください。\n',
+    );
   }
 }

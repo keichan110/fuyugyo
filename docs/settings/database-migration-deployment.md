@@ -1,68 +1,89 @@
 # 本番リリース・デプロイ手順
 
-本番デプロイは `main` へのマージでは走らない。`.github/workflows/release.yml`（Release ワークフロー）を手動実行したときだけデプロイし、成功時に GitHub Release を作成する。マージとデプロイを分けることで、シーズン中（12〜3月）の営業時間帯を避けて本番を切り替えられる。
+本番デプロイは `main` へのマージでは走らない。`.github/workflows/release.yml`（Release ワークフロー）を手動実行し、ドラフト確認・ビルド・フル E2E・承認を済ませてから本番へ反映する。デプロイとヘルスチェックが成功した場合だけ、そのドラフトを正式公開する。
+
+## 初回の GitHub 設定
+
+リポジトリの **Settings → Environments** で `production` を作成し、次を設定する。承認ルールは YAML だけでは設定できない。
+
+- **Required reviewers** に運用担当者を登録する。
+- 1人で開始と承認を行う場合、**Prevent self-review** は無効にする。
+- **Allow administrators to bypass configured protection rules** を無効にする。
+- Deployment branches and tags は `main` のブランチだけを許可する。
+
+ワークフローは準備時と本番操作前に、Required reviewers が登録済みで管理者バイパスが無効なことを検証する。未設定・削除・API の参照失敗では停止し、承認なしで本番へ進まない。既存の repository secrets・variables はそのまま利用する。Environment secrets へ移す場合、build でも必要な値を不用意に移さないこと。
+
+Required reviewers は public リポジトリなら利用できる。private に戻す場合、Enterprise 以外では利用できないため、事前に承認方式を別の手動ワークフロー等へ変更する。private 化だけで同じ運用を続けない。
+
+参考: [GitHub Environments](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments)、[デプロイの承認](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/review-deployments)
 
 ## リリース手順
 
-1. GitHub モバイルアプリ（または Web）でリポジトリを開く
-2. **Actions → Release → Run workflow** を選び、ブランチは `main` のまま実行する
-3. `deploy` → `health-check` → `release` の順に成功したことを確認する（同じコミットの再デプロイでは `release` はスキップ）
-4. 新しいコミットをデプロイした場合、Releases に `vYYYY.MM.DD` のリリースが作られ、前回リリース以降の PR が並んでいることを確認する
+1. **Actions → Release → Run workflow** を選び、ブランチを `main` のまま実行する。
+2. `prepare` の実行サマリーに表示されるリリース候補のリンクと完全な SHA を確認する。実行開始時点の SHA が固定され、待機中に main が進んでも変わらない。
+3. ドラフトの変更一覧・DB マイグレーション・運用メモを確認し、必要なら本文を編集する。ビルドと E2E はこの確認と並行して進む。
+4. `build`・`e2e` 成功後、Actions の **Review deployments → production → Approve and deploy** で承認する。見送る場合は Reject または実行をキャンセルする。
+5. `deploy` → `health-check` → `release` の成功を確認する。ドラフトのタイトルと本文を保持したまま正式公開される。GitHub Releases の Publish ボタンは承認に使わない。
 
-`main` 以外のブランチを選んで実行した場合、ワークフローは何もせずに終了する。
+`main` 以外で実行した場合は何もせず終了する。同じ最新公開リリースの SHA を再デプロイする場合も、ビルド・E2E・承認は必要。既存タグを再利用し、新しいドラフトの作成や公開は行わない。
 
-最新の公開 Release（ドラフト・プレリリースを除く）のタグと `main` のコミット SHA が同じ場合も、デプロイとヘルスチェックは実行する。この場合は既存のリリースタグを Worker Version に再利用し、新しいタグ・GitHub Release は作成しない。前回の実行が失敗して Release が未作成なら、再実行が成功した時点で作成する。ファイルの内容が同じでもコミット SHA が異なる場合は新しいリリースとして扱う。
+### ドラフトの更新
 
-### タグの形式
+このワークフローが管理する未公開ドラフトは1件だけにする。管理情報は本文末尾の HTML コメントに保存するため、削除・編集しない。
 
-- JST の日付で `vYYYY.MM.DD`（例: `v2026.11.12`）
-- 同日2回目以降は `vYYYY.MM.DD.2`、`vYYYY.MM.DD.3` と連番を付ける
-- 同じタグを Cloudflare の Worker Version にも `--tag` として付けるため、`wrangler versions list` やダッシュボードで GitHub Release と対応付けられる
+- **同じ SHA**: 既存のドラフトと編集済み本文を保持し、品質チェックを再実行する。
+- **別 SHA、デプロイ開始前**: 同じドラフトの対象 SHA と自動生成の変更一覧を更新する。「運用メモ」など自動生成範囲外の記述は保持する。更新した候補の内容確認・品質チェック・承認が改めて必要になる。
+- **デプロイ開始後**: 別 SHA への更新を拒否する。本番操作途中の候補を上書きせず、先に同じ SHA で復旧するか、本番状態を確認して候補を取り下げる。
 
-### リリースノート
+`<!-- release-notes:start -->` と `<!-- release-notes:end -->` の間は、別 SHA に更新すると再生成される。同じ SHA の再実行ではこの範囲も保持する。恒久的な手動補足は「運用メモ」に記載する。
 
-`gh release create --generate-notes` で前回リリース以降にマージされた PR を自動で並べる。カテゴリは `.github/release.yml` で PR のラベルごとに分けている（`security` / `db-migration` / `enhancement` / `bug` / `dependencies` / `ci-cd`・`devops` / その他）。1つの PR は上から最初に当てはまるカテゴリにだけ載る。`skip-changelog` ラベルの PR は載らない。
+承認待ちを含む全実行は `deploy-production` concurrency group で直列化する。新しく Run workflow しても、待機中の古い実行は自動で置き換わらない。候補を更新したい場合は、先に古い承認待ちを Reject またはキャンセルしてから新しく実行する。古い実行を再実行しても、別実行で更新済みの候補は本番操作前の検証で拒否される。
 
-| ラベル                                       | 付け方                                                                     |
-| -------------------------------------------- | -------------------------------------------------------------------------- |
-| `enhancement` / `bug` / `security` / `ci-cd` | PR 作成時に手動で1つ付ける。付いていない PR は「その他」に載る             |
-| `db-migration`                               | `drizzle/` 配下を変更すると `.github/workflows/labeler.yml` が自動で付ける |
-| `dependencies`                               | Renovate が付ける                                                          |
+### タグとリリースノート
 
-**リリース前の確認ポイント**: 「🗃️ DB マイグレーションあり」があれば、ロールバックで DB が戻らないことを踏まえてリリースの時間帯を選ぶ。
+- 新規タグは準備時の JST 日付で `vYYYY.MM.DD`。同日2件目以降は `.2`、`.3` と採番する。
+- 既存タグと未公開ドラフトのタグの両方を避けて採番する。ドラフト更新時は元のタグを再利用するため、準備日と公開日が異なる場合がある。
+- タグはドラフトの公開時に固定 SHA へ作成される。既存タグは動かさず、その SHA が異なる場合は停止する。
+- 同じタグを Cloudflare Worker Version にも付け、GitHub Release と対応付ける。
+- pre-release は使用しない。成功するまではドラフト、成功後は正式リリースとする。
 
-### 最初のリリース
+リリースノートは GitHub の自動生成 API を使い、最新の正式公開リリースから候補 SHA までの変更を列挙する。カテゴリは `.github/release.yml` の PR ラベル設定を使用する。
 
-手動リリース方式へ切り替えた直後に一度 Release ワークフローを実行し、現在の `main`（＝その時点の本番相当）にタグを付ける。前回リリースが存在しないため、最初のリリースノートには過去の PR がまとめて並ぶ。必要なら GitHub 上で本文を編集してよい。
+| ラベル | 付け方 |
+| --- | --- |
+| `enhancement` / `bug` / `security` / `ci-cd` | PR 作成時に手動で1つ付ける |
+| `db-migration` | `drizzle/` の変更から自動で付く |
+| `dependencies` | Renovate が付ける |
+
+1つの PR は上から最初に一致するカテゴリに載り、`skip-changelog` の PR は除外する。最初のリリースでは過去の PR がまとめて並ぶため、必要なら本文を編集する。「DB マイグレーションあり」があれば、DB は通常のロールバックで戻らないことを確認して時間帯を選ぶ。
 
 ## ワークフローの処理順
 
-1. `main` の最新をチェックアウトし、最新の公開 Release と同じコミットならタグを再利用、異なる場合や初回はリリースタグを採番
-2. 依存関係の固定インストール
-3. GitHub secrets・variables の検証（`CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID` / `APP_URL` / `LINE_CHANNEL_ID`）
-4. Cloudflare 上に Worker secret（`JWT_SECRET` / `LINE_CHANNEL_SECRET`）が登録済みかを確認
-5. production build
-6. 同じビルド成果物をローカルWorker・専用D1で起動し、Chromium・モバイルWebKitのフルE2E（`pnpm run test:e2e:release`）を実行
-7. `wrangler d1 migrations apply fuyugyo --remote`
-8. `wrangler deploy --tag <リリースタグ> --message "Release <タグ> (<sha>)"`
-9. D1 にアクセスしない `/api/health` による Worker の応答確認
-10. 新しいコミットがあり、8・9 が成功した場合のみ、タグと GitHub Release を作成（`release` ジョブだけが `contents: write` を持つ）
+1. `prepare`: 承認設定を検証し、固定 SHA のドラフトを作成・更新する（最新公開版と同じ SHA なら再デプロイ扱い）。
+2. `build`: secrets・variables・Worker secret の存在確認、production build、公開成果物の sourcemap 残留チェック、成果物保存。
+3. `e2e`: 同じ成果物をローカル Worker・専用 D1 で起動し、Chromium・モバイル WebKit のフル E2E を実行。
+4. `deploy`: production の承認後、同じ実行の成果物を取得する。ドラフトの ID・タグ・SHA・管理情報の実行 ID と承認設定を再検証し、デプロイ開始を記録する。
+5. `wrangler d1 migrations apply fuyugyo --remote` → `wrangler deploy`。
+6. `health-check`: `/api/health` で応答確認する。D1 へのアクセスは行わない。
+7. `release`: ドラフトが同じ候補のままであることを再検証し、本文を再生成せず公開する。
 
-### E2E失敗時
+品質チェックは1回だけ。承認後に再ビルド・E2E はせず、検証済みの成果物を使う。成果物は7日間保持する。期限切れならデプロイ前に停止するため、候補の準備からやり直す。
 
-フルE2Eが失敗すると、後続の本番migration・deploy・GitHub Release作成は実行されない。キャンセルやtimeout時も同様。テストによる書込みはローカルの専用D1だけで、本番データには触れない。
+## 失敗時・再実行
 
-E2Eより前のproduction buildでは、Sentryを設定している場合にsourcemapをアップロードする。このためE2Eが失敗してもSentry側にはアップロード済みの情報が残り得る。「本番DB・Worker・GitHub Releaseの変更を開始しない」範囲の保証であり、すべての外部サービスが無変更となる保証ではない。
+準備済みのドラフトは、ビルド・E2E・承認拒否・キャンセル・migration・deploy・health-check の失敗では削除・公開しない。承認前は本番 DB・Worker を変更しない。ただし、build 時の Sentry sourcemap アップロードは実施される場合がある。
 
-1. Actionsの失敗ステップと `release-playwright-results` artifactのレポート・スクリーンショット・traceを確認する（保持3日）。認証Cookie等を含み得るため、証跡を公開のIssueにそのまま添付しない。
-2. 対象実行の `Determine release tag` が記録したSHAを確認し、そのコミットで `pnpm install --frozen-lockfile`、`pnpm exec playwright install chromium webkit`、`pnpm run test:e2e` を実行する。公開環境変数による差異も確認する。
-3. traceは `pnpm exec playwright show-trace <trace.zipのパス>` で調べる。修正をmainへ反映し、Releaseを再実行する。通常リリースでE2Eを迂回しない。
+- **ビルド・E2E 失敗**: Actions の失敗ステップと `release-playwright-results` artifact（保持3日）を調べる。証跡には認証 Cookie 等を含み得るため、そのまま公開しない。同じ SHA なら失敗ジョブを再実行できる。修正が必要なら main へ反映して新しく実行し、既存ドラフトを更新する。
+- **承認拒否・キャンセル**: ドラフトは残る。本番操作開始前なら新しい実行で更新できる。
+- **migration・deploy・health-check 失敗**: 本番の状態を確認し、同じ SHA の失敗ジョブを再実行する。deploy を再実行する場合は承認も必要。途中で成功した migration は残る。旧 Worker と新スキーマの互換性が必要。
+- **公開処理だけ失敗**: `release` ジョブを再実行する。ビルド・E2E・デプロイを繰り返さず、同じドラフトを公開する。すでに公開できていた場合は公開状態とタグを確認し、再実行せず成功済みとして扱う。
+- **開始済みの候補を取り下げる**: 本番状態を確認・必要ならロールバックし、ドラフトの運用メモを記録してからドラフトを手動削除する。その後、新しい実行で修正版の候補を準備する。公開済みのタグは動かさない。
 
-合格しても本番設定・外部OAuth・既存データへのmigrationの成功までは保証しない。migration互換性の確認とデプロイ後のhealth・監視は引き続き必要。失敗時に本番無変更となるのはE2Eゲート以前の失敗であり、migrationやdeploy開始後の失敗では以下の復旧手順を使う。
+フル E2E をローカルで再現する場合は候補 SHA を checkout し、`pnpm install --frozen-lockfile`、`pnpm exec playwright install chromium webkit`、`pnpm run test:e2e` を実行する。trace は `pnpm exec playwright show-trace <trace.zipのパス>` で確認する。通常リリースで E2E を迂回しない。
 
-build が失敗した場合は本番 DB を変更しない。migration が失敗した場合は Worker をデプロイしない。失敗した migration は Wrangler がロールバックし、それ以前に成功した migration は適用されたまま残る（適用済み migration の自動バックアップ・巻き戻しはないため、DB を戻す必要があるときは後述の Time Travel を使う）。deploy が失敗した場合は additive な DB 変更だけが残り、稼働中の旧 Worker はそのまま動作する。デプロイまたはヘルスチェックが失敗した場合、タグとリリースは作られない。公開 health endpoint は攻撃者による D1 リクエストの増幅を避けるため、DB readiness を確認しない。スキーマ適用の成否は migration コマンドの終了コードで判定する。
+候補管理の回帰テストは `node --test .github/scripts/release.test.mjs` で実行できる。GitHub API を差し替えるため本番操作は行わない。
 
-同時実行は GitHub Actions の `deploy-production` concurrency group で直列化する。タグの採番もこの直列化を前提にしている。
+ヘルスチェックは D1 readiness を確認しない。migration の成否はコマンド終了コードで判定し、外部 OAuth や既存データとの互換性は運用確認・監視で補う。
 
 ## Worker secret の変更手順
 
@@ -114,9 +135,9 @@ pnpm exec wrangler rollback <VERSION_ID> --message "v2026.11.12 で不具合の�
 
 ## 障害時の判断
 
-- migration 失敗: Workflow を停止したまま SQL を修正する。Worker は旧版のままなので、先に deploy しない。タグ・リリースは作られていない。
+- migration 失敗: Workflow を停止したまま SQL を修正する。Worker は旧版のままなので、先に deploy しない。ドラフトは未公開のまま残る。
 - deploy 失敗: additive migration は戻さず、deploy の原因を修正して再実行する。
-- deploy 後の health check 失敗: GitHub Actions と Cloudflare のログを確認し、必要なら上記手順で直前の Worker Version にロールバックする。タグ・リリースは作られていない。DB 復元はデータ損失を伴うため、Worker のロールバックだけでは復旧できない場合に限る。
+- deploy 後の health check 失敗: GitHub Actions と Cloudflare のログを確認し、必要なら上記手順で直前の Worker Version にロールバックする。ドラフトは未公開のまま残る。DB 復元はデータ損失を伴うため、Worker のロールバックだけでは復旧できない場合に限る。
 - DB 復元が必要: Cloudflare D1 の Time Travel で任意の時点に復元する。復元はデータベースを上書きし、指定時刻以降の書き込みは失われるため、影響範囲を確認してから実施する。
 
 ```bash

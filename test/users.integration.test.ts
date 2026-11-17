@@ -186,6 +186,27 @@ describe('GET /api/users/:id', () => {
     const res = await app.request('/api/users/nonexistent-id', authHeader(token), envWith({}));
     expect(res.status).toBe(404);
   });
+
+  it('MANAGER もユーザーを取得できる', async () => {
+    const { token } = await seedManagerToken();
+    const userId = await seedUser('対象ユーザー');
+
+    const res = await app.request(`/api/users/${userId}`, authHeader(token), envWith({}));
+    expect(res.status).toBe(200);
+    expect(userSchema.parse(await res.json()).id).toBe(userId);
+  });
+
+  it('MEMBER は 403 で弾かれる', async () => {
+    const memberId = await seedUser('メンバー', 'MEMBER');
+    const targetId = await seedUser('対象ユーザー');
+    const token = await signJwt(
+      { userId: memberId, displayName: 'メンバー', role: 'MEMBER', isActive: true },
+      env.JWT_SECRET,
+      env.JWT_EXPIRES_IN,
+    );
+    const res = await app.request(`/api/users/${targetId}`, authHeader(token), envWith({}));
+    expect(res.status).toBe(403);
+  });
 });
 
 // ─── POST /api/users/:id/change-role ─────────────────────────────────────────

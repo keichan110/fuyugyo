@@ -18,7 +18,7 @@ function renderLoginPage(error?: string) {
 }
 
 describe('ログイン画面の再試行', () => {
-  it.each(['invitation_required', 'invitation_invalid', 'inactive_user'])(
+  it.each(['invitation_invalid', 'inactive_user'])(
     '再試行では解消しないエラー（%s）はログインボタンを表示しない',
     (error) => {
       const html = renderLoginPage(error);
@@ -30,6 +30,7 @@ describe('ログイン画面の再試行', () => {
   it.each([
     undefined,
     '',
+    'invitation_required',
     'auth_failed',
     'session_expired',
     'invalid_session',

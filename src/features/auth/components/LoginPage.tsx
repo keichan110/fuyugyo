@@ -17,10 +17,14 @@ type LoginPageProps = {
 };
 
 /**
- * ログインページ。LINE ログインボタンを表示する。
+ * ログインページ。認証エラーに応じた案内と、再試行可能な場合にログインボタンを表示する。
  * 「招待を受けた方のみ利用可能」の趣旨を踏襲する。
  */
 export function LoginPage({ redirectUrl = '/', inviteToken, error }: LoginPageProps) {
+  const canRetry =
+    error === undefined ||
+    !['invitation_required', 'invitation_invalid', 'inactive_user'].includes(error);
+
   const handleLineLogin = () => {
     window.location.href = getLineLoginUrl({ redirect: redirectUrl, invite: inviteToken });
   };
@@ -43,7 +47,7 @@ export function LoginPage({ redirectUrl = '/', inviteToken, error }: LoginPagePr
 
           {error && <ErrorAlert>{getLoginErrorMessage(error)}</ErrorAlert>}
 
-          <LineLoginButton onClick={handleLineLogin} />
+          {canRetry && <LineLoginButton onClick={handleLineLogin} />}
         </Stack>
       </Center>
     </Box>

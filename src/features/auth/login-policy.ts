@@ -22,8 +22,17 @@ export function getLineAutoLoginUrl(userAgent: string, search: LoginSearch): str
   return getLineLoginUrl(search);
 }
 
-/** ログイン失敗の理由に応じて、手動再試行や招待リンクの開き直しを案内する */
+/** ログイン失敗の理由に応じて、再試行・招待の取得・管理者への連絡を案内する */
 export function getLoginErrorMessage(error: string): string {
+  if (error === 'invitation_required') {
+    return 'このLINEアカウントは登録されていません。管理者から届いた招待リンクを開いてください。';
+  }
+  if (error === 'invitation_invalid') {
+    return 'この招待リンクは利用できません。管理者に招待リンクの再発行を依頼してください。';
+  }
+  if (error === 'inactive_user') {
+    return 'このアカウントは現在利用停止中です。管理者にお問い合わせください。';
+  }
   if (error === 'auto_login_failed') {
     return 'ログイン状態を確認できませんでした。ブラウザのCookie設定を確認して、もう一度ログインしてください。';
   }

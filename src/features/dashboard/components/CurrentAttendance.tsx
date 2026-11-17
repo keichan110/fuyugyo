@@ -11,8 +11,9 @@ import classes from './CurrentAttendance.module.css';
 /**
  * 今日・明日の出勤状況セクション。全インストラクターの出勤を部門・シフト種別ごとに
  * 今日/明日タブで表示し、自分が含まれる行を強調する。
+ * インストラクター未連携（`instructorId` が null）の場合は強調なしで表示する。
  */
-export function CurrentAttendance({ instructorId }: { instructorId: string }) {
+export function CurrentAttendance({ instructorId }: { instructorId: string | null }) {
   const today = todayString();
   const tomorrow = addDays(today, 1);
   const { data, isLoading, isError } = useShiftAttendance([today, tomorrow]);
@@ -69,7 +70,7 @@ function AttendanceDayPanel({
   isLoading: boolean;
   isError: boolean;
   emptyMessage: string;
-  instructorId: string;
+  instructorId: string | null;
 }) {
   return (
     <Stack gap="xs">
@@ -102,7 +103,8 @@ function AttendanceDayPanel({
               key={shift.id}
               className={classes.attendeeRow}
               data-includes-me={
-                shift.assignedInstructors.some((instructor) => instructor.id === instructorId) ||
+                (instructorId !== null &&
+                  shift.assignedInstructors.some((instructor) => instructor.id === instructorId)) ||
                 undefined
               }
             >

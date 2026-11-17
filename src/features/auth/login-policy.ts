@@ -30,6 +30,9 @@ export function getLoginErrorMessage(error: string): string {
   if (error === 'auto_login_unavailable') {
     return '自動ログインを開始できませんでした。下のボタンからログインしてください。';
   }
+  if (error === 'rate_limited') {
+    return 'ログインの試行が多すぎます。1分ほど待ってから、もう一度ログインしてください。';
+  }
   if (['session_expired', 'invalid_session', 'invalid_state'].includes(error)) {
     return 'ログインを再開できませんでした。招待リンクから開いた方は、招待リンクを開き直してください。それ以外の方は、もう一度ログインしてください。';
   }

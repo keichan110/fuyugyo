@@ -170,6 +170,30 @@ async function getOrCreateUser(
   return { ok: true, user: created };
 }
 
+/**
+ * login 用の Rate Limit。ページ遷移で開かれるため、超過時は 429 JSON ではなくログイン画面へ戻す。
+ * 再試行で招待と戻り先を保持できるよう、クエリの `redirect`・`invite` を引き継ぐ。
+ */
+const loginRateLimit = rateLimit('login', {
+  onLimited: (c) =>
+    c.redirect(
+      loginErrorUrl(c.env, 'rate_limited', {
+        redirectUrl: safeRedirectPath(c.req.query('redirect')),
+        inviteToken: c.req.query('invite') || undefined,
+      }),
+      302,
+    ),
+});
+
+/**
+ * callback 用の Rate Limit。超過時はログイン画面へ戻す。
+ * state 検証前のため戻り先・招待は引き継がない（`session_expired` などと同じ扱い）。
+ * auth-session Cookie は触らずに残すので、招待リンクを開き直せば再開できる。
+ */
+const callbackRateLimit = rateLimit('callback', {
+  onLimited: (c) => c.redirect(loginErrorUrl(c.env, 'rate_limited'), 302),
+});
+
 export const authRoute = new Hono<{
   Bindings: Env;
   Variables: AuthVariables;
@@ -178,7 +202,7 @@ export const authRoute = new Hono<{
    * LINE 認証フローを開始する。CSRF 用 state を発行して Cookie に保管し、
    * LINE 認証画面へリダイレクトする。Rate Limit 適用（未認証の攻撃面）。
    */
-  .get('/line/login', rateLimit('login'), (c) => {
+  .get('/line/login', loginRateLimit, (c) => {
     const inviteToken = c.req.query('invite') || undefined;
     const redirectUrl = safeRedirectPath(c.req.query('redirect'));
     const state = generateState();
@@ -204,7 +228,7 @@ export const authRoute = new Hono<{
    * User の取得/作成 → JWT 発行 → Cookie 設定の順に処理する。
    * Rate Limit 適用。失敗時はログインページへエラー付きリダイレクトする。
    */
-  .get('/line/callback', rateLimit('callback'), async (c) => {
+  .get('/line/callback', callbackRateLimit, async (c) => {
     const code = c.req.query('code');
     const receivedState = c.req.query('state');
     if (!receivedState) {

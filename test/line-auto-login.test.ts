@@ -228,6 +228,10 @@ describe('ログイン失敗時の案内', () => {
     expect(getLoginErrorMessage('auto_login_failed')).toContain('Cookie設定');
   });
 
+  it('Rate Limit 超過時は時間をおいて再試行するよう案内する', () => {
+    expect(getLoginErrorMessage('rate_limited')).toContain('1分ほど待ってから');
+  });
+
   it.each(['session_expired', 'invalid_session', 'invalid_state'])(
     'セッションを復元できない場合（%s）は招待リンクの開き直しを案内する',
     (error) => {
@@ -253,7 +257,7 @@ describe('LINE 内ブラウザの自動ログイン', () => {
     expect(getLineAutoLoginUrl(lineUserAgent, {})).toBe('/api/auth/line/login?redirect=%2F');
   });
 
-  it.each(['auth_failed', 'inactive_user', 'invalid_invitation', ''])(
+  it.each(['auth_failed', 'inactive_user', 'invalid_invitation', 'rate_limited', ''])(
     'エラー（%s）があれば自動ログインを止める',
     (error) => {
       expect(getLineAutoLoginUrl(lineUserAgent, { error, invite: 'invite-token' })).toBeNull();

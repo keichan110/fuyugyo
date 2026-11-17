@@ -1,3 +1,4 @@
+import type { Context } from 'hono';
 import { createMiddleware } from 'hono/factory';
 import { HTTPException } from 'hono/http-exception';
 
@@ -16,13 +17,24 @@ function getClientIp(headers: Headers): string {
   return headers.get('cf-connecting-ip') ?? headers.get('x-forwarded-for') ?? 'unknown';
 }
 
+/** `rateLimit` の追加設定 */
+export type RateLimitOptions = {
+  /**
+   * 超過時に返すレスポンス。ページ遷移で開かれるエンドポイントで、
+   * 429 JSON の代わりにリダイレクトなどを返したい場合に指定する。未指定なら 429 を投げる。
+   */
+  onLimited?: (c: Context<{ Bindings: Env }>) => Response | Promise<Response>;
+};
+
 /**
  * 認証系エンドポイント用の Rate Limit ミドルウェアを生成する。
- * クライアント IP と `bucket` を鍵にレート制限し、超過時は 429 を投げる。
+ * クライアント IP と `bucket` を鍵にレート制限し、超過時は 429 を投げる
+ * （`options.onLimited` 指定時はそのレスポンスを返す）。
  *
  * @param bucket - レート制限の区分名（例: "login"）。エンドポイントごとに鍵空間を分ける
+ * @param options - 超過時の応答の差し替えなど
  */
-export function rateLimit(bucket: string) {
+export function rateLimit(bucket: string, options: RateLimitOptions = {}) {
   return createMiddleware<{ Bindings: Env }>(async (c, next) => {
     const ip = getClientIp(c.req.raw.headers);
     const { success } = await c.env.AUTH_RATE_LIMITER.limit({
@@ -30,12 +42,15 @@ export function rateLimit(bucket: string) {
     });
 
     if (!success) {
+      if (options.onLimited) {
+        return options.onLimited(c);
+      }
       throw new HTTPException(429, {
         message: 'Too many requests. Please try again later.',
       });
     }
 
-    await next();
+    return next();
   });
 }
 

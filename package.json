@@ -16,7 +16,7 @@
     "format": "prettier --write 'src/**/*.{ts,tsx,css}' 'test/**/*.{ts,tsx}' 'e2e/**/*.ts' playwright.config.ts 'scripts/worktree-*.{ts,mjs}' 'scripts/lib/{local-ports,worktree-lock}.ts'",
     "format:check": "prettier --check 'src/**/*.{ts,tsx,css}' 'test/**/*.{ts,tsx}' 'e2e/**/*.ts' playwright.config.ts 'scripts/worktree-*.{ts,mjs}' 'scripts/lib/{local-ports,worktree-lock}.ts'",
     "test": "pnpm run test:scripts && vitest run",
-    "test:scripts": "node --test scripts/*.test.mjs",
+    "test:scripts": "node --test scripts/*.test.mjs .github/scripts/*.test.mjs",
     "test:watch": "vitest",
     "test:e2e": "pnpm run build && pnpm run test:e2e:release",
     "test:e2e:release": "tsx e2e/prepare.ts && E2E_BUILT=1 playwright test",

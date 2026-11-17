@@ -15,61 +15,54 @@ concurrency:
   group: deploy-production
   cancel-in-progress: false
 
-# 失敗箇所をジョブ名で判別できるよう build → e2e → deploy に分ける。
-# 3ジョブは build の成果物を受け渡し、E2E で検証したものと同じ成果物を本番に出す
+# ドラフト確認と品質チェックを済ませ、承認後に同じ成果物を本番へ出す。
 jobs:
-  build:
+  prepare:
     runs-on: ubuntu-latest
-    # 実行ブランチの選択に関わらず main 上の定義からのみ実行する
     if: github.repository == 'keichan110/fuyugyo' && github.ref == 'refs/heads/main'
-    timeout-minutes: 10
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      actions: read
     outputs:
-      tag: ${{ steps.tag.outputs.tag }}
-      sha: ${{ steps.tag.outputs.sha }}
-      create-release: ${{ steps.tag.outputs.create-release }}
-      playwright-version: ${{ steps.playwright-version.outputs.version }}
-
+      tag: ${{ steps.candidate.outputs.tag }}
+      sha: ${{ steps.candidate.outputs.sha }}
+      id: ${{ steps.candidate.outputs.id }}
+      draft: ${{ steps.candidate.outputs.draft }}
+      url: ${{ steps.candidate.outputs.url }}
     steps:
-      - name: Checkout main
+      # 実行開始後に main が進んでも候補を変えない。
+      - name: Checkout release commit
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          ref: main
+          ref: ${{ github.sha }}
 
-      # 最新の公開 Release と同じコミットなら既存タグで再デプロイする。
-      # 新しいコミットだけ JST の日付で vYYYY.MM.DD を採番し、同日2回目以降は .2, .3 ... を付ける。
-      # concurrency で直列化しているため、採番からリリース作成までに他の実行と衝突しない。
-      - name: Determine release tag
-        id: tag
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: '.node-version'
+
+      - name: Test release lifecycle
+        run: node --test .github/scripts/release.test.mjs
+
+      - name: Prepare release draft
+        id: candidate
+        run: node .github/scripts/release.mjs prepare
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          sha=$(git rev-parse HEAD)
-          echo "sha=$sha" >> "$GITHUB_OUTPUT"
-          latest_tag=$(gh release list --repo "$GITHUB_REPOSITORY" \
-            --exclude-drafts --exclude-pre-releases --limit 1 \
-            --json tagName --jq '.[0].tagName // empty')
-          if [ -n "$latest_tag" ]; then
-            git fetch --no-tags origin "refs/tags/$latest_tag"
-            latest_sha=$(git rev-parse 'FETCH_HEAD^{commit}')
-            if [ "$sha" = "$latest_sha" ]; then
-              echo "tag=$latest_tag" >> "$GITHUB_OUTPUT"
-              echo "create-release=false" >> "$GITHUB_OUTPUT"
-              echo "Redeploying $latest_tag ($sha); no new GitHub Release."
-              exit 0
-            fi
-          fi
+          RELEASE_SHA: ${{ github.sha }}
 
-          echo "create-release=true" >> "$GITHUB_OUTPUT"
-          base="v$(TZ=Asia/Tokyo date +%Y.%m.%d)"
-          existing=$(git ls-remote --tags --refs origin "refs/tags/${base}*" | sed 's|.*refs/tags/||')
-          tag="$base"
-          n=2
-          while printf '%s\n' "$existing" | grep -qxF "$tag"; do
-            tag="${base}.${n}"
-            n=$((n + 1))
-          done
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          echo "Release tag: $tag ($(git rev-parse --short HEAD))"
+  build:
+    runs-on: ubuntu-latest
+    needs: prepare
+    timeout-minutes: 10
+    outputs:
+      playwright-version: ${{ steps.playwright-version.outputs.version }}
+    steps:
+      - name: Checkout release commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
 
       - name: Setup
         uses: ./.github/actions/setup
@@ -77,7 +70,7 @@ jobs:
       # 設定漏れは時間のかかる E2E より前に検出する
       - name: Validate required secrets and variables
         run: |
-          for name in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID APP_URL LINE_CHANNEL_ID; do
+          for name in APP_URL LINE_CHANNEL_ID; do
             if [ -z "${!name}" ]; then
               echo "::error::$name is not set"
               exit 1
@@ -92,8 +85,6 @@ jobs:
             done
           fi
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           APP_URL: ${{ vars.APP_URL }}
           LINE_CHANNEL_ID: ${{ vars.LINE_CHANNEL_ID }}
           VITE_SENTRY_DSN: ${{ vars.VITE_SENTRY_DSN }}
@@ -101,26 +92,11 @@ jobs:
           SENTRY_ORG: ${{ vars.SENTRY_ORG }}
           SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
 
-      # Worker secret はデプロイごとに入れ直さない（secret put は新バージョンを即デプロイするため）。
-      # Cloudflare 側に登録済みであることだけを確認する。
-      - name: Verify Worker secrets exist
-        run: |
-          secrets=$(pnpm exec wrangler secret list --format json | jq -r '.[].name')
-          for name in JWT_SECRET LINE_CHANNEL_SECRET; do
-            if ! printf '%s\n' "$secrets" | grep -qxF "$name"; then
-              echo "::error::Worker secret $name is not set on Cloudflare"
-              exit 1
-            fi
-          done
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-
       - name: Build application
         run: pnpm run build
         env:
           VITE_SENTRY_DSN: ${{ vars.VITE_SENTRY_DSN }}
-          VITE_SENTRY_RELEASE: ${{ steps.tag.outputs.sha }}
+          VITE_SENTRY_RELEASE: ${{ needs.prepare.outputs.sha }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_ORG: ${{ vars.SENTRY_ORG }}
           SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
@@ -143,6 +119,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: release-build
+          overwrite: true
           path: |
             dist/
             .wrangler/deploy/config.json
@@ -153,7 +130,7 @@ jobs:
   # ブラウザと OS 依存を同梱した公式イメージで実行し、毎回の導入時間を省く
   e2e:
     runs-on: ubuntu-latest
-    needs: build
+    needs: [prepare, build]
     timeout-minutes: 20
     container:
       image: mcr.microsoft.com/playwright:v${{ needs.build.outputs.playwright-version }}-noble
@@ -164,7 +141,7 @@ jobs:
       - name: Checkout release commit
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          ref: ${{ needs.build.outputs.sha }}
+          ref: ${{ needs.prepare.outputs.sha }}
 
       - name: Setup
         uses: ./.github/actions/setup
@@ -191,16 +168,23 @@ jobs:
 
   deploy:
     runs-on: ubuntu-latest
-    needs: [build, e2e]
+    needs: [prepare, build, e2e]
     # build と全件の E2E が成功したときだけ本番操作に進む（失敗・skip・キャンセルでは実行しない）
     if: needs.build.result == 'success' && needs.e2e.result == 'success'
+    # Required reviewers の設定が必須。品質チェック後に確認・承認を待つ。
+    environment:
+      name: production
+      url: ${{ needs.prepare.outputs.url }}
+    permissions:
+      contents: write
+      actions: read
     timeout-minutes: 10
 
     steps:
       - name: Checkout release commit
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          ref: ${{ needs.build.outputs.sha }}
+          ref: ${{ needs.prepare.outputs.sha }}
 
       - name: Setup
         uses: ./.github/actions/setup
@@ -209,6 +193,42 @@ jobs:
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: release-build
+
+      - name: Verify approved release candidate
+        run: node .github/scripts/release.mjs verify
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ needs.prepare.outputs.id }}
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+          RELEASE_SHA: ${{ needs.prepare.outputs.sha }}
+          RELEASE_DRAFT: ${{ needs.prepare.outputs.draft }}
+
+      - name: Validate production credentials
+        run: |
+          for name in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID; do
+            if [ -z "${!name}" ]; then
+              echo "::error::$name is not set"
+              exit 1
+            fi
+          done
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      # Worker secret はデプロイごとに入れ直さない（secret put は新バージョンを即デプロイするため）。
+      # Cloudflare 側に登録済みであることだけを確認する。
+      - name: Verify Worker secrets exist
+        run: |
+          secrets=$(pnpm exec wrangler secret list --format json | jq -r '.[].name')
+          for name in JWT_SECRET LINE_CHANNEL_SECRET; do
+            if ! printf '%s\n' "$secrets" | grep -qxF "$name"; then
+              echo "::error::Worker secret $name is not set on Cloudflare"
+              exit 1
+            fi
+          done
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
       # 新コードが参照するスキーマを先に用意し、デプロイ中の 500 を防ぐ。
       # 失敗した migration は Wrangler がロールバックする。適用済み migration の巻き戻しは
@@ -233,8 +253,8 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           APP_URL: ${{ vars.APP_URL }}
           LINE_CHANNEL_ID: ${{ vars.LINE_CHANNEL_ID }}
-          RELEASE_TAG: ${{ needs.build.outputs.tag }}
-          RELEASE_SHA: ${{ needs.build.outputs.sha }}
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+          RELEASE_SHA: ${{ needs.prepare.outputs.sha }}
 
   health-check:
     runs-on: ubuntu-latest
@@ -258,27 +278,31 @@ jobs:
         env:
           APP_URL: ${{ vars.APP_URL }}
 
-  # 新しいコミットがあり、デプロイとヘルスチェックが両方成功した場合のみタグと Release を作る。
-  # 失敗時にリリースだけが残り、記録と本番が食い違うのを避けるため最後に置く。
-  # 書き込み権限はこのジョブだけに限定する。
+  # 公開失敗時はこのジョブだけ再実行できる。失敗した候補はドラフトのまま残す。
   release:
     runs-on: ubuntu-latest
-    needs: [build, deploy, health-check]
-    if: needs.build.outputs.create-release == 'true'
+    needs: [prepare, deploy, health-check]
+    if: needs.prepare.outputs.draft == 'true'
     timeout-minutes: 5
     permissions:
       contents: write
 
     steps:
-      - name: Create GitHub Release
-        run: |
-          gh release create "$RELEASE_TAG" \
-            --repo "$GITHUB_REPOSITORY" \
-            --target "$RELEASE_SHA" \
-            --title "$RELEASE_TAG" \
-            --generate-notes \
-            --latest
+      - name: Checkout release commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: '.node-version'
+
+      - name: Publish GitHub Release
+        run: node .github/scripts/release.mjs publish
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ needs.build.outputs.tag }}
-          RELEASE_SHA: ${{ needs.build.outputs.sha }}
+          RELEASE_ID: ${{ needs.prepare.outputs.id }}
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+          RELEASE_SHA: ${{ needs.prepare.outputs.sha }}
+          RELEASE_DRAFT: ${{ needs.prepare.outputs.draft }}

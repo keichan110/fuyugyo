@@ -12,7 +12,8 @@ import { UpcomingShifts } from '@/features/dashboard/components/UpcomingShifts';
 import { parseDate, todayString, WEEKDAY_LABELS } from '@/features/shifts/view-utils';
 
 /**
- * ホーム（ルートパス）。通知と直近の勤務予定、シフト希望を表示する。
+ * ホーム（ルートパス）。通知と今日・明日の出勤状況を表示し、インストラクター連携済みなら
+ * 直近の勤務予定・シフト希望導線・今シーズンの統計も表示する。
  */
 export const Route = createFileRoute('/')({
   beforeLoad: async ({ context, location }) => {
@@ -42,40 +43,44 @@ function DashboardPage() {
 
         <DashboardNotifications instructorId={instructorId ?? null} />
 
+        <Timeline active={0} bulletSize={32} lineWidth={2}>
+          <Timeline.Item
+            title={
+              <Title order={2} size="h3">
+                現在
+              </Title>
+            }
+            bullet={
+              <ThemeIcon size={32} radius="xl" variant="filled">
+                <IconUsers size={18} stroke={1.8} />
+              </ThemeIcon>
+            }
+          >
+            {/* 全出勤者の表示で本人データではないため、未連携でも表示する */}
+            <CurrentAttendance instructorId={instructorId ?? null} />
+          </Timeline.Item>
+
+          {/* 本人の予定のため紐付けが前提。Timeline は子要素を cloneElement するため、非表示時は null を渡す */}
+          {instructorId ? (
+            <Timeline.Item
+              title={
+                <Title order={2} size="h3">
+                  このあと
+                </Title>
+              }
+              bullet={
+                <ThemeIcon size={32} radius="xl" color="cyan" variant="light">
+                  <IconCalendarEvent size={18} stroke={1.8} />
+                </ThemeIcon>
+              }
+            >
+              <UpcomingShifts instructorId={instructorId} />
+            </Timeline.Item>
+          ) : null}
+        </Timeline>
+
         {instructorId && (
           <>
-            <Timeline active={0} bulletSize={32} lineWidth={2}>
-              <Timeline.Item
-                title={
-                  <Title order={2} size="h3">
-                    現在
-                  </Title>
-                }
-                bullet={
-                  <ThemeIcon size={32} radius="xl" variant="filled">
-                    <IconUsers size={18} stroke={1.8} />
-                  </ThemeIcon>
-                }
-              >
-                <CurrentAttendance instructorId={instructorId} />
-              </Timeline.Item>
-
-              <Timeline.Item
-                title={
-                  <Title order={2} size="h3">
-                    このあと
-                  </Title>
-                }
-                bullet={
-                  <ThemeIcon size={32} radius="xl" color="cyan" variant="light">
-                    <IconCalendarEvent size={18} stroke={1.8} />
-                  </ThemeIcon>
-                }
-              >
-                <UpcomingShifts instructorId={instructorId} />
-              </Timeline.Item>
-            </Timeline>
-
             <DashboardAvailabilityLink />
 
             <Stack gap="md">

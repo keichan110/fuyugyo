@@ -3,51 +3,85 @@ import { E2E_BASE_URL } from '../env.ts';
 import { authStatePath } from '../fixtures/auth-state.ts';
 import { resetBusinessData, ROLE_TARGET_ID } from '../fixtures/business-data.ts';
 import { expect, test } from '../fixtures/test.ts';
+import { E2E_USERS } from '../fixtures/users.ts';
 
-for (const role of ['member', 'manager'] as const) {
-  test.describe(`${role} の禁止操作`, () => {
-    test.use({ storageState: authStatePath(role) });
-    test.beforeEach(async () => resetBusinessData());
+test.describe('member の禁止操作', () => {
+  test.use({ storageState: authStatePath('member') });
+  test.beforeEach(async () => resetBusinessData());
 
-    test('ADMIN限定の画面・ロール変更・無効化を拒否し、ユーザーを変更しない', async ({
-      page,
-      playwright,
-    }) => {
-      await page.goto('/users');
-      await expect(page).toHaveURL('/');
-      await expect(page.getByRole('heading', { name: 'ユーザー管理' })).toHaveCount(0);
-      expect((await page.request.get('/api/users')).status()).toBe(403);
-      expect(
-        (
-          await page.request.post(`/api/users/${ROLE_TARGET_ID}/change-role`, {
-            data: { role: 'ADMIN' },
-          })
-        ).status(),
-      ).toBe(403);
-      expect(
-        (
-          await page.request.post(`/api/users/${ROLE_TARGET_ID}/deactivate`, {
-            data: {},
-          })
-        ).status(),
-      ).toBe(403);
-      const admin = await playwright.request.newContext({
-        baseURL: E2E_BASE_URL,
-        storageState: authStatePath('admin'),
-      });
-      try {
-        const target = await admin.get(`/api/users/${ROLE_TARGET_ID}`);
-        expect(target.ok()).toBe(true);
-        expect(userSchema.parse(await target.json())).toMatchObject({
-          role: 'MEMBER',
-          isActive: true,
-        });
-      } finally {
-        await admin.dispose();
-      }
+  test('MANAGER 以上限定の画面・ロール変更・無効化を拒否し、ユーザーを変更しない', async ({
+    page,
+    playwright,
+  }) => {
+    await page.goto('/users');
+    await expect(page).toHaveURL('/');
+    await expect(page.getByRole('heading', { name: 'ユーザー管理' })).toHaveCount(0);
+    expect((await page.request.get('/api/users')).status()).toBe(403);
+    expect(
+      (
+        await page.request.post(`/api/users/${ROLE_TARGET_ID}/change-role`, {
+          data: { role: 'ADMIN' },
+        })
+      ).status(),
+    ).toBe(403);
+    expect(
+      (
+        await page.request.post(`/api/users/${ROLE_TARGET_ID}/deactivate`, {
+          data: {},
+        })
+      ).status(),
+    ).toBe(403);
+    const admin = await playwright.request.newContext({
+      baseURL: E2E_BASE_URL,
+      storageState: authStatePath('admin'),
     });
+    try {
+      const target = await admin.get(`/api/users/${ROLE_TARGET_ID}`);
+      expect(target.ok()).toBe(true);
+      expect(userSchema.parse(await target.json())).toMatchObject({
+        role: 'MEMBER',
+        isActive: true,
+      });
+    } finally {
+      await admin.dispose();
+    }
   });
-}
+});
+
+test.describe('manager のユーザー管理', () => {
+  test.use({ storageState: authStatePath('manager') });
+  test.beforeEach(async () => resetBusinessData());
+
+  test('ユーザー管理を開けるが、ロール変更と ADMIN の無効化は拒否される', async ({
+    page,
+    playwright,
+  }) => {
+    await page.goto('/users');
+    await expect(page.getByRole('heading', { name: 'ユーザー管理' })).toBeVisible();
+    expect(
+      (
+        await page.request.post(`/api/users/${ROLE_TARGET_ID}/change-role`, {
+          data: { role: 'ADMIN' },
+        })
+      ).status(),
+    ).toBe(403);
+    const adminUser = E2E_USERS.find((user) => user.key === 'admin');
+    if (!adminUser) throw new Error('E2E の ADMIN ユーザーが必要です');
+    expect(
+      (await page.request.post(`/api/users/${adminUser.id}/deactivate`, { data: {} })).status(),
+    ).toBe(403);
+    const admin = await playwright.request.newContext({
+      baseURL: E2E_BASE_URL,
+      storageState: authStatePath('admin'),
+    });
+    try {
+      const target = await admin.get(`/api/users/${ROLE_TARGET_ID}`);
+      expect(userSchema.parse(await target.json())).toMatchObject({ role: 'MEMBER' });
+    } finally {
+      await admin.dispose();
+    }
+  });
+});
 
 test.describe('MEMBER の管理操作', () => {
   test.use({ storageState: authStatePath('member') });

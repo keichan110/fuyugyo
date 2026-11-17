@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 
+import { ME_QUERY_KEY } from '@/features/auth/queries';
 import { client } from '@/lib/rpc';
 
 import {
@@ -17,7 +18,7 @@ const apiErrorSchema = z.object({ message: z.string().optional() });
 /** User 関連クエリキー */
 export const USERS_QUERY_KEY = ['users'] as const;
 
-/** ユーザー一覧を取得する（ADMIN のみ）。 */
+/** ユーザー一覧を取得する（MANAGER 以上）。 */
 export function useUsers() {
   return useQuery<User[]>({
     queryKey: USERS_QUERY_KEY,
@@ -99,7 +100,7 @@ export function useActivateUser(id: string) {
 
 /**
  * User を Instructor にリンクするミューテーション。
- * 成功後は一覧キャッシュを無効化する。
+ * 成功後は一覧と、自分自身の本人情報（`/me`）のキャッシュを無効化する。
  */
 export function useLinkInstructor(id: string) {
   const queryClient = useQueryClient();
@@ -116,6 +117,8 @@ export function useLinkInstructor(id: string) {
       return userSchema.parse(await res.json());
     },
     onSuccess: () => {
+      // 自分自身を紐付け・解除した場合に備え、ナビ等が参照する本人情報も再取得する
+      void queryClient.invalidateQueries({ queryKey: ME_QUERY_KEY });
       void queryClient.invalidateQueries({ queryKey: USERS_QUERY_KEY });
     },
   });
@@ -123,7 +126,7 @@ export function useLinkInstructor(id: string) {
 
 /**
  * User から Instructor リンクを解除するミューテーション。
- * 成功後は一覧キャッシュを無効化する。
+ * 成功後は一覧と、自分自身の本人情報（`/me`）のキャッシュを無効化する。
  */
 export function useUnlinkInstructor(id: string) {
   const queryClient = useQueryClient();
@@ -137,6 +140,8 @@ export function useUnlinkInstructor(id: string) {
       return userSchema.parse(await res.json());
     },
     onSuccess: () => {
+      // 自分自身を紐付け・解除した場合に備え、ナビ等が参照する本人情報も再取得する
+      void queryClient.invalidateQueries({ queryKey: ME_QUERY_KEY });
       void queryClient.invalidateQueries({ queryKey: USERS_QUERY_KEY });
     },
   });

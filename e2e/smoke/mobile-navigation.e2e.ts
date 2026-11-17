@@ -27,7 +27,7 @@ for (const role of ['member', 'manager', 'admin'] as const) {
       await expect(drawer.getByRole('link', { name: 'シフト管理', exact: true })).toHaveCount(0);
       await expect(drawer.getByRole('button', { name: 'ログアウト' })).toBeVisible();
       await expect(drawer.getByRole('link', { name: 'ユーザー', exact: true })).toHaveCount(
-        role === 'admin' ? 1 : 0,
+        role === 'member' ? 0 : 1,
       );
       await expect(drawer.getByRole('link', { name: '招待', exact: true })).toHaveCount(
         role === 'admin' ? 1 : 0,
@@ -59,7 +59,7 @@ for (const role of ['member', 'manager', 'admin'] as const) {
       await expect(
         navigation.getByRole('button', { name: /シフト希望/ }).locator('.tabler-icon-lock'),
       ).toBeVisible();
-      await expect(page.getByRole('button', { name: '連携する', exact: true })).toBeVisible();
+      await expect(page.getByRole('button', { name: /^連携/ })).toHaveCount(0);
       await navigation.getByRole('link', { name: 'シフト表', exact: true }).click();
       await expect(page.getByRole('heading', { name: 'シフト表', exact: true })).toBeVisible();
       await expect(page.getByRole('switch', { name: '自分だけ' })).toBeDisabled();
@@ -71,17 +71,8 @@ for (const role of ['member', 'manager', 'admin'] as const) {
       });
       await page.goto('/availabilities');
       await expect(page.getByRole('heading', { name: 'シフト希望', exact: true })).toBeVisible();
-      await expect(page.getByRole('button', { name: '連携する', exact: true })).toBeVisible();
+      await expect(page.getByRole('button', { name: /^連携/ })).toHaveCount(0);
       await expect(page.getByRole('button', { name: '一括設定' })).toHaveCount(0);
-      await expect(page.getByRole('button', { name: '連携案内を閉じる' })).toHaveCount(0);
-      // シフト表で案内を閉じても、履歴で戻ったシフト希望には連携導線を残す。
-      await navigation.getByRole('link', { name: 'シフト表', exact: true }).click();
-      await page.getByRole('button', { name: '連携案内を閉じる' }).click();
-      await expect(page.getByRole('button', { name: '連携する', exact: true })).toBeHidden();
-      await page.goBack();
-      await expect(page.getByRole('heading', { name: 'シフト希望', exact: true })).toBeVisible();
-      await expect(page.getByRole('button', { name: '連携する', exact: true })).toBeVisible();
-      await expect(page.getByRole('button', { name: '連携案内を閉じる' })).toHaveCount(0);
       expect(availabilityRequested).toBe(false);
     });
   });
@@ -123,7 +114,7 @@ for (const role of ['member', 'manager', 'admin'] as const) {
       await expect(disabled).toBeDisabled();
       await expect(disabled).toContainText('インストラクターとの連携が必要です');
       await expect(link).toHaveCount(0);
-      await expect(page.getByRole('button', { name: '連携する', exact: true })).toBeVisible();
+      await expect(page.getByRole('button', { name: /^連携/ })).toHaveCount(0);
     });
   });
 }
@@ -241,53 +232,6 @@ test.describe('モバイルの固定領域と編集', () => {
       viewport.dispatchEvent(new Event('resize'));
     }, fullHeight);
     await expect(navigation).toBeVisible();
-  });
-});
-
-test.describe('連携状態の変更', () => {
-  test.use({ storageState: authStatePath('manager') });
-
-  test('シフト希望の表示中に連携解除しても5タブの位置を維持する', async ({ page }) => {
-    let linked = true;
-    await page.route('**/api/auth/me', async (route) => {
-      const response = await route.fetch();
-      const user = await response.json();
-      await route.fulfill({
-        response,
-        json: { ...user, instructorId: linked ? user.instructorId : null },
-      });
-    });
-    await page.route('**/api/auth/me/link-instructor', async (route) => {
-      expect(['DELETE', 'POST']).toContain(route.request().method());
-      const response = await page.request.get('/api/auth/me');
-      const user = await response.json();
-      linked = route.request().method() === 'POST';
-      await route.fulfill({ json: { ...user, instructorId: linked ? user.instructorId : null } });
-    });
-    await page.goto('/availabilities');
-    const navigation = page.getByRole('navigation', { name: 'メインナビゲーション' });
-    await expect(page.getByRole('button', { name: '一括設定' })).toBeVisible();
-    const before = await navigation
-      .getByRole('link', { name: 'シフト希望', exact: true })
-      .boundingBox();
-    await navigation.getByRole('button', { name: 'その他' }).click();
-    await page.getByRole('button', { name: '連携解除', exact: true }).click();
-    await page.getByRole('button', { name: 'メニューを閉じる' }).click();
-    const disabled = navigation.getByRole('button', { name: /シフト希望/ });
-    await expect(disabled).toBeDisabled();
-    await expect(navigation.locator('a, button')).toHaveCount(5);
-    expect(await disabled.boundingBox()).toEqual(before);
-    await expect(page.getByRole('button', { name: '一括設定' })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: '連携する', exact: true })).toBeVisible();
-    await page.getByRole('button', { name: '連携する', exact: true }).click();
-    const linkModal = page.getByRole('dialog', { name: 'インストラクターと連携', exact: true });
-    await linkModal.getByRole('combobox', { name: 'インストラクター', exact: true }).click();
-    await page.getByRole('option', { name: '佐藤 花子', exact: true }).click();
-    await linkModal.getByRole('button', { name: '連携する', exact: true }).click();
-    await expect(linkModal).toBeHidden();
-    await expect(navigation.getByRole('link', { name: 'シフト希望', exact: true })).toBeVisible();
-    await expect(navigation.locator('a, button')).toHaveCount(5);
-    await expect(page.getByRole('button', { name: '一括設定' })).toBeVisible();
   });
 });
 

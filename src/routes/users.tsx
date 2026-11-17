@@ -2,6 +2,7 @@ import { Container } from '@mantine/core';
 import { createFileRoute, redirect } from '@tanstack/react-router';
 
 import { ensureAuthenticated } from '@/features/auth/auth-guard';
+import { hasMinimumRole } from '@/features/auth/schema';
 import { UserList } from '@/features/users/components/UserList';
 
 export const Route = createFileRoute('/users')({
@@ -13,8 +14,8 @@ export const Route = createFileRoute('/users')({
     if (!result.authenticated) {
       throw redirect({ to: result.loginTo });
     }
-    // ADMIN のみアクセス可（ADMIN 以外は / にリダイレクト）
-    if (result.user.role !== 'ADMIN') {
+    // MANAGER 以上のみアクセス可（MEMBER は / にリダイレクト）
+    if (!hasMinimumRole(result.user.role, 'MANAGER')) {
       throw redirect({ to: '/' });
     }
   },

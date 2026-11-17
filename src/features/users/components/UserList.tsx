@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 
-import { Avatar, Group, Paper, Stack, Table, Text } from '@mantine/core';
-import { IconUsers } from '@tabler/icons-react';
+import { Avatar, Button, Group, Paper, Stack, Table, Text, Tooltip } from '@mantine/core';
+import { IconLink, IconLinkOff, IconUsers } from '@tabler/icons-react';
 
 import { ErrorAlert } from '@/components/AppAlert';
 import { AppBadge } from '@/components/AppBadge';
@@ -22,13 +22,14 @@ import type { User } from '../schema';
 import { UserDrawer, type UserDrawerState } from './UserDrawer';
 
 /**
- * ユーザー一覧と検索・絞り込み、編集への導線を提供するコンポーネント（ADMIN 専用）。
- * ユーザーは LINE 招待経由で登録されるため作成導線は持たず、ロール変更・
+ * ユーザー一覧と検索・絞り込み、編集への導線を提供するコンポーネント（MANAGER 以上）。
+ * ユーザーは LINE 招待経由で登録されるため作成導線は持たず、ロール変更（ADMIN のみ）・
  * Instructor リンク・ステータス変更は UserDrawer に集約する。
  */
 export function UserList() {
   const [search, setSearch] = useState('');
   const [showInactive, setShowInactive] = useState(false);
+  const [unlinkedOnly, setUnlinkedOnly] = useState(false);
   const [drawerState, setDrawerState] = useState<UserDrawerState | null>(null);
 
   const { data, isLoading, isError } = useUsers();
@@ -38,10 +39,11 @@ export function UserList() {
     const query = search.trim();
     return allUsers.filter((user) => {
       if (!showInactive && !user.isActive) return false;
+      if (unlinkedOnly && user.instructorId !== null) return false;
       if (query.length === 0) return true;
       return user.displayName.includes(query);
     });
-  }, [allUsers, showInactive, search]);
+  }, [allUsers, showInactive, unlinkedOnly, search]);
 
   return (
     <Stack gap="md">
@@ -58,6 +60,7 @@ export function UserList() {
           onChange={(e) => setSearch(e.currentTarget.value)}
         />
         <InactiveVisibilityToggle shown={showInactive} onChange={setShowInactive} />
+        <UnlinkedOnlyToggle active={unlinkedOnly} onChange={setUnlinkedOnly} />
       </ListToolbar>
 
       {isError && <ErrorAlert>ユーザー一覧の取得に失敗しました</ErrorAlert>}
@@ -111,6 +114,31 @@ export function UserList() {
 
       <UserDrawer state={drawerState} onClose={() => setDrawerState(null)} />
     </Stack>
+  );
+}
+
+type UnlinkedOnlyToggleProps = {
+  /** 未連携のユーザーだけを表示しているかどうか。 */
+  active: boolean;
+  onChange: (active: boolean) => void;
+};
+
+/** Instructor 未リンクのユーザーだけに絞り込む操作（紐付け漏れの確認用）。 */
+function UnlinkedOnlyToggle({ active, onChange }: UnlinkedOnlyToggleProps) {
+  const label = active ? '未連携のみの絞り込みを解除' : '未連携のユーザーだけ表示';
+
+  return (
+    <Tooltip label={label}>
+      <Button
+        aria-label={label}
+        size="sm"
+        variant={active ? 'light' : 'default'}
+        leftSection={active ? <IconLinkOff size={16} /> : <IconLink size={16} />}
+        onClick={() => onChange(!active)}
+      >
+        未連携
+      </Button>
+    </Tooltip>
   );
 }
 

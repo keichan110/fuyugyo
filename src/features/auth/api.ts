@@ -1,8 +1,6 @@
 import { and, eq, gt, isNull, or, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
-import { HTTPException } from 'hono/http-exception';
-import { validator } from 'hono/validator';
 import { z } from 'zod';
 
 import {
@@ -24,14 +22,11 @@ import {
 import { durationToSeconds } from '@/server/auth/roles';
 import { toJwtPayload, toUserRole } from '@/server/auth/user';
 import { createDb, type Database } from '@/server/db/client';
-import { isUniqueViolation } from '@/server/db/errors';
-import { instructors, invitationTokens, users } from '@/server/db/schema';
+import { invitationTokens, users } from '@/server/db/schema';
 import { requireAuth, type AuthVariables } from '@/server/middleware/auth';
 import { rateLimit } from '@/server/middleware/rate-limit';
 import { captureServerError } from '@/server/sentry';
 import type { Env } from '@/server/types';
-
-import { linkInstructorSchema } from './schema';
 
 /**
  * 認証 feature の Hono ルート。
@@ -297,86 +292,4 @@ export const authRoute = new Hono<{
     }
 
     return c.json(toMeResponse(user));
-  })
-  /**
-   * 自分自身を Instructor にリンクする（セルフサービス・ロール制限なし）。
-   * インストラクター紐付けは信頼ベースとし、任意の Instructor を選択できる。
-   * `users.instructor_id` の UNIQUE 制約により、既に他ユーザーがリンク済みの
-   * Instructor を選ぶと 409 になる（管理者向け `/api/users/:id/link-instructor` と同ロジック）。
-   */
-  .post(
-    '/me/link-instructor',
-    requireAuth,
-    validator('json', (value, c) => {
-      const parsed = linkInstructorSchema.safeParse(value);
-      if (!parsed.success) {
-        return c.json({ message: parsed.error.message }, 400);
-      }
-      return parsed.data;
-    }),
-    async (c) => {
-      const input = c.req.valid('json');
-      const db = createDb(c.env.DB);
-      const { userId } = c.get('user');
-
-      const [instructor] = await db
-        .select({ id: instructors.id })
-        .from(instructors)
-        .where(eq(instructors.id, input.instructorId))
-        .limit(1);
-
-      if (!instructor) {
-        throw new HTTPException(404, { message: 'Instructor not found' });
-      }
-
-      try {
-        const [updated] = await db
-          .update(users)
-          .set({ instructorId: input.instructorId })
-          .where(eq(users.id, userId))
-          .returning();
-
-        if (!updated) {
-          throw new HTTPException(500, { message: 'Failed to link instructor' });
-        }
-        return c.json(toMeResponse(updated));
-      } catch (err) {
-        if (isUniqueViolation(err)) {
-          throw new HTTPException(409, {
-            message: 'This instructor is already linked to another user',
-          });
-        }
-        throw err;
-      }
-    },
-  )
-  /** 自分自身の Instructor リンクを解除する（セルフサービス） */
-  .delete('/me/link-instructor', requireAuth, async (c) => {
-    const db = createDb(c.env.DB);
-    const { userId } = c.get('user');
-
-    const [existing] = await db
-      .select({ id: users.id, instructorId: users.instructorId })
-      .from(users)
-      .where(eq(users.id, userId))
-      .limit(1);
-
-    if (!existing) {
-      throw new HTTPException(404, { message: 'User not found' });
-    }
-
-    if (existing.instructorId === null) {
-      throw new HTTPException(409, { message: 'User is not linked to any instructor' });
-    }
-
-    const [updated] = await db
-      .update(users)
-      .set({ instructorId: null })
-      .where(eq(users.id, userId))
-      .returning();
-
-    if (!updated) {
-      throw new HTTPException(500, { message: 'Failed to unlink instructor' });
-    }
-    return c.json(toMeResponse(updated));
   });

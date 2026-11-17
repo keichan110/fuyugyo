@@ -3,6 +3,8 @@ import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { validator } from 'hono/validator';
 
+import { type UserRole } from '@/server/auth/jwt';
+import { toUserRole } from '@/server/auth/user';
 import { createDb } from '@/server/db/client';
 import { isUniqueViolation } from '@/server/db/errors';
 import { instructors, users } from '@/server/db/schema';
@@ -10,6 +12,7 @@ import { requireAuth, requireRole, type AuthVariables } from '@/server/middlewar
 import type { Env } from '@/server/types';
 
 import { changeRoleSchema, linkInstructorSchema } from './schema';
+import { canChangeUserStatus } from './status-policy';
 
 type Db = ReturnType<typeof createDb>;
 
@@ -31,13 +34,22 @@ const userColumns = {
 
 /**
  * isActive フラグを更新する共通ヘルパー（deactivate/activate で使用）。
- * 存在確認 → update → returning を一本化し DRY を守る。
+ * 存在確認 → 権限判定 → update → returning を一本化し DRY を守る。
+ * 操作者が MANAGER の場合は、対象ロールが MEMBER のときだけ変更できる（ADMIN は全員可）。
  */
-async function setUserActive(db: Db, id: string, isActive: boolean) {
-  const [existing] = await db.select({ id: users.id }).from(users).where(eq(users.id, id)).limit(1);
+async function setUserActive(db: Db, id: string, isActive: boolean, actorRole: UserRole) {
+  const [existing] = await db
+    .select({ id: users.id, role: users.role })
+    .from(users)
+    .where(eq(users.id, id))
+    .limit(1);
 
   if (!existing) {
     throw new HTTPException(404, { message: 'User not found' });
+  }
+
+  if (!canChangeUserStatus(actorRole, toUserRole(existing.role))) {
+    throw new HTTPException(403, { message: 'Forbidden' });
   }
 
   const [updated] = await db
@@ -57,20 +69,21 @@ async function setUserActive(db: Db, id: string, isActive: boolean) {
 /**
  * User 管理の Hono ルート。
  * 一覧・ロール変更・無効化・Instructor リンクを提供する。
- * 書き込み系（ロール変更・無効化・リンク操作）は ADMIN のみ。
+ * ロール変更は ADMIN のみ。一覧・取得・リンク操作は MANAGER 以上。
+ * 有効化・無効化は MANAGER 以上だが、MANAGER は MEMBER のみを対象にできる。
  */
 export const usersRoute = new Hono<{
   Bindings: Env;
   Variables: AuthVariables;
 }>()
-  /** ユーザー一覧を返す（ADMIN のみ）。ロール・isActive を含む管理用フィールドを返す */
-  .get('/', requireAuth, requireRole('ADMIN'), async (c) => {
+  /** ユーザー一覧を返す（MANAGER 以上）。ロール・isActive を含む管理用フィールドを返す */
+  .get('/', requireAuth, requireRole('MANAGER'), async (c) => {
     const db = createDb(c.env.DB);
     const rows = await db.select(userColumns).from(users);
     return c.json(rows);
   })
-  /** ユーザーを1件取得する（ADMIN のみ） */
-  .get('/:id', requireAuth, requireRole('ADMIN'), async (c) => {
+  /** ユーザーを1件取得する（MANAGER 以上） */
+  .get('/:id', requireAuth, requireRole('MANAGER'), async (c) => {
     const db = createDb(c.env.DB);
     const [row] = await db
       .select(userColumns)
@@ -128,10 +141,11 @@ export const usersRoute = new Hono<{
     },
   )
   /**
-   * ユーザーを無効化する（isActive=false）（ADMIN のみ・自己無効化は禁止）。
+   * ユーザーを無効化する（isActive=false）（MANAGER 以上・自己無効化は禁止）。
+   * MANAGER は MEMBER のみ無効化できる。
    * 物理削除は行わず論理削除とする。
    */
-  .post('/:id/deactivate', requireAuth, requireRole('ADMIN'), async (c) => {
+  .post('/:id/deactivate', requireAuth, requireRole('MANAGER'), async (c) => {
     const id = c.req.param('id');
 
     // 自分自身の無効化は管理者不在状態を引き起こすため禁止する
@@ -139,21 +153,23 @@ export const usersRoute = new Hono<{
       throw new HTTPException(400, { message: 'Cannot deactivate yourself' });
     }
 
-    return c.json(await setUserActive(createDb(c.env.DB), id, false));
+    return c.json(await setUserActive(createDb(c.env.DB), id, false, c.get('user').role));
   })
-  /** ユーザーをアクティブ化する（ADMIN のみ） */
-  .post('/:id/activate', requireAuth, requireRole('ADMIN'), async (c) => {
-    return c.json(await setUserActive(createDb(c.env.DB), c.req.param('id'), true));
+  /** ユーザーをアクティブ化する（MANAGER 以上。MANAGER は MEMBER のみ対象） */
+  .post('/:id/activate', requireAuth, requireRole('MANAGER'), async (c) => {
+    return c.json(
+      await setUserActive(createDb(c.env.DB), c.req.param('id'), true, c.get('user').role),
+    );
   })
   /**
-   * User を Instructor にリンクする（ADMIN のみ）。
+   * User を Instructor にリンクする（MANAGER 以上・対象ロールは問わない）。
    * `users.instructor_id` に UNIQUE 制約があるため、1 Instructor に複数 User をリンクしようとすると
    * DB レベルで弾かれる（SQLite では NULL は UNIQUE 制約の対象外）。
    */
   .post(
     '/:id/link-instructor',
     requireAuth,
-    requireRole('ADMIN'),
+    requireRole('MANAGER'),
     validator('json', (value, c) => {
       const parsed = linkInstructorSchema.safeParse(value);
       if (!parsed.success) {
@@ -203,8 +219,8 @@ export const usersRoute = new Hono<{
       }
     },
   )
-  /** User から Instructor リンクを解除する（ADMIN のみ） */
-  .delete('/:id/link-instructor', requireAuth, requireRole('ADMIN'), async (c) => {
+  /** User から Instructor リンクを解除する（MANAGER 以上・対象ロールは問わない） */
+  .delete('/:id/link-instructor', requireAuth, requireRole('MANAGER'), async (c) => {
     const db = createDb(c.env.DB);
     const id = c.req.param('id');
 

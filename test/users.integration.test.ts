@@ -1,4 +1,5 @@
 import { env } from 'cloudflare:test';
+import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { userListSchema, userSchema } from '../src/features/users/schema';
@@ -56,7 +57,7 @@ async function seedAdminToken(): Promise<{ token: string; userId: string }> {
 }
 
 /** seed: MANAGER ロールの User を1件作成し、JWT を発行して返す */
-async function seedManagerToken(): Promise<string> {
+async function seedManagerToken(): Promise<{ token: string; userId: string }> {
   const db = createDb(env.DB);
   const [user] = await db
     .insert(users)
@@ -69,7 +70,7 @@ async function seedManagerToken(): Promise<string> {
     .returning();
   if (!user) throw new Error('seedManagerToken: user insert failed');
 
-  return await signJwt(
+  const token = await signJwt(
     {
       userId: user.id,
       displayName: user.displayName,
@@ -79,17 +80,21 @@ async function seedManagerToken(): Promise<string> {
     env.JWT_SECRET,
     env.JWT_EXPIRES_IN,
   );
+  return { token, userId: user.id };
 }
 
-/** seed: 通常 User（MEMBER）を1件作成して ID を返す */
-async function seedUser(displayName = 'テストユーザー'): Promise<string> {
+/** seed: User を1件作成して ID を返す（ロール省略時は MEMBER） */
+async function seedUser(
+  displayName = 'テストユーザー',
+  role: 'MEMBER' | 'MANAGER' | 'ADMIN' = 'MEMBER',
+): Promise<string> {
   const db = createDb(env.DB);
   const [user] = await db
     .insert(users)
     .values({
       lineUserId: `line-${crypto.randomUUID()}`,
       displayName,
-      role: 'MEMBER',
+      role,
       isActive: true,
     })
     .returning();
@@ -123,8 +128,21 @@ describe('GET /api/users', () => {
     expect(res.status).toBe(401);
   });
 
-  it('MANAGER は 403 で弾かれる', async () => {
-    const token = await seedManagerToken();
+  it('MANAGER もユーザー一覧を取得できる', async () => {
+    const { token } = await seedManagerToken();
+    await seedUser('メンバー1');
+    const res = await app.request('/api/users', authHeader(token), envWith({}));
+    expect(res.status).toBe(200);
+    expect(userListSchema.parse(await res.json()).length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('MEMBER は 403 で弾かれる', async () => {
+    const userId = await seedUser('メンバー', 'MEMBER');
+    const token = await signJwt(
+      { userId, displayName: 'メンバー', role: 'MEMBER', isActive: true },
+      env.JWT_SECRET,
+      env.JWT_EXPIRES_IN,
+    );
     const res = await app.request('/api/users', authHeader(token), envWith({}));
     expect(res.status).toBe(403);
   });
@@ -168,6 +186,27 @@ describe('GET /api/users/:id', () => {
     const res = await app.request('/api/users/nonexistent-id', authHeader(token), envWith({}));
     expect(res.status).toBe(404);
   });
+
+  it('MANAGER もユーザーを取得できる', async () => {
+    const { token } = await seedManagerToken();
+    const userId = await seedUser('対象ユーザー');
+
+    const res = await app.request(`/api/users/${userId}`, authHeader(token), envWith({}));
+    expect(res.status).toBe(200);
+    expect(userSchema.parse(await res.json()).id).toBe(userId);
+  });
+
+  it('MEMBER は 403 で弾かれる', async () => {
+    const memberId = await seedUser('メンバー', 'MEMBER');
+    const targetId = await seedUser('対象ユーザー');
+    const token = await signJwt(
+      { userId: memberId, displayName: 'メンバー', role: 'MEMBER', isActive: true },
+      env.JWT_SECRET,
+      env.JWT_EXPIRES_IN,
+    );
+    const res = await app.request(`/api/users/${targetId}`, authHeader(token), envWith({}));
+    expect(res.status).toBe(403);
+  });
 });
 
 // ─── POST /api/users/:id/change-role ─────────────────────────────────────────
@@ -191,7 +230,7 @@ describe('POST /api/users/:id/change-role', () => {
   });
 
   it('MANAGER は 403 で弾かれる', async () => {
-    const token = await seedManagerToken();
+    const { token } = await seedManagerToken();
     const userId = await seedUser();
 
     const res = await app.request(
@@ -253,8 +292,22 @@ describe('POST /api/users/:id/deactivate', () => {
     expect(body.isActive).toBe(false);
   });
 
-  it('MANAGER は 403 で弾かれる', async () => {
-    const token = await seedManagerToken();
+  it('ADMIN は MANAGER / ADMIN（自分以外）も無効化できる', async () => {
+    const { token } = await seedAdminToken();
+    for (const role of ['MANAGER', 'ADMIN'] as const) {
+      const userId = await seedUser(`対象-${role}`, role);
+      const res = await app.request(
+        `/api/users/${userId}/deactivate`,
+        { method: 'POST', ...authHeader(token) },
+        envWith({}),
+      );
+      expect(res.status).toBe(200);
+      expect(userSchema.parse(await res.json()).isActive).toBe(false);
+    }
+  });
+
+  it('MANAGER は MEMBER を無効化できる', async () => {
+    const { token } = await seedManagerToken();
     const userId = await seedUser();
 
     const res = await app.request(
@@ -262,7 +315,31 @@ describe('POST /api/users/:id/deactivate', () => {
       { method: 'POST', ...authHeader(token) },
       envWith({}),
     );
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
+    expect(userSchema.parse(await res.json()).isActive).toBe(false);
+  });
+
+  it('MANAGER が MANAGER / ADMIN を無効化しようとすると 403', async () => {
+    const { token } = await seedManagerToken();
+    for (const role of ['MANAGER', 'ADMIN'] as const) {
+      const userId = await seedUser(`対象-${role}`, role);
+      const res = await app.request(
+        `/api/users/${userId}/deactivate`,
+        { method: 'POST', ...authHeader(token) },
+        envWith({}),
+      );
+      expect(res.status).toBe(403);
+    }
+  });
+
+  it('MANAGER の自己無効化は 400 で弾かれる', async () => {
+    const { token, userId } = await seedManagerToken();
+    const res = await app.request(
+      `/api/users/${userId}/deactivate`,
+      { method: 'POST', ...authHeader(token) },
+      envWith({}),
+    );
+    expect(res.status).toBe(400);
   });
 
   it('存在しない ID は 404 を返す', async () => {
@@ -311,16 +388,32 @@ describe('POST /api/users/:id/activate', () => {
     expect(body.isActive).toBe(true);
   });
 
-  it('MANAGER は 403 で弾かれる', async () => {
-    const token = await seedManagerToken();
+  it('MANAGER は MEMBER をアクティブ化できる', async () => {
+    const { token } = await seedManagerToken();
     const userId = await seedUser();
+    await createDb(env.DB).update(users).set({ isActive: false }).where(eq(users.id, userId));
 
     const res = await app.request(
       `/api/users/${userId}/activate`,
       { method: 'POST', ...authHeader(token) },
       envWith({}),
     );
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
+    expect(userSchema.parse(await res.json()).isActive).toBe(true);
+  });
+
+  it('MANAGER が MANAGER / ADMIN をアクティブ化しようとすると 403', async () => {
+    const { token } = await seedManagerToken();
+    for (const role of ['MANAGER', 'ADMIN'] as const) {
+      const userId = await seedUser(`対象-${role}`, role);
+      await createDb(env.DB).update(users).set({ isActive: false }).where(eq(users.id, userId));
+      const res = await app.request(
+        `/api/users/${userId}/activate`,
+        { method: 'POST', ...authHeader(token) },
+        envWith({}),
+      );
+      expect(res.status).toBe(403);
+    }
   });
 
   it('存在しない ID は 404 を返す', async () => {
@@ -416,8 +509,8 @@ describe('POST /api/users/:id/link-instructor', () => {
     expect(res.status).toBe(404);
   });
 
-  it('MANAGER は 403 で弾かれる', async () => {
-    const token = await seedManagerToken();
+  it('MANAGER は MEMBER をリンクできる', async () => {
+    const { token } = await seedManagerToken();
     const userId = await seedUser();
     const instructorId = await seedInstructor();
 
@@ -426,7 +519,21 @@ describe('POST /api/users/:id/link-instructor', () => {
       { method: 'POST', ...authJsonRequest(token, { instructorId }) },
       envWith({}),
     );
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
+    expect(userSchema.parse(await res.json()).instructorId).toBe(instructorId);
+  });
+
+  it('MANAGER は自分自身もリンクできる', async () => {
+    const { token, userId } = await seedManagerToken();
+    const instructorId = await seedInstructor();
+
+    const res = await app.request(
+      `/api/users/${userId}/link-instructor`,
+      { method: 'POST', ...authJsonRequest(token, { instructorId }) },
+      envWith({}),
+    );
+    expect(res.status).toBe(200);
+    expect(userSchema.parse(await res.json()).instructorId).toBe(instructorId);
   });
 });
 
@@ -479,15 +586,18 @@ describe('DELETE /api/users/:id/link-instructor', () => {
     expect(res.status).toBe(404);
   });
 
-  it('MANAGER は 403 で弾かれる', async () => {
-    const token = await seedManagerToken();
+  it('MANAGER はリンクを解除できる', async () => {
+    const { token } = await seedManagerToken();
     const userId = await seedUser();
+    const instructorId = await seedInstructor();
+    await createDb(env.DB).update(users).set({ instructorId }).where(eq(users.id, userId));
 
     const res = await app.request(
       `/api/users/${userId}/link-instructor`,
       { method: 'DELETE', ...authHeader(token) },
       envWith({}),
     );
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
+    expect(userSchema.parse(await res.json()).instructorId).toBeNull();
   });
 });

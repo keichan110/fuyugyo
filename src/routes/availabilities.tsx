@@ -1,6 +1,8 @@
 import { Container, Stack, Title } from '@mantine/core';
+import { IconLock } from '@tabler/icons-react';
 import { createFileRoute, redirect } from '@tanstack/react-router';
 
+import { ListEmptyState } from '@/components/ListEmptyState';
 import { ensureAuthenticated } from '@/features/auth/auth-guard';
 import { useMe } from '@/features/auth/queries';
 import { AvailabilityCalendar } from '@/features/availabilities/components/AvailabilityCalendar';
@@ -42,6 +44,14 @@ function AvailabilitiesPage() {
         <Title order={2}>シフト希望</Title>
         {user?.instructorId && (
           <AvailabilityCalendar key={user.instructorId} initialMonth={search.month} />
+        )}
+        {/* ナビは無効化しているが、URL 直打ちや紐付け解除後の再表示で到達するため案内を出す */}
+        {user && !user.instructorId && (
+          <ListEmptyState
+            icon={<IconLock size={32} stroke={1.5} />}
+            title="インストラクターへの紐付けが必要です"
+            description="シフト希望を登録するには、アカウントをインストラクターに紐付ける必要があります。管理者に紐付けを依頼してください。"
+          />
         )}
       </Stack>
     </Container>

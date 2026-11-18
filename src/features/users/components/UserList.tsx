@@ -83,7 +83,7 @@ export function UserList() {
                 <Table.Tr>
                   <Table.Th>ユーザー名</Table.Th>
                   <Table.Th w={140}>ロール</Table.Th>
-                  <Table.Th>Instructor リンク</Table.Th>
+                  <Table.Th>インストラクター紐付け</Table.Th>
                   <Table.Th w={72} />
                 </Table.Tr>
               </Table.Thead>
@@ -118,14 +118,14 @@ export function UserList() {
 }
 
 type UnlinkedOnlyToggleProps = {
-  /** 未連携のユーザーだけを表示しているかどうか。 */
+  /** 未紐付けのユーザーだけを表示しているかどうか。 */
   active: boolean;
   onChange: (active: boolean) => void;
 };
 
 /** Instructor 未リンクのユーザーだけに絞り込む操作（紐付け漏れの確認用）。 */
 function UnlinkedOnlyToggle({ active, onChange }: UnlinkedOnlyToggleProps) {
-  const label = active ? '未連携のみの絞り込みを解除' : '未連携のユーザーだけ表示';
+  const label = active ? '未紐付けのみの絞り込みを解除' : '未紐付けのユーザーだけ表示';
 
   return (
     <Tooltip label={label}>
@@ -136,7 +136,7 @@ function UnlinkedOnlyToggle({ active, onChange }: UnlinkedOnlyToggleProps) {
         leftSection={active ? <IconLinkOff size={16} /> : <IconLink size={16} />}
         onClick={() => onChange(!active)}
       >
-        未連携
+        未紐付け
       </Button>
     </Tooltip>
   );
@@ -170,7 +170,7 @@ function UserRow({ user, onEdit }: UserRowProps) {
       </Table.Td>
       <Table.Td>
         {user.instructorId ? (
-          <AppBadge kind="link">リンク済み</AppBadge>
+          <AppBadge kind="link">紐付け済み</AppBadge>
         ) : (
           <Text c="dimmed" size="sm">
             —
@@ -207,7 +207,7 @@ function UserMobileRow({ user, onEdit }: UserRowProps) {
               <AppBadge kind={roleMeta.badgeKind} size="sm">
                 {roleMeta.label}
               </AppBadge>
-              {user.instructorId && <AppBadge kind="link">リンク済み</AppBadge>}
+              {user.instructorId && <AppBadge kind="link">紐付け済み</AppBadge>}
             </Group>
           </Stack>
         </Group>

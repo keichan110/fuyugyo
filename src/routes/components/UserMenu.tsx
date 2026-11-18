@@ -1,9 +1,10 @@
-import { Avatar, Group, Menu, Text, UnstyledButton } from '@mantine/core';
+import { Avatar, Menu, Stack, Text, UnstyledButton } from '@mantine/core';
 import { useNavigate } from '@tanstack/react-router';
 
 import { useLogout } from '@/features/auth/queries';
 import type { MeResponse } from '@/features/auth/schema';
-import { useInstructor } from '@/features/instructors/queries';
+
+import { LinkedInstructorName } from './LinkedInstructorName';
 
 /** アバター + ログアウトメニュー（全ユーザー共通） */
 export function UserMenu({ user }: { user: MeResponse }) {
@@ -24,8 +25,12 @@ export function UserMenu({ user }: { user: MeResponse }) {
         </UnstyledButton>
       </Menu.Target>
       <Menu.Dropdown>
-        <Menu.Label>{user.displayName}</Menu.Label>
-        {user.instructorId && <InstructorLinkMenuSection instructorId={user.instructorId} />}
+        <Stack gap={0} px="sm" py="xs">
+          <Text size="sm" fw={500} truncate>
+            {user.displayName}
+          </Text>
+          <LinkedInstructorName instructorId={user.instructorId} />
+        </Stack>
         <Menu.Divider />
         <Menu.Item
           onClick={() => {
@@ -37,22 +42,5 @@ export function UserMenu({ user }: { user: MeResponse }) {
         </Menu.Item>
       </Menu.Dropdown>
     </Menu>
-  );
-}
-
-/** アバターメニュー内に連携中のインストラクターを表示する。 */
-function InstructorLinkMenuSection({ instructorId }: { instructorId: string }) {
-  const { data: instructor } = useInstructor(instructorId);
-
-  return (
-    <>
-      <Menu.Divider />
-      <Menu.Label>インストラクター連携</Menu.Label>
-      <Group px="sm" pb="xs" gap="xs" wrap="nowrap">
-        <Text size="sm" truncate flex={1}>
-          {instructor ? `${instructor.lastName} ${instructor.firstName}` : '連携情報を読み込み中'}
-        </Text>
-      </Group>
-    </>
   );
 }

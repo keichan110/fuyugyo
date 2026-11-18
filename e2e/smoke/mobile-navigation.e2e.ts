@@ -74,6 +74,11 @@ for (const role of ['member', 'manager', 'admin'] as const) {
       await expect(page.getByRole('button', { name: /^連携/ })).toHaveCount(0);
       await expect(page.getByRole('button', { name: '一括設定' })).toHaveCount(0);
       expect(availabilityRequested).toBe(false);
+
+      await navigation.getByRole('button', { name: 'その他' }).click();
+      await expect(
+        page.getByRole('dialog', { name: 'その他' }).getByText('未紐付け', { exact: true }),
+      ).toBeVisible();
     });
   });
 }

@@ -42,8 +42,8 @@ for (const role of ['member', 'manager', 'admin'] as const) {
       }
     });
 
-    test('未連携でもタブ数を保ち、シフト表を閲覧できる', async ({ page }) => {
-      // 認証APIの境界で未連携状態を再現し、共有D1のユーザー情報は変更しない。
+    test('未紐付けでもタブ数を保ち、シフト表を閲覧できる', async ({ page }) => {
+      // 認証APIの境界で未紐付け状態を再現し、共有D1のユーザー情報は変更しない。
       await page.route('**/api/auth/me', async (route) => {
         const response = await route.fetch();
         const user = await response.json();
@@ -54,12 +54,12 @@ for (const role of ['member', 'manager', 'admin'] as const) {
       await expect(navigation.getByRole('link')).toHaveCount(role === 'member' ? 2 : 3);
       await expect(navigation.getByRole('button', { name: /シフト希望/ })).toBeDisabled();
       await expect(navigation.getByRole('button', { name: /シフト希望/ })).toHaveAccessibleName(
-        'シフト希望（インストラクターとの連携が必要です）',
+        'シフト希望（管理者に紐付けを依頼してください）',
       );
       await expect(
         navigation.getByRole('button', { name: /シフト希望/ }).locator('.tabler-icon-lock'),
       ).toBeVisible();
-      await expect(page.getByRole('button', { name: /^連携/ })).toHaveCount(0);
+      await expect(page.getByRole('button', { name: /^(連携|紐付け)/ })).toHaveCount(0);
       await navigation.getByRole('link', { name: 'シフト表', exact: true }).click();
       await expect(page.getByRole('heading', { name: 'シフト表', exact: true })).toBeVisible();
       await expect(page.getByRole('switch', { name: '自分だけ' })).toBeDisabled();
@@ -71,9 +71,14 @@ for (const role of ['member', 'manager', 'admin'] as const) {
       });
       await page.goto('/availabilities');
       await expect(page.getByRole('heading', { name: 'シフト希望', exact: true })).toBeVisible();
-      await expect(page.getByRole('button', { name: /^連携/ })).toHaveCount(0);
+      await expect(page.getByRole('button', { name: /^(連携|紐付け)/ })).toHaveCount(0);
       await expect(page.getByRole('button', { name: '一括設定' })).toHaveCount(0);
       expect(availabilityRequested).toBe(false);
+
+      await navigation.getByRole('button', { name: 'その他' }).click();
+      await expect(
+        page.getByRole('dialog', { name: 'その他' }).getByText('未紐付け', { exact: true }),
+      ).toBeVisible();
     });
   });
 }
@@ -95,7 +100,7 @@ for (const role of ['member', 'manager', 'admin'] as const) {
   test.describe(`${role} のPC版シフト希望メニュー`, () => {
     test.use({ storageState: authStatePath(role), viewport: { width: 1280, height: 800 } });
 
-    test('サイドバーから希望を開け、未連携時は理由を付けて無効化する', async ({ page }) => {
+    test('サイドバーから希望を開け、未紐付け時は理由を付けて無効化する', async ({ page }) => {
       await page.goto('/');
       const link = page
         .getByRole('link', { name: 'シフト希望', exact: true })
@@ -112,9 +117,9 @@ for (const role of ['member', 'manager', 'admin'] as const) {
       await page.reload();
       const disabled = page.getByRole('button', { name: /シフト希望/ }).filter({ visible: true });
       await expect(disabled).toBeDisabled();
-      await expect(disabled).toContainText('インストラクターとの連携が必要です');
+      await expect(disabled).toContainText('管理者に紐付けを依頼してください');
       await expect(link).toHaveCount(0);
-      await expect(page.getByRole('button', { name: /^連携/ })).toHaveCount(0);
+      await expect(page.getByRole('button', { name: /^(連携|紐付け)/ })).toHaveCount(0);
     });
   });
 }

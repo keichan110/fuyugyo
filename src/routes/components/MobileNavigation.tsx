@@ -56,7 +56,7 @@ export function MobileNavigation({ user }: { user: MeResponse }) {
                 key={to}
                 className={classes.tab}
                 disabled
-                aria-label="シフト希望（インストラクターとの連携が必要です）"
+                aria-label="シフト希望（管理者に紐付けを依頼してください）"
               >
                 {contents}
                 <IconLock size={12} stroke={2} className={classes.requireLink} aria-hidden />

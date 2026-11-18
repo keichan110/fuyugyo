@@ -4,7 +4,8 @@ import { useNavigate } from '@tanstack/react-router';
 import { AppButton } from '@/components/AppButton';
 import { useLogout } from '@/features/auth/queries';
 import type { MeResponse } from '@/features/auth/schema';
-import { useInstructor } from '@/features/instructors/queries';
+
+import { LinkedInstructorName } from './LinkedInstructorName';
 
 /** モバイル用ドロワー内のアカウント操作。入れ子のメニューにせず直接操作できるようにする。 */
 export function MobileAccountActions({ user }: { user: MeResponse }) {
@@ -24,18 +25,13 @@ export function MobileAccountActions({ user }: { user: MeResponse }) {
           radius="xl"
           size="md"
         />
-        <Text size="sm" truncate>
-          {user.displayName}
-        </Text>
-      </Group>
-      {user.instructorId && (
-        <>
-          <Text size="sm" fw={700} mt="xs">
-            インストラクター連携
+        <Stack gap={0} miw={0}>
+          <Text size="sm" truncate>
+            {user.displayName}
           </Text>
-          <MobileInstructorLinkSection instructorId={user.instructorId} />
-        </>
-      )}
+          <LinkedInstructorName instructorId={user.instructorId} />
+        </Stack>
+      </Group>
       <AppButton
         intent="tertiary"
         justify="flex-start"
@@ -47,21 +43,6 @@ export function MobileAccountActions({ user }: { user: MeResponse }) {
       >
         ログアウト
       </AppButton>
-    </Stack>
-  );
-}
-
-/** モバイル用ドロワー内でインストラクター連携を表示する。 */
-function MobileInstructorLinkSection({ instructorId }: { instructorId: string }) {
-  const { data: instructor } = useInstructor(instructorId);
-
-  return (
-    <Stack gap={0}>
-      <Group gap="xs" wrap="nowrap">
-        <Text size="sm" truncate flex={1}>
-          {instructor ? `${instructor.lastName} ${instructor.firstName}` : '連携情報を読み込み中'}
-        </Text>
-      </Group>
     </Stack>
   );
 }

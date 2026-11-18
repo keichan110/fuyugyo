@@ -112,7 +112,7 @@ export function useLinkInstructor(id: string) {
       });
       if (!res.ok) {
         const body = apiErrorSchema.parse(await res.json());
-        throw new Error(body.message ?? 'インストラクターのリンクに失敗しました');
+        throw new Error(body.message ?? 'インストラクターの紐付けに失敗しました');
       }
       return userSchema.parse(await res.json());
     },
@@ -135,7 +135,7 @@ export function useUnlinkInstructor(id: string) {
       const res = await client.api.users[':id']['link-instructor'].$delete({ param: { id } });
       if (!res.ok) {
         const body = apiErrorSchema.parse(await res.json());
-        throw new Error(body.message ?? 'インストラクターのリンク解除に失敗しました');
+        throw new Error(body.message ?? 'インストラクターの紐付け解除に失敗しました');
       }
       return userSchema.parse(await res.json());
     },

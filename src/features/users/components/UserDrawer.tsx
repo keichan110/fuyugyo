@@ -95,7 +95,7 @@ function InstructorLinkEditor({ instructorId, onSelect, onUnlink }: InstructorLi
   return (
     <Stack gap="xs">
       <Text fw={500} size="sm">
-        Instructor リンク
+        インストラクター紐付け
       </Text>
 
       {instructorId ? (

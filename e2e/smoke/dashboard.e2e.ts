@@ -9,6 +9,28 @@ test.describe('ADMIN のダッシュボード', () => {
     await expect(page.getByRole('heading', { level: 1, name: '1月15日（木）' })).toBeVisible();
     await expect(page.getByRole('heading', { level: 2, name: 'このあと' })).toBeVisible();
   });
+
+  test('ビルド済みダッシュボードで CSP 違反が発生しない', async ({ page }) => {
+    test.skip(process.env.E2E_BUILT !== '1', 'ビルド済み SPA の CSP を検証する');
+
+    const violations: string[] = [];
+    page.on('console', (message) => {
+      if (message.text().startsWith('CSP 違反: ')) violations.push(message.text());
+    });
+    await page.addInitScript(() => {
+      document.addEventListener('securitypolicyviolation', (event) => {
+        console.log(`CSP 違反: ${event.effectiveDirective} ${event.blockedURI}`);
+      });
+    });
+
+    const response = await page.goto('/');
+    const headers = response?.headers();
+    const policy =
+      headers?.['content-security-policy'] ?? headers?.['content-security-policy-report-only'];
+    expect(policy).toContain("script-src 'self'");
+    await expect(page.getByRole('heading', { level: 2, name: 'このあと' })).toBeVisible();
+    expect(violations).toEqual([]);
+  });
 });
 
 test.describe('MEMBER のダッシュボード', () => {

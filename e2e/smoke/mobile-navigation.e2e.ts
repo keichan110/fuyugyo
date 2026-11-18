@@ -71,6 +71,8 @@ for (const role of ['member', 'manager', 'admin'] as const) {
       });
       await page.goto('/availabilities');
       await expect(page.getByRole('heading', { name: 'シフト希望', exact: true })).toBeVisible();
+      await expect(page.getByText('インストラクターへの紐付けが必要です')).toBeVisible();
+      await expect(page.getByText('管理者に紐付けを依頼してください。')).toBeVisible();
       await expect(page.getByRole('button', { name: /^(連携|紐付け)/ })).toHaveCount(0);
       await expect(page.getByRole('button', { name: '一括設定' })).toHaveCount(0);
       expect(availabilityRequested).toBe(false);
@@ -108,6 +110,7 @@ for (const role of ['member', 'manager', 'admin'] as const) {
       await expect(link).toHaveCount(1);
       await link.click();
       await expect(page.getByRole('heading', { name: 'シフト希望', exact: true })).toBeVisible();
+      await expect(page.getByText('インストラクターへの紐付けが必要です')).toHaveCount(0);
       await expect(link).toHaveAttribute('data-active', 'true');
       await page.route('**/api/auth/me', async (route) => {
         const response = await route.fetch();

@@ -1,6 +1,12 @@
 import { authStatePath } from '../fixtures/auth-state.ts';
 import { expect, test } from '../fixtures/test.ts';
 
+declare global {
+  interface Window {
+    dashboardCspViolations?: string[];
+  }
+}
+
 test.describe('ADMIN のダッシュボード', () => {
   test.use({ storageState: authStatePath('admin') });
 
@@ -8,6 +14,33 @@ test.describe('ADMIN のダッシュボード', () => {
     await page.goto('/');
     await expect(page.getByRole('heading', { level: 1, name: '1月15日（木）' })).toBeVisible();
     await expect(page.getByRole('heading', { level: 2, name: 'このあと' })).toBeVisible();
+  });
+
+  test('ビルド済みダッシュボードで CSP 違反が発生しない', async ({ page }) => {
+    test.skip(process.env.E2E_BUILT !== '1', 'ビルド済み SPA の CSP を検証する');
+
+    await page.addInitScript(() => {
+      const violations: string[] = [];
+      window.dashboardCspViolations = violations;
+      document.addEventListener('securitypolicyviolation', (event) => {
+        violations.push(`${event.effectiveDirective} ${event.blockedURI}`);
+      });
+    });
+
+    const response = await page.goto('/');
+    const headers = response?.headers();
+    const policy =
+      headers?.['content-security-policy'] ?? headers?.['content-security-policy-report-only'];
+    expect(policy).toContain("script-src 'self'");
+    await expect(page.getByRole('heading', { level: 2, name: 'このあと' })).toBeVisible();
+    const violations = await page.evaluate(async () => {
+      // 描画後のフレームまで待ち、初期表示中にキューに入った違反をブラウザ内で回収する。
+      await new Promise<void>((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+      });
+      return window.dashboardCspViolations;
+    });
+    expect(violations).toEqual([]);
   });
 });
 

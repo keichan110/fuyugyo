@@ -34,5 +34,24 @@ export default defineConfig({
   test: {
     include: ['test/**/*.{test,spec}.ts'],
     setupFiles: ['./test/apply-migrations.ts'],
+    // `--coverage` 指定時のみ有効。Workers プールは V8 カバレッジ非対応のため Istanbul を使う
+    coverage: {
+      provider: 'istanbul',
+      // テストから一度も読み込まれないファイルも 0% として数え、未テストの追加を全体値に反映する
+      include: ['src/**/*.{ts,tsx}'],
+      // TanStack Router の自動生成ファイルはテスト対象のコードではないため除く
+      exclude: ['src/routeTree.gen.ts'],
+      reporter: ['text-summary', 'json-summary'],
+      // 現状値から数ポイント下げた下限。UI 層は E2E が主体のため個別には縛らず、全体値にのみ含める
+      thresholds: {
+        statements: 48,
+        branches: 35,
+        functions: 37,
+        lines: 48,
+        'src/server/**': { statements: 85, branches: 82, functions: 77, lines: 85 },
+        'src/features/*/api.ts': { statements: 92, branches: 81, functions: 97, lines: 92 },
+        'src/features/*/schema.ts': { statements: 95, branches: 88, functions: 90, lines: 95 },
+      },
+    },
   },
 });

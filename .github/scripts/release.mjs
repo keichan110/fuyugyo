@@ -182,10 +182,16 @@ async function loadCandidate(api, repo, env) {
   return { release, state };
 }
 
+// タグ未作成のドラフトは tag_name を省いて更新すると GitHub が untagged-* に置き換えるため、毎回指定する。
+function pinnedTarget(release) {
+  return { tag_name: release.tag_name, target_commitish: release.target_commitish };
+}
+
 async function verifyRelease(api, repo, candidate) {
   await assertApproval(api, repo);
   if (candidate.state) {
     await api(`${repo}/releases/${candidate.release.id}`, 'PATCH', {
+      ...pinnedTarget(candidate.release),
       body: updateBody(candidate.release, { ...candidate.state, deployStarted: true }),
     });
   }
@@ -200,6 +206,7 @@ async function publishRelease(api, repo, candidate) {
   }
   // 確認済みのタイトルと本文をそのまま公開する。ノートの再生成は行わない。
   await api(`${repo}/releases/${candidate.release.id}`, 'PATCH', {
+    ...pinnedTarget(candidate.release),
     draft: false,
     make_latest: 'true',
   });

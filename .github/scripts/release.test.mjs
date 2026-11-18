@@ -38,7 +38,12 @@ function fixture({ releases = [], refs = [], approval = true, commitSha = otherS
     const release = releases.find((item) => path === `${repo}/releases/${item.id}`);
     assert.ok(release, `想定外の API: ${path}`);
     if (method === 'PATCH') {
-      Object.assign(release, data);
+      // GitHub はタグ未作成のドラフトを tag_name なしで更新すると untagged-* に置き換える
+      const untagged =
+        release.draft &&
+        data.tag_name === undefined &&
+        !refs.some((ref) => ref.ref === `refs/tags/${release.tag_name}`);
+      Object.assign(release, data, untagged ? { tag_name: `untagged-${release.id}` } : {});
     }
     return structuredClone(release);
   };
@@ -68,7 +73,13 @@ test('ドラフトを固定 SHA で作り、承認・検証後に本文を保持
   assert.equal(state.releases[0].draft, false);
   assert.equal(state.releases[0].body, approvedBody);
   assert.match(approvedBody, /確認者が追記した運用メモ/);
-  assert.deepEqual(state.calls.at(-1).data, { draft: false, make_latest: 'true' });
+  assert.equal(state.releases[0].tag_name, state.candidate.tag);
+  assert.deepEqual(state.calls.at(-1).data, {
+    tag_name: state.candidate.tag,
+    target_commitish: sha,
+    draft: false,
+    make_latest: 'true',
+  });
 });
 
 test('同じ SHA の再実行は同じドラフトと編集済み本文を再利用する', async () => {

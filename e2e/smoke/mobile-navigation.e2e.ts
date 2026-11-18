@@ -59,7 +59,7 @@ for (const role of ['member', 'manager', 'admin'] as const) {
       await expect(
         navigation.getByRole('button', { name: /シフト希望/ }).locator('.tabler-icon-lock'),
       ).toBeVisible();
-      await expect(page.getByRole('button', { name: /^連携/ })).toHaveCount(0);
+      await expect(page.getByRole('button', { name: /^(連携|紐付け)/ })).toHaveCount(0);
       await navigation.getByRole('link', { name: 'シフト表', exact: true }).click();
       await expect(page.getByRole('heading', { name: 'シフト表', exact: true })).toBeVisible();
       await expect(page.getByRole('switch', { name: '自分だけ' })).toBeDisabled();
@@ -71,7 +71,7 @@ for (const role of ['member', 'manager', 'admin'] as const) {
       });
       await page.goto('/availabilities');
       await expect(page.getByRole('heading', { name: 'シフト希望', exact: true })).toBeVisible();
-      await expect(page.getByRole('button', { name: /^連携/ })).toHaveCount(0);
+      await expect(page.getByRole('button', { name: /^(連携|紐付け)/ })).toHaveCount(0);
       await expect(page.getByRole('button', { name: '一括設定' })).toHaveCount(0);
       expect(availabilityRequested).toBe(false);
 
@@ -119,7 +119,7 @@ for (const role of ['member', 'manager', 'admin'] as const) {
       await expect(disabled).toBeDisabled();
       await expect(disabled).toContainText('管理者に紐付けを依頼してください');
       await expect(link).toHaveCount(0);
-      await expect(page.getByRole('button', { name: /^連携/ })).toHaveCount(0);
+      await expect(page.getByRole('button', { name: /^(連携|紐付け)/ })).toHaveCount(0);
     });
   });
 }

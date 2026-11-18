@@ -22,13 +22,20 @@ export function LinkedInstructorName({ instructorId }: LinkedInstructorNameProps
   return <LinkedInstructorFullName instructorId={instructorId} />;
 }
 
-/** 紐付け先 Instructor を取得して氏名を表示する（フックを条件付きで呼ばないよう分離）。 */
+/**
+ * 紐付け先 Instructor を取得して氏名を表示する（フックを条件付きで呼ばないよう分離）。
+ * 取得に失敗した場合は「読み込み中」のまま残さず、取得できなかったことを示す。
+ */
 function LinkedInstructorFullName({ instructorId }: { instructorId: string }) {
-  const { data: instructor } = useInstructor(instructorId);
+  const { data: instructor, isError } = useInstructor(instructorId);
+
+  let label = '読み込み中';
+  if (instructor) label = `${instructor.lastName} ${instructor.firstName}`;
+  else if (isError) label = '取得できませんでした';
 
   return (
     <Text size="xs" c="dimmed" truncate>
-      {instructor ? `${instructor.lastName} ${instructor.firstName}` : '読み込み中'}
+      {label}
     </Text>
   );
 }

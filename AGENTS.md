@@ -17,6 +17,7 @@ Fuyugyō - スキー・スノーボードスクールの運営管理システム
 pnpm run dev              # 開発サーバー起動（Vite + Cloudflare Workers）
 pnpm run build            # プロダクションビルド（typecheck含む）
 pnpm run test             # 全テスト実行（Vitest + 実D1）
+pnpm run test:coverage    # カバレッジ計測付きの全テスト（Istanbul、閾値未満で失敗。PR の CI と同じ）
 
 pnpm run test:e2e:smoke   # E2E スモーク（開発サーバー・Chromium、@smoke タグのみ。PR の CI と同じ）
 pnpm run test:e2e         # フル E2E（build → ビルド済み Worker で Chromium + モバイル WebKit。リリースゲートと同じ）

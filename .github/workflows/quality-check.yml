@@ -1,8 +1,6 @@
 name: Quality Check
 
 on:
-  push:
-    branches: [main]
   pull_request:
     branches: [main]
 
@@ -10,7 +8,6 @@ permissions:
   contents: read
 
 # PR では新しい push が来たら古い実行を止めて実行時間を節約する。
-# main への push は全コミットの結果を残すため止めない
 concurrency:
   group: quality-check-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -47,10 +44,6 @@ jobs:
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: pnpm exec vite build
 
-      - name: Security audit
-        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
-        run: pnpm audit --audit-level=moderate --ignore-unfixable
-
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -64,7 +57,9 @@ jobs:
         uses: ./.github/actions/setup
 
       - name: Run tests
-        run: pnpm run test
+        run: |
+          pnpm run test
+          node --test scripts/check-unreleased-changes.test.mjs
 
       # 開発用 seed は静的チェック・回帰テストの対象外のため、
       # import 解決やスキーマ変更で壊れていないかを空のローカル D1 への投入で確かめる

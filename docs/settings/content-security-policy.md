@@ -26,16 +26,16 @@ LINE アバターが実際に取得するホストを Network パネルで確認
 
 ## 検証結果
 
-2026-11-18（JST）に、#281 を含むリリースの本番配信で公開レスポンスを確認した。
+2026-11-18（JST）に、[#281 を含む本番リリース](https://github.com/keichan110/fuyugyo/actions/runs/44283210721)の公開レスポンスを確認した。以下のヘッダは [PR #338](https://github.com/keichan110/fuyugyo/pull/338) の適用前に取得した。PR の適用後は HTML が参照するエントリが Zod の初期化用スクリプトに変わるため、配信後に新しいエントリのキャッシュも確認する。
 
 | 対象 | 確認結果 |
 | --- | --- |
 | `/` と `/login` の HTML | HTTP 200。 `Content-Security-Policy-Report-Only` が付与され、`Cache-Control` は `public, max-age=0, must-revalidate` |
 | HTML から参照されるハッシュ付き JavaScript | HTTP 200。 `Cache-Control` は `public,max-age=31536000,immutable` |
 
-ローカルのビルド済み SPA では、ダッシュボードなどの画面で Zod の動的コード生成による `script-src` 違反を再現した。SPA 起動時に Zod の JIT を無効化し、`script-src 'self'` のまま利用できるよう修正した。修正後に Chromium と WebKit のダッシュボード E2E で CSP 違反が発生しないことを確認した。
+ローカルのビルド済み SPA では、ダッシュボードなどの画面で Zod の動的コード生成による `script-src` 違反を再現した。SPA 起動時に Zod の JIT を無効化し、`script-src 'self'` のまま利用できるよう修正した。修正後の CSP 違反の確認範囲は、ビルド版（`E2E_BUILT=1`）のダッシュボード初期表示に限る。Chromium と WebKit の両方で違反が発生しないことを確認した。
 
-リリースの `VITE_SENTRY_DSN` が指すオリジンは `https://o4512428975063040.ingest.us.sentry.io`。ブラウザがエラー通知を直接送信する際、現行の `connect-src 'self'` ではこの宛先が許可されない。強制適用前に検証環境で通知を確認し、必要な宛先だけを許可する。
+確認時のリリースでは、ブラウザ版 Sentry の `VITE_SENTRY_DSN` が外部の取り込み先を指していた。ブラウザがエラー通知を直接送信するには、そのオリジンを `connect-src` に許可する必要がある。強制適用前に対象環境の DSN と Network パネルで送信先を照合し、実際に使うオリジンだけを許可する。
 
 実際の LINE 認証後の遷移、認証済み画面のコンソール、印刷、天気、LINE プロフィール画像の取得先は検証環境で確認する。現時点での `img-src` の LINE 画像ホストは `https://profile.line-scdn.net` のみ。実際の取得先を確認した後に許可範囲を確定する。
 

@@ -413,11 +413,25 @@ describe('GET /api/availabilities', () => {
     );
     expect(all.status).toBe(403);
 
+    const unlinkedMessage = 'インストラクターに連携されたユーザーのみ利用できます';
+
     const me = await app.request(
       `/api/availabilities/me?from=${date}&to=${date}`,
       authHeader(unlinkedToken),
       envWith({}),
     );
     expect(me.status).toBe(403);
+    expect(await me.json()).toEqual({ message: unlinkedMessage });
+
+    const update = await app.request(
+      '/api/availabilities/me',
+      {
+        method: 'PUT',
+        ...authJsonRequest(unlinkedToken, { changes: [{ date, type: 'AVAILABLE' }] }),
+      },
+      envWith({}),
+    );
+    expect(update.status).toBe(403);
+    expect(await update.json()).toEqual({ message: unlinkedMessage });
   });
 });

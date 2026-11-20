@@ -6,8 +6,9 @@ import { validator } from 'hono/validator';
 
 import { dateStringSchema } from '@/features/shifts/schema';
 import { scheduleMaximumDate, scheduleToday } from '@/lib/schedule-date-range';
+import { resolveInstructorId } from '@/server/auth/resolve-instructor-id';
 import { createDb } from '@/server/db/client';
-import { instructorAvailabilities, shiftAssignments, shifts, users } from '@/server/db/schema';
+import { instructorAvailabilities, shiftAssignments, shifts } from '@/server/db/schema';
 import { rethrowShiftWriteError } from '@/server/db/shift-writes';
 import { requireAuth, requireRole, type AuthVariables } from '@/server/middleware/auth';
 import type { Env } from '@/server/types';
@@ -55,22 +56,6 @@ function parseRange(from: string | undefined, to: string | undefined): { from: D
     throw new HTTPException(400, { message: 'from は to 以前の日付を指定してください' });
   }
   return range;
-}
-
-/** JWT のユーザーにリンクした instructorId を解決する。未連携なら本人入力は許可しない。 */
-async function resolveInstructorId(
-  db: ReturnType<typeof createDb>,
-  userId: string,
-): Promise<string> {
-  const [user] = await db
-    .select({ instructorId: users.instructorId })
-    .from(users)
-    .where(eq(users.id, userId))
-    .limit(1);
-  if (!user?.instructorId) {
-    throw new HTTPException(403, { message: 'インストラクターに紐づくユーザーのみ利用できます' });
-  }
-  return user.instructorId;
 }
 
 /**

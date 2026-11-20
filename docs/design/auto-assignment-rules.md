@@ -257,4 +257,8 @@
 
 - 日付順の初期案を20回作り、最も良い案を、枠内の人の置換と日付間の交換で改善する。改善は最大20,000回の評価で打ち切る。
 - 局所探索なので、全体の最適解は保証しない。「別の案を出す」でも、別案が必ずあるとは限らない。
-- 実装の入口は `solveAutoAssignments`。本文のシーンと通し例は `test/auto-assign-scenes.test.ts` で実際のソルバーを動かして検証している。ルールを変えるときは、この文書とテストを同時に更新する。
+- 実装の入口は `solveAutoAssignments`。処理は `src/features/shifts/auto-assign/` の3つに分かれている。
+  - `problem.ts`: 前提の条件を適用し、枠ごとの候補を決める。
+  - `criteria.ts`: 案を人別・枠別の事実へ集計し、順番2〜6の優先順位（`PRIORITY`）で評価値にする。順番を変えるときはここだけを直す。
+  - `search.ts`: 評価値が良くなる案を探す。評価の中身には依存しない。
+- 本文のシーンと通し例は `test/auto-assign-scenes.test.ts` で実際のソルバーを動かして検証している。集計と優先順位は `test/auto-assign-criteria.test.ts`、前提の条件と1か月分の割当結果は `test/auto-assign-regression.test.ts` で固定している。ルールを変えるときは、この文書とテストを同時に更新する。

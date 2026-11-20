@@ -1,5 +1,7 @@
-import { Button, Tooltip } from '@mantine/core';
+import { Tooltip } from '@mantine/core';
 import { IconEye, IconEyeOff } from '@tabler/icons-react';
+
+import { AppButton } from './AppButton';
 
 type InactiveVisibilityToggleProps = {
   /** 無効な項目を表示しているかどうか。 */
@@ -13,15 +15,16 @@ export function InactiveVisibilityToggle({ shown, onChange }: InactiveVisibility
 
   return (
     <Tooltip label={label}>
-      <Button
+      <AppButton
+        intent="toggle"
+        active={shown}
         aria-label={label}
         size="sm"
-        variant={shown ? 'light' : 'default'}
         leftSection={shown ? <IconEyeOff size={16} /> : <IconEye size={16} />}
         onClick={() => onChange(!shown)}
       >
         無効
-      </Button>
+      </AppButton>
     </Tooltip>
   );
 }

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 
-import { Avatar, Button, Group, Paper, Stack, Table, Text, Tooltip } from '@mantine/core';
+import { Avatar, Group, Paper, Stack, Table, Text, Tooltip } from '@mantine/core';
 import { IconLink, IconLinkOff, IconUsers } from '@tabler/icons-react';
 
 import { ErrorAlert } from '@/components/AppAlert';
@@ -129,15 +129,16 @@ function UnlinkedOnlyToggle({ active, onChange }: UnlinkedOnlyToggleProps) {
 
   return (
     <Tooltip label={label}>
-      <Button
+      <AppButton
+        intent="toggle"
+        active={active}
         aria-label={label}
         size="sm"
-        variant={active ? 'light' : 'default'}
         leftSection={active ? <IconLinkOff size={16} /> : <IconLink size={16} />}
         onClick={() => onChange(!active)}
       >
         未紐付け
-      </Button>
+      </AppButton>
     </Tooltip>
   );
 }

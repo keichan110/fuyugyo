@@ -1,14 +1,4 @@
-import {
-  Button,
-  CopyButton,
-  Group,
-  Paper,
-  Popover,
-  Stack,
-  Text,
-  TextInput,
-  Tooltip,
-} from '@mantine/core';
+import { CopyButton, Group, Paper, Popover, Stack, Text, TextInput, Tooltip } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { IconBan, IconCheck, IconClock, IconCopy, IconUsers } from '@tabler/icons-react';
 
@@ -60,7 +50,9 @@ export function ActiveInvitationCard({ invitation }: ActiveInvitationCardProps) 
           <TextInput className={classes.urlInput} readOnly value={url} />
           <CopyButton value={url} timeout={2000}>
             {({ copied, copy }) => (
-              <Button
+              <AppButton
+                intent="primary"
+                success={copied}
                 className={classes.copyButton}
                 leftSection={
                   copied ? (
@@ -69,11 +61,10 @@ export function ActiveInvitationCard({ invitation }: ActiveInvitationCardProps) 
                     <IconCopy size={16} stroke={1.5} />
                   )
                 }
-                {...(copied ? { color: 'teal' } : {})}
                 onClick={copy}
               >
                 コピー
-              </Button>
+              </AppButton>
             )}
           </CopyButton>
           <Popover width={260} position="bottom-end" withArrow>

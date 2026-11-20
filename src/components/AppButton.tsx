@@ -5,13 +5,33 @@ import {
   type PolymorphicFactory,
 } from '@mantine/core';
 
-type StandardIntent = 'primary' | 'secondary' | 'tertiary';
+type PrimaryButtonProps = {
+  /** 操作の意味と強調度。 */
+  intent: 'primary';
+  /** 操作が成功した直後の一時的なフィードバック（コピー完了など）として成功色で表示する。 */
+  success?: boolean;
+  emphasis?: never;
+  compact?: never;
+  active?: never;
+};
 
 type StandardButtonProps = {
   /** 操作の意味と強調度。 */
-  intent: StandardIntent;
+  intent: 'secondary' | 'tertiary';
   emphasis?: never;
   compact?: never;
+  success?: never;
+  active?: never;
+};
+
+type ToggleButtonProps = {
+  /** オン・オフを切り替える操作。 */
+  intent: 'toggle';
+  /** オンの状態かどうか。オンのとき淡い背景で強調する。 */
+  active: boolean;
+  emphasis?: never;
+  compact?: never;
+  success?: never;
 };
 
 type DangerButtonProps = {
@@ -21,10 +41,12 @@ type DangerButtonProps = {
   emphasis?: 'low' | 'high';
   /** 行内などの狭い場所で、淡い背景を付けずに表示する。 */
   compact?: boolean;
+  success?: never;
+  active?: never;
 };
 
 export type AppButtonProps = Omit<ButtonProps, 'color' | 'variant'> &
-  (StandardButtonProps | DangerButtonProps);
+  (PrimaryButtonProps | StandardButtonProps | ToggleButtonProps | DangerButtonProps);
 
 type AppButtonFactory = PolymorphicFactory<{
   props: AppButtonProps;
@@ -36,7 +58,7 @@ type AppButtonFactory = PolymorphicFactory<{
  * 操作の意味を Mantine の色と variant へ一貫して割り当てる共通ボタン。
  */
 export const AppButton = polymorphicFactory<AppButtonFactory>(
-  ({ intent, emphasis, compact, ref, ...props }) => {
+  ({ intent, emphasis, compact, success, active, ref, ...props }) => {
     if (intent === 'danger') {
       const highEmphasis = emphasis === 'high';
 
@@ -50,8 +72,17 @@ export const AppButton = polymorphicFactory<AppButtonFactory>(
       );
     }
 
+    if (intent === 'primary') {
+      return (
+        <Button ref={ref} {...props} {...(success ? { color: 'teal' } : {})} variant="filled" />
+      );
+    }
+
+    if (intent === 'toggle') {
+      return <Button ref={ref} {...props} variant={active ? 'light' : 'default'} />;
+    }
+
     const variant = {
-      primary: 'filled',
       secondary: 'default',
       tertiary: 'subtle',
     }[intent] satisfies ButtonProps['variant'];

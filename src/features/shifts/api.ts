@@ -21,6 +21,7 @@ import { validator } from 'hono/validator';
 
 import { DEPARTMENT_LABELS, departmentCodeSchema } from '@/features/departments/schema';
 import { scheduleMaximumDate, scheduleToday } from '@/lib/schedule-date-range';
+import { resolveInstructorId } from '@/server/auth/resolve-instructor-id';
 import { selectInstructorIdsWithFrameCertification } from '@/server/db/certification-requirements';
 import { createDb } from '@/server/db/client';
 import type { Database } from '@/server/db/client';
@@ -1434,21 +1435,13 @@ export const shiftsRoute = new Hono<{
    * ダッシュボード「今シーズン」セクション向けの集計を返す（Issue #203）。
    * ログイン User にリンクされた Instructor の [前シーズン開始, 今シーズン終了] 範囲の
    * 勤務実績を1クエリで取得し、`buildSeasonStats` でサマリー・月別推移・
-   * 部門別/シフト種別別内訳にまとめる。User が Instructor 未連携なら 404。
+   * 部門別/シフト種別別内訳にまとめる。User が Instructor 未連携なら 403。
    */
   .get('/me/season-stats', requireAuth, async (c) => {
     const db = createDb(c.env.DB);
     const { userId } = c.get('user');
 
-    const [me] = await db
-      .select({ instructorId: users.instructorId })
-      .from(users)
-      .where(eq(users.id, userId))
-      .limit(1);
-
-    if (!me?.instructorId) {
-      throw new HTTPException(404, { message: 'Instructor が連携されていません' });
-    }
+    const instructorId = await resolveInstructorId(db, userId);
 
     const today = formatDate(new Date());
     const currentSeasonRange = seasonRangeForDate(today);
@@ -1469,7 +1462,7 @@ export const shiftsRoute = new Hono<{
       .innerJoin(shiftTypes, eq(shiftTypes.id, shifts.shiftTypeId))
       .where(
         and(
-          eq(shiftAssignments.instructorId, me.instructorId),
+          eq(shiftAssignments.instructorId, instructorId),
           eq(shifts.status, 'PUBLISHED'),
           gte(shifts.date, parseShiftDate(previousSeasonRange.from)),
           lte(shifts.date, parseShiftDate(currentSeasonRange.to)),

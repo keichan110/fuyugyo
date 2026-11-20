@@ -1,6 +1,6 @@
 import { env } from 'cloudflare:test';
 import { and, eq } from 'drizzle-orm';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { applyAutoAssignProposals } from '../src/features/shifts/components/auto-assign-stage';
 import {
@@ -48,7 +48,7 @@ function authJsonRequest(token: string, body: unknown): RequestInit {
   };
 }
 
-async function seedToken(role: 'MANAGER' | 'MEMBER'): Promise<string> {
+async function seedToken(role: 'MANAGER' | 'MEMBER', instructorId?: string): Promise<string> {
   const db = createDb(env.DB);
   const [user] = await db
     .insert(users)
@@ -57,6 +57,7 @@ async function seedToken(role: 'MANAGER' | 'MEMBER'): Promise<string> {
       displayName: `テスト${role}`,
       role,
       isActive: true,
+      instructorId,
     })
     .returning();
   if (!user) {
@@ -1129,5 +1130,93 @@ describe('GET /api/shifts/assignment-editor', () => {
       envWith({}),
     );
     expect(res.status).toBe(403);
+  });
+});
+
+// ─── GET /api/shifts/me/season-stats ─────────────────────────────────
+
+describe('GET /api/shifts/me/season-stats', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('Instructor 未連携のユーザーには 403 を返す', async () => {
+    const token = await seedToken('MEMBER');
+
+    const res = await app.request('/api/shifts/me/season-stats', authHeader(token), envWith({}));
+
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({
+      message: 'インストラクターに連携されたユーザーのみ利用できます',
+    });
+  });
+
+  it('連携済みユーザーには本人の公開済みシフトだけを集計して返す', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-12-15T03:00:00Z'));
+    const stId = await seedShiftType('終日');
+    const me = await seedInstructor('山田', '太郎');
+    const other = await seedInstructor('鈴木', '花子');
+    const token = await seedToken('MEMBER', me);
+    const db = createDb(env.DB);
+    const [ownPublished, ownDraft, otherPublished] = await db
+      .insert(shifts)
+      .values([
+        {
+          date: new Date('2026-12-10T00:00:00Z'),
+          departmentCode: 'ski',
+          shiftTypeId: stId,
+          status: 'PUBLISHED',
+        },
+        {
+          date: new Date('2026-12-11T00:00:00Z'),
+          departmentCode: 'ski',
+          shiftTypeId: stId,
+          status: 'DRAFT',
+        },
+        {
+          date: new Date('2026-12-12T00:00:00Z'),
+          departmentCode: 'ski',
+          shiftTypeId: stId,
+          status: 'PUBLISHED',
+        },
+      ])
+      .returning();
+    if (!ownPublished || !ownDraft || !otherPublished) throw new Error('シフト作成失敗');
+    await db.insert(shiftAssignments).values([
+      { shiftId: ownPublished.id, instructorId: me },
+      { shiftId: ownDraft.id, instructorId: me },
+      { shiftId: otherPublished.id, instructorId: other },
+    ]);
+
+    const res = await app.request('/api/shifts/me/season-stats', authHeader(token), envWith({}));
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      summary: {
+        currentMonthWorkDays: 1,
+        previousMonthWorkDays: 0,
+        currentSeasonWorkDays: 1,
+        previousSeasonToDateWorkDays: 0,
+        previousSeasonWorkDays: 0,
+        currentSeasonRange: { from: '2026-09-01', to: '2027-08-31' },
+        previousSeasonRange: { from: '2025-09-01', to: '2026-08-31' },
+      },
+      monthlyTrend: [
+        { month: '2026-09', workDays: 0 },
+        { month: '2026-10', workDays: 0 },
+        { month: '2026-11', workDays: 0 },
+        { month: '2026-12', workDays: 1 },
+        { month: '2027-01', workDays: 0 },
+        { month: '2027-02', workDays: 0 },
+        { month: '2027-03', workDays: 0 },
+        { month: '2027-04', workDays: 0 },
+        { month: '2027-05', workDays: 0 },
+        { month: '2027-06', workDays: 0 },
+        { month: '2027-07', workDays: 0 },
+        { month: '2027-08', workDays: 0 },
+      ],
+      breakdown: [{ departmentCode: 'ski', shiftTypeId: stId, shiftTypeName: '終日', count: 1 }],
+    });
   });
 });

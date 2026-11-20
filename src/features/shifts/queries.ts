@@ -325,7 +325,7 @@ export function useShiftAssignmentEditor(params: Partial<ShiftEditDataParams>) {
 
 /**
  * ダッシュボード「今シーズン」セクション向けの集計を取得する（Issue #203）。
- * ログイン User が Instructor 未連携の場合はサーバーが 404 を返す前提のため、
+ * ログイン User が Instructor 未連携の場合はサーバーが 403 を返す前提のため、
  * 呼び出し元（ダッシュボード）は instructorId が確定しているときだけ描画すること。
  * userId でキャッシュを隔離し、12h の staleTime/gcTime でセッション中の重い再計算を抑える。
  * メモリキャッシュのため、リロード時は最新を再取得する。

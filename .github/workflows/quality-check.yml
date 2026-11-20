@@ -55,6 +55,8 @@ jobs:
     runs-on: ubuntu-latest
     # カバレッジの計装で Vitest の実行時間が倍程度に延びるため、15 分から余裕を持たせる
     timeout-minutes: 20
+    outputs:
+      coverage-report: ${{ steps.coverage-report.outputs.created }}
 
     steps:
       - name: Checkout repository
@@ -69,21 +71,24 @@ jobs:
         run: pnpm run test:coverage
 
       # 閾値未満で失敗した場合も値を確認できるよう、レポートが出力されていれば常に書き出す
-      - name: Write coverage summary
+      - name: Build coverage report
+        id: coverage-report
         if: ${{ !cancelled() && hashFiles('coverage/coverage-summary.json') != '' }}
         run: |
-          {
-            echo '## テストカバレッジ（src 全体）'
-            echo
-            echo '| 指標 | カバー率 | カバー / 総数 |'
-            echo '| --- | ---: | ---: |'
-            jq -r '.total as $t
-              | ["lines", "statements", "functions", "branches"][]
-              | "| \(.) | \($t[.].pct)% | \($t[.].covered) / \($t[.].total) |"' \
-              coverage/coverage-summary.json
-            echo
-            echo '閾値は `vitest.config.ts` の `coverage.thresholds` を参照。'
-          } >> "$GITHUB_STEP_SUMMARY"
+          node .github/scripts/coverage-report.mjs coverage/coverage-summary.json > coverage/report.md
+          cat coverage/report.md >> "$GITHUB_STEP_SUMMARY"
+          echo "created=true" >> "$GITHUB_OUTPUT"
+        env:
+          # PR では CI が main とのマージ結果を検証するため、利用者が識別できる head のコミットを載せる
+          COVERAGE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Upload coverage report
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && steps.coverage-report.outputs.created == 'true' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: coverage-report
+          path: coverage/report.md
+          retention-days: 1
 
       # 開発用 seed は静的チェック・回帰テストの対象外のため、
       # import 解決やスキーマ変更で壊れていないかを空のローカル D1 への投入で確かめる
@@ -93,6 +98,38 @@ jobs:
           pnpm run db:migrate:local
           pnpm run db:seed:auth
           pnpm run db:seed:demo
+
+  # 依存パッケージのコードを実行する test ジョブに書き込み権限を持たせないよう、投稿だけを別ジョブに分ける。
+  # fork からの PR はトークンが読み取り専用で投稿できないため対象外にする
+  coverage-comment:
+    needs: test
+    if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && needs.test.outputs.coverage-report == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: write
+
+    steps:
+      - name: Download coverage report
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: coverage-report
+
+      # PR ごとに 1 件のコメントを持ち、push のたびに最新の計測値で書き換えて最終値を記録として残す
+      - name: Post or update coverage comment
+        run: |
+          marker='<!-- fuyugyo-coverage-report -->'
+          comment_id=$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" \
+            --jq ".[] | select(.user.login == \"github-actions[bot]\" and (.body | startswith(\"$marker\"))) | .id" \
+            | tail -n 1)
+          if [ -n "$comment_id" ]; then
+            gh api --method PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$comment_id" -F body=@report.md > /dev/null
+          else
+            gh api --method POST "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" -F body=@report.md > /dev/null
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
 
   e2e:
     runs-on: ubuntu-latest

@@ -20,8 +20,9 @@ import {
  *
  * - 現状仕様の固定（C3・C4）: 保存 API が無効者・同日兼務を拒否しないことを、
  *   「禁止仕様ではない」現状の挙動として記録する。禁止へ変える場合は別設計で、このテストを更新する。
- * - 真の並行実行: `Promise.all` で複数リクエストを同時に走らせ、どの順で処理されても
- *   「全体成功か全体拒否」と DB の整合が保たれることを確認する。
+ * - 同時リクエスト: `Promise.all` で複数リクエストを同時に開始し、観測した結果
+ *   （HTTP 応答の組と DB の整合）が不変条件を満たすことを確認する。
+ *   競合箇所での処理の重なりや、両方の処理順は保証しない（どの順になったかも固定しない）。
  *   事前確認と書き込みの間へ必ず割り込ませる決定論的なテストは `shift-publication` 側にある。
  */
 
@@ -90,6 +91,7 @@ function saveCell(
     shiftTypeId: string;
     date: string;
     instructorIds: string[];
+    description?: string | null;
     expectedRevision?: number | null;
   },
 ) {
@@ -101,6 +103,7 @@ function saveCell(
         date: input.date,
         shiftTypeId: input.shiftTypeId,
         instructorIds: input.instructorIds,
+        ...(input.description === undefined ? {} : { description: input.description }),
         ...(input.expectedRevision === undefined
           ? {}
           : { expectedRevision: input.expectedRevision }),
@@ -182,25 +185,35 @@ describe('同じ内容の再保存', () => {
     const typeId = await seedShiftType('一般');
     const worker = await seedInstructor('再保存');
     const date = '2027-02-12';
+    const description = '集合は9時 リフト券持参';
     expect(
-      (await saveCell(manager, { shiftTypeId: typeId, date, instructorIds: [worker] })).status,
+      (await saveCell(manager, { shiftTypeId: typeId, date, instructorIds: [worker], description }))
+        .status,
     ).toBe(200);
     const [before] = await db.select().from(shifts);
     if (!before) throw new Error('枠が作られていません');
+    // 保存前に備考が実際に入っていることを確かめ、再保存後の保持の比較を空振りさせない。
+    expect(before.description).toBe(description);
     const again = await saveCell(manager, {
       shiftTypeId: typeId,
       date,
       instructorIds: [worker],
+      description,
       expectedRevision: before.revision,
     });
     expect(again.status).toBe(200);
     const [after] = await db.select().from(shifts);
-    expect(after).toMatchObject({ id: before.id, status: 'DRAFT', revision: before.revision + 1 });
+    expect(after).toMatchObject({
+      id: before.id,
+      status: 'DRAFT',
+      description: before.description,
+      revision: before.revision + 1,
+    });
     expect(await assignmentsOf(typeId, date)).toEqual([worker]);
   });
 });
 
-describe('真の並行実行（Promise.all で同時に処理するリクエスト）', () => {
+describe('同時開始したリクエストの観測結果（Promise.all。処理の重なりと順序は未保証）', () => {
   it('同じ新規枠への同時保存は、片方だけが成功し、配置は成功した側の内容だけになる', async () => {
     const manager = await seedToken('MANAGER');
     const typeId = await seedShiftType('一般');
@@ -259,7 +272,8 @@ describe('真の並行実行（Promise.all で同時に処理するリクエス�
       const statuses = responses.map((response) => response.status).sort();
       expect(statuses).toEqual([200, 409]);
 
-      // どちらが先でも、公開済みの人に勤務不可が残る状態にはならない。
+      // この試行で観測した結果では、公開済みの人に勤務不可が残る状態になっていない
+      // （どちらが先に処理されたか、競合箇所が重なったかは確認していない）。
       const [after] = await db.select().from(shifts).where(eq(shifts.id, saved.id));
       const unavailable = await db
         .select()

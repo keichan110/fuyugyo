@@ -1,5 +1,5 @@
 import { env } from 'cloudflare:test';
-import { eq } from 'drizzle-orm';
+import { count, eq } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { decodeJwt, SignJWT } from 'jose';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -12,6 +12,7 @@ import { createDb } from '../src/server/db/client';
 import { instructors, invitationTokens, users } from '../src/server/db/schema';
 import { requireAuth, requireRole, type AuthVariables } from '../src/server/middleware/auth';
 import type { Env } from '../src/server/types';
+import { interruptBeforeBatch } from './d1-interrupt';
 
 /**
  * 認証の統合テスト（実 D1・seed した User）。Hono の HTTP 境界 × 実 D1 を継ぎ目として、
@@ -770,5 +771,431 @@ describe('POST /api/auth/logout', () => {
     // auth-token を即時失効させる（Max-Age=0）
     expect(setCookie).toContain('auth-token=');
     expect(setCookie.toLowerCase()).toContain('max-age=0');
+  });
+});
+
+/** 認証 Cookie（auth-token）を含む Set-Cookie かを判定する */
+function issuesAuthCookie(res: Response): boolean {
+  return (res.headers.get('set-cookie') ?? '').includes('auth-token=');
+}
+
+/** どの DB 操作にも到達しない D1。到達すれば例外を投げ、認証前に拒否されたことを確かめる */
+function unreachableDb(): D1Database {
+  return new Proxy(env.DB, {
+    get() {
+      throw new Error('拒否されるはずのリクエストがDBへ到達しました');
+    },
+  });
+}
+
+describe('JWT の拒否条件（署名・クレーム）', () => {
+  const secret = env.JWT_SECRET;
+
+  /** 検証条件のうち 1 つだけを崩したトークンを作る。他の条件は有効にする */
+  async function craftToken(
+    user: { id: string; displayName: string },
+    options: {
+      secret?: string;
+      alg?: 'HS256' | 'HS384';
+      issuer?: string;
+      audience?: string;
+      /** null で exp を付けない */
+      expiresAt?: number | null;
+    } = {},
+  ): Promise<string> {
+    const now = Math.floor(Date.now() / 1000);
+    const jwt = new SignJWT({
+      userId: user.id,
+      displayName: user.displayName,
+      role: 'ADMIN',
+      isActive: true,
+      authTime: now,
+    })
+      .setProtectedHeader({ alg: options.alg ?? 'HS256' })
+      .setIssuedAt(now)
+      .setIssuer(options.issuer ?? 'fuyugyo')
+      .setAudience(options.audience ?? 'fuyugyo-users');
+    if (options.expiresAt !== null) jwt.setExpirationTime(options.expiresAt ?? now + 7200);
+    return await jwt.sign(new TextEncoder().encode(options.secret ?? secret));
+  }
+
+  /** 署名はそのままに、ペイロードだけを別のロールへ書き換える */
+  function tamperPayload(token: string): string {
+    const [header, payload, signature] = token.split('.');
+    const claims: Record<string, unknown> = JSON.parse(
+      atob(payload?.replace(/-/g, '+').replace(/_/g, '/') ?? ''),
+    );
+    const forged = btoa(JSON.stringify({ ...claims, role: 'ADMIN', userId: 'forged-user' }))
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+    return `${header}.${forged}.${signature}`;
+  }
+
+  it('対照: 条件をすべて満たすトークンは検証と保護APIの両方で受け付ける', async () => {
+    const user = await seedUser({ role: 'ADMIN' });
+    const token = await craftToken(user);
+    expect(await verifyJwt(token, secret)).toMatchObject({ success: true });
+    const res = await app.request('/api/auth/me', cookieHeader(token), envWith({}));
+    expect(res.status).toBe(200);
+  });
+
+  const cases: Array<[string, (user: { id: string; displayName: string }) => Promise<string>]> = [
+    ['署名鍵が異なる', (u) => craftToken(u, { secret: 'another-secret-that-is-long-enough-0000' })],
+    ['署名後にペイロードを改ざんした', async (u) => tamperPayload(await craftToken(u))],
+    ['issuer が異なる', (u) => craftToken(u, { issuer: 'other-issuer' })],
+    ['audience が異なる', (u) => craftToken(u, { audience: 'other-audience' })],
+    ['アルゴリズムが HS384', (u) => craftToken(u, { alg: 'HS384' })],
+    ['exp がない', (u) => craftToken(u, { expiresAt: null })],
+    ['JWT の形式でない文字列', async () => 'not-a-jwt'],
+    ['区切りだけの不正形式', async () => '..'],
+  ];
+
+  it.each(cases)(
+    '%sトークンは verifyJwt が失敗し、保護APIは401で認証Cookieを再発行せずDBにも触れない',
+    async (_name, build) => {
+      const user = await seedUser({ role: 'ADMIN' });
+      const token = await build(user);
+
+      expect(await verifyJwt(token, secret)).toMatchObject({ success: false });
+      for (const init of [cookieHeader(token), { headers: { authorization: `Bearer ${token}` } }]) {
+        const res = await app.request('/api/auth/me', init, envWith({ DB: unreachableDb() }));
+        expect(res.status).toBe(401);
+        expect(issuesAuthCookie(res)).toBe(false);
+      }
+    },
+  );
+
+  it('空文字のトークンは verifyJwt が失敗し、空のCookie・Bearerでも保護APIは401でDBに触れない', async () => {
+    expect(await verifyJwt('', secret)).toEqual({ success: false, error: 'Token is required' });
+    for (const headers of [{ cookie: 'auth-token=' }, { authorization: 'Bearer ' }]) {
+      const res = await app.request('/api/auth/me', { headers }, envWith({ DB: unreachableDb() }));
+      expect(res.status).toBe(401);
+      expect(issuesAuthCookie(res)).toBe(false);
+    }
+  });
+});
+
+describe('GET /api/auth/me（JWT と DB の乖離）', () => {
+  it('更新間隔未満のJWTは DB を読み直さないため、削除済みUserは 404 になる', async () => {
+    const user = await seedUser();
+    const token = await tokenFor(user, 'MEMBER');
+    await env.DB.prepare('DELETE FROM users WHERE id = ?').bind(user.id).run();
+
+    const res = await app.request('/api/auth/me', cookieHeader(token), envWith({}));
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ message: 'User not found' });
+  });
+
+  it('更新間隔に到達したJWTは削除済みUserを 401 で拒否し、404 とは区別される', async () => {
+    const user = await seedUser();
+    const now = Math.floor(Date.now() / 1000);
+    const token = await new SignJWT({
+      userId: user.id,
+      displayName: user.displayName,
+      role: 'MEMBER',
+      isActive: true,
+      authTime: now - 900,
+    })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setIssuedAt(now - 900)
+      .setIssuer('fuyugyo')
+      .setAudience('fuyugyo-users')
+      .setExpirationTime(now + 3600)
+      .sign(new TextEncoder().encode(env.JWT_SECRET));
+    await env.DB.prepare('DELETE FROM users WHERE id = ?').bind(user.id).run();
+
+    const res = await app.request('/api/auth/me', cookieHeader(token), envWith({}));
+    expect(res.status).toBe(401);
+    expect(issuesAuthCookie(res)).toBe(false);
+  });
+});
+
+describe('招待による新規登録（LINE callback → 実D1）', () => {
+  const NEW_LINE_USER = 'invited-line-user';
+  const fixedNow = new Date('2026-01-10T00:00:00.000Z');
+
+  /** ログイン開始から callback までを実ルートで通す。LINE への外部通信だけを差し替える */
+  async function registerViaLine(options: {
+    lineUserId?: string;
+    displayName?: string;
+    pictureUrl?: string;
+    invite?: string | null;
+    reqEnv?: Env;
+  }) {
+    const reqEnv = options.reqEnv ?? envWith({ AUTH_RATE_LIMITER: makeRateLimiter(50) });
+    const loginEnv = { ...reqEnv, DB: env.DB };
+    const query = new URLSearchParams({ redirect: '/shifts' });
+    if (options.invite) query.set('invite', options.invite);
+    const login = await app.request(`/api/auth/line/login?${query}`, {}, loginEnv);
+    const state = new URL(login.headers.get('location') ?? '').searchParams.get('state') ?? '';
+    const cookie = (login.headers.get('set-cookie') ?? '').split(';')[0] ?? '';
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(Response.json({ access_token: 'line-access-token' }))
+      .mockResolvedValueOnce(
+        Response.json({
+          userId: options.lineUserId ?? NEW_LINE_USER,
+          displayName: options.displayName ?? '招待ユーザー',
+          ...(options.pictureUrl === undefined ? {} : { pictureUrl: options.pictureUrl }),
+        }),
+      );
+    return await app.request(
+      `/api/auth/line/callback?code=code&state=${encodeURIComponent(state)}`,
+      { headers: { cookie } },
+      reqEnv,
+    );
+  }
+
+  /** 登録拒否の応答（302・遷移先 error・認証Cookieなし）を確認する */
+  function expectRejected(res: Response, error: string) {
+    expect(res.status).toBe(302);
+    const location = new URL(res.headers.get('location') ?? '');
+    expect(location.pathname).toBe('/login');
+    expect(location.searchParams.get('error')).toBe(error);
+    expect(issuesAuthCookie(res)).toBe(false);
+  }
+
+  async function seedInvite(overrides: Partial<typeof invitationTokens.$inferInsert> = {}) {
+    const owner = await seedUser({ role: 'ADMIN' });
+    const token = `invite-${crypto.randomUUID()}`;
+    await createDb(env.DB)
+      .insert(invitationTokens)
+      .values({
+        token,
+        createdBy: owner.id,
+        expiresAt: new Date(Date.now() + 3600000),
+        ...overrides,
+      });
+    return token;
+  }
+
+  async function usedCountOf(token: string): Promise<number> {
+    const [row] = await createDb(env.DB)
+      .select({ usedCount: invitationTokens.usedCount })
+      .from(invitationTokens)
+      .where(eq(invitationTokens.token, token));
+    return row?.usedCount ?? -1;
+  }
+
+  async function usersWithLineId(lineUserId: string): Promise<(typeof users.$inferSelect)[]> {
+    return await createDb(env.DB).select().from(users).where(eq(users.lineUserId, lineUserId));
+  }
+
+  async function userCount(): Promise<number> {
+    const [row] = await createDb(env.DB).select({ value: count() }).from(users);
+    return row?.value ?? -1;
+  }
+
+  it('招待なしの新規ログインは invitation_required で拒否され、User を作らない', async () => {
+    const before = await userCount();
+    const res = await registerViaLine({ invite: null });
+    expectRejected(res, 'invitation_required');
+    expect(await userCount()).toBe(before);
+  });
+
+  it('存在しない招待は invitation_invalid で拒否され、User を作らない', async () => {
+    await seedUser({ role: 'ADMIN' });
+    const before = await userCount();
+    const res = await registerViaLine({ invite: 'no-such-token' });
+    expectRejected(res, 'invitation_invalid');
+    expect(new URL(res.headers.get('location') ?? '').searchParams.get('invite')).toBe(
+      'no-such-token',
+    );
+    expect(await usersWithLineId(NEW_LINE_USER)).toHaveLength(0);
+    expect(await userCount()).toBe(before);
+  });
+
+  it.each([
+    ['無効化済み', { isActive: false }],
+    ['期限切れ', { expiresAt: new Date(Date.now() - 1000) }],
+    ['上限到達', { maxUses: 2, usedCount: 2 }],
+  ])(
+    '%sの招待は invitation_invalid で拒否され、User 作成も使用回数加算もしない',
+    async (_n, overrides) => {
+      const token = await seedInvite(overrides);
+      const usedBefore = await usedCountOf(token);
+      const before = await userCount();
+
+      const res = await registerViaLine({ invite: token });
+
+      expectRejected(res, 'invitation_invalid');
+      expect(await usersWithLineId(NEW_LINE_USER)).toHaveLength(0);
+      expect(await userCount()).toBe(before);
+      expect(await usedCountOf(token)).toBe(usedBefore);
+    },
+  );
+
+  it('期限と同時刻の招待は拒否し、1秒前なら受け付ける（境界）', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(fixedNow);
+    const atExpiry = await seedInvite({ expiresAt: fixedNow });
+    const rejected = await registerViaLine({ invite: atExpiry, lineUserId: 'expiry-user-a' });
+    expectRejected(rejected, 'invitation_invalid');
+    expect(await usersWithLineId('expiry-user-a')).toHaveLength(0);
+    expect(await usedCountOf(atExpiry)).toBe(0);
+
+    const justBefore = await seedInvite({ expiresAt: new Date(fixedNow.getTime() + 1000) });
+    const accepted = await registerViaLine({ invite: justBefore, lineUserId: 'expiry-user-b' });
+    expect(accepted.status).toBe(302);
+    expect(issuesAuthCookie(accepted)).toBe(true);
+    expect(await usedCountOf(justBefore)).toBe(1);
+  });
+
+  it('有効な招待で MEMBER の User が1件作られ、使用回数が1だけ増え、認証Cookieを発行する', async () => {
+    const token = await seedInvite({ maxUses: 5 });
+
+    const res = await registerViaLine({ invite: token });
+
+    expect(res.status).toBe(302);
+    expect(res.headers.get('location')).toBe(`${env.APP_URL}/shifts`);
+    expect(issuesAuthCookie(res)).toBe(true);
+    const created = await usersWithLineId(NEW_LINE_USER);
+    expect(created).toHaveLength(1);
+    expect(created[0]).toMatchObject({
+      role: 'MEMBER',
+      isActive: true,
+      displayName: '招待ユーザー',
+      pictureUrl: null,
+      instructorId: null,
+    });
+    expect(await usedCountOf(token)).toBe(1);
+  });
+
+  it('pictureUrl 付きのプロフィールで新規登録すると、実D1にその URL が保存される', async () => {
+    const token = await seedInvite({ maxUses: 5 });
+    const pictureUrl = 'https://profile.line-scdn.net/example/picture';
+
+    const res = await registerViaLine({ invite: token, pictureUrl });
+
+    expect(res.status).toBe(302);
+    expect(issuesAuthCookie(res)).toBe(true);
+    const created = await usersWithLineId(NEW_LINE_USER);
+    expect(created).toHaveLength(1);
+    expect(created[0]).toMatchObject({ pictureUrl, role: 'MEMBER' });
+    expect(await usedCountOf(token)).toBe(1);
+  });
+
+  it('上限1の招待は1人目の登録後、次の新規登録を拒否する（逐次）', async () => {
+    const token = await seedInvite({ maxUses: 1 });
+
+    const first = await registerViaLine({ invite: token, lineUserId: 'first-user' });
+    const second = await registerViaLine({ invite: token, lineUserId: 'second-user' });
+
+    expect(first.status).toBe(302);
+    expect(issuesAuthCookie(first)).toBe(true);
+    expectRejected(second, 'invitation_invalid');
+    expect(await usersWithLineId('first-user')).toHaveLength(1);
+    expect(await usersWithLineId('second-user')).toHaveLength(0);
+    expect(await usedCountOf(token)).toBe(1);
+  });
+
+  it('無制限（maxUses なし）の招待は何人でも登録でき、使用回数だけが増える', async () => {
+    const token = await seedInvite({ maxUses: null, usedCount: 100 });
+
+    for (const id of ['unlimited-1', 'unlimited-2', 'unlimited-3']) {
+      const res = await registerViaLine({ invite: token, lineUserId: id });
+      expect(issuesAuthCookie(res)).toBe(true);
+    }
+
+    expect(await usedCountOf(token)).toBe(103);
+  });
+
+  it('既存Userの再ログインは招待が無効でも成功し、使用回数を消費しない', async () => {
+    const token = await seedInvite({ maxUses: 1, usedCount: 1, isActive: false });
+    const user = await seedUser({ lineUserId: 'existing-line-user' });
+
+    const res = await registerViaLine({ invite: token, lineUserId: user.lineUserId });
+
+    expect(res.status).toBe(302);
+    expect(issuesAuthCookie(res)).toBe(true);
+    expect(await usedCountOf(token)).toBe(1);
+    expect(await usersWithLineId(user.lineUserId)).toHaveLength(1);
+  });
+
+  it('無効なUserは inactive_user で拒否され認証Cookieを出さない（プロフィール追従は従来どおり）', async () => {
+    const user = await seedUser({ isActive: false, displayName: '旧表示名' });
+
+    const res = await registerViaLine({
+      lineUserId: user.lineUserId,
+      displayName: '新表示名',
+      invite: null,
+    });
+
+    expectRejected(res, 'inactive_user');
+    const [after] = await usersWithLineId(user.lineUserId);
+    // 既存実装は無効Userでもプロフィールだけは追従してから拒否する。有効状態・ロールは変わらない
+    expect(after).toMatchObject({ isActive: false, role: 'MEMBER', displayName: '新表示名' });
+  });
+
+  describe('登録の原子性（User 作成と招待消費は同一 batch）', () => {
+    it('User 作成が制約違反で失敗すると 500 になり、招待を消費しない', async () => {
+      const token = await seedInvite({ maxUses: 3 });
+      // 事前確認（User なし）の後・batch の前に、同じ lineUserId の User が別経路で作られた状況
+      const interruption = interruptBeforeBatch(env.DB, async () => {
+        await createDb(env.DB)
+          .insert(users)
+          .values({ lineUserId: NEW_LINE_USER, displayName: '競合先に作られたUser' });
+      });
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+      const res = await registerViaLine({
+        invite: token,
+        reqEnv: envWith({ DB: interruption.db, AUTH_RATE_LIMITER: makeRateLimiter(50) }),
+      });
+
+      expect(consoleError).toHaveBeenCalled();
+      expect(res.status).toBe(500);
+      expect(issuesAuthCookie(res)).toBe(false);
+      expect(interruption.interruptCount()).toBe(1);
+      const rows = await usersWithLineId(NEW_LINE_USER);
+      expect(rows).toHaveLength(1);
+      expect(rows[0]?.displayName).toBe('競合先に作られたUser');
+      expect(await usedCountOf(token)).toBe(0);
+    });
+
+    it('招待の使用回数更新が実DBで失敗すると、作成済みのUserも含めて全体をロールバックする', async () => {
+      const token = await seedInvite({ maxUses: 3 });
+      // 使用回数の UPDATE だけを実DB側で失敗させる一時トリガー。INSERT は成功してから失敗する
+      await env.DB.exec(
+        "CREATE TRIGGER test_fail_invitation_update BEFORE UPDATE OF used_count ON invitation_tokens BEGIN SELECT RAISE(ABORT, 'test_forced_update_failure'); END",
+      );
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      try {
+        const res = await registerViaLine({ invite: token });
+
+        expect(consoleError).toHaveBeenCalled();
+        expect(res.status).toBe(500);
+        expect(issuesAuthCookie(res)).toBe(false);
+        expect(await usersWithLineId(NEW_LINE_USER)).toHaveLength(0);
+        expect(await usedCountOf(token)).toBe(0);
+      } finally {
+        await env.DB.exec('DROP TRIGGER IF EXISTS test_fail_invitation_update');
+      }
+      // 後処理の確認: トリガーが残っていなければ同じ招待で正常に登録できる
+      const recovered = await registerViaLine({ invite: token });
+      expect(issuesAuthCookie(recovered)).toBe(true);
+      expect(await usedCountOf(token)).toBe(1);
+    });
+
+    it('上限1の招待に別の登録が割り込んでも、登録は最大1件・使用回数は1に収まる', async () => {
+      const token = await seedInvite({ maxUses: 1 });
+      // 1人目の事前確認後・batch 前に、2人目が同じ招待で先に登録を完了する
+      const interruption = interruptBeforeBatch(env.DB, async () => {
+        const winner = await registerViaLine({ invite: token, lineUserId: 'race-winner' });
+        expect(issuesAuthCookie(winner)).toBe(true);
+      });
+
+      const loser = await registerViaLine({
+        invite: token,
+        lineUserId: 'race-loser',
+        reqEnv: envWith({ DB: interruption.db, AUTH_RATE_LIMITER: makeRateLimiter(50) }),
+      });
+
+      expect(interruption.interruptCount()).toBe(1);
+      expectRejected(loser, 'invitation_invalid');
+      expect(await usersWithLineId('race-winner')).toHaveLength(1);
+      expect(await usersWithLineId('race-loser')).toHaveLength(0);
+      expect(await usedCountOf(token)).toBe(1);
+    });
   });
 });

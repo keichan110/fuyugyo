@@ -17,6 +17,7 @@ import {
   users,
 } from '../src/server/db/schema';
 import type { Env } from '../src/server/types';
+import { interruptBeforeBatch } from './d1-interrupt';
 
 function envWith(overrides: Partial<Env>): Env {
   return { ...(env as unknown as Env), ...overrides };
@@ -286,6 +287,121 @@ describe('PUT /api/availabilities/me', () => {
 
     const rows = await createDb(env.DB).select().from(instructorAvailabilities);
     expect(rows).toHaveLength(0);
+  });
+
+  it('実在しない日付を含む一括申告は400で、正常な日も含めて既存の申告を変えない', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-13T03:00:00Z'));
+    const instructorId = await seedInstructor();
+    const token = await seedToken('MEMBER', instructorId);
+    await createDb(env.DB)
+      .insert(instructorAvailabilities)
+      .values({
+        instructorId,
+        date: new Date('2026-11-14T00:00:00Z'),
+        type: 'AVOID',
+        note: '既存のメモ',
+      });
+    const before = await createDb(env.DB).select().from(instructorAvailabilities);
+
+    const response = await app.request(
+      '/api/availabilities/me',
+      {
+        method: 'PUT',
+        ...authJsonRequest(token, {
+          changes: [
+            { date: '2026-11-14', type: 'UNAVAILABLE' },
+            { date: '2026-11-15', type: 'AVAILABLE' },
+            { date: '2026-11-31', type: 'AVAILABLE' },
+          ],
+        }),
+      },
+      envWith({}),
+    );
+
+    expect(response.status).toBe(400);
+    expect(JSON.stringify(await response.json())).toContain('実在しない日付');
+    expect(await createDb(env.DB).select().from(instructorAvailabilities)).toEqual(before);
+  });
+
+  it('事前確認の後に本人の割当が公開されると、DBトリガーが申告全体を拒否して409を返す', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-13T03:00:00Z'));
+    const instructorId = await seedInstructor();
+    const token = await seedToken('MEMBER', instructorId);
+    const db = createDb(env.DB);
+    await db.insert(instructorAvailabilities).values([
+      { instructorId, date: new Date('2026-11-14T00:00:00Z'), type: 'AVOID', note: '先頭の日' },
+      { instructorId, date: new Date('2026-11-16T00:00:00Z'), type: 'AVAILABLE' },
+    ]);
+    // 全関連行のスナップショット（申告・シフト・割当の全列）
+    const snapshot = async () => ({
+      availabilities: await db
+        .select()
+        .from(instructorAvailabilities)
+        .orderBy(instructorAvailabilities.date),
+      shifts: await db.select().from(shifts).orderBy(shifts.date, shifts.id),
+      assignments: await db.select().from(shiftAssignments),
+    });
+    // 競合注入の直後（申告 batch の実行前）に取る比較基準
+    let before: Awaited<ReturnType<typeof snapshot>> | undefined;
+    const interruption = interruptBeforeBatch(env.DB, async () => {
+      // 事前確認（公開済み割当なし）を通過した後に、別の操作が対象日の割当を公開した状況
+      await assignInstructor(instructorId, '2026-11-16');
+      before = await snapshot();
+    });
+
+    const response = await app.request(
+      '/api/availabilities/me',
+      {
+        method: 'PUT',
+        ...authJsonRequest(token, {
+          changes: [
+            { date: '2026-11-14', type: 'UNAVAILABLE' },
+            { date: '2026-11-15', type: 'AVAILABLE' },
+            { date: '2026-11-16', type: 'UNAVAILABLE' },
+          ],
+        }),
+      },
+      envWith({ DB: interruption.db }),
+    );
+
+    expect(interruption.interruptCount()).toBe(1);
+    expect(response.status).toBe(409);
+    expect(JSON.stringify(await response.json())).toContain('公開済みシフトに割り当てられた日');
+    expect(before).toBeDefined();
+    expect(await snapshot()).toEqual(before);
+    // 競合書き込み（公開された割当）はロールバックされず残る
+    expect(await db.select().from(shiftAssignments)).toHaveLength(1);
+  });
+
+  it('未知のDBエラーは409に変換されず500になる（対照）', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-13T03:00:00Z'));
+    const instructorId = await seedInstructor();
+    const token = await seedToken('MEMBER', instructorId);
+    const interruption = interruptBeforeBatch(env.DB, async () => {
+      await env.DB.exec(
+        "CREATE TRIGGER test_unknown_availability_error BEFORE INSERT ON instructor_availabilities BEGIN SELECT RAISE(ABORT, 'test_unknown_db_error'); END",
+      );
+    });
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    try {
+      const response = await app.request(
+        '/api/availabilities/me',
+        {
+          method: 'PUT',
+          ...authJsonRequest(token, { changes: [{ date: '2026-11-14', type: 'AVOID' }] }),
+        },
+        envWith({ DB: interruption.db }),
+      );
+      expect(interruption.interruptCount()).toBe(1);
+      expect(response.status).toBe(500);
+      expect(await createDb(env.DB).select().from(instructorAvailabilities)).toHaveLength(0);
+    } finally {
+      consoleError.mockRestore();
+      await env.DB.exec('DROP TRIGGER IF EXISTS test_unknown_availability_error');
+    }
   });
 
   it('UTC 15時を境に日本時間の前日を過去日として拒否する', async () => {

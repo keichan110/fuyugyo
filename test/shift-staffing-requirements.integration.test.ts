@@ -405,3 +405,137 @@ describe('シフト保存・公開の上限', () => {
     }
   });
 });
+
+describe('必要人数だけの保存でも古い画面の内容は上書きしない', () => {
+  const day1 = '2027-01-02';
+  const day2 = '2027-01-03';
+
+  /** 保存済みの全 shifts と割当。更新世代・必要人数・備考を含めて前後比較する */
+  async function snapshot() {
+    const db = createDb(env.DB);
+    return {
+      shifts: await db.select().from(shifts).orderBy(shifts.date),
+      assignments: await db.select().from(shiftAssignments),
+    };
+  }
+
+  /** 2日分の枠（1日目は担当者・備考つき）を保存しておく */
+  async function seedDays() {
+    const token = await seedToken('MANAGER');
+    const shiftTypeId = await seedShiftType();
+    const instructorId = await seedInstructor();
+    const saved = await put(token, {
+      month: '2027-01',
+      departmentCode: 'ski',
+      cells: [
+        { date: day1, shiftTypeId, instructorIds: [instructorId], description: '既存の備考' },
+      ],
+      requirements: [
+        { date: day1, shiftTypeId, requiredCount: 2 },
+        { date: day2, shiftTypeId, requiredCount: 4 },
+      ],
+    });
+    expect(saved.status).toBe(200);
+    const [first, second] = await createDb(env.DB).select().from(shifts).orderBy(shifts.date);
+    if (!first || !second) throw new Error('シフト未作成');
+    return { token, shiftTypeId, instructorId, first, second };
+  }
+
+  /** cells なし・requirements のみの保存。2日目は正常な更新、1日目に古い画面の期待値を指定する */
+  function requirementsOnly(
+    shiftTypeId: string,
+    stale: { expectedRevision?: number | null; expectedShiftId?: string | null },
+  ) {
+    return {
+      month: '2027-01',
+      departmentCode: 'ski',
+      cells: [],
+      requirements: [
+        { date: day1, shiftTypeId, requiredCount: 7, ...stale },
+        { date: day2, shiftTypeId, requiredCount: 9 },
+      ],
+    };
+  }
+
+  it('更新世代が一致しない場合は409で、正常な日の必要人数・割当・備考も変えない', async () => {
+    const { token, shiftTypeId, first } = await seedDays();
+    const before = await snapshot();
+
+    const res = await put(
+      token,
+      requirementsOnly(shiftTypeId, { expectedRevision: first.revision + 1 }),
+    );
+
+    expect(res.status).toBe(409);
+    expect(await snapshot()).toEqual(before);
+    expect(before.shifts.map((row) => row.requiredCount)).toEqual([2, 4]);
+  });
+
+  it('枠のIDが一致しない場合は409で、何も変えない', async () => {
+    const { token, shiftTypeId, first } = await seedDays();
+    const before = await snapshot();
+
+    const res = await put(
+      token,
+      requirementsOnly(shiftTypeId, {
+        expectedRevision: first.revision,
+        expectedShiftId: crypto.randomUUID(),
+      }),
+    );
+
+    expect(res.status).toBe(409);
+    expect(await snapshot()).toEqual(before);
+  });
+
+  it('削除・再作成で更新世代が同じ値に戻っても、旧枠のIDでの保存は409で拒否する', async () => {
+    const { token, shiftTypeId, instructorId, first } = await seedDays();
+    // 1日目の枠を空にして削除し、同じ日に作り直す（更新世代は0へ戻る）
+    const removed = await put(token, {
+      month: '2027-01',
+      departmentCode: 'ski',
+      cells: [{ date: day1, shiftTypeId, instructorIds: [] }],
+      requirements: [{ date: day1, shiftTypeId, requiredCount: null }],
+    });
+    expect(removed.status).toBe(200);
+    const recreated = await put(token, {
+      month: '2027-01',
+      departmentCode: 'ski',
+      cells: [{ date: day1, shiftTypeId, instructorIds: [instructorId], description: '再作成' }],
+    });
+    expect(recreated.status).toBe(200);
+    const before = await snapshot();
+    const current = before.shifts[0];
+    expect(current).toMatchObject({ revision: first.revision, description: '再作成' });
+    expect(current?.id).not.toBe(first.id);
+
+    const res = await put(
+      token,
+      requirementsOnly(shiftTypeId, {
+        expectedRevision: first.revision,
+        expectedShiftId: first.id,
+      }),
+    );
+
+    expect(res.status).toBe(409);
+    expect(await snapshot()).toEqual(before);
+  });
+
+  it('対照: 最新の更新世代・IDを指定した複数日の必要人数は保存され、割当と備考は保持される', async () => {
+    const { token, shiftTypeId, first } = await seedDays();
+    const before = await snapshot();
+
+    const res = await put(
+      token,
+      requirementsOnly(shiftTypeId, {
+        expectedRevision: first.revision,
+        expectedShiftId: first.id,
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    const after = await snapshot();
+    expect(after.shifts.map((row) => row.requiredCount)).toEqual([7, 9]);
+    expect(after.shifts[0]?.description).toBe('既存の備考');
+    expect(after.assignments).toEqual(before.assignments);
+  });
+});

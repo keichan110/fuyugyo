@@ -17,18 +17,16 @@ export type D1Interruption = {
  *
  * @param db - 委譲先の実 D1（`env.DB`）
  * @param interrupt - batch 直前に一度だけ実行する別書き込み（実 D1 へ書き込む）
- * @param shouldInterrupt - 対象 batch の判定。省略時は最初の batch を対象にする
  */
 export function interruptBeforeBatch(
   db: D1Database,
   interrupt: () => Promise<void>,
-  shouldInterrupt: (statementCount: number) => boolean = () => true,
 ): D1Interruption {
   let count = 0;
   const wrapped: D1Database = {
     prepare: (query) => db.prepare(query),
     batch: async (statements) => {
-      if (count === 0 && shouldInterrupt(statements.length)) {
+      if (count === 0) {
         count += 1;
         await interrupt();
       }

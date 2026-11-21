@@ -283,8 +283,13 @@ describe('下書きと公開', () => {
     expect((await publish([date], 'DRAFT', member)).status).toBe(403);
   });
 
-  it('MEMBERの保存・公開・取り消しは、成功し得る入力でも403で全対象テーブルを変えない', async () => {
-    const { manager, member, instructorId, shiftTypeId, save, publish } = await setup();
+  /**
+   * MEMBER 拒否テストと MANAGER 対照テストが共有する独立 setup。
+   * 呼ぶたびに（beforeEach で空にした DB へ）同じ状態を作り、保存・公開・取り消しの本文を返す。
+   */
+  async function seedForRoleCheck() {
+    const ctx = await setup();
+    const { instructorId, shiftTypeId, save, publish } = ctx;
     await save(
       [
         { date, instructorIds: [instructorId], description: '公開前の備考' },
@@ -293,62 +298,84 @@ describe('下書きと公開', () => {
       [{ date, requiredCount: 2 }],
     );
     await publish([nextDate]);
+    const rows = await db.select().from(shifts);
+    const revisionOf = (day: string) =>
+      rows.find((row) => row.date.toISOString().startsWith(day))?.revision ?? null;
+    return {
+      ...ctx,
+      bodies: {
+        save: {
+          path: 'shifts/assignments',
+          body: {
+            month: '2027-01',
+            departmentCode: 'ski',
+            cells: [
+              {
+                date,
+                shiftTypeId,
+                instructorIds: [],
+                description: '書き換え',
+                expectedRevision: revisionOf(date),
+              },
+            ],
+            requirements: [
+              { date, shiftTypeId, requiredCount: 9, expectedRevision: revisionOf(date) },
+            ],
+          },
+        },
+        publish: {
+          path: 'shifts/publication',
+          body: {
+            month: '2027-01',
+            departmentCode: 'ski',
+            shiftTypeId,
+            status: 'PUBLISHED',
+            dates: [{ date, expectedRevision: revisionOf(date) }],
+          },
+        },
+        cancel: {
+          path: 'shifts/publication',
+          body: {
+            month: '2027-01',
+            departmentCode: 'ski',
+            shiftTypeId,
+            status: 'DRAFT',
+            dates: [{ date: nextDate, expectedRevision: revisionOf(nextDate) }],
+          },
+        },
+      },
+    };
+  }
+
+  it('MEMBERの保存・公開・取り消しは、成功し得る入力でも403で全対象テーブルを変えない', async () => {
+    const { member, bodies } = await seedForRoleCheck();
     const tables = async () => ({
       shifts: await db.select().from(shifts).orderBy(shifts.date),
       assignments: await db.select().from(shiftAssignments).orderBy(shiftAssignments.shiftId),
       availabilities: await db.select().from(instructorAvailabilities),
     });
     const before = await tables();
-    const rows = await db.select().from(shifts);
-    const revisionOf = (day: string) =>
-      rows.find((row) => row.date.toISOString().startsWith(day))?.revision ?? null;
 
-    // 保存（配置・備考・必要人数）。MANAGER なら成功する内容
-    const saved = await request('shifts/assignments', member, {
-      month: '2027-01',
-      departmentCode: 'ski',
-      cells: [
-        {
-          date,
-          shiftTypeId,
-          instructorIds: [],
-          description: '書き換え',
-          expectedRevision: revisionOf(date),
-        },
-      ],
-      requirements: [{ date, shiftTypeId, requiredCount: 9, expectedRevision: revisionOf(date) }],
-    });
-    // 公開と取り消し（MANAGER なら成功する内容）
-    const published = await request('shifts/publication', member, {
-      month: '2027-01',
-      departmentCode: 'ski',
-      shiftTypeId,
-      status: 'PUBLISHED',
-      dates: [{ date, expectedRevision: revisionOf(date) }],
-    });
-    const cancelled = await request('shifts/publication', member, {
-      month: '2027-01',
-      departmentCode: 'ski',
-      shiftTypeId,
-      status: 'DRAFT',
-      dates: [{ date: nextDate, expectedRevision: revisionOf(nextDate) }],
-    });
+    const saved = await request(bodies.save.path, member, bodies.save.body);
+    const published = await request(bodies.publish.path, member, bodies.publish.body);
+    const cancelled = await request(bodies.cancel.path, member, bodies.cancel.body);
 
     expect([saved.status, published.status, cancelled.status]).toEqual([403, 403, 403]);
     expect(await tables()).toEqual(before);
-    // 対照: 同じ内容を MANAGER が送れば成功する（拒否の理由が入力不正ではないことの確認）
-    expect(
-      (
-        await request('shifts/publication', manager, {
-          month: '2027-01',
-          departmentCode: 'ski',
-          shiftTypeId,
-          status: 'DRAFT',
-          dates: [{ date: nextDate, expectedRevision: revisionOf(nextDate) }],
-        })
-      ).status,
-    ).toBe(200);
   });
+
+  // 対照: 上のテストと同じ本文を、独立した setup で MANAGER が送れば成功する
+  // （MEMBER の 403 が入力不正・古い世代によるものではないことの確認）
+  it.each(['save', 'publish', 'cancel'] as const)(
+    '対照: MEMBER 拒否テストと同じ%s本文は、独立setupでMANAGERなら200になる',
+    async (kind) => {
+      const { manager, bodies } = await seedForRoleCheck();
+
+      const response = await request(bodies[kind].path, manager, bodies[kind].body);
+
+      expect(response.status).toBe(200);
+    },
+  );
 
   it('古い画面からの保存と公開は新しい配置を上書きしない', async () => {
     const { manager, instructorId, shiftTypeId, save } = await setup();
@@ -699,6 +726,10 @@ describe('確認後の競合割り込みと409変換（決定論的な割り込�
         .select()
         .from(shiftAssignments)
         .orderBy(shiftAssignments.shiftId, shiftAssignments.instructorId),
+      availabilities: await db
+        .select()
+        .from(instructorAvailabilities)
+        .orderBy(instructorAvailabilities.instructorId, instructorAvailabilities.date),
     };
   }
 
@@ -727,10 +758,13 @@ describe('確認後の競合割り込みと409変換（決定論的な割り込�
       { date, instructorIds: [instructorId] },
       { date: nextDate, instructorIds: [instructorId], description: '備考' },
     ]);
+    // 競合注入の直後（公開 batch の実行前）に取る全関連行のスナップショット。比較基準
+    let baseline: Awaited<ReturnType<typeof snapshot>> | undefined;
     const interruption = interruptBeforeBatch(env.DB, async () => {
       await db
         .insert(instructorAvailabilities)
         .values({ instructorId, date: new Date(`${nextDate}T00:00:00Z`), type: 'UNAVAILABLE' });
+      baseline = await snapshot();
     });
     const rows = await db.select().from(shifts);
     const dates = rows.map((row) => ({
@@ -739,8 +773,6 @@ describe('確認後の競合割り込みと409変換（決定論的な割り込�
       expectedShiftId: row.id,
     }));
 
-    // 競合注入は公開 batch の直前に走るが、shifts・割当には触れないため、この時点を比較基準にできる
-    const baseline = await snapshot();
     const response = await requestWithDb(
       'shifts/publication',
       manager,
@@ -750,11 +782,14 @@ describe('確認後の競合割り込みと409変換（決定論的な割り込�
 
     expect(interruption.interruptCount()).toBe(1);
     expect(response.status).toBe(409);
-    expect(JSON.stringify(await response.json())).toContain('勤務不可');
+    // 事前確認の 409 ではなく、実トリガーを変換した 409 の文言であることを確認する
+    expect(JSON.stringify(await response.json())).toContain('勤務可否を確認してください');
     const after = await snapshot();
+    expect(baseline).toBeDefined();
     expect(after).toEqual(baseline);
     expect(after.shifts.map((row) => row.status)).toEqual(['DRAFT', 'DRAFT']);
-    expect(await db.select().from(instructorAvailabilities)).toHaveLength(1);
+    // 競合書き込み（勤務不可の申告）はロールバックされず残る
+    expect(after.availabilities).toHaveLength(1);
   });
 
   it('保存の確認後に別の保存で更新世代が進むと、先行セルを含む保存全体をロールバックして409を返す', async () => {
@@ -765,14 +800,16 @@ describe('確認後の競合割り込みと409変換（決定論的な割り込�
     ]);
     const [first, second] = (await db.select().from(shifts).orderBy(shifts.date)).map((row) => row);
     if (!first || !second) throw new Error('シフト未作成');
+    // 競合注入の直後（保存 batch の実行前）に取る全関連行のスナップショット。比較基準
+    let baseline: Awaited<ReturnType<typeof snapshot>> | undefined;
     const interruption = interruptBeforeBatch(env.DB, async () => {
       // 画面が確認した後に、別の操作が2枠目を保存して更新世代を進めた状況
       await db
         .update(shifts)
         .set({ description: '別の操作が保存した備考', revision: second.revision + 1 })
         .where(eq(shifts.id, second.id));
+      baseline = await snapshot();
     });
-    const baseline = await snapshot();
 
     const response = await requestWithDb(
       'shifts/assignments',
@@ -805,13 +842,15 @@ describe('確認後の競合割り込みと409変換（決定論的な割り込�
     expect(interruption.interruptCount()).toBe(1);
     expect(response.status).toBe(409);
     const after = await snapshot();
-    // 先行セル（1枠目）の備考・割当は元のまま。ロールバックされるのは対象 batch のみで、競合書き込みは残る
-    expect(after.shifts[0]).toEqual(baseline.shifts[0]);
+    // 全関連行（status・requiredCount・updatedAt・割当・申告を含む）が競合注入後の状態から変わらない。
+    // 先行セルの書き込みはロールバックされ、競合書き込み（2枠目の備考・世代）は残る
+    expect(baseline).toBeDefined();
+    expect(after).toEqual(baseline);
+    expect(after.shifts[0]).toMatchObject({ description: '先行セルの元の備考' });
     expect(after.shifts[1]).toMatchObject({
       description: '別の操作が保存した備考',
       revision: second.revision + 1,
     });
-    expect(after.assignments).toEqual(baseline.assignments);
   });
 
   it('実D1の重複キー違反は実関数で409に変換され、未知のDBエラーはそのまま投げる', async () => {

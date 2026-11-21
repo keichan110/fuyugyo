@@ -919,6 +919,7 @@ describe('招待による新規登録（LINE callback → 実D1）', () => {
   async function registerViaLine(options: {
     lineUserId?: string;
     displayName?: string;
+    pictureUrl?: string;
     invite?: string | null;
     reqEnv?: Env;
   }) {
@@ -935,6 +936,7 @@ describe('招待による新規登録（LINE callback → 実D1）', () => {
         Response.json({
           userId: options.lineUserId ?? NEW_LINE_USER,
           displayName: options.displayName ?? '招待ユーザー',
+          ...(options.pictureUrl === undefined ? {} : { pictureUrl: options.pictureUrl }),
         }),
       );
     return await app.request(
@@ -1056,6 +1058,20 @@ describe('招待による新規登録（LINE callback → 実D1）', () => {
       pictureUrl: null,
       instructorId: null,
     });
+    expect(await usedCountOf(token)).toBe(1);
+  });
+
+  it('pictureUrl 付きのプロフィールで新規登録すると、実D1にその URL が保存される', async () => {
+    const token = await seedInvite({ maxUses: 5 });
+    const pictureUrl = 'https://profile.line-scdn.net/example/picture';
+
+    const res = await registerViaLine({ invite: token, pictureUrl });
+
+    expect(res.status).toBe(302);
+    expect(issuesAuthCookie(res)).toBe(true);
+    const created = await usersWithLineId(NEW_LINE_USER);
+    expect(created).toHaveLength(1);
+    expect(created[0]).toMatchObject({ pictureUrl, role: 'MEMBER' });
     expect(await usedCountOf(token)).toBe(1);
   });
 

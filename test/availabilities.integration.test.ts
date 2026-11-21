@@ -334,16 +334,22 @@ describe('PUT /api/availabilities/me', () => {
       { instructorId, date: new Date('2026-11-14T00:00:00Z'), type: 'AVOID', note: '先頭の日' },
       { instructorId, date: new Date('2026-11-16T00:00:00Z'), type: 'AVAILABLE' },
     ]);
+    // 全関連行のスナップショット（申告・シフト・割当の全列）
+    const snapshot = async () => ({
+      availabilities: await db
+        .select()
+        .from(instructorAvailabilities)
+        .orderBy(instructorAvailabilities.date),
+      shifts: await db.select().from(shifts).orderBy(shifts.date, shifts.id),
+      assignments: await db.select().from(shiftAssignments),
+    });
+    // 競合注入の直後（申告 batch の実行前）に取る比較基準
+    let before: Awaited<ReturnType<typeof snapshot>> | undefined;
     const interruption = interruptBeforeBatch(env.DB, async () => {
       // 事前確認（公開済み割当なし）を通過した後に、別の操作が対象日の割当を公開した状況
       await assignInstructor(instructorId, '2026-11-16');
+      before = await snapshot();
     });
-    // 競合注入後・申告 batch の実行前を比較基準にする
-    const unchanged = async () => {
-      const rows = await db.select().from(instructorAvailabilities);
-      return rows.map(({ date, type, note }) => ({ date, type, note }));
-    };
-    const before = await unchanged();
 
     const response = await app.request(
       '/api/availabilities/me',
@@ -363,7 +369,8 @@ describe('PUT /api/availabilities/me', () => {
     expect(interruption.interruptCount()).toBe(1);
     expect(response.status).toBe(409);
     expect(JSON.stringify(await response.json())).toContain('公開済みシフトに割り当てられた日');
-    expect(await unchanged()).toEqual(before);
+    expect(before).toBeDefined();
+    expect(await snapshot()).toEqual(before);
     // 競合書き込み（公開された割当）はロールバックされず残る
     expect(await db.select().from(shiftAssignments)).toHaveLength(1);
   });

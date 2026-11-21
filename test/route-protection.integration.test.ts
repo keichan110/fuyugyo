@@ -242,7 +242,7 @@ function unreachableDb(): D1Database {
 }
 
 function guardedEnv(): Env {
-  return { ...(env as unknown as Env), DB: unreachableDb() };
+  return { ...env, DB: unreachableDb() };
 }
 
 function init(route: RouteSpec, cookie?: string): RequestInit {
@@ -261,11 +261,22 @@ async function tokenFor(role: UserRole): Promise<string> {
   );
 }
 
+/**
+ * method が ALL で登録されている既知の middleware のパス（`src/index.ts` の `app.use('*', ...)`。Hono は `/*` として保持する）。
+ * 将来 `.all('/api/x', handler)` のような実ハンドラーが増えると、この集合と一致せず失敗する。
+ */
+const KNOWN_MIDDLEWARE_PATHS: readonly string[] = ['/*'];
+
 const key = (route: { method: string; path: string }) => `${route.method} ${route.path}`;
 
 describe('API ルートの保護の棚卸し', () => {
   it('Hono に登録された全ルートが、保護一覧か公開例外のどちらか一方にだけ載っている', () => {
-    // middleware 登録（method が ALL）は除き、同じ method/path の重複は 1 件にまとめる
+    // middleware 登録（method が ALL）は既知の middleware パス集合と一致することを確認して分離する。
+    // 同じ method/path の重複は 1 件にまとめる
+    const allPaths = new Set(
+      app.routes.filter((route) => route.method === 'ALL').map((route) => route.path),
+    );
+    expect([...allPaths].sort()).toEqual([...KNOWN_MIDDLEWARE_PATHS].sort());
     const registered = new Set(
       app.routes.filter((route) => route.method !== 'ALL').map((route) => key(route)),
     );

@@ -130,6 +130,8 @@ test('build の成果物を e2e と deploy が同じ名前で受け取り、再�
   assert.match(upload, /if-no-files-found: error/);
   assert.match(upload, /include-hidden-files: true/);
   assert.match(upload, /\.wrangler\/deploy\/config\.json/);
+  // 成果物の保存より先に e2e が始まらないよう、build への依存を固定する。
+  assert.deepEqual([...needsOf(releaseJobs.get('e2e'))].sort(), ['build', 'prepare']);
   for (const name of ['e2e', 'deploy']) {
     assert.match(
       releaseJobs.get(name),

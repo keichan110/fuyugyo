@@ -160,9 +160,14 @@ pnpm run deploy       # Cloudflare Workers へデプロイ
 ### テスト
 
 ```bash
-pnpm run test             # 全テスト実行（Vitest）
+pnpm run test             # 全テスト実行（Node スクリプト・既存データの移行・Vitest）
 pnpm run test:watch   # ウォッチモード
+pnpm run test:coverage    # カバレッジ付き（PR の CI と同じ）
+pnpm run test:e2e:smoke   # E2E スモーク（業務フローを含む。PR の CI と同じ）
+pnpm run test:e2e         # フル E2E（build 後に Chromium + モバイル WebKit）
 ```
+
+重要シナリオごとの検証対象・実行範囲・残存リスク、PR・リリースの合格条件は [テスト品質ベースライン](docs/testing/quality-baseline.md) を参照。
 
 ### データベース操作
 

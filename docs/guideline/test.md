@@ -26,4 +26,4 @@
 
 ナビゲーション等にはAPI応答を差し替える補助UIテストもある。これらを実DBの業務フロー検証の代わりには数えない。LINE OAuth、push通知、本番データへのE2Eは対象外とする。
 
-テスト方針は `AGENTS.md` の「設計方針」を参照。現行設定の正本は `vitest.config.ts`、`playwright.config.ts` と `package.json`。
+テスト方針は `AGENTS.md` の「設計方針」を参照。重要シナリオと既存テストの対応、未検証の範囲、カバレッジの基準は [テスト品質ベースライン](../testing/quality-baseline.md) を参照。現行設定の正本は `vitest.config.ts`、`playwright.config.ts` と `package.json`。

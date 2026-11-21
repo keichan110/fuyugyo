@@ -93,29 +93,66 @@ function toMeResponse(user: typeof users.$inferSelect) {
 }
 
 /**
- * 招待トークンを検証して使用回数を1つ消費する（新規 User 作成時のみ）。
- * 有効（アクティブ・期限内・上限未満）な場合に限り `used_count` を条件付きで加算し、
- * 加算できた（=有効だった）かどうかを返す。read-then-write レースは条件付き UPDATE に寄せる。
+ * 招待を消費して新規 User を作成する。User 作成と使用回数の加算は同一 `db.batch` で原子的に行い、
+ * どちらかが失敗すれば両方ロールバックする（失敗した登録で招待を消費しない）。
  *
- * @returns 招待が有効で消費できたら true
+ * 1. INSERT ... SELECT（Drizzle が列順の完全一致を要求するため全列を明示する）の WHERE に招待の有効条件（アクティブ・期限内・上限未満）を置き、
+ *    有効な場合に限り、新規 ID の User を MEMBER として作成する。無効なら 0 行で何も作られない。
+ * 2. 続く UPDATE は、この新規 ID の User が実在する場合に限り `used_count` を加算する。
+ *
+ * 判定と書き込みを DB 側の単一 batch に閉じ込め、事前 SELECT とのレースを避ける。
+ * 制約違反などの DB 例外はそのまま投げ、中央の `onError` で 500 とする。
+ *
+ * @returns 作成した User。招待が無効で作成されなかった場合は null
  */
-async function consumeInvitation(db: Database, token: string): Promise<boolean> {
+async function createUserWithInvitation(
+  db: Database,
+  profile: LineUserProfile,
+  token: string,
+): Promise<typeof users.$inferSelect | null> {
+  const newUserId = crypto.randomUUID();
   const now = new Date();
-  const result = await db
-    .update(invitationTokens)
-    .set({ usedCount: sql`${invitationTokens.usedCount} + 1` })
-    .where(
-      and(
-        eq(invitationTokens.token, token),
-        eq(invitationTokens.isActive, true),
-        gt(invitationTokens.expiresAt, now),
-        or(
-          isNull(invitationTokens.maxUses),
-          gt(invitationTokens.maxUses, invitationTokens.usedCount),
+  const [inserted] = await db.batch([
+    db
+      .insert(users)
+      .select(
+        db
+          .select({
+            id: sql<string>`${newUserId}`.as('id'),
+            lineUserId: sql<string>`${profile.userId}`.as('line_user_id'),
+            displayName: sql<string>`${profile.displayName}`.as('display_name'),
+            pictureUrl: sql<string | null>`${profile.pictureUrl ?? null}`.as('picture_url'),
+            role: sql<string>`'MEMBER'`.as('role'),
+            isActive: sql<boolean>`1`.as('is_active'),
+            instructorId: sql<string | null>`NULL`.as('instructor_id'),
+            createdAt: sql<Date>`unixepoch()`.as('created_at'),
+            updatedAt: sql<Date>`unixepoch()`.as('updated_at'),
+          })
+          .from(invitationTokens)
+          .where(
+            and(
+              eq(invitationTokens.token, token),
+              eq(invitationTokens.isActive, true),
+              gt(invitationTokens.expiresAt, now),
+              or(
+                isNull(invitationTokens.maxUses),
+                gt(invitationTokens.maxUses, invitationTokens.usedCount),
+              ),
+            ),
+          ),
+      )
+      .returning(),
+    db
+      .update(invitationTokens)
+      .set({ usedCount: sql`${invitationTokens.usedCount} + 1` })
+      .where(
+        and(
+          eq(invitationTokens.token, token),
+          sql`EXISTS (SELECT 1 FROM ${users} WHERE ${users.id} = ${newUserId})`,
         ),
       ),
-    );
-  return result.meta.rows_written > 0;
+  ]);
+  return inserted[0] ?? null;
 }
 
 /** LINE プロフィールから User を取得、なければ招待検証のうえ作成する */
@@ -148,24 +185,9 @@ async function getOrCreateUser(
   if (!inviteToken) {
     return { ok: false, reason: 'invitation_required' };
   }
-  const consumed = await consumeInvitation(db, inviteToken);
-  if (!consumed) {
-    return { ok: false, reason: 'invitation_invalid' };
-  }
-
-  const [created] = await db
-    .insert(users)
-    .values({
-      lineUserId: profile.userId,
-      displayName: profile.displayName,
-      pictureUrl: profile.pictureUrl ?? null,
-      role: 'MEMBER',
-      isActive: true,
-    })
-    .returning();
-
+  const created = await createUserWithInvitation(db, profile, inviteToken);
   if (!created) {
-    return { ok: false, reason: 'user_creation_failed' };
+    return { ok: false, reason: 'invitation_invalid' };
   }
   return { ok: true, user: created };
 }

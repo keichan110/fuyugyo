@@ -127,6 +127,54 @@ function findStep(job, label, predicate) {
   return matched[0];
 }
 
+/** step の `run` の本文（1 行またはブロックスカラー）を返す。無ければ空文字。 */
+const runTextOf = (step) => {
+  const run = step.fields.get('run');
+  return run ? textOf(run, 'run').trim() : '';
+};
+
+/**
+ * 検証 step（合否を判定する実行コマンド）が、実行省略・失敗無視で迂回されていないことを確かめる。
+ * `run` が完全一致する step を 1 件に特定し（`|| true` などでコマンド自体が失敗を握りつぶす形も除く）、
+ * `continue-on-error`（失敗の無視）が無いこと、`if`（実行の省略）が無いこと（`allowedIf` を渡した場合はその値と一致）を検証する。
+ */
+function assertGateStep(job, label, command, allowedIf = null) {
+  const step = findStep(job, label, (candidate) => runTextOf(candidate) === command);
+  if (allowedIf === null) {
+    assert.ok(!step.fields.has('if'), `${label} に if があり、実行が省略されうる`);
+  } else {
+    assert.equal(scalarOf(step.fields.get('if'), `${label} の if`), allowedIf);
+  }
+  assert.ok(!step.fields.has('continue-on-error'), `${label} が continue-on-error で失敗を無視する`);
+}
+
+/**
+ * ジョブ直下と全 step に `continue-on-error` が無いことを確かめる（失敗してもジョブが success になる迂回の禁止）。
+ * `allowedIfs` に無い step の `if` も許さない（`if: false` による実行省略の禁止）。
+ * `allowedIfs` は `ジョブ名/step 名` から `if` の完全一致値への対応。
+ */
+function assertNoBypass(jobs, jobNames, allowedIfs) {
+  const seen = new Set();
+  for (const jobName of jobNames) {
+    const job = jobs.get(jobName);
+    assert.ok(job, `${jobName} ジョブがありません`);
+    assert.ok(!job.has('continue-on-error'), `${jobName} ジョブが continue-on-error を持つ`);
+    for (const step of stepsOf(job)) {
+      const stepLabel = `${jobName}/${stepNameOf(step)}`;
+      assert.ok(
+        !step.fields.has('continue-on-error'),
+        `${stepLabel} が continue-on-error で失敗を無視する`,
+      );
+      if (!step.fields.has('if')) continue;
+      assert.ok(Object.hasOwn(allowedIfs, stepLabel), `${stepLabel} に想定外の if があります`);
+      assert.equal(scalarOf(step.fields.get('if'), `${stepLabel} の if`), allowedIfs[stepLabel]);
+      seen.add(stepLabel);
+    }
+  }
+  // 許可リストに残った古い項目は、条件が消えたことの見落としになるため失敗させる。
+  assert.deepEqual([...seen].sort(), Object.keys(allowedIfs).sort());
+}
+
 const usesOf = (step) => step.fields.get('uses')?.value ?? '';
 const stepNameOf = (step) => step.fields.get('name')?.value ?? '';
 
@@ -297,13 +345,9 @@ test('build の成果物を e2e と deploy が同じ名前で受け取り、再�
         );
     }
   }
-  const runsOf = (name) =>
-    stepsOf(releaseJobs.get(name)).map((step) => step.fields.get('run')?.value);
-  assert.ok(
-    runsOf('e2e').includes('pnpm run test:e2e:release'),
-    'e2e が全件 E2E を実行していません',
-  );
-  assert.ok(runsOf('build').includes('pnpm run build'), 'build がビルドしていません');
+  // 実行 step を 1 件に特定し、条件付き実行・失敗無視で迂回されていないことまで確かめる。
+  assertGateStep(releaseJobs.get('e2e'), 'e2e の全件 E2E', 'pnpm run test:e2e:release');
+  assertGateStep(releaseJobs.get('build'), 'build のビルド', 'pnpm run build');
 });
 
 test('deploy は build と全件 E2E が success のときだけ開始する（失敗・skip・キャンセルで止まる）', () => {
@@ -355,19 +399,68 @@ test('E2E の失敗トレース保存は失敗時のみで、deploy の判定に
   }
 });
 
+test('リリースの全ジョブ・全 step は失敗無視・実行省略で迂回されていない', () => {
+  assert.ok(!releaseTop.has('continue-on-error'));
+  assertNoBypass(releaseJobs, [...releaseJobs.keys()], {
+    'e2e/Upload failed E2E traces': 'failure()',
+  });
+  // build・e2e が条件付きで skip されると、検証せず deploy 側の判定だけに頼ることになる。
+  for (const name of ['build', 'e2e']) {
+    assert.ok(!releaseJobs.get(name).has('if'), `${name} に if があります`);
+  }
+  assertGateStep(
+    releaseJobs.get('prepare'),
+    'prepare のリリース test',
+    'node --test .github/scripts/release.test.mjs',
+  );
+  assertGateStep(
+    releaseJobs.get('deploy'),
+    'deploy の候補検証',
+    'node .github/scripts/release.mjs verify',
+  );
+  assertGateStep(
+    releaseJobs.get('deploy'),
+    'deploy の migration 適用',
+    'pnpm exec wrangler d1 migrations apply fuyugyo --remote',
+  );
+});
+
 test('PR の必須ジョブは静的チェック・カバレッジ付きテスト・スモーク E2E を実行する', () => {
   const jobs = parseJobs(readWorkflow('quality-check.yml'));
   assert.deepEqual([...jobs.keys()].sort(), ['coverage-comment', 'e2e', 'static', 'test']);
-  const runsOf = (name) =>
-    stepsOf(jobs.get(name)).map((step) => step.fields.get('run')?.value ?? '');
-  for (const command of ['typecheck', 'lint', 'format:check']) {
-    assert.ok(
-      runsOf('static').includes(`pnpm run ${command}`),
-      `static が ${command} を実行していません`,
-    );
+  // 必須ジョブ全体が skip されるとチェックが成功扱いになりうるため、ジョブ直下の if も許さない。
+  for (const name of ['static', 'test', 'e2e']) {
+    assert.ok(!jobs.get(name).has('if'), `${name} ジョブに if があります`);
   }
-  assert.ok(runsOf('test').includes('pnpm run test:coverage'));
-  assert.ok(runsOf('e2e').includes('pnpm run test:e2e:smoke'));
+  const notCancelled = "${{ !cancelled() && steps.setup.outcome == 'success' }}";
+  assertNoBypass(jobs, ['static', 'test', 'e2e'], {
+    'static/Run ESLint': notCancelled,
+    'static/Check Prettier formatting': notCancelled,
+    'static/Build application': notCancelled,
+    'static/Security audit': notCancelled,
+    'test/Build coverage report': "${{ !cancelled() && hashFiles('coverage/coverage-summary.json') != '' }}",
+    'test/Upload coverage report':
+      "${{ !cancelled() && github.event_name == 'pull_request' && steps.coverage-report.outputs.created == 'true' }}",
+    'test/Verify local dev seed': notCancelled,
+    'e2e/Install Playwright browser': "steps.playwright-cache.outputs.cache-hit != 'true'",
+    'e2e/Install Playwright system dependencies':
+      "steps.playwright-cache.outputs.cache-hit == 'true'",
+    'e2e/Upload E2E traces': 'failure()',
+  });
+  // 静的チェックの後続 step は前段の失敗後も実行するための条件（キャンセル時と setup 失敗時は止まる）だけを許す。
+  for (const [command, job, condition] of [
+    ['pnpm run typecheck', 'static', null],
+    ['pnpm run lint', 'static', notCancelled],
+    ['pnpm run format:check', 'static', notCancelled],
+    ['pnpm exec vite build', 'static', notCancelled],
+    ['pnpm audit --audit-level=moderate --ignore-unfixable', 'static', notCancelled],
+    ['pnpm run test:coverage', 'test', null],
+    ['pnpm run test:e2e:smoke', 'e2e', null],
+  ]) {
+    assertGateStep(jobs.get(job), `${job} の ${command}`, command, condition);
+  }
   // 必須チェックではない投稿専用ジョブは、テストの合否判定を持たない。
-  for (const run of runsOf('coverage-comment')) assert.doesNotMatch(run, /pnpm run test/);
+  for (const step of stepsOf(jobs.get('coverage-comment'))) {
+    assert.doesNotMatch(runTextOf(step), /pnpm run test/);
+  }
 });

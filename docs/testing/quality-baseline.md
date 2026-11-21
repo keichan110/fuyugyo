@@ -518,7 +518,7 @@ PR #349マージ後のmain `a4dddda65412761e6be7c0d9b8ecb11601449bb9` で、同�
 | クラシックなブランチ保護                                                    | `branches/main/protection` は 404（無し）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | 環境 `production`（id `27600084959`）                                       | Required reviewers 1 名（`keichan110`、`prevent_self_review: false` で自己承認可）。`can_admins_bypass: false`。`deployment_branch_policy` は null（ブランチ制限なし。`prepare` が `main` のみに限定）                                                                                                                                                                                                                                                                                                                           |
 | Quality Check の直近 100 実行（2026-11-14 05:51 UTC〜2026-11-21 13:18 UTC） | success 93（pull_request 55・push 38）、failure 5（全て pull_request。失敗ジョブは旧構成の単一ジョブ `quality-check`、run `43863148141`・`43619561601`・`43563556159`・`43563531149`・`43563507041`）、cancelled 2。現行の `static`・`test`・`e2e` のジョブ別の失敗実績は未確認                                                                                                                                                                                                                                                  |
-| rebase 前の基点 `a4dddda`（main、過去の確認記録）                                              | push の Quality Check run `44908182091` が success。本変更のコミットの GitHub CI は未実行（**未確認**）                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| rebase 前の基点 `a4dddda`（main、過去の確認記録）                           | push の Quality Check run `44908182091` が success。本変更のコミットの GitHub CI は未実行（**未確認**）                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | Release の直近 6 実行                                                       | 全て `workflow_dispatch`。成功 4（`44283210721`・`43866912768`・`43547055003`・`43321796801`）、失敗 2（`44203171529` は公開のみ失敗、`43767885790` は旧構成で `deploy` 失敗）。現行構成（`prepare`・`build`・`e2e`・`deploy`）の実績は `44283210721`・`44203171529` の 2 実行のみで、**`e2e` の失敗・skip・キャンセルで `deploy` が止まった実例は無く未確認**                                                                                                                                                                   |
 
 設定の挙動はワークフローの記述から読んだ内容を `.github/scripts/release-workflow.test.mjs` で固定した（`pnpm run test:scripts` の `.github/scripts/*.test.mjs` に含まれ、PR の `test` ジョブが実行する。リリースの `prepare` が実行するのは従来どおり `release.test.mjs` だけ）。確認する内容: 外部アクションが全て 40 桁の SHA 固定、`workflow_dispatch` のみ・`main` 限定・実行中の取り消しなし、後続ジョブが `prepare` の SHA を checkout、`build` の `release-build`（`dist/` と隠しファイルを含む `.wrangler/deploy/config.json`、`if-no-files-found: error`）を `e2e`・`deploy` が同名で受け取り再ビルドしない、`e2e` が `build` に依存、`deploy` が `prepare`・`build`・`e2e` の全成功時だけ開始（`success`・`failure`・`skipped`・`cancelled` の 4³ = 64 通りを再現して、全成功の 1 通りだけが開始することを確認）、`health-check`・公開が前段の成功後だけ進む、PR の必須 3 ジョブの実行内容。あわせて**検証の迂回**を禁止している: リリースの全ジョブ・全ステップに `continue-on-error` が無いこと、`if` を持つステップは許可リスト（`e2e` の失敗トレース保存の `failure()` だけ）に限ること、`build`・`e2e` ジョブに `if` が無いこと、`prepare` のリリーステスト・`build` のビルド・`e2e` の全件 E2E・`deploy` の候補検証と migration 適用の各ステップを `run` の完全一致で 1 件に特定して `if`・`continue-on-error` が無いこと。PR の `static`・`test`・`e2e` についても、ジョブ直下の `if`・`continue-on-error` が無いこと、ステップの `if` は許可リストの値と完全一致すること（静的チェックの後続は `!cancelled() && steps.setup.outcome == 'success'` のみ）、typecheck・lint・format:check・vite build・audit・`test:coverage`・`test:e2e:smoke` の各ステップを 1 件に特定して `continue-on-error` や `|| true` が無いことを確認する。テストはコメントと空行を除いたうえで、キーと値の構造（ジョブ・ステップ・`with`）として設定を読む。`if`・`needs` の折り返しやブロックスカラーなど、1 行で読めない構文は**未対応として失敗させる**（複数行の条件の後ろに `|| always()` を足した変更の見逃しを避けるため）。重要ステップ（`upload-artifact`・`download-artifact`・`checkout`・全件 E2E の `run`）は、コメントや無関係なステップの文字列ではなく、実ステップの値で確認する。これは YAML の記述の検証で、GitHub 上の実際の挙動（実績）ではない。
@@ -578,7 +578,7 @@ PR #349マージ後のmain `a4dddda65412761e6be7c0d9b8ecb11601449bb9` で、同�
 
 第2段階の閾値は補足Aで採用済み。本PRでは第3段階の閾値採否を行わず、現在はmainで採用済みの閾値で判定している。以下の旧計測と、§9.8末尾のrebase後計測を区別する。
 
-ローカルの `pnpm run test:coverage`（Node 52 件 + Vitest 69 ファイル・990 テスト成功、閾値を満たして成功。コード状態は §9.8）の実測は Lines 51.23%（2864/5590）・Statements 50.91%（3091/6071）・Functions 39.81%（721/1811）・Branches 37.64%（1736/4612）。#345 の基点（50.66/50.38/39.75/37.12）からテスト追加分だけ増えた。**閾値は変更していない**（設定変更は別途承認が必要）。「main で候補より 1 ポイント以上高い状態を 3 回連続確認」という採用条件は、第3段階についてmain の CI がカバレッジ値を記録として残さない（PR のコメントだけ）ため、**今回は確認できておらず、ローカルの 1 回の実測では更新しない**。今回追加したテストの大半は Node（`scripts`・`.github/scripts`）と文書、実 D1 の統合テストで、`src/` の Istanbul 計測には Branches 等でほとんど現れない。
+ローカルの `pnpm run test:coverage`（Node 52 件 + Vitest 69 ファイル・990 テスト成功、閾値を満たして成功。コード状態は §9.8）の実測は Lines 51.23%（2864/5590）・Statements 50.91%（3091/6071）・Functions 39.81%（721/1811）・Branches 37.64%（1736/4612）。これらは第2段階後のmainの実測（補足A）とほぼ同じで、本PRによる全体カバレッジの増加とは扱わない。Branchesの37.64〜37.68%の差も補足Aに記録された計測間の変動範囲内である。**閾値は変更していない**（設定変更は別途承認が必要）。「main で候補より 1 ポイント以上高い状態を 3 回連続確認」という採用条件は、第3段階についてmain の CI がカバレッジ値を記録として残さない（PR のコメントだけ）ため、**今回は確認できておらず、ローカルの 1 回の実測では更新しない**。今回追加したテストの大半は Node（`scripts`・`.github/scripts`）と文書、実 D1 の統合テストで、`src/` の Istanbul 計測には Branches 等でほとんど現れない。
 
 ### 9.7 残存リスクと継続運用
 
@@ -623,21 +623,20 @@ typecheck・lint・format・React Doctor は、Stop hook の自動実行の出�
 
 GitHub 上の CI は未実行・未確認。
 
-
 #### 2026-11-22 main追従後の再検証
 
 現在の基点は `997d56f27d679ac675eaf207449a8f85d359dc60`（PR #352のマージ）。この基点のGitHub Quality Checkは今回未確認で、上の `a4dddda` の成功記録とは区別する。本変更のGitHub CIも未確認。
 
 rebase後のクリーンな `1ba92ebdb89b3826296846bc575961311a7227be` で以下を直列実行した。テスト対象コードは `846dc89` と同一で、その後は文書のみ。この追記も文書だけであり、検証対象コードを変更していない。Playwrightは1.65.1、Vitestの閾値はmain採用済みの値（補足A）である。
 
-| 検証 | 結果 |
-| --- | --- |
-| `pnpm install --frozen-lockfile` | 成功 |
-| `pnpm run test` | Node 52件・Vitest 69ファイル990件成功 |
-| `pnpm run test:coverage` | 同件数成功、新閾値判定成功 |
-| `pnpm run test:e2e:smoke` | 初回は必要ブラウザ未導入で9件失敗。Chromium/WebKit導入後に10件成功 |
-| `pnpm run test:e2e` | ビルド済みWorkerで66件成功（Chromium・モバイルWebKit） |
-| `bash scripts/quality-check.sh` | 手動実行の終了コード0。自動Stopの出力ではない |
+| 検証                             | 結果                                                               |
+| -------------------------------- | ------------------------------------------------------------------ |
+| `pnpm install --frozen-lockfile` | 成功                                                               |
+| `pnpm run test`                  | Node 52件・Vitest 69ファイル990件成功                              |
+| `pnpm run test:coverage`         | 同件数成功、新閾値判定成功                                         |
+| `pnpm run test:e2e:smoke`        | 初回は必要ブラウザ未導入で9件失敗。Chromium/WebKit導入後に10件成功 |
+| `pnpm run test:e2e`              | ビルド済みWorkerで66件成功（Chromium・モバイルWebKit）             |
+| `bash scripts/quality-check.sh`  | 手動実行の終了コード0。自動Stopの出力ではない                      |
 
 カバレッジはL51.23%（2864/5590）・S50.91%（3091/6071）・F39.81%（721/1811）・B37.68%（1738/4612）。生ログは対象worktreeの `tmp/verify-rebase/`（追跡対象外）。品質スクリプトのログは成功時に空で、終了コード0は実行担当の報告値である。
 

@@ -56,6 +56,28 @@ async function seedToken(role: 'ADMIN' | 'MANAGER' | 'MEMBER'): Promise<string> 
   );
 }
 
+/** 部門・種別の設定テーブルの全内容と、種別マスタ。拒否された書き込みの前後比較に使う */
+async function snapshotSettings() {
+  const db = createDb(env.DB);
+  return {
+    links: await db.select().from(departmentShiftTypes).orderBy(departmentShiftTypes.id),
+    types: await db.select().from(shiftTypes).orderBy(shiftTypes.id),
+  };
+}
+
+/** 既存の部門設定（ski に1種別を割当済み）を作る */
+async function seedLinkedType(): Promise<string> {
+  const db = createDb(env.DB);
+  const [type] = await db.insert(shiftTypes).values({ name: '既存の種別' }).returning();
+  if (!type) throw new Error('シフト種別の作成に失敗しました');
+  await db.insert(departmentShiftTypes).values({
+    departmentCode: 'ski',
+    shiftTypeId: type.id,
+    sortOrder: 1,
+  });
+  return type.id;
+}
+
 beforeEach(async () => {
   const db = createDb(env.DB);
   await db.delete(certificationRequirements);
@@ -197,24 +219,32 @@ describe('PUT /api/department-shift-types/:departmentCode', () => {
     ]);
   });
 
-  it('MEMBER を 403 で拒否する', async () => {
+  it('MEMBER を 403 で拒否し、部門の設定を変えない', async () => {
     const token = await seedToken('MEMBER');
+    await seedLinkedType();
+    const before = await snapshotSettings();
+    // 成功し得る入力（全種別の割当解除）。認可が外れれば既存の割当が消える
     const res = await app.request(
       '/api/department-shift-types/ski',
       { method: 'PUT', ...authRequest(token, { shiftTypeIds: [] }) },
       envWith({}),
     );
     expect(res.status).toBe(403);
+    expect(await snapshotSettings()).toEqual(before);
   });
 
-  it('MANAGER を 403 で拒否する', async () => {
+  it('MANAGER を 403 で拒否し、部門の設定を変えない', async () => {
     const token = await seedToken('MANAGER');
+    await seedLinkedType();
+    const before = await snapshotSettings();
+    // 成功し得る入力（全種別の割当解除）。認可が外れれば既存の割当が消える
     const res = await app.request(
       '/api/department-shift-types/ski',
       { method: 'PUT', ...authRequest(token, { shiftTypeIds: [] }) },
       envWith({}),
     );
     expect(res.status).toBe(403);
+    expect(await snapshotSettings()).toEqual(before);
   });
 
   it('重複したシフト種別 ID を 400 で拒否する', async () => {
@@ -225,6 +255,29 @@ describe('PUT /api/department-shift-types/:departmentCode', () => {
       envWith({}),
     );
     expect(res.status).toBe(400);
+  });
+
+  it('存在しない種別 ID を含む更新は 400 で、有効な種別を含めて部門設定を変えない', async () => {
+    const token = await seedToken('ADMIN');
+    const keptId = await seedLinkedType();
+    const [another] = await createDb(env.DB)
+      .insert(shiftTypes)
+      .values({ name: '追加候補' })
+      .returning();
+    if (!another) throw new Error('シフト種別の作成に失敗しました');
+    const before = await snapshotSettings();
+
+    const res = await app.request(
+      '/api/department-shift-types/ski',
+      {
+        method: 'PUT',
+        ...authRequest(token, { shiftTypeIds: [another.id, 'unknown-shift-type', keptId] }),
+      },
+      envWith({}),
+    );
+
+    expect(res.status).toBe(400);
+    expect(await snapshotSettings()).toEqual(before);
   });
 
   it('追加と除外を含む配列で可用集合をまとめて更新する', async () => {
@@ -295,6 +348,33 @@ describe('POST /api/department-shift-types/:departmentCode/assignments', () => {
       { name: '終日', sortOrder: 1 },
       { name: '午後', sortOrder: 2 },
     ]);
+  });
+
+  it.each([
+    ['存在しない', undefined],
+    ['無効化された', false],
+  ])('%s種別の割当は 400 で拒否し、部門設定を変えない', async (_name, isActive) => {
+    const token = await seedToken('ADMIN');
+    await seedLinkedType();
+    let shiftTypeId = 'unknown-shift-type';
+    if (isActive !== undefined) {
+      const [inactive] = await createDb(env.DB)
+        .insert(shiftTypes)
+        .values({ name: '無効な種別', isActive })
+        .returning();
+      if (!inactive) throw new Error('シフト種別の作成に失敗しました');
+      shiftTypeId = inactive.id;
+    }
+    const before = await snapshotSettings();
+
+    const res = await app.request(
+      '/api/department-shift-types/ski/assignments',
+      { method: 'POST', ...authRequest(token, { shiftTypeId }) },
+      envWith({}),
+    );
+
+    expect(res.status).toBe(400);
+    expect(await snapshotSettings()).toEqual(before);
   });
 
   it('同じ種別の再割当を冪等に扱う', async () => {
@@ -372,13 +452,16 @@ describe('POST /api/department-shift-types/:departmentCode', () => {
     ]);
   });
 
-  it('MANAGER を 403 で拒否する', async () => {
+  it('MANAGER を 403 で拒否し、種別も部門設定も作らない', async () => {
     const token = await seedToken('MANAGER');
+    await seedLinkedType();
+    const before = await snapshotSettings();
     const res = await app.request(
       '/api/department-shift-types/ski',
       { method: 'POST', ...authRequest(token, { name: '午後' }) },
       envWith({}),
     );
     expect(res.status).toBe(403);
+    expect(await snapshotSettings()).toEqual(before);
   });
 });

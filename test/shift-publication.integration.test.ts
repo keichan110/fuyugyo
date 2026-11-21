@@ -283,6 +283,73 @@ describe('下書きと公開', () => {
     expect((await publish([date], 'DRAFT', member)).status).toBe(403);
   });
 
+  it('MEMBERの保存・公開・取り消しは、成功し得る入力でも403で全対象テーブルを変えない', async () => {
+    const { manager, member, instructorId, shiftTypeId, save, publish } = await setup();
+    await save(
+      [
+        { date, instructorIds: [instructorId], description: '公開前の備考' },
+        { date: nextDate, instructorIds: [instructorId] },
+      ],
+      [{ date, requiredCount: 2 }],
+    );
+    await publish([nextDate]);
+    const tables = async () => ({
+      shifts: await db.select().from(shifts).orderBy(shifts.date),
+      assignments: await db.select().from(shiftAssignments).orderBy(shiftAssignments.shiftId),
+      availabilities: await db.select().from(instructorAvailabilities),
+    });
+    const before = await tables();
+    const rows = await db.select().from(shifts);
+    const revisionOf = (day: string) =>
+      rows.find((row) => row.date.toISOString().startsWith(day))?.revision ?? null;
+
+    // 保存（配置・備考・必要人数）。MANAGER なら成功する内容
+    const saved = await request('shifts/assignments', member, {
+      month: '2027-01',
+      departmentCode: 'ski',
+      cells: [
+        {
+          date,
+          shiftTypeId,
+          instructorIds: [],
+          description: '書き換え',
+          expectedRevision: revisionOf(date),
+        },
+      ],
+      requirements: [{ date, shiftTypeId, requiredCount: 9, expectedRevision: revisionOf(date) }],
+    });
+    // 公開と取り消し（MANAGER なら成功する内容）
+    const published = await request('shifts/publication', member, {
+      month: '2027-01',
+      departmentCode: 'ski',
+      shiftTypeId,
+      status: 'PUBLISHED',
+      dates: [{ date, expectedRevision: revisionOf(date) }],
+    });
+    const cancelled = await request('shifts/publication', member, {
+      month: '2027-01',
+      departmentCode: 'ski',
+      shiftTypeId,
+      status: 'DRAFT',
+      dates: [{ date: nextDate, expectedRevision: revisionOf(nextDate) }],
+    });
+
+    expect([saved.status, published.status, cancelled.status]).toEqual([403, 403, 403]);
+    expect(await tables()).toEqual(before);
+    // 対照: 同じ内容を MANAGER が送れば成功する（拒否の理由が入力不正ではないことの確認）
+    expect(
+      (
+        await request('shifts/publication', manager, {
+          month: '2027-01',
+          departmentCode: 'ski',
+          shiftTypeId,
+          status: 'DRAFT',
+          dates: [{ date: nextDate, expectedRevision: revisionOf(nextDate) }],
+        })
+      ).status,
+    ).toBe(200);
+  });
+
   it('古い画面からの保存と公開は新しい配置を上書きしない', async () => {
     const { manager, instructorId, shiftTypeId, save } = await setup();
     await save([{ date, instructorIds: [instructorId] }]);

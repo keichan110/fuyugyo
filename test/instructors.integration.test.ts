@@ -493,6 +493,7 @@ describe('POST /api/instructors/:id/certifications', () => {
       envWith({}),
     );
     expect(res.status).toBe(404);
+    expect(await createDb(env.DB).select().from(instructorCertifications)).toEqual([]);
   });
 
   it('存在しない Certification への割り当ては 404 を返す', async () => {
@@ -508,6 +509,7 @@ describe('POST /api/instructors/:id/certifications', () => {
       envWith({}),
     );
     expect(res.status).toBe(404);
+    expect(await createDb(env.DB).select().from(instructorCertifications)).toEqual([]);
   });
 
   it('MEMBER は 403 で拒否される', async () => {
@@ -553,8 +555,14 @@ describe('DELETE /api/instructors/:id/certifications/:certId', () => {
     expect(detail.certifications).toHaveLength(0);
   });
 
-  it('存在しない割り当ては 404 を返す', async () => {
+  it('存在しない割り当ては 404 を返し、既存の別の割り当てを消さない', async () => {
+    const deptId = await seedDepartment();
+    const keptCertId = await seedCertification(deptId);
     const instructorId = await seedInstructor();
+    await createDb(env.DB)
+      .insert(instructorCertifications)
+      .values({ instructorId, certificationId: keptCertId });
+    const before = await createDb(env.DB).select().from(instructorCertifications);
     const token = await seedManagerToken();
 
     const res = await app.request(
@@ -563,6 +571,7 @@ describe('DELETE /api/instructors/:id/certifications/:certId', () => {
       envWith({}),
     );
     expect(res.status).toBe(404);
+    expect(await createDb(env.DB).select().from(instructorCertifications)).toEqual(before);
   });
 
   it('MEMBER は 403 で拒否される', async () => {

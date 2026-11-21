@@ -100,9 +100,9 @@ e2e/
 
 ## CI
 
-詳細（必須チェック・失敗時の挙動・実績と未確認の区別）は [テスト品質ベースライン](./quality-baseline.md)（§4） を参照する。要点:
+詳細（必須チェック・失敗時の挙動・実績と未確認の区別）は [テスト品質ベースライン](./quality-baseline.md)（§4）を参照する。要点:
 
-- **PR・main への push**（`.github/workflows/quality-check.yml`）: `static`（型・lint・format・build・audit）、`test`（Node テスト + Vitest + カバレッジ閾値）、`e2e`（`@smoke` のみ・Chromium）を別ジョブで実行する。`main` の ruleset はこの 3 ジョブを必須にしている。
+- **PR・main への push**（`.github/workflows/quality-check.yml`）: `static`（型・lint・format・build・audit）、`test`（Node テスト + Vitest + カバレッジ閾値）、`e2e`（`@smoke` のみ・Chromium）を別ジョブで実行する。`main` の ruleset はこの 3 ジョブを必須にしている。ただし Repository Admin ロールは PR 経由でバイパスできるため、必須チェックの成功を経ずにマージできる設定である。
 - **リリース**（`.github/workflows/release.yml`、手動実行）: 採番した SHA をビルドし、そのビルド成果物に対して全シナリオの E2E（Chromium + モバイル WebKit）を実行する。ビルド・E2E の両方が成功したときだけ、`production` 環境の承認を経てデプロイに進む。リリースでは Vitest は再実行しない。
 - E2E のトレース: `e2e` ジョブの失敗時のみ artifact `playwright-results`（7 日）、リリースの E2E 失敗時は `release-playwright-results`（3 日）に `test-results/` と `playwright-report/` を保存する。
 - Playwright のバージョンをキーに `~/.cache/ms-playwright` をキャッシュする（PR の `e2e` ジョブ）。

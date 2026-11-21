@@ -67,7 +67,7 @@
     "@faker-js/faker": "^10.5.0",
     "@ianvs/prettier-plugin-sort-imports": "4.7.1",
     "@libsql/client": "^0.17.4",
-    "@playwright/test": "1.65.0",
+    "@playwright/test": "1.65.1",
     "@sentry/bundler-plugins": "^11.11.0",
     "@tanstack/router-cli": "1.167.17",
     "@tanstack/router-plugin": "1.168.18",

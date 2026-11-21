@@ -7,6 +7,9 @@ export const COVERAGE_REPORT_MARKER = '<!-- fuyugyo-coverage-report -->';
 
 const metrics = ['lines', 'statements', 'functions', 'branches'];
 
+/** 未カバー分岐の多いファイルとして表に載せる上限件数 */
+export const UNCOVERED_BRANCH_FILE_LIMIT = 10;
+
 /** 閾値判定と表示を揃えるため、istanbul-lib-coverage と同じ式で小数第2位まで切り捨てる（総数 0 は 100%） */
 function percent({ covered, total }) {
   return total > 0 ? Math.floor((1000 * 100 * covered) / total / 10) / 100 : 100;
@@ -22,6 +25,47 @@ function formatCell(pct, threshold) {
 function formatRow(label, fileCount, pcts, thresholds = {}) {
   const cells = metrics.map((metric) => formatCell(pcts[metric], thresholds[metric]));
   return `| ${label} | ${fileCount} | ${cells.join(' | ')} |`;
+}
+
+/**
+ * 未カバー分岐の多いファイルを上位から選ぶ。未カバー数の降順で、同数はパスの昇順に並べる。
+ * 未カバー分岐のないファイルは載せない。
+ *
+ * @param {{ path: string, coverage: Record<string, { covered: number, total: number }> }[]} files
+ * @returns {{ path: string, uncovered: number, total: number, pct: number }[]} 最大 {@link UNCOVERED_BRANCH_FILE_LIMIT} 件
+ */
+export function topUncoveredBranchFiles(files) {
+  return files
+    .map(({ path, coverage }) => ({
+      path,
+      uncovered: coverage.branches.total - coverage.branches.covered,
+      total: coverage.branches.total,
+      pct: percent(coverage.branches),
+    }))
+    .filter((file) => file.uncovered > 0)
+    .sort((a, b) => b.uncovered - a.uncovered || (a.path < b.path ? -1 : a.path > b.path ? 1 : 0))
+    .slice(0, UNCOVERED_BRANCH_FILE_LIMIT);
+}
+
+/** 未カバー分岐の上位ファイルを Markdown の節にする */
+function formatUncoveredBranchSection(files) {
+  const top = topUncoveredBranchFiles(files);
+  return [
+    `### 未カバー分岐が多いファイル（上位 ${UNCOVERED_BRANCH_FILE_LIMIT} 件）`,
+    '',
+    ...(top.length === 0
+      ? ['未カバーの分岐を持つファイルはありません。']
+      : [
+          '| ファイル | 未カバー | 総数 | Branches |',
+          '| --- | ---: | ---: | ---: |',
+          ...top.map(
+            (file) => `| \`${file.path}\` | ${file.uncovered} | ${file.total} | ${file.pct}% |`,
+          ),
+        ]),
+    '',
+    'この表は分岐数の多さだけで並べたもので、UI と業務リスクの優先順位は別物。テストを足す順序は業務上の重大性で決める。',
+    '',
+  ];
 }
 
 /**
@@ -78,6 +122,7 @@ export function buildCoverageReport({ summary, thresholds, root, sha }) {
     '',
     '閾値は `vitest.config.ts` の `coverage.thresholds`。UI 層は E2E が主体のため全体値にのみ含める。',
     '',
+    ...formatUncoveredBranchSection(files),
   ].join('\n');
 }
 

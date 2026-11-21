@@ -3,7 +3,6 @@ import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Affix,
   Box,
-  Button,
   Group,
   Select,
   Stack,
@@ -238,17 +237,15 @@ export function ShiftAgendaViewer({ date, onVisibleDateChange }: ShiftAgendaView
       >
         <Transition transition="fade" mounted={scroll.y > 240}>
           {(transitionStyles) => (
-            <Button
-              type="button"
-              variant="default"
-              color="gray"
+            <AppButton
+              intent="secondary"
               size="xs"
               radius="xl"
               style={transitionStyles}
               onClick={() => scrollTo({ y: 0 })}
             >
               ↑ 上へ戻る
-            </Button>
+            </AppButton>
           )}
         </Transition>
       </Affix>

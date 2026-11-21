@@ -113,6 +113,11 @@ async function seedInstructor(lastName = '山田', firstName = '太郎'): Promis
   return inst.id;
 }
 
+/** 全 User（ロール・有効状態・Instructor 紐付け・更新日時を含む）。拒否された操作の前後比較に使う */
+async function snapshotUsers() {
+  return await createDb(env.DB).select().from(users).orderBy(users.id);
+}
+
 beforeEach(async () => {
   const db = createDb(env.DB);
   // 外部キー依存順に削除する
@@ -232,6 +237,7 @@ describe('POST /api/users/:id/change-role', () => {
   it('MANAGER は 403 で弾かれる', async () => {
     const { token } = await seedManagerToken();
     const userId = await seedUser();
+    const before = await snapshotUsers();
 
     const res = await app.request(
       `/api/users/${userId}/change-role`,
@@ -239,6 +245,7 @@ describe('POST /api/users/:id/change-role', () => {
       envWith({}),
     );
     expect(res.status).toBe(403);
+    expect(await snapshotUsers()).toEqual(before);
   });
 
   it('不正なロール値は 400 を返す', async () => {
@@ -265,12 +272,14 @@ describe('POST /api/users/:id/change-role', () => {
 
   it('自分自身のロール変更は 400 で弾かれる', async () => {
     const { token, userId } = await seedAdminToken();
+    const before = await snapshotUsers();
     const res = await app.request(
       `/api/users/${userId}/change-role`,
       { method: 'POST', ...authJsonRequest(token, { role: 'MEMBER' }) },
       envWith({}),
     );
     expect(res.status).toBe(400);
+    expect(await snapshotUsers()).toEqual(before);
   });
 });
 
@@ -323,23 +332,27 @@ describe('POST /api/users/:id/deactivate', () => {
     const { token } = await seedManagerToken();
     for (const role of ['MANAGER', 'ADMIN'] as const) {
       const userId = await seedUser(`対象-${role}`, role);
+      const before = await snapshotUsers();
       const res = await app.request(
         `/api/users/${userId}/deactivate`,
         { method: 'POST', ...authHeader(token) },
         envWith({}),
       );
       expect(res.status).toBe(403);
+      expect(await snapshotUsers()).toEqual(before);
     }
   });
 
   it('MANAGER の自己無効化は 400 で弾かれる', async () => {
     const { token, userId } = await seedManagerToken();
+    const before = await snapshotUsers();
     const res = await app.request(
       `/api/users/${userId}/deactivate`,
       { method: 'POST', ...authHeader(token) },
       envWith({}),
     );
     expect(res.status).toBe(400);
+    expect(await snapshotUsers()).toEqual(before);
   });
 
   it('存在しない ID は 404 を返す', async () => {
@@ -407,12 +420,14 @@ describe('POST /api/users/:id/activate', () => {
     for (const role of ['MANAGER', 'ADMIN'] as const) {
       const userId = await seedUser(`対象-${role}`, role);
       await createDb(env.DB).update(users).set({ isActive: false }).where(eq(users.id, userId));
+      const before = await snapshotUsers();
       const res = await app.request(
         `/api/users/${userId}/activate`,
         { method: 'POST', ...authHeader(token) },
         envWith({}),
       );
       expect(res.status).toBe(403);
+      expect(await snapshotUsers()).toEqual(before);
     }
   });
 
@@ -444,6 +459,28 @@ describe('POST /api/users/:id/link-instructor', () => {
 
     const body = userSchema.parse(await res.json());
     expect(body.instructorId).toBe(instructorId);
+  });
+
+  it.each([
+    ['instructorId がない', {}],
+    ['instructorId が空文字', { instructorId: '' }],
+    ['instructorId が文字列でない', { instructorId: 123 }],
+  ])('本文不正（%s）は 400 で、User の紐付けを変えない', async (_name, body) => {
+    const { token } = await seedAdminToken();
+    const userId = await seedUser();
+    const linked = await seedInstructor('既存', '紐付け');
+    await seedInstructor('別', '講師');
+    await createDb(env.DB).update(users).set({ instructorId: linked }).where(eq(users.id, userId));
+    const before = await snapshotUsers();
+
+    const res = await app.request(
+      `/api/users/${userId}/link-instructor`,
+      { method: 'POST', ...authJsonRequest(token, body) },
+      envWith({}),
+    );
+
+    expect(res.status).toBe(400);
+    expect(await snapshotUsers()).toEqual(before);
   });
 
   it('1 Instructor に複数 User をリンクしようとすると 409（UNIQUE 制約違反）', async () => {

@@ -1,5 +1,6 @@
 import { env } from 'cloudflare:test';
 import { and, eq } from 'drizzle-orm';
+import { HTTPException } from 'hono/http-exception';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { planPublicationWindow } from '../src/features/shifts/components/publication-plan';
@@ -22,7 +23,8 @@ import {
   shiftTypes,
   users,
 } from '../src/server/db/schema';
-import { guardShiftWrite } from '../src/server/db/shift-writes';
+import { guardShiftWrite, rethrowShiftWriteError } from '../src/server/db/shift-writes';
+import { interruptBeforeBatch } from './d1-interrupt';
 
 const db = createDb(env.DB);
 const date = '2027-01-10';
@@ -471,5 +473,296 @@ describe('公開と本人の勤務可否', () => {
         .insert(instructorAvailabilities)
         .values({ instructorId, date: new Date(`${date}T00:00:00Z`), type: 'UNAVAILABLE' }),
     ).rejects.toThrow();
+  });
+});
+
+describe('不正な入力は部分保存せず400で拒否する', () => {
+  const freeDate = '2027-01-12';
+
+  /** 保存・公開が対象にする全テーブルの内容。更新世代（revision）と必要人数もここに含まれる */
+  async function snapshot() {
+    return {
+      shifts: await db.select().from(shifts).orderBy(shifts.date, shifts.id),
+      assignments: await db
+        .select()
+        .from(shiftAssignments)
+        .orderBy(shiftAssignments.shiftId, shiftAssignments.instructorId),
+    };
+  }
+
+  /** 既存の下書き（配置・備考・必要人数・更新世代あり）を用意する */
+  async function seedExisting() {
+    const ctx = await setup();
+    const [otherType] = await db.insert(shiftTypes).values({ name: '部門外の種別' }).returning();
+    if (!otherType) throw new Error('種別作成失敗');
+    const saved = await ctx.save(
+      [{ date, instructorIds: [ctx.instructorId], description: '既存の備考' }],
+      [{ date, requiredCount: 3 }],
+    );
+    expect(saved.status).toBe(200);
+    return { ...ctx, otherTypeId: otherType.id };
+  }
+
+  const validCell = (instructorId: string, shiftTypeId: string) => ({
+    date: freeDate,
+    shiftTypeId,
+    instructorIds: [instructorId],
+    description: '正常枠なので保存されてはならない',
+  });
+
+  it.each([
+    ['重複した枠', '同じ枠が重複しています', (d: string) => [{ date: d }, { date: d }]],
+    ['実在しない日付', '実在しない日付', () => [{ date: '2027-01-32' }]],
+    ['対象月外の日付', '範囲外', () => [{ date: '2027-02-01' }]],
+  ])(
+    '保存: %sは400で、正常な枠も含め shifts・割当・更新世代・必要人数を変えない',
+    async (_name, expectedMessage, invalid) => {
+      const { manager, instructorId, shiftTypeId } = await seedExisting();
+      const before = await snapshot();
+
+      const response = await request('shifts/assignments', manager, {
+        month: '2027-01',
+        departmentCode: 'ski',
+        cells: [
+          validCell(instructorId, shiftTypeId),
+          ...invalid(date).map((item) => ({ ...item, shiftTypeId, instructorIds: [] })),
+        ],
+        requirements: [{ date: freeDate, shiftTypeId, requiredCount: 5 }],
+      });
+
+      expect(response.status).toBe(400);
+      expect(JSON.stringify(await response.json())).toContain(expectedMessage);
+      expect(await snapshot()).toEqual(before);
+    },
+  );
+
+  it('保存: 必要人数だけに含まれる実在しない日付も400で、正常な必要人数を変えない', async () => {
+    const { manager, shiftTypeId } = await seedExisting();
+    const before = await snapshot();
+
+    const response = await request('shifts/assignments', manager, {
+      month: '2027-01',
+      departmentCode: 'ski',
+      cells: [],
+      requirements: [
+        { date, shiftTypeId, requiredCount: 9 },
+        { date: '2027-01-32', shiftTypeId, requiredCount: 1 },
+      ],
+    });
+
+    expect(response.status).toBe(400);
+    expect(await snapshot()).toEqual(before);
+  });
+
+  it('保存: 部門で利用できないシフト種別は400で、既存の枠を変えない', async () => {
+    const { manager, instructorId, otherTypeId } = await seedExisting();
+    const before = await snapshot();
+
+    const response = await request('shifts/assignments', manager, {
+      month: '2027-01',
+      departmentCode: 'ski',
+      cells: [validCell(instructorId, otherTypeId)],
+      requirements: [{ date: freeDate, shiftTypeId: otherTypeId, requiredCount: 5 }],
+    });
+
+    expect(response.status).toBe(400);
+    expect(JSON.stringify(await response.json())).toContain('部門で利用できない');
+    expect(await snapshot()).toEqual(before);
+  });
+
+  it.each([
+    ['重複した日付', '重複のない対象月内の実在日', [date, date]],
+    ['実在しない日付', '重複のない対象月内の実在日', [date, '2027-01-32']],
+    ['対象月外の日付', '重複のない対象月内の実在日', [date, '2027-02-01']],
+  ])(
+    '公開: %sは400で、正常な日も公開されず更新世代を変えない',
+    async (_name, expectedMessage, dates) => {
+      const { manager, shiftTypeId } = await seedExisting();
+      const before = await snapshot();
+
+      const response = await request('shifts/publication', manager, {
+        month: '2027-01',
+        departmentCode: 'ski',
+        shiftTypeId,
+        status: 'PUBLISHED',
+        dates: dates.map((day) => ({ date: day, expectedRevision: null })),
+      });
+
+      expect(response.status).toBe(400);
+      expect(JSON.stringify(await response.json())).toContain(expectedMessage);
+      expect(await snapshot()).toEqual(before);
+    },
+  );
+
+  it('公開: 部門で利用できないシフト種別は400で、既存の枠を変えない', async () => {
+    const { manager, otherTypeId } = await seedExisting();
+    const before = await snapshot();
+
+    const response = await request('shifts/publication', manager, {
+      month: '2027-01',
+      departmentCode: 'ski',
+      shiftTypeId: otherTypeId,
+      status: 'PUBLISHED',
+      dates: [{ date, expectedRevision: null }],
+    });
+
+    expect(response.status).toBe(400);
+    expect(JSON.stringify(await response.json())).toContain('部門で利用できない');
+    expect(await snapshot()).toEqual(before);
+  });
+});
+
+/** 関数が投げた値（または reject 理由）を返す。投げなければ undefined */
+async function caught(fn: () => unknown): Promise<unknown> {
+  try {
+    await fn();
+  } catch (error) {
+    return error;
+  }
+  return undefined;
+}
+
+describe('確認後の競合割り込みと409変換（決定論的な割り込み）', () => {
+  // 事前確認の後・書き込み batch の前に別の書き込みを一度だけ挟む。
+  // 複数HTTPリクエストの真の同時実行ではなく、その順序を再現する検証である。
+  async function snapshot() {
+    return {
+      shifts: await db.select().from(shifts).orderBy(shifts.date, shifts.id),
+      assignments: await db
+        .select()
+        .from(shiftAssignments)
+        .orderBy(shiftAssignments.shiftId, shiftAssignments.instructorId),
+    };
+  }
+
+  function requestWithDb(
+    path: string,
+    token: string,
+    body: unknown,
+    wrapped: D1Database,
+  ): Promise<Response> {
+    return Promise.resolve(
+      app.request(
+        `/api/${path}`,
+        {
+          method: 'PUT',
+          headers: { cookie: `auth-token=${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        },
+        { ...env, DB: wrapped },
+      ),
+    );
+  }
+
+  it('公開の事前確認後に担当者が勤務不可になると、実トリガーが全日の公開を拒否して409を返す', async () => {
+    const { manager, instructorId, shiftTypeId, save } = await setup();
+    await save([
+      { date, instructorIds: [instructorId] },
+      { date: nextDate, instructorIds: [instructorId], description: '備考' },
+    ]);
+    const interruption = interruptBeforeBatch(env.DB, async () => {
+      await db
+        .insert(instructorAvailabilities)
+        .values({ instructorId, date: new Date(`${nextDate}T00:00:00Z`), type: 'UNAVAILABLE' });
+    });
+    const rows = await db.select().from(shifts);
+    const dates = rows.map((row) => ({
+      date: row.date.toISOString().slice(0, 10),
+      expectedRevision: row.revision,
+      expectedShiftId: row.id,
+    }));
+
+    // 競合注入は公開 batch の直前に走るが、shifts・割当には触れないため、この時点を比較基準にできる
+    const baseline = await snapshot();
+    const response = await requestWithDb(
+      'shifts/publication',
+      manager,
+      { month: '2027-01', departmentCode: 'ski', shiftTypeId, status: 'PUBLISHED', dates },
+      interruption.db,
+    );
+
+    expect(interruption.interruptCount()).toBe(1);
+    expect(response.status).toBe(409);
+    expect(JSON.stringify(await response.json())).toContain('勤務不可');
+    const after = await snapshot();
+    expect(after).toEqual(baseline);
+    expect(after.shifts.map((row) => row.status)).toEqual(['DRAFT', 'DRAFT']);
+    expect(await db.select().from(instructorAvailabilities)).toHaveLength(1);
+  });
+
+  it('保存の確認後に別の保存で更新世代が進むと、先行セルを含む保存全体をロールバックして409を返す', async () => {
+    const { manager, instructorId, shiftTypeId, save } = await setup();
+    await save([
+      { date, instructorIds: [instructorId], description: '先行セルの元の備考' },
+      { date: nextDate, instructorIds: [instructorId], description: '元の備考' },
+    ]);
+    const [first, second] = (await db.select().from(shifts).orderBy(shifts.date)).map((row) => row);
+    if (!first || !second) throw new Error('シフト未作成');
+    const interruption = interruptBeforeBatch(env.DB, async () => {
+      // 画面が確認した後に、別の操作が2枠目を保存して更新世代を進めた状況
+      await db
+        .update(shifts)
+        .set({ description: '別の操作が保存した備考', revision: second.revision + 1 })
+        .where(eq(shifts.id, second.id));
+    });
+    const baseline = await snapshot();
+
+    const response = await requestWithDb(
+      'shifts/assignments',
+      manager,
+      {
+        month: '2027-01',
+        departmentCode: 'ski',
+        cells: [
+          {
+            date,
+            shiftTypeId,
+            instructorIds: [],
+            description: '先行セルの新しい備考',
+            expectedRevision: first.revision,
+            expectedShiftId: first.id,
+          },
+          {
+            date: nextDate,
+            shiftTypeId,
+            instructorIds: [],
+            description: '2枠目の新しい備考',
+            expectedRevision: second.revision,
+            expectedShiftId: second.id,
+          },
+        ],
+      },
+      interruption.db,
+    );
+
+    expect(interruption.interruptCount()).toBe(1);
+    expect(response.status).toBe(409);
+    const after = await snapshot();
+    // 先行セル（1枠目）の備考・割当は元のまま。ロールバックされるのは対象 batch のみで、競合書き込みは残る
+    expect(after.shifts[0]).toEqual(baseline.shifts[0]);
+    expect(after.shifts[1]).toMatchObject({
+      description: '別の操作が保存した備考',
+      revision: second.revision + 1,
+    });
+    expect(after.assignments).toEqual(baseline.assignments);
+  });
+
+  it('実D1の重複キー違反は実関数で409に変換され、未知のDBエラーはそのまま投げる', async () => {
+    const { shiftTypeId } = await setup();
+    const key = { date: new Date(`${date}T00:00:00Z`), departmentCode: 'ski', shiftTypeId };
+    await db.insert(shifts).values(key);
+    const duplicate = await caught(() => db.insert(shifts).values(key));
+    expect(duplicate).toBeInstanceOf(Error);
+    const converted = await caught(() => rethrowShiftWriteError(duplicate));
+    expect(converted).toBeInstanceOf(HTTPException);
+    expect(converted).toMatchObject({ status: 409 });
+
+    const unknownError = await caught(() =>
+      env.DB.prepare('INSERT INTO no_such_table VALUES (1)').run(),
+    );
+    expect(unknownError).toBeInstanceOf(Error);
+    const rethrown = await caught(() => rethrowShiftWriteError(unknownError));
+    expect(rethrown).toBe(unknownError);
+    expect(rethrown).not.toBeInstanceOf(HTTPException);
   });
 });

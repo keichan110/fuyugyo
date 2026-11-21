@@ -83,6 +83,46 @@ function createDatabase() {
   };
 }
 
+// 全移行後の講師の期待値。投入した値のうち日時だけが epoch 秒へ変わり、移行で増えた列は無い。
+const EXPECTED_INSTRUCTORS = [
+  {
+    id: 'i-1',
+    last_name: '山田',
+    first_name: '太郎',
+    last_name_kana: null,
+    first_name_kana: null,
+    status: 'ACTIVE',
+    notes: '備考1',
+    created_at: epoch('2025-11-05T00:00:00.000Z'),
+    updated_at: epoch('2025-11-06T00:00:00.000Z'),
+  },
+  {
+    id: 'i-2',
+    last_name: '佐藤',
+    first_name: '花子',
+    last_name_kana: null,
+    first_name_kana: null,
+    status: 'INACTIVE',
+    notes: null,
+    created_at: epoch('2025-11-05T00:00:00.000Z'),
+    updated_at: epoch('2025-11-05T00:00:00.000Z'),
+  },
+];
+// 全移行後のユーザーの期待値。picture_url は投入していないため null のまま。
+const EXPECTED_USERS = [
+  {
+    id: 'u-1',
+    line_user_id: 'line-1',
+    display_name: '管理者',
+    picture_url: null,
+    role: 'ADMIN',
+    is_active: 1,
+    instructor_id: 'i-1',
+    created_at: epoch('2025-11-08T00:00:00.000Z'),
+    updated_at: epoch('2025-11-08T00:00:00.000Z'),
+  },
+];
+
 test('既存データの移行で ID・値・日時・配置・資格が保たれる', async (t) => {
   const db = createDatabase();
   t.after(() => db.dispose());
@@ -164,6 +204,49 @@ test('既存データの移行で ID・値・日時・配置・資格が保た�
         updated_at: epoch('2025-11-03T00:00:00.000Z'),
       },
     ]);
+    // 0001 は部門・資格以外の表の日時も変換する。値の列は変わらない。
+    assert.deepEqual(db.rows(`SELECT id, created_at, updated_at FROM instructors ORDER BY id`), [
+      {
+        id: 'i-1',
+        created_at: epoch('2025-11-05T00:00:00.000Z'),
+        updated_at: epoch('2025-11-06T00:00:00.000Z'),
+      },
+      {
+        id: 'i-2',
+        created_at: epoch('2025-11-05T00:00:00.000Z'),
+        updated_at: epoch('2025-11-05T00:00:00.000Z'),
+      },
+    ]);
+    assert.deepEqual(
+      db.rows(`SELECT id, created_at, updated_at FROM instructor_certifications ORDER BY id`),
+      ['ic-1', 'ic-2', 'ic-3'].map((id) => ({
+        id,
+        created_at: epoch('2025-11-07T00:00:00.000Z'),
+        updated_at: epoch('2025-11-07T00:00:00.000Z'),
+      })),
+    );
+    assert.deepEqual(
+      db.rows(`SELECT id, name, is_active, created_at, updated_at FROM shift_types ORDER BY id`),
+      ['st-event', 'st-lesson'].map((id) => ({
+        id,
+        name: id === 'st-event' ? 'イベント' : 'レッスン',
+        is_active: 1,
+        created_at: epoch('2025-11-01T00:00:00.000Z'),
+        updated_at: epoch('2025-11-01T00:00:00.000Z'),
+      })),
+    );
+    assert.deepEqual(
+      db.rows(`SELECT id, role, line_user_id, created_at, updated_at FROM users ORDER BY id`),
+      [
+        {
+          id: 'u-1',
+          role: 'ADMIN',
+          line_user_id: 'line-1',
+          created_at: epoch('2025-11-08T00:00:00.000Z'),
+          updated_at: epoch('2025-11-08T00:00:00.000Z'),
+        },
+      ],
+    );
     assert.deepEqual(db.rows(`SELECT id, date, created_at FROM shifts ORDER BY id`), [
       { id: 'sh-1', date: D_SHIFT1, created_at: epoch('2025-12-01T00:00:00.000Z') },
       { id: 'sh-2', date: D_SHIFT2, created_at: epoch('2025-12-01T00:00:00.000Z') },
@@ -497,6 +580,9 @@ test('既存データの移行で ID・値・日時・配置・資格が保た�
     db.migrate('0011');
     assert.equal(db.rows(`SELECT count(*) AS n FROM shifts`)[0].n, 4);
     assert.equal(db.rows(`SELECT count(*) AS n FROM shift_assignments`)[0].n, 4);
+    // 全移行を通した後も、講師・ユーザーの全列が投入した値（日時は変換後）のまま残る。
+    assert.deepEqual(db.rows(`SELECT * FROM instructors ORDER BY id`), EXPECTED_INSTRUCTORS);
+    assert.deepEqual(db.rows(`SELECT * FROM users ORDER BY id`), EXPECTED_USERS);
     assert.equal(db.foreignKeyViolations(), 0);
   });
 });

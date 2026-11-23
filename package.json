@@ -86,7 +86,7 @@
     "postcss": "^8.5.16",
     "postcss-preset-mantine": "^1.18.0",
     "postcss-simple-vars": "^7.0.1",
-    "prettier": "3.9.4",
+    "prettier": "3.9.10",
     "tsx": "4.22.4",
     "typescript": "6.0.3",
     "typescript-eslint": "8.62.0",

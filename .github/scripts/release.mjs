@@ -59,14 +59,15 @@ function escapeRegExp(text) {
 }
 
 /**
- * generate-notes の本文を、同一リポジトリの PR 行・保持する節・末尾の文章に分解する。
- * PR 行の文言と順序は生成結果のまま使う。New Contributors 節と比較リンクは本文ごと保持する。
+ * generate-notes の本文を、同一リポジトリの PR 項目・保持する節・末尾の文章に分解する。
+ * 箇条書き（`* ` 始まり）に続く行は同じ項目の継続として扱い、複数行のタイトルも1項目で保持する。
+ * PR 項目の文言と順序は生成結果のまま使う。New Contributors 節と比較リンクは本文ごと保持する。
+ * 同一リポジトリの PR を指すのに分類できない項目は、黙って落とさず例外にする。
  */
 function parseGenerated(body, repository) {
-  const prPattern = new RegExp(
-    `^\\* .+ in https://github\\.com/${escapeRegExp(repository)}/pull/(\\d+)$`,
-    'i',
-  );
+  const pullUrl = `https://github\\.com/${escapeRegExp(repository)}/pull/(\\d+)`;
+  const prPattern = new RegExp(`^\\* [\\s\\S]+ in ${pullUrl}$`, 'i');
+  const mentionsPull = new RegExp(pullUrl, 'i');
   const sections = [];
   for (const line of body.split(/\r?\n/)) {
     if (line.startsWith('## ') || sections.length === 0) {
@@ -78,26 +79,52 @@ function parseGenerated(body, repository) {
   const foreign = [];
   const kept = [];
   const trailer = [];
+  const unclassifiable = (text) => {
+    throw new Error(`generate-notes の PR 項目を分類できません。\n${text}`);
+  };
   for (const section of sections) {
     if (section.heading && /^## New Contributors/i.test(section.heading)) {
       kept.push(section.lines.join('\n').trim());
       continue;
     }
+    let current;
+    const flush = () => {
+      if (!current) {
+        return;
+      }
+      const item = current.join('\n');
+      current = undefined;
+      const match = prPattern.exec(item);
+      if (match) {
+        pulls.set(Number(match[1]), item);
+      } else if (mentionsPull.test(item)) {
+        unclassifiable(item);
+      } else {
+        // 他リポジトリの項目などは分類できないため、その他の変更へそのまま載せる。
+        foreign.push(item);
+      }
+    };
     for (const [index, line] of section.lines.entries()) {
       const text = line.trimEnd();
       if (section.heading && index === 0) {
         continue;
       }
-      const match = prPattern.exec(text);
-      if (match) {
-        pulls.set(Number(match[1]), text);
-      } else if (text.startsWith('* ')) {
-        // 他リポジトリの行などは分類できないため、その他の変更へそのまま載せる。
-        foreign.push(text);
-      } else if (text.trim()) {
-        trailer.push(text);
+      if (text.startsWith('* ')) {
+        flush();
+        current = [text];
+      } else if (current && text.trim() && !text.startsWith('**Full Changelog**')) {
+        current.push(text);
+      } else {
+        flush();
+        if (text.trim()) {
+          if (mentionsPull.test(text)) {
+            unclassifiable(text);
+          }
+          trailer.push(text);
+        }
       }
     }
+    flush();
   }
   return { pulls, foreign, kept, trailer };
 }
@@ -138,9 +165,36 @@ function resolveRange(git, sha, latest, generatedBody) {
   return base ? [`${base}..${sha}`] : [sha];
 }
 
+/** 2つのツリー間で変わった drizzle/ のパスと変更種別を返す。 */
+function diffPaths(git, from, to) {
+  const tokens = git([
+    'diff-tree',
+    '-r',
+    '-z',
+    '--name-status',
+    '--no-renames',
+    '--no-commit-id',
+    from,
+    to,
+    '--',
+    databaseDir,
+  ])
+    .split('\0')
+    .filter(Boolean);
+  const paths = new Map();
+  // -z の name-status は「状態, パス」の組が NUL 区切りで続く。
+  for (let i = 0; i + 1 < tokens.length; i += 2) {
+    paths.set(tokens[i + 1], statusLabels[tokens[i]] ?? '更新');
+  }
+  return paths;
+}
+
 /**
- * 比較範囲の各コミットを第1親（ルートは空ツリー）と比べ、drizzle/ の変更を列挙する。
+ * 比較範囲の各コミットについて drizzle/ の変更を列挙する。
  * 比較 API は変更ファイル数に上限があるため Git 履歴を使う。移動は削除と追加として扱う。
+ * 通常のコミットは第1親（ルートは空ツリー）との差分を使う。マージコミットは全ての親と比較し、
+ * 全親と異なる状態のパスだけを採用する。片方の親と同じパスは取り込みなので、
+ * 取り込み元のコミットが範囲内の別コミットとして検出される。
  */
 function listDatabaseChanges(git, range) {
   const commits = git(['rev-list', '--parents', '--reverse', ...range])
@@ -149,43 +203,35 @@ function listDatabaseChanges(git, range) {
   let emptyTree;
   const changes = [];
   for (const line of commits) {
-    const [commit, firstParent] = line.split(' ');
-    if (!firstParent) {
+    const [commit, ...parents] = line.split(' ');
+    if (parents.length === 0) {
       emptyTree ??= git(['hash-object', '-t', 'tree', '/dev/null']).trim();
     }
-    const tokens = git([
-      'diff-tree',
-      '-r',
-      '-z',
-      '--name-status',
-      '--no-renames',
-      '--no-commit-id',
-      firstParent ?? emptyTree,
-      commit,
-      '--',
-      databaseDir,
-    ])
-      .split('\0')
-      .filter(Boolean);
-    const files = [];
-    // -z の name-status は「状態, パス」の組が NUL 区切りで続く。
-    for (let i = 0; i + 1 < tokens.length; i += 2) {
-      files.push({ status: statusLabels[tokens[i]] ?? '更新', path: tokens[i + 1] });
-    }
+    const diffs = (parents.length > 0 ? parents : [emptyTree]).map((parent) =>
+      diffPaths(git, parent, commit),
+    );
+    const files = [...diffs[0]]
+      .filter(([path]) => diffs.every((diff) => diff.has(path)))
+      .map(([path, status]) => ({ status, path }));
     if (files.length > 0) {
-      changes.push({ commit, files });
+      changes.push({ commit, files, merge: parents.length > 1 });
     }
   }
   return changes;
 }
 
-async function loadLabels(api, repo, numbers) {
-  const labels = new Map();
+/** 通常一覧の PR について、ラベル・マージ状態・base リポジトリを PR の詳細から取得する。 */
+async function loadPulls(api, repo, repository, numbers) {
+  const pulls = new Map();
   for (const number of numbers) {
     const pull = await api(`${repo}/pulls/${number}`);
-    labels.set(number, new Set(pull.labels.map((label) => label.name)));
+    pulls.set(number, {
+      labels: new Set(pull.labels.map((label) => label.name)),
+      merged: Boolean(pull.merged_at),
+      sameRepository: pull.base?.repo?.full_name?.toLowerCase() === repository.toLowerCase(),
+    });
   }
-  return labels;
+  return pulls;
 }
 
 /**
@@ -195,7 +241,8 @@ async function loadLabels(api, repo, numbers) {
  */
 async function buildNotes({ api, git, repo, repository, sha, latest, generated }) {
   const parsed = parseGenerated(generated, repository);
-  const labels = await loadLabels(api, repo, [...parsed.pulls.keys()]);
+  const details = await loadPulls(api, repo, repository, [...parsed.pulls.keys()]);
+  const labels = new Map([...details].map(([number, pull]) => [number, pull.labels]));
   const listed = new Map(
     [...parsed.pulls].filter(([number]) => !labels.get(number).has(excludedLabel)),
   );
@@ -205,13 +252,17 @@ async function buildNotes({ api, git, repo, repository, sha, latest, generated }
   );
   const direct = [];
   for (const change of listDatabaseChanges(git, resolveRange(git, sha, latest, generated))) {
+    // マージコミットの変更は競合解決などで生じたもので、関連 PR に帰属させずコミットとして示す。
+    if (change.merge) {
+      direct.push(change);
+      continue;
+    }
+    // 関連 API の一覧は候補の照合にだけ使い、マージ済みか同一リポジトリかは PR の詳細で確認する。
     const related = await listAll(api, `${repo}/commits/${change.commit}/pulls`);
-    const mapped = related.filter(
-      (pull) =>
-        pull.merged_at &&
-        pull.base?.repo?.full_name?.toLowerCase() === repository.toLowerCase() &&
-        listed.has(pull.number),
-    );
+    const mapped = related.filter((pull) => {
+      const detail = details.get(pull.number);
+      return listed.has(pull.number) && detail.merged && detail.sameRepository;
+    });
     if (mapped.length > 0) {
       mapped.forEach((pull) => databasePulls.add(pull.number));
     } else {

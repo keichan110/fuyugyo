@@ -20,6 +20,7 @@ function fixture({
   notes = '新しい変更一覧',
   labels = {},
   commitPulls = {},
+  pullDetails = {},
   git = () => '',
 } = {}) {
   const calls = [];
@@ -46,7 +47,12 @@ function fixture({
     }
     const pull = path.match(/^repos\/example\/app\/pulls\/(\d+)$/);
     if (pull) {
-      return { labels: (labels[pull[1]] ?? []).map((name) => ({ name })) };
+      return {
+        labels: (labels[pull[1]] ?? []).map((name) => ({ name })),
+        merged_at: '2026-01-02T00:00:00Z',
+        base: { repo: { full_name: 'example/app' } },
+        ...pullDetails[pull[1]],
+      };
     }
     if (path.startsWith(`${repo}/commits/`)) {
       return { sha: commitSha };
@@ -301,11 +307,8 @@ test('管理情報が壊れた候補は準備・デプロイ検証ともに書�
 const repository = 'example/app';
 const pullUrl = (number) => `https://github.com/${repository}/pull/${number}`;
 const prLine = (title, number) => `* ${title} by @someone in ${pullUrl(number)}`;
-const mergedPull = (number) => ({
-  number,
-  merged_at: '2026-01-02T00:00:00Z',
-  base: { repo: { full_name: repository } },
-});
+// commits/{sha}/pulls の応答は merged_at や base を返さない場合がある。照合は番号だけに使う。
+const mergedPull = (number) => ({ number });
 
 /** 一時 Git リポジトリを作り、コミットと実 git の実行関数を返す。 */
 function createRepo(t) {
@@ -343,7 +346,7 @@ function createRepo(t) {
     run(['commit', '-q', '--allow-empty', '-m', `commit ${++count}`]);
     return run(['rev-parse', 'HEAD']).trim();
   };
-  return { run, commit, git: (args) => run(args) };
+  return { dir, run, commit, git: (args) => run(args) };
 }
 
 const draftOf = (state) => state.releases.find((release) => release.draft);
@@ -444,10 +447,11 @@ test('範囲内の drizzle/ の変更を PR 行またはコミットとパスで
       [direct]: [],
       // 通常一覧にない PR（skip-changelog などで除外）は PR 行にならない
       [excluded]: [mergedPull(11)],
-      // マージされていない PR は対応付けない
-      [unmerged]: [{ ...mergedPull(12), merged_at: null }],
+      // マージされていない PR は、関連 API の応答ではなく PR の詳細で判定して対応付けない
+      [unmerged]: [mergedPull(12)],
       [appOnly]: [mergedPull(12)],
     },
+    pullDetails: { 12: { merged_at: null } },
     git: local.git,
   });
   await runRelease('prepare', { ...env, RELEASE_SHA: appOnly }, state.api, state.git);
@@ -601,4 +605,140 @@ test('比較元・履歴・API の取得に失敗したらドラフトを保存�
   );
   assert.equal(state.releases.filter((release) => release.draft).length, 0);
   assert.equal(saved(state).length, 0);
+});
+
+test('関連 API が merged_at を返さなくても、PR の詳細で検証して DB カテゴリへ補完する', async (t) => {
+  const local = createRepo(t);
+  const base = local.commit({ 'src/app.ts': 'a' });
+  local.run(['tag', 'v1', base]);
+  const merged = local.commit({ 'drizzle/0001_a.sql': 'a' });
+  const unmerged = local.commit({ 'drizzle/0002_b.sql': 'a' });
+  const foreignBase = local.commit({ 'drizzle/0003_c.sql': 'a' });
+  const state = fixture({
+    releases: [
+      { id: 9, tag_name: 'v1', draft: false, prerelease: false, published_at: '2026-01-01' },
+    ],
+    notes: [prLine('機能', 1), prLine('未マージ', 2), prLine('別 base', 3)].join('\n'),
+    labels: { 1: ['enhancement'], 2: ['enhancement'], 3: ['enhancement'] },
+    commitPulls: {
+      [merged]: [mergedPull(1)],
+      [unmerged]: [mergedPull(2)],
+      [foreignBase]: [mergedPull(3)],
+    },
+    pullDetails: {
+      2: { merged_at: null },
+      3: { base: { repo: { full_name: 'other/app' } } },
+    },
+    git: local.git,
+  });
+  await runRelease('prepare', { ...env, RELEASE_SHA: foreignBase }, state.api, state.git);
+  const body = draftOf(state).body;
+  const link = (commit) =>
+    `[\`${commit.slice(0, 7)}\`](https://github.com/${repository}/commit/${commit})`;
+  assert.ok(
+    body.includes(
+      [
+        dbHeading,
+        prLine('機能', 1),
+        `* ${link(unmerged)} \`drizzle/0002_b.sql\`（追加）`,
+        `* ${link(foreignBase)} \`drizzle/0003_c.sql\`（追加）`,
+      ].join('\n'),
+    ),
+    body,
+  );
+});
+
+test('マージコミットは全親と比較し、main の取り込みは PR に帰属させず競合解決はコミットで示す', async (t) => {
+  const local = createRepo(t);
+  const base = local.commit({ 'drizzle/meta/_journal.json': 'base', 'src/app.ts': 'a' });
+  local.run(['tag', 'v1', base]);
+  local.run(['checkout', '-q', '-b', 'feature']);
+  const featureCommit = local.commit({ 'src/feature.ts': 'a' });
+  local.run(['checkout', '-q', 'main']);
+  const mainCommit = local.commit({ 'drizzle/0001_main.sql': 'a' });
+  local.run(['checkout', '-q', 'feature']);
+  // main の取り込み。マイグレーションの変更は取り込みだけで、PR 自体は変更していない
+  local.run(['merge', '-q', '--no-ff', '-m', 'merge main', 'main']);
+  const imported = local.run(['rev-parse', 'HEAD']).trim();
+  // 競合解決。双方と異なる内容でマージする
+  local.run(['checkout', '-q', 'main']);
+  const mainJournal = local.commit({ 'drizzle/meta/_journal.json': 'main' });
+  local.run(['checkout', '-q', 'feature']);
+  local.commit({ 'drizzle/meta/_journal.json': 'feature' });
+  assert.throws(() => local.run(['merge', '--no-ff', '-m', 'resolve', 'main']));
+  writeFileSync(join(local.dir, 'drizzle/meta/_journal.json'), 'resolved');
+  local.run(['add', '-A']);
+  local.run(['commit', '-q', '-m', 'resolve']);
+  const resolved = local.run(['rev-parse', 'HEAD']).trim();
+  const link = (commit) =>
+    `[\`${commit.slice(0, 7)}\`](https://github.com/${repository}/commit/${commit})`;
+  const state = fixture({
+    releases: [
+      { id: 9, tag_name: 'v1', draft: false, prerelease: false, published_at: '2026-01-01' },
+    ],
+    notes: [prLine('機能', 1), prLine('main の変更', 2)].join('\n'),
+    labels: { 1: ['enhancement'], 2: ['enhancement'] },
+    commitPulls: {
+      [featureCommit]: [mergedPull(1)],
+      [imported]: [mergedPull(1)],
+      [mainCommit]: [mergedPull(2)],
+      [mainJournal]: [mergedPull(2)],
+      [resolved]: [mergedPull(1)],
+    },
+    git: local.git,
+  });
+  await runRelease('prepare', { ...env, RELEASE_SHA: resolved }, state.api, state.git);
+  const body = draftOf(state).body;
+  const database = body.slice(body.indexOf(dbHeading));
+  // PR 1 は DB を変更していないため DB カテゴリに載らない。PR 2 は自身のコミットで載る
+  assert.ok(database.startsWith(`${dbHeading}\n${prLine('main の変更', 2)}\n`), body);
+  assert.ok(!database.includes(prLine('機能', 1)));
+  assert.ok(database.includes(`* ${link(resolved)} \`drizzle/meta/_journal.json\`（更新）`), body);
+  assert.doesNotMatch(body, new RegExp(imported.slice(0, 7)));
+});
+
+test('複数行の PR 項目を1項目として保持し、分類・除外・重複排除する', async () => {
+  const multi = (title, number) =>
+    `* ${title.replace(' ', '\n')} by @someone in ${pullUrl(number)}`;
+  const foreign = '* 他リポジトリの変更 by @someone in https://github.com/other/app/pull/7';
+  const notes = [
+    "## What's Changed",
+    multi('機能 追加', 1),
+    multi('除外 対象', 2),
+    prLine('単一行', 3),
+    foreign,
+    '',
+    `**Full Changelog**: https://github.com/${repository}/compare/v1...v2`,
+  ].join('\n');
+  const state = fixture({
+    notes,
+    labels: { 1: ['enhancement', 'bug'], 2: ['skip-changelog', 'bug'], 3: ['dependencies'] },
+    git: (args) => (args[0] === 'rev-parse' ? sha : ''),
+  });
+  await runRelease('prepare', env, state.api, state.git);
+  const body = draftOf(state).body;
+  const section = (title, ...lines) => `## ${title}\n${lines.join('\n')}`;
+  const expected = [
+    section('✨ 機能追加・改善', multi('機能 追加', 1)),
+    section('🐛 バグ修正', multi('機能 追加', 1)),
+    section('⬆️ 依存関係の更新', prLine('単一行', 3)),
+    section('その他の変更', foreign),
+    `**Full Changelog**: https://github.com/${repository}/compare/v1...v2`,
+  ].join('\n\n');
+  assert.ok(
+    body.includes(`<!-- release-notes:start -->\n${expected}\n<!-- release-notes:end -->`),
+    body,
+  );
+  assert.doesNotMatch(body, /除外/);
+});
+
+test('分類できない同一リポジトリの PR 項目は黙って落とさず、ドラフトを保存しない', async () => {
+  for (const notes of [
+    `* 形式が違う項目 ${pullUrl(1)}`,
+    ["## What's Changed", prLine('機能', 1), '', `補足 ${pullUrl(2)}`].join('\n'),
+  ]) {
+    const state = fixture({ notes, git: (args) => (args[0] === 'rev-parse' ? sha : '') });
+    await assert.rejects(runRelease('prepare', env, state.api, state.git), /分類できません/);
+    assert.equal(state.releases.length, 0);
+  }
 });

@@ -18,6 +18,7 @@ import { Route as InstructorsRouteImport } from './routes/instructors'
 import { Route as CertificationsRouteImport } from './routes/certifications'
 import { Route as CertificationRequirementsRouteImport } from './routes/certification-requirements'
 import { Route as AvailabilitiesRouteImport } from './routes/availabilities'
+import { Route as AccessRequestsRouteImport } from './routes/access-requests'
 import { Route as ShiftsRouteRouteImport } from './routes/shifts/route'
 import { Route as AnalysisRouteRouteImport } from './routes/analysis/route'
 import { Route as IndexRouteImport } from './routes/index'
@@ -74,6 +75,11 @@ const AvailabilitiesRoute = AvailabilitiesRouteImport.update({
   path: '/availabilities',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AccessRequestsRoute = AccessRequestsRouteImport.update({
+  id: '/access-requests',
+  path: '/access-requests',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ShiftsRouteRoute = ShiftsRouteRouteImport.update({
   id: '/shifts',
   path: '/shifts',
@@ -124,6 +130,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/analysis': typeof AnalysisRouteRouteWithChildren
   '/shifts': typeof ShiftsRouteRouteWithChildren
+  '/access-requests': typeof AccessRequestsRoute
   '/availabilities': typeof AvailabilitiesRoute
   '/certification-requirements': typeof CertificationRequirementsRoute
   '/certifications': typeof CertificationsRoute
@@ -143,6 +150,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/analysis': typeof AnalysisRouteRouteWithChildren
+  '/access-requests': typeof AccessRequestsRoute
   '/availabilities': typeof AvailabilitiesRoute
   '/certification-requirements': typeof CertificationRequirementsRoute
   '/certifications': typeof CertificationsRoute
@@ -164,6 +172,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/analysis': typeof AnalysisRouteRouteWithChildren
   '/shifts': typeof ShiftsRouteRouteWithChildren
+  '/access-requests': typeof AccessRequestsRoute
   '/availabilities': typeof AvailabilitiesRoute
   '/certification-requirements': typeof CertificationRequirementsRoute
   '/certifications': typeof CertificationsRoute
@@ -186,6 +195,7 @@ export interface FileRouteTypes {
     | '/'
     | '/analysis'
     | '/shifts'
+    | '/access-requests'
     | '/availabilities'
     | '/certification-requirements'
     | '/certifications'
@@ -205,6 +215,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/analysis'
+    | '/access-requests'
     | '/availabilities'
     | '/certification-requirements'
     | '/certifications'
@@ -225,6 +236,7 @@ export interface FileRouteTypes {
     | '/'
     | '/analysis'
     | '/shifts'
+    | '/access-requests'
     | '/availabilities'
     | '/certification-requirements'
     | '/certifications'
@@ -246,6 +258,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AnalysisRouteRoute: typeof AnalysisRouteRouteWithChildren
   ShiftsRouteRoute: typeof ShiftsRouteRouteWithChildren
+  AccessRequestsRoute: typeof AccessRequestsRoute
   AvailabilitiesRoute: typeof AvailabilitiesRoute
   CertificationRequirementsRoute: typeof CertificationRequirementsRoute
   CertificationsRoute: typeof CertificationsRoute
@@ -322,6 +335,13 @@ declare module '@tanstack/react-router' {
       path: '/availabilities'
       fullPath: '/availabilities'
       preLoaderRoute: typeof AvailabilitiesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/access-requests': {
+      id: '/access-requests'
+      path: '/access-requests'
+      fullPath: '/access-requests'
+      preLoaderRoute: typeof AccessRequestsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/shifts': {
@@ -422,6 +442,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AnalysisRouteRoute: AnalysisRouteRouteWithChildren,
   ShiftsRouteRoute: ShiftsRouteRouteWithChildren,
+  AccessRequestsRoute: AccessRequestsRoute,
   AvailabilitiesRoute: AvailabilitiesRoute,
   CertificationRequirementsRoute: CertificationRequirementsRoute,
   CertificationsRoute: CertificationsRoute,

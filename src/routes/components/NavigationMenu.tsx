@@ -1,3 +1,5 @@
+import { useId } from 'react';
+
 import { NavLink, Stack, Text, VisuallyHidden } from '@mantine/core';
 import {
   IconCalendarCog,
@@ -10,11 +12,11 @@ import {
   IconSettings,
   IconTicket,
   IconUser,
+  IconUserCheck,
   IconUsers,
   type Icon,
 } from '@tabler/icons-react';
 import { Link, useRouterState } from '@tanstack/react-router';
-import { useId } from 'react';
 
 import { AppBadge } from '@/components/AppBadge';
 import { useAccessRequests } from '@/features/access-requests/queries';
@@ -74,6 +76,7 @@ const NAVIGATION_GROUPS: NavigationGroup[] = [
     items: [
       { to: '/users', label: 'ユーザー', icon: IconUsers, minimumRole: 'MANAGER' },
       { to: '/invitations', label: '招待', icon: IconTicket, minimumRole: 'ADMIN' },
+      { to: '/access-requests', label: '利用申請', icon: IconUserCheck, minimumRole: 'ADMIN' },
     ],
   },
 ];
@@ -130,7 +133,7 @@ export function NavigationMenu({
             )}
             {group.items.map(({ to, label, icon: Icon }) => {
               const disabled = to === '/availabilities' && !user.instructorId;
-              const showPendingBadge = to === '/users' && isAdmin && pendingCount > 0;
+              const showPendingBadge = to === '/access-requests' && isAdmin && pendingCount > 0;
               return (
                 <NavLink
                   key={to}
@@ -152,7 +155,7 @@ export function NavigationMenu({
                   disabled={disabled}
                   description={disabled ? '管理者に紐付けを依頼してください' : undefined}
                   leftSection={<Icon size={18} stroke={1.75} />}
-                  // リンクのアクセシブル名は「ユーザー」のまま保ち、件数は説明（aria-describedby）で伝える
+                  // リンクのアクセシブル名は「利用申請」のまま保ち、件数は説明（aria-describedby）で伝える
                   aria-describedby={showPendingBadge ? pendingDescriptionId : undefined}
                   rightSection={
                     showPendingBadge ? (

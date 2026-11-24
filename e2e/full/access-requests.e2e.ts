@@ -89,8 +89,8 @@ async function cleanup(): Promise<void> {
   });
 }
 
-/** ナビの「ユーザー」リンクを返す。モバイルでは「その他」ドロワーを開いてから探す */
-async function openUsersNavLink(page: Page, name: string | RegExp) {
+/** ナビのリンクを返す。モバイルでは「その他」ドロワーを開いてから探す */
+async function openNavLink(page: Page, name: string | RegExp) {
   await page.getByRole('button', { name: 'その他' }).click();
   const drawer = page.getByRole('dialog', { name: 'その他' });
   return { drawer, link: drawer.getByRole('link', { name }) };
@@ -131,26 +131,28 @@ test.describe('admin', () => {
       }),
     );
 
-    // 非表示のパネルも DOM に残るため、承認待ちの確認はパネルに限定する
-    const pendingPanel = page.getByRole('tabpanel', { name: /承認待ち/ });
+    // ユーザー管理にタブは無く、「利用申請」ナビから専用画面へ遷移する
     await page.goto('/users');
-    // 初期タブは「ユーザー」
-    await expect(page.getByRole('tab', { name: 'ユーザー', selected: true })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'ユーザー管理' })).toBeVisible();
+    await expect(page.getByRole('tab')).toHaveCount(0);
 
     // バッジは申請がある間だけ件数を表示する（他の申請を含めた基準値との合計で確認する）
     {
-      const { link } = await openUsersNavLink(page, /^ユーザー$/);
+      const { drawer, link } = await openNavLink(page, /^利用申請$/);
       await expect(link).toBeVisible();
       await expect(link).toHaveAccessibleDescription(`承認待ち ${baseline + 5}件`);
-      await closeDrawer(page);
+      // 「ユーザー」項目には件数を出さない
+      await expect(drawer.getByRole('link', { name: /^ユーザー$/ })).toHaveAccessibleDescription(
+        '',
+      );
+      await link.click();
     }
-
-    await page.getByRole('tab', { name: /承認待ち/ }).click();
-    await expect(pendingPanel.getByText(withLocation, { exact: true })).toBeVisible();
-    await expect(pendingPanel.getByText('位置（目安）: JP Hokkaido Sapporo')).toBeVisible();
+    await expect(page).toHaveURL('/access-requests');
+    await expect(page.getByRole('heading', { name: '利用申請' })).toBeVisible();
+    await expect(page.getByText(withLocation, { exact: true })).toBeVisible();
+    await expect(page.getByText('位置（目安）: JP Hokkaido Sapporo')).toBeVisible();
     // 位置情報がない申請は「不明」と表示する
-    const noLocationRow = pendingPanel.getByText(noLocation, { exact: true }).locator('..');
+    const noLocationRow = page.getByText(noLocation, { exact: true }).locator('..');
     await expect(noLocationRow.getByText('位置（目安）: 不明')).toBeVisible();
 
     // インストラクターを紐付けて承認する
@@ -164,7 +166,7 @@ test.describe('admin', () => {
     await approveDialog.getByRole('button', { name: '承認する', exact: true }).click();
     expect((await approved).status()).toBe(201);
     await expect(approveDialog).toBeHidden();
-    await expect(pendingPanel.getByText(withLocation, { exact: true })).toHaveCount(0);
+    await expect(page.getByText(withLocation, { exact: true })).toHaveCount(0);
     expect(await requestExists('a')).toBe(false);
     expect(await userOf('a')).toMatchObject({ role: 'MEMBER', isActive: true, instructorId });
 
@@ -176,16 +178,14 @@ test.describe('admin', () => {
     );
     await approveDialog2.getByRole('button', { name: '承認する', exact: true }).click();
     expect((await approved2).status()).toBe(201);
-    await expect(pendingPanel.getByText(noLocation, { exact: true })).toHaveCount(0);
+    await expect(page.getByText(noLocation, { exact: true })).toHaveCount(0);
     expect(await userOf('b')).toMatchObject({ role: 'MEMBER', isActive: true, instructorId: null });
 
-    // 承認したユーザーは「ユーザー」タブにも現れる
-    await page.getByRole('tab', { name: 'ユーザー', exact: true }).click();
+    // 承認したユーザーは「ユーザー」一覧にも現れる
+    await page.goto('/users');
     // 一覧はデスクトップ表とモバイル表示の両方を描画するため、どちらかに存在することを確認する
-    await expect(
-      page.getByRole('tabpanel', { name: 'ユーザー' }).getByText(withLocation).first(),
-    ).toBeAttached();
-    await page.getByRole('tab', { name: /承認待ち/ }).click();
+    await expect(page.getByText(withLocation).first()).toBeAttached();
+    await page.goto('/access-requests');
 
     // 単体却下は確認ダイアログを挟み、キャンセルでは削除されない
     await page.getByRole('button', { name: `${toReject}を却下` }).click();
@@ -197,7 +197,7 @@ test.describe('admin', () => {
     const rejected = page.waitForResponse((response) => response.request().method() === 'DELETE');
     await rejectDialog.getByRole('button', { name: '却下する', exact: true }).click();
     expect((await rejected).status()).toBe(204);
-    await expect(pendingPanel.getByText(toReject, { exact: true })).toHaveCount(0);
+    await expect(page.getByText(toReject, { exact: true })).toHaveCount(0);
     expect(await requestExists('c')).toBe(false);
 
     // 選択した申請の一括却下も確認を挟み、選んだ申請だけを削除する
@@ -211,17 +211,16 @@ test.describe('admin', () => {
     );
     await batchDialog.getByRole('button', { name: '却下する', exact: true }).click();
     expect((await batchRejected).status()).toBe(200);
-    await expect(pendingPanel.getByText(batch1, { exact: true })).toHaveCount(0);
+    await expect(page.getByText(batch1, { exact: true })).toHaveCount(0);
     expect(await requestExists('d')).toBe(false);
     expect(await requestExists('e')).toBe(false);
 
     // このテストの申請がなくなると、バッジは他の申請の件数だけになる（なければ消える）
     if (baseline === 0) {
-      await expect(pendingPanel.getByText('承認待ちの申請はありません')).toBeVisible();
+      await expect(page.getByText('承認待ちの申請はありません')).toBeVisible();
     }
-    await page.getByRole('tab', { name: 'ユーザー', exact: true }).click();
     {
-      const { link } = await openUsersNavLink(page, /^ユーザー$/);
+      const { link } = await openNavLink(page, /^利用申請$/);
       await expect(link).toBeVisible();
       if (baseline === 0) await expect(link).toHaveAccessibleDescription('');
       else await expect(link).toHaveAccessibleDescription(`承認待ち ${baseline}件`);
@@ -236,26 +235,24 @@ test.describe('admin', () => {
     const firstName = await seedRequest(keys[0] ?? 'lim0');
     for (const key of keys.slice(1)) await seedRequest(key);
 
-    await page.goto('/users');
-    await page.getByRole('tab', { name: /承認待ち/ }).click();
-    const pendingPanel = page.getByRole('tabpanel', { name: /承認待ち/ });
-    await expect(pendingPanel.getByText(firstName, { exact: true })).toBeVisible();
+    await page.goto('/access-requests');
+    await expect(page.getByText(firstName, { exact: true })).toBeVisible();
 
     // 上限超過時は理由を表示し、全選択は上限件数で止まる
-    await expect(pendingPanel.getByText(/一括却下は1回につき20件まで/)).toBeVisible();
-    await pendingPanel.getByRole('checkbox', { name: `先頭${REJECT_BATCH_MAX}件を選択` }).check();
+    await expect(page.getByText(/一括却下は1回につき20件まで/)).toBeVisible();
+    await page.getByRole('checkbox', { name: `先頭${REJECT_BATCH_MAX}件を選択` }).check();
     await expect(
-      pendingPanel.getByRole('button', {
+      page.getByRole('button', {
         name: `選択した申請を却下（${REJECT_BATCH_MAX}件）`,
       }),
     ).toBeVisible();
 
     // 上限到達後は未選択の申請を選べないが、選択済みの解除はできる
-    const checked = pendingPanel.getByRole('checkbox', {
+    const checked = page.getByRole('checkbox', {
       name: /^(?!先頭).*を選択$/,
       checked: true,
     });
-    const unchecked = pendingPanel.getByRole('checkbox', {
+    const unchecked = page.getByRole('checkbox', {
       name: /^(?!先頭).*を選択$/,
       checked: false,
     });
@@ -263,14 +260,14 @@ test.describe('admin', () => {
     await expect(checked).toHaveCount(REJECT_BATCH_MAX);
     await checked.first().uncheck();
     await expect(
-      pendingPanel.getByRole('button', {
+      page.getByRole('button', {
         name: `選択した申請を却下（${REJECT_BATCH_MAX - 1}件）`,
       }),
     ).toBeVisible();
 
     // 上限内なら API は 200 で受理される
     const rejected = page.waitForResponse((response) => response.url().endsWith('/reject-batch'));
-    await pendingPanel.getByRole('button', { name: /選択した申請を却下/ }).click();
+    await page.getByRole('button', { name: /選択した申請を却下/ }).click();
     await page
       .getByRole('dialog', { name: '利用申請を却下' })
       .getByRole('button', { name: '却下する', exact: true })
@@ -282,7 +279,7 @@ test.describe('admin', () => {
 test.describe('manager', () => {
   test.use({ storageState: authStatePath('manager') });
 
-  test('承認待ちのタブ・バッジを表示せず、申請 API も拒否される', async ({ page }) => {
+  test('利用申請のナビを表示せず、直アクセスも申請 API も拒否される', async ({ page }) => {
     const name = await seedRequest('m');
     const adminRequests: string[] = [];
     page.on('request', (request) => {
@@ -291,11 +288,16 @@ test.describe('manager', () => {
 
     await page.goto('/users');
     await expect(page.getByRole('heading', { name: 'ユーザー管理' })).toBeVisible();
-    await expect(page.getByRole('tab', { name: /承認待ち/ })).toHaveCount(0);
+    await expect(page.getByRole('tab')).toHaveCount(0);
     await expect(page.getByText(name)).toHaveCount(0);
-    const { link } = await openUsersNavLink(page, /^ユーザー$/);
+    const { drawer, link } = await openNavLink(page, /^ユーザー$/);
     await expect(link).toBeVisible();
+    // 「利用申請」ナビは ADMIN だけに表示する
+    await expect(drawer.getByRole('link', { name: /利用申請/ })).toHaveCount(0);
     await closeDrawer(page);
+    // 直アクセスは / へ戻され、申請 API も呼ばれない
+    await page.goto('/access-requests');
+    await expect(page).toHaveURL('/');
     expect(adminRequests).toEqual([]);
 
     expect((await page.request.get('/api/access-requests')).status()).toBe(403);
@@ -317,11 +319,13 @@ test.describe('manager', () => {
 test.describe('member', () => {
   test.use({ storageState: authStatePath('member') });
 
-  test('ユーザー画面に入れず、申請 API も拒否される', async ({ page, playwright }) => {
+  test('利用申請画面に入れず、申請 API も拒否される', async ({ page, playwright }) => {
     await seedRequest('n');
     await page.goto('/users');
     await expect(page).toHaveURL('/');
-    await expect(page.getByRole('tab', { name: /承認待ち/ })).toHaveCount(0);
+    await page.goto('/access-requests');
+    await expect(page).toHaveURL('/');
+    await expect(page.getByRole('heading', { name: '利用申請' })).toHaveCount(0);
 
     expect((await page.request.get('/api/access-requests')).status()).toBe(403);
     expect(

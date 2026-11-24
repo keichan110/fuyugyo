@@ -22,9 +22,11 @@ import { Route as ShiftsRouteRouteImport } from './routes/shifts/route'
 import { Route as AnalysisRouteRouteImport } from './routes/analysis/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ShiftsIndexRouteImport } from './routes/shifts/index'
+import { Route as AccessRequestIndexRouteImport } from './routes/access-request/index'
 import { Route as ShiftsPrintRouteImport } from './routes/shifts/print'
 import { Route as ShiftsManageRouteImport } from './routes/shifts/manage'
 import { Route as AnalysisSeasonRouteImport } from './routes/analysis/season'
+import { Route as AccessRequestPendingRouteImport } from './routes/access-request/pending'
 
 const WeatherPointRoute = WeatherPointRouteImport.update({
   id: '/weather-point',
@@ -92,6 +94,11 @@ const ShiftsIndexRoute = ShiftsIndexRouteImport.update({
   path: '/',
   getParentRoute: () => ShiftsRouteRoute,
 } as any)
+const AccessRequestIndexRoute = AccessRequestIndexRouteImport.update({
+  id: '/access-request/',
+  path: '/access-request/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ShiftsPrintRoute = ShiftsPrintRouteImport.update({
   id: '/print',
   path: '/print',
@@ -107,6 +114,11 @@ const AnalysisSeasonRoute = AnalysisSeasonRouteImport.update({
   path: '/season',
   getParentRoute: () => AnalysisRouteRoute,
 } as any)
+const AccessRequestPendingRoute = AccessRequestPendingRouteImport.update({
+  id: '/access-request/pending',
+  path: '/access-request/pending',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -121,9 +133,11 @@ export interface FileRoutesByFullPath {
   '/shift-types': typeof ShiftTypesRoute
   '/users': typeof UsersRoute
   '/weather-point': typeof WeatherPointRoute
+  '/access-request/pending': typeof AccessRequestPendingRoute
   '/analysis/season': typeof AnalysisSeasonRoute
   '/shifts/manage': typeof ShiftsManageRoute
   '/shifts/print': typeof ShiftsPrintRoute
+  '/access-request/': typeof AccessRequestIndexRoute
   '/shifts/': typeof ShiftsIndexRoute
 }
 export interface FileRoutesByTo {
@@ -138,9 +152,11 @@ export interface FileRoutesByTo {
   '/shift-types': typeof ShiftTypesRoute
   '/users': typeof UsersRoute
   '/weather-point': typeof WeatherPointRoute
+  '/access-request/pending': typeof AccessRequestPendingRoute
   '/analysis/season': typeof AnalysisSeasonRoute
   '/shifts/manage': typeof ShiftsManageRoute
   '/shifts/print': typeof ShiftsPrintRoute
+  '/access-request': typeof AccessRequestIndexRoute
   '/shifts': typeof ShiftsIndexRoute
 }
 export interface FileRoutesById {
@@ -157,9 +173,11 @@ export interface FileRoutesById {
   '/shift-types': typeof ShiftTypesRoute
   '/users': typeof UsersRoute
   '/weather-point': typeof WeatherPointRoute
+  '/access-request/pending': typeof AccessRequestPendingRoute
   '/analysis/season': typeof AnalysisSeasonRoute
   '/shifts/manage': typeof ShiftsManageRoute
   '/shifts/print': typeof ShiftsPrintRoute
+  '/access-request/': typeof AccessRequestIndexRoute
   '/shifts/': typeof ShiftsIndexRoute
 }
 export interface FileRouteTypes {
@@ -177,9 +195,11 @@ export interface FileRouteTypes {
     | '/shift-types'
     | '/users'
     | '/weather-point'
+    | '/access-request/pending'
     | '/analysis/season'
     | '/shifts/manage'
     | '/shifts/print'
+    | '/access-request/'
     | '/shifts/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -194,9 +214,11 @@ export interface FileRouteTypes {
     | '/shift-types'
     | '/users'
     | '/weather-point'
+    | '/access-request/pending'
     | '/analysis/season'
     | '/shifts/manage'
     | '/shifts/print'
+    | '/access-request'
     | '/shifts'
   id:
     | '__root__'
@@ -212,9 +234,11 @@ export interface FileRouteTypes {
     | '/shift-types'
     | '/users'
     | '/weather-point'
+    | '/access-request/pending'
     | '/analysis/season'
     | '/shifts/manage'
     | '/shifts/print'
+    | '/access-request/'
     | '/shifts/'
   fileRoutesById: FileRoutesById
 }
@@ -231,6 +255,8 @@ export interface RootRouteChildren {
   ShiftTypesRoute: typeof ShiftTypesRoute
   UsersRoute: typeof UsersRoute
   WeatherPointRoute: typeof WeatherPointRoute
+  AccessRequestPendingRoute: typeof AccessRequestPendingRoute
+  AccessRequestIndexRoute: typeof AccessRequestIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -326,6 +352,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShiftsIndexRouteImport
       parentRoute: typeof ShiftsRouteRoute
     }
+    '/access-request/': {
+      id: '/access-request/'
+      path: '/access-request'
+      fullPath: '/access-request/'
+      preLoaderRoute: typeof AccessRequestIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/shifts/print': {
       id: '/shifts/print'
       path: '/print'
@@ -346,6 +379,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/analysis/season'
       preLoaderRoute: typeof AnalysisSeasonRouteImport
       parentRoute: typeof AnalysisRouteRoute
+    }
+    '/access-request/pending': {
+      id: '/access-request/pending'
+      path: '/access-request/pending'
+      fullPath: '/access-request/pending'
+      preLoaderRoute: typeof AccessRequestPendingRouteImport
+      parentRoute: typeof rootRouteImport
     }
   }
 }
@@ -391,6 +431,8 @@ const rootRouteChildren: RootRouteChildren = {
   ShiftTypesRoute: ShiftTypesRoute,
   UsersRoute: UsersRoute,
   WeatherPointRoute: WeatherPointRoute,
+  AccessRequestPendingRoute: AccessRequestPendingRoute,
+  AccessRequestIndexRoute: AccessRequestIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

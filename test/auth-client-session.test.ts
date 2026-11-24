@@ -123,8 +123,15 @@ describe('未認証時のルーティング', () => {
     });
   });
 
-  it('ログイン画面ではリダイレクトしない', () => {
-    expect(getUnauthenticatedRedirect('/login')).toBeNull();
+  it.each(['/login', '/access-request', '/access-request/', '/access-request/pending'])(
+    '未認証で表示できる画面（%s）ではリダイレクトしない',
+    (pathname) => {
+      expect(getUnauthenticatedRedirect(pathname)).toBeNull();
+    },
+  );
+
+  it('利用申請画面に似たパスの保護画面はログインへ置き換える', () => {
+    expect(getUnauthenticatedRedirect('/access-request/other')).not.toBeNull();
   });
 
   it('未認証になった保護画面の内容を描画しない', async () => {

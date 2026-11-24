@@ -1,0 +1,8 @@
+/* ログインページと同じ背景: 上部を薄い青、下部を白へ抜けるグラデーション */
+.heroBackground {
+  background: linear-gradient(
+    180deg,
+    var(--mantine-color-blue-0) 0%,
+    var(--mantine-color-white) 100%
+  );
+}

@@ -45,6 +45,30 @@ export async function resetBusinessData(): Promise<void> {
   }
 }
 
+/**
+ * 業務フローの対象日（スキー）の枠の公開状態と配置を、画面や API を介さず D1 から直接読む。
+ * 画面操作の結果が実際に保存されていることの確認に使う。
+ */
+export async function readBusinessShifts(): Promise<
+  Array<{ status: string; instructorId: string | null }>
+> {
+  const client = createClient({ url: `file:${getLocalD1Path(E2E_PERSIST_DIR)}` });
+  try {
+    return await drizzle(client)
+      .select({ status: shifts.status, instructorId: shiftAssignments.instructorId })
+      .from(shifts)
+      .leftJoin(shiftAssignments, eq(shiftAssignments.shiftId, shifts.id))
+      .where(
+        and(
+          eq(shifts.date, new Date(`${BUSINESS_DATE}T00:00:00Z`)),
+          eq(shifts.departmentCode, 'ski'),
+        ),
+      );
+  } finally {
+    await client.close();
+  }
+}
+
 /** 両ブラウザで割当保存のスモークを繰り返せるよう、対象の割当だけを解除する。 */
 export async function resetSmokeAssignment(): Promise<void> {
   const client = createClient({ url: `file:${getLocalD1Path(E2E_PERSIST_DIR)}` });

@@ -10,6 +10,7 @@
 - 認証・権限・API の振る舞いは Vitest の統合テストで担保する。
 - E2E は「壊れたらスクール業務が止まる導線」に絞る。LINE OAuth のログインフロー自体は E2E の対象外（統合テストで担保）。
 - Vitest は `test/**/*.{test,spec}.ts` だけを拾う。E2E は `e2e/**/*.e2e.ts` で、互いに衝突しない。
+- 既存データを持つ DB への移行は `scripts/migration-data.test.mjs`（Wrangler のローカル D1、`pnpm run test:scripts`）、リリース workflow の設定は `.github/scripts/release-workflow.test.mjs` で確認する。
 - 重要シナリオごとの既存テスト・不足・PR／リリースでの実行範囲、カバレッジの基準値は [テスト品質ベースライン](./quality-baseline.md) にまとめている。
 
 ## E2E の実行

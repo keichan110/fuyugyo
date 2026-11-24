@@ -85,6 +85,8 @@ Required reviewers は public リポジトリなら利用できる。private に
 
 候補管理の回帰テストは PR の CI の `pnpm run test:scripts` に含まれる。単独では `node --test .github/scripts/release.test.mjs` で実行できる。GitHub API を差し替えるため本番操作は行わない。
 
+ワークフローの設定（SHA 固定・成果物の受け渡し・E2E 失敗/skip/キャンセル時に `deploy` が始まらない条件）は `.github/scripts/release-workflow.test.mjs` が記述として確認する（PR の CI で実行）。データを変換する migration は、既存データを入れた独立ローカル D1 で `scripts/migration-data.test.mjs` が確認する。ただし固定の代表データで、本番データでの検証ではない。リリースは main の Quality Check の成功や PR の必須チェックのバイパス有無を確認しないため、対象 SHA のチェック結果は実行前に Actions で確認する（詳細: [テスト品質ベースライン](../testing/quality-baseline.md) §4・§9.4）。
+
 ヘルスチェックは D1 readiness を確認しない。migration の成否はコマンド終了コードで判定し、外部 OAuth や既存データとの互換性は運用確認・監視で補う。
 
 ## Worker secret の変更手順

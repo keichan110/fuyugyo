@@ -1,6 +1,6 @@
 import { env } from 'cloudflare:test';
 import { and, eq } from 'drizzle-orm';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import app from '../src/index';
 import { signJwt } from '../src/server/auth/jwt';
@@ -128,6 +128,10 @@ async function assignmentsOf(shiftTypeId: string, date: string, departmentCode =
 }
 
 beforeEach(async () => {
+  // 検証対象の 2027-02 が実時間で過去になっても過去日拒否で失敗しないよう、現在日だけを固定する。
+  // Date のみを差し替えるため、D1・worker の他のタイマーと Promise.all での同時開始には影響しない。
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2026-11-13T03:00:00Z'));
   await db.delete(instructorAvailabilities);
   await db.delete(shiftAssignments);
   await db.delete(shifts);
@@ -135,6 +139,10 @@ beforeEach(async () => {
   await db.delete(shiftTypes);
   await db.delete(users);
   await db.delete(instructors);
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe('現状仕様の固定（C3・C4。禁止仕様ではなく、変更は別設計）', () => {

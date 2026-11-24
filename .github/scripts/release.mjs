@@ -6,6 +6,22 @@ const marker = /<!-- fuyugyo-release:(.*?) -->/;
 const notesStart = '<!-- release-notes:start -->';
 const notesEnd = '<!-- release-notes:end -->';
 
+// .github/release.yml のカテゴリ順・ラベル対応と揃える（テストで同期を検証する）。
+// generate-notes は PR を最初の1カテゴリにしか載せないため、本文はここで全該当カテゴリに組み直す。
+export const releaseCategories = [
+  { title: '✨ 機能追加・改善', labels: ['enhancement'] },
+  { title: '🐛 バグ修正', labels: ['bug'] },
+  { title: '🔒 セキュリティ', labels: ['security'] },
+  { title: '🗃️ DB マイグレーションあり', labels: ['db-migration'], database: true },
+  { title: '⬆️ 依存関係の更新', labels: ['dependencies'] },
+  { title: '🔧 CI・運用', labels: ['ci-cd', 'devops'] },
+];
+export const otherCategoryTitle = 'その他の変更';
+const changesHeading = "## What's Changed";
+const excludedLabel = 'skip-changelog';
+const databaseDir = 'drizzle/';
+const statusLabels = { A: '追加', D: '削除' };
+
 function metadata(release) {
   const match = release.body?.match(marker);
   return match ? JSON.parse(match[1]) : undefined;
@@ -33,6 +49,275 @@ async function listAll(api, path) {
       return result;
     }
   }
+}
+
+function localGit(args) {
+  return execFileSync('git', args, { encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
+}
+
+function escapeRegExp(text) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * generate-notes の本文を、同一リポジトリの PR 項目・保持する節・末尾の文章に分解する。
+ * 箇条書き（`* ` 始まり）が始まったら、生成された PR URL で終わる行までを Markdown 記号・空行を含めて
+ * 1項目として保持する（複数行タイトルの継続行が見出しや新項目に見えても分割しない）。
+ * PR 項目の文言と順序は生成結果のまま使う。New Contributors 節と比較リンクは本文ごと保持する。
+ * 同一リポジトリの PR を指すのに分類できない項目や、終端を判定できない項目は、黙って落とさず例外にする。
+ */
+function parseGenerated(body, repository) {
+  const pullUrl = `https://github\\.com/${escapeRegExp(repository)}/pull/(\\d+)`;
+  const prPattern = new RegExp(`^\\* [\\s\\S]+ in ${pullUrl}$`, 'i');
+  const mentionsPull = new RegExp(pullUrl, 'i');
+  // 項目の終端: 任意のリポジトリの PR URL で終わる行
+  const itemEnd = /\sin https:\/\/github\.com\/[^\s/]+\/[^\s/]+\/pull\/\d+$/i;
+  const pulls = new Map();
+  const foreign = [];
+  const kept = [];
+  const trailer = [];
+  const preamble = [];
+  const unclassifiable = (text) => {
+    throw new Error(`generate-notes の PR 項目を分類できません。\n${text}`);
+  };
+  const classify = (lines) => {
+    const item = lines.join('\n');
+    const match = prPattern.exec(item);
+    if (match) {
+      pulls.set(Number(match[1]), item);
+    } else if (mentionsPull.test(item)) {
+      unclassifiable(item);
+    } else {
+      // 他リポジトリの項目などは分類できないため、その他の変更へそのまま載せる。
+      foreign.push(item);
+    }
+  };
+  let inChanges = false;
+  let contributors;
+  let current;
+  for (const line of body.split(/\r?\n/)) {
+    const text = line.trimEnd();
+    if (current) {
+      current.push(text);
+      if (itemEnd.test(text)) {
+        classify(current);
+        current = undefined;
+      }
+      continue;
+    }
+    if (text.startsWith('## ')) {
+      inChanges = text === changesHeading;
+      if (contributors) {
+        kept.push(contributors.join('\n').trim());
+        contributors = undefined;
+      }
+      if (/^## New Contributors/i.test(text)) {
+        contributors = [text];
+      }
+    } else if (contributors) {
+      contributors.push(text);
+    } else if (inChanges && text.startsWith('### ')) {
+      // GitHub が付けたカテゴリ見出しは、再分類した節に置き換える。
+      continue;
+    } else if (text.startsWith('<!-- Release notes generated using configuration ')) {
+      preamble.push(text);
+    } else if (text.startsWith('* ')) {
+      if (itemEnd.test(text)) {
+        classify([text]);
+      } else {
+        current = [text];
+      }
+    } else if (text.trim()) {
+      if (mentionsPull.test(text)) {
+        unclassifiable(text);
+      }
+      trailer.push(text);
+    }
+  }
+  if (current) {
+    // 終端の PR URL がないまま本文が終わった場合、後続の PR が巻き込まれうるため保存しない。
+    unclassifiable(current.join('\n'));
+  }
+  if (contributors) {
+    kept.push(contributors.join('\n').trim());
+  }
+  return { pulls, foreign, kept, trailer, preamble };
+}
+
+/**
+ * 初回リリースの比較元。generate-notes が比較リンク（compare/<base>...<head>）で
+ * 示した場合だけ、その参照を返す。
+ */
+function generatedBase(body) {
+  const link = /\*\*Full Changelog\*\*:\s*(\S+)/.exec(body)?.[1];
+  const compare = link && /\/compare\/(.+?)\.\.\.(.+)$/.exec(link);
+  return compare ? decodeURIComponent(compare[1]) : undefined;
+}
+
+function resolveCommit(git, ref) {
+  try {
+    const resolved = git(['rev-parse', '--verify', '--quiet', `${ref}^{commit}`]).trim();
+    if (resolved) {
+      return resolved;
+    }
+  } catch {
+    // 下の共通エラーにまとめる。
+  }
+  throw new Error(`比較元 ${ref} を Git 履歴から解決できません。`);
+}
+
+/**
+ * 比較範囲を rev-list の引数で返す。公開済みタグがあればそのタグから候補 SHA まで、
+ * 初回は generate-notes の比較元、それもなければ候補 SHA から到達できる全履歴。
+ */
+function resolveRange(git, sha, latest, generatedBody) {
+  const base = latest
+    ? resolveCommit(git, `refs/tags/${latest.tag_name}`)
+    : (() => {
+        const ref = generatedBase(generatedBody);
+        return ref && resolveCommit(git, ref);
+      })();
+  return base ? [`${base}..${sha}`] : [sha];
+}
+
+/** 2つのツリー間で変わった drizzle/ のパスと変更種別を返す。 */
+function diffPaths(git, from, to) {
+  const tokens = git([
+    'diff-tree',
+    '-r',
+    '-z',
+    '--name-status',
+    '--no-renames',
+    '--no-commit-id',
+    from,
+    to,
+    '--',
+    databaseDir,
+  ])
+    .split('\0')
+    .filter(Boolean);
+  const paths = new Map();
+  // -z の name-status は「状態, パス」の組が NUL 区切りで続く。
+  for (let i = 0; i + 1 < tokens.length; i += 2) {
+    paths.set(tokens[i + 1], statusLabels[tokens[i]] ?? '更新');
+  }
+  return paths;
+}
+
+/**
+ * 比較範囲の各コミットについて drizzle/ の変更を列挙する。
+ * 比較 API は変更ファイル数に上限があるため Git 履歴を使う。移動は削除と追加として扱う。
+ * 通常のコミットは第1親（ルートは空ツリー）との差分を使う。マージコミットは全ての親と比較し、
+ * 全親と異なる状態のパスだけを採用する。片方の親と同じパスは取り込みなので、
+ * 取り込み元のコミットが範囲内の別コミットとして検出される。
+ */
+function listDatabaseChanges(git, range) {
+  const commits = git(['rev-list', '--parents', '--reverse', ...range])
+    .split('\n')
+    .filter(Boolean);
+  let emptyTree;
+  const changes = [];
+  for (const line of commits) {
+    const [commit, ...parents] = line.split(' ');
+    if (parents.length === 0) {
+      emptyTree ??= git(['hash-object', '-t', 'tree', '/dev/null']).trim();
+    }
+    const diffs = (parents.length > 0 ? parents : [emptyTree]).map((parent) =>
+      diffPaths(git, parent, commit),
+    );
+    const files = [...diffs[0]]
+      .filter(([path]) => diffs.every((diff) => diff.has(path)))
+      .map(([path, status]) => ({ status, path }));
+    if (files.length > 0) {
+      changes.push({ commit, files, merge: parents.length > 1 });
+    }
+  }
+  return changes;
+}
+
+/** 通常一覧の PR について、ラベル・マージ状態・base リポジトリを PR の詳細から取得する。 */
+async function loadPulls(api, repo, repository, numbers) {
+  const pulls = new Map();
+  for (const number of numbers) {
+    const pull = await api(`${repo}/pulls/${number}`);
+    pulls.set(number, {
+      labels: new Set(pull.labels.map((label) => label.name)),
+      merged: Boolean(pull.merged_at),
+      sameRepository: pull.base?.repo?.full_name?.toLowerCase() === repository.toLowerCase(),
+    });
+  }
+  return pulls;
+}
+
+/**
+ * 候補 SHA のリリースノートを組み立てる。generate-notes の PR 行を通常一覧とし、
+ * PR のラベルで全該当カテゴリに再分類したうえで、Git 履歴から検出した drizzle/ の変更を
+ * DB カテゴリへ補う。取得に失敗した場合は例外を投げ、ドラフトを保存させない。
+ */
+async function buildNotes({ api, git, repo, repository, sha, latest, generated }) {
+  const parsed = parseGenerated(generated, repository);
+  const details = await loadPulls(api, repo, repository, [...parsed.pulls.keys()]);
+  const labels = new Map([...details].map(([number, pull]) => [number, pull.labels]));
+  const listed = new Map(
+    [...parsed.pulls].filter(([number]) => !labels.get(number).has(excludedLabel)),
+  );
+
+  const databasePulls = new Set(
+    [...listed.keys()].filter((number) => labels.get(number).has('db-migration')),
+  );
+  const direct = [];
+  for (const change of listDatabaseChanges(git, resolveRange(git, sha, latest, generated))) {
+    // マージコミットの変更は競合解決などで生じたもので、関連 PR に帰属させずコミットとして示す。
+    if (change.merge) {
+      direct.push(change);
+      continue;
+    }
+    // 関連 API の一覧は候補の照合にだけ使い、マージ済みか同一リポジトリかは PR の詳細で確認する。
+    const related = await listAll(api, `${repo}/commits/${change.commit}/pulls`);
+    const mapped = related.filter((pull) => {
+      const detail = details.get(pull.number);
+      return listed.has(pull.number) && detail.merged && detail.sameRepository;
+    });
+    if (mapped.length > 0) {
+      mapped.forEach((pull) => databasePulls.add(pull.number));
+    } else {
+      direct.push(change);
+    }
+  }
+
+  const sections = releaseCategories.map((category) => ({ title: category.title, lines: [] }));
+  const other = { title: otherCategoryTitle, lines: [] };
+  for (const [number, line] of listed) {
+    const matched = releaseCategories.flatMap((category, index) =>
+      category.labels.some((label) => labels.get(number).has(label)) ||
+      (category.database && databasePulls.has(number))
+        ? [index]
+        : [],
+    );
+    (matched.length > 0 ? matched.map((index) => sections[index]) : [other]).forEach((section) =>
+      section.lines.push(line),
+    );
+  }
+  const database = sections[releaseCategories.findIndex((category) => category.database)];
+  for (const { commit, files } of direct) {
+    const paths = files.map((file) => `\`${file.path}\`（${file.status}）`).join('、');
+    database.lines.push(
+      `* [\`${commit.slice(0, 7)}\`](https://github.com/${repository}/commit/${commit}) ${paths}`,
+    );
+  }
+  other.lines.push(...parsed.foreign);
+
+  const categories = [...sections, other]
+    .filter((section) => section.lines.length > 0)
+    .map((section) => `### ${section.title}\n${section.lines.join('\n')}`);
+  return [
+    ...parsed.preamble,
+    categories.length > 0 ? [changesHeading, ...categories].join('\n\n') : '',
+    ...parsed.kept,
+    parsed.trailer.join('\n'),
+  ]
+    .filter(Boolean)
+    .join('\n\n');
 }
 
 function updateBody(release, state, notes) {
@@ -84,7 +369,7 @@ function nextTag(releases, refs) {
   return tag;
 }
 
-async function saveDraft(api, repo, env, draft, latest, tag) {
+async function saveDraft(api, git, repo, env, draft, latest, tag) {
   const sha = env.RELEASE_SHA;
   const previous = draft && metadata(draft);
   let notes;
@@ -94,7 +379,15 @@ async function saveDraft(api, repo, env, draft, latest, tag) {
       target_commitish: sha,
       ...(latest ? { previous_tag_name: latest.tag_name } : {}),
     });
-    notes = generated.body;
+    notes = await buildNotes({
+      api,
+      git,
+      repo,
+      repository: env.GITHUB_REPOSITORY,
+      sha,
+      latest,
+      generated: generated.body,
+    });
   }
   const state = {
     sha,
@@ -116,7 +409,7 @@ async function saveDraft(api, repo, env, draft, latest, tag) {
   return { tag, sha, id: release.id, draft: true, url: release.html_url };
 }
 
-async function prepareRelease(api, repo, env) {
+async function prepareRelease(api, git, repo, env) {
   await assertApproval(api, repo);
   const releases = await listAll(api, `${repo}/releases`);
   const refs = await api(`${repo}/git/matching-refs/tags/`);
@@ -149,7 +442,7 @@ async function prepareRelease(api, repo, env) {
   const tag = draft?.tag_name ?? nextTag(releases, refs);
   // 公開済みタグは動かさない。失敗時などにタグだけ存在する候補も同じ SHA に限定する。
   await assertTag(api, repo, { tag_name: tag }, sha, refs);
-  return saveDraft(api, repo, env, draft, latest, tag);
+  return saveDraft(api, git, repo, env, draft, latest, tag);
 }
 
 async function loadCandidate(api, repo, env) {
@@ -214,9 +507,9 @@ async function publishRelease(api, repo, candidate) {
 
 /**
  * 固定したコミットのドラフト準備・承認後の検証・公開を行う。
- * API 呼び出しを差し替えることで、本番にアクセスせずに状態遷移を検証できる。
+ * API 呼び出しと Git 実行を差し替えることで、本番にアクセスせずに状態遷移を検証できる。
  */
-export async function runRelease(command, env, api = ghApi) {
+export async function runRelease(command, env, api = ghApi, git = localGit) {
   const repo = `repos/${env.GITHUB_REPOSITORY}`;
   if (!/^[a-f0-9]{40}$/.test(env.RELEASE_SHA ?? '')) {
     throw new Error('完全なコミット SHA が必要です。');
@@ -225,7 +518,7 @@ export async function runRelease(command, env, api = ghApi) {
     throw new Error('実行 ID が必要です。');
   }
   if (command === 'prepare') {
-    return prepareRelease(api, repo, env);
+    return prepareRelease(api, git, repo, env);
   }
   if (!['verify', 'publish'].includes(command)) {
     throw new Error('未対応の操作です。');

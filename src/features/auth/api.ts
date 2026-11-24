@@ -7,6 +7,7 @@ import { accessRequestCutoff } from '@/features/access-requests/constants';
 import { signAccessRequestToken } from '@/server/auth/access-request-token';
 import {
   ACCESS_REQUEST_COOKIE,
+  ACCESS_REQUEST_COOKIE_PATH,
   accessRequestCookieOptions,
   AUTH_COOKIE,
   authCookieOptions,
@@ -219,6 +220,9 @@ export const authRoute = new Hono<{
       sessionCookieOptions(isProduction(c.env)),
     );
 
+    // アカウント切替後に旧アカウントの申請 Cookie で申請できないよう、OAuth 開始時に破棄する
+    deleteCookie(c, ACCESS_REQUEST_COOKIE, { path: ACCESS_REQUEST_COOKIE_PATH });
+
     const authUrl = buildLineAuthUrl(lineConfig(c.env), state, inviteToken);
     return c.redirect(authUrl, 302);
   })
@@ -299,6 +303,7 @@ export const authRoute = new Hono<{
   .post('/logout', (c) => {
     deleteCookie(c, AUTH_COOKIE, { path: '/' });
     deleteCookie(c, SESSION_COOKIE, { path: '/' });
+    deleteCookie(c, ACCESS_REQUEST_COOKIE, { path: ACCESS_REQUEST_COOKIE_PATH });
     return c.json({ ok: true } as const);
   })
   /**

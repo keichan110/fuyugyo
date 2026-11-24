@@ -347,7 +347,30 @@ describe('GET /api/auth/line/login', () => {
     const setCookie = res.headers.get('set-cookie') ?? '';
     expect(setCookie).toContain('auth-session=');
   });
+
+  it('旧アカウントの申請 Cookie を発行時と同じ Path で失効させる', async () => {
+    const res = await app.request(
+      '/api/auth/line/login',
+      {},
+      envWith({ AUTH_RATE_LIMITER: makeRateLimiter(20) }),
+    );
+
+    expect(expiresAccessRequestCookie(res)).toBe(true);
+  });
 });
+
+/** 申請 Cookie を発行時と同じ Path で失効させる Set-Cookie があるかを判定する */
+function expiresAccessRequestCookie(res: Response): boolean {
+  const header = res.headers.get('set-cookie') ?? '';
+  return header
+    .split(/,\s(?=[\w-]+=)/)
+    .some(
+      (c) =>
+        c.startsWith('access-request=') &&
+        c.includes('Path=/api/access-requests') &&
+        c.toLowerCase().includes('max-age=0'),
+    );
+}
 
 describe('LINE OAuth コールバック', () => {
   /** OAuth 開始エンドポイントを通して state と Cookie を取得する */
@@ -733,6 +756,16 @@ describe('POST /api/auth/logout', () => {
     // auth-token を即時失効させる（Max-Age=0）
     expect(setCookie).toContain('auth-token=');
     expect(setCookie.toLowerCase()).toContain('max-age=0');
+  });
+
+  it('申請 Cookie も発行時と同じ Path で失効させる', async () => {
+    const res = await app.request(
+      '/api/auth/logout',
+      { method: 'POST', headers: { 'sec-fetch-site': 'same-origin' } },
+      envWith({}),
+    );
+
+    expect(expiresAccessRequestCookie(res)).toBe(true);
   });
 });
 

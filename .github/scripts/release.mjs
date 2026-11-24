@@ -60,21 +60,17 @@ function escapeRegExp(text) {
 
 /**
  * generate-notes の本文を、同一リポジトリの PR 項目・保持する節・末尾の文章に分解する。
- * 箇条書き（`* ` 始まり）に続く行は同じ項目の継続として扱い、複数行のタイトルも1項目で保持する。
+ * 箇条書き（`* ` 始まり）が始まったら、生成された PR URL で終わる行までを Markdown 記号・空行を含めて
+ * 1項目として保持する（複数行タイトルの継続行が見出しや新項目に見えても分割しない）。
  * PR 項目の文言と順序は生成結果のまま使う。New Contributors 節と比較リンクは本文ごと保持する。
- * 同一リポジトリの PR を指すのに分類できない項目は、黙って落とさず例外にする。
+ * 同一リポジトリの PR を指すのに分類できない項目や、終端を判定できない項目は、黙って落とさず例外にする。
  */
 function parseGenerated(body, repository) {
   const pullUrl = `https://github\\.com/${escapeRegExp(repository)}/pull/(\\d+)`;
   const prPattern = new RegExp(`^\\* [\\s\\S]+ in ${pullUrl}$`, 'i');
   const mentionsPull = new RegExp(pullUrl, 'i');
-  const sections = [];
-  for (const line of body.split(/\r?\n/)) {
-    if (line.startsWith('## ') || sections.length === 0) {
-      sections.push({ heading: line.startsWith('## ') ? line : undefined, lines: [] });
-    }
-    sections.at(-1).lines.push(line);
-  }
+  // 項目の終端: 任意のリポジトリの PR URL で終わる行
+  const itemEnd = /\sin https:\/\/github\.com\/[^\s/]+\/[^\s/]+\/pull\/\d+$/i;
   const pulls = new Map();
   const foreign = [];
   const kept = [];
@@ -82,49 +78,59 @@ function parseGenerated(body, repository) {
   const unclassifiable = (text) => {
     throw new Error(`generate-notes の PR 項目を分類できません。\n${text}`);
   };
-  for (const section of sections) {
-    if (section.heading && /^## New Contributors/i.test(section.heading)) {
-      kept.push(section.lines.join('\n').trim());
+  const classify = (lines) => {
+    const item = lines.join('\n');
+    const match = prPattern.exec(item);
+    if (match) {
+      pulls.set(Number(match[1]), item);
+    } else if (mentionsPull.test(item)) {
+      unclassifiable(item);
+    } else {
+      // 他リポジトリの項目などは分類できないため、その他の変更へそのまま載せる。
+      foreign.push(item);
+    }
+  };
+  let contributors;
+  let current;
+  for (const line of body.split(/\r?\n/)) {
+    const text = line.trimEnd();
+    if (current) {
+      current.push(text);
+      if (itemEnd.test(text)) {
+        classify(current);
+        current = undefined;
+      }
       continue;
     }
-    let current;
-    const flush = () => {
-      if (!current) {
-        return;
+    if (text.startsWith('## ')) {
+      if (contributors) {
+        kept.push(contributors.join('\n').trim());
+        contributors = undefined;
       }
-      const item = current.join('\n');
-      current = undefined;
-      const match = prPattern.exec(item);
-      if (match) {
-        pulls.set(Number(match[1]), item);
-      } else if (mentionsPull.test(item)) {
-        unclassifiable(item);
+      if (/^## New Contributors/i.test(text)) {
+        contributors = [text];
+      }
+    } else if (contributors) {
+      contributors.push(text);
+    } else if (text.startsWith('* ')) {
+      if (itemEnd.test(text)) {
+        classify([text]);
       } else {
-        // 他リポジトリの項目などは分類できないため、その他の変更へそのまま載せる。
-        foreign.push(item);
-      }
-    };
-    for (const [index, line] of section.lines.entries()) {
-      const text = line.trimEnd();
-      if (section.heading && index === 0) {
-        continue;
-      }
-      if (text.startsWith('* ')) {
-        flush();
         current = [text];
-      } else if (current && text.trim() && !text.startsWith('**Full Changelog**')) {
-        current.push(text);
-      } else {
-        flush();
-        if (text.trim()) {
-          if (mentionsPull.test(text)) {
-            unclassifiable(text);
-          }
-          trailer.push(text);
-        }
       }
+    } else if (text.trim()) {
+      if (mentionsPull.test(text)) {
+        unclassifiable(text);
+      }
+      trailer.push(text);
     }
-    flush();
+  }
+  if (current) {
+    // 終端の PR URL がないまま本文が終わった場合、後続の PR が巻き込まれうるため保存しない。
+    unclassifiable(current.join('\n'));
+  }
+  if (contributors) {
+    kept.push(contributors.join('\n').trim());
   }
   return { pulls, foreign, kept, trailer };
 }

@@ -732,6 +732,52 @@ test('複数行の PR 項目を1項目として保持し、分類・除外・重
   assert.doesNotMatch(body, /除外/);
 });
 
+test('継続行が見出し・箇条書き記号で始まる除外 PR の断片を残さず、前後の項目と比較リンクを保持する', async () => {
+  const tricky = (number) => `* 題名\n\n## 詳細\n* 続き by @user in ${pullUrl(number)}`;
+  const foreign = '* 他リポジトリ by @someone in https://github.com/other/app/pull/7';
+  const notes = [
+    "## What's Changed",
+    prLine('前の項目', 1),
+    tricky(2),
+    prLine('後の項目', 3),
+    tricky(4),
+    foreign,
+    '',
+    '## New Contributors',
+    `* @someone made their first contribution in ${pullUrl(3)}`,
+    '',
+    `**Full Changelog**: https://github.com/${repository}/compare/v1...v2`,
+  ].join('\n');
+  const state = fixture({
+    notes,
+    labels: { 1: ['enhancement'], 2: ['skip-changelog'], 3: ['bug'], 4: ['enhancement'] },
+    git: (args) => (args[0] === 'rev-parse' ? sha : ''),
+  });
+  await runRelease('prepare', env, state.api, state.git);
+  const body = draftOf(state).body;
+  const section = (title, ...lines) => `## ${title}\n${lines.join('\n')}`;
+  const expected = [
+    section('✨ 機能追加・改善', prLine('前の項目', 1), tricky(4)),
+    section('🐛 バグ修正', prLine('後の項目', 3)),
+    section('その他の変更', foreign),
+    `## New Contributors\n* @someone made their first contribution in ${pullUrl(3)}\n\n**Full Changelog**: https://github.com/${repository}/compare/v1...v2`,
+  ].join('\n\n');
+  assert.ok(
+    body.includes(`<!-- release-notes:start -->\n${expected}\n<!-- release-notes:end -->`),
+    body,
+  );
+  // 除外 PR（#2）の題名・見出し様の継続行・続きはいずれも残らない
+  assert.equal(body.split('題名').length, 2);
+  assert.equal(body.split(pullUrl(2)).length, 1);
+});
+
+test('終端の PR URL がないまま本文が終わる項目はドラフトを保存しない', async () => {
+  const notes = ["## What's Changed", prLine('前', 1), '* 終端のない項目', '継続行'].join('\n');
+  const state = fixture({ notes, git: (args) => (args[0] === 'rev-parse' ? sha : '') });
+  await assert.rejects(runRelease('prepare', env, state.api, state.git), /分類できません/);
+  assert.equal(state.releases.length, 0);
+});
+
 test('分類できない同一リポジトリの PR 項目は黙って落とさず、ドラフトを保存しない', async () => {
   for (const notes of [
     `* 形式が違う項目 ${pullUrl(1)}`,

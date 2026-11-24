@@ -118,6 +118,34 @@
       "groupName": null
     },
     {
+      "description": "react と react-dom は版の完全一致が必要なため、型定義も含めて major を含む全更新をまとめる",
+      "matchManagers": ["npm"],
+      "matchPackageNames": ["react", "react-dom", "@types/react", "@types/react-dom"],
+      "matchUpdateTypes": ["major", "minor", "patch"],
+      "groupName": "React"
+    },
+    {
+      "description": "Sentry SDK は同じ版で揃える前提のため、major を含む全更新をまとめる",
+      "matchManagers": ["npm"],
+      "matchPackageNames": ["@sentry/cloudflare", "@sentry/react", "@sentry/bundler-plugins"],
+      "matchUpdateTypes": ["major", "minor", "patch"],
+      "groupName": "Sentry"
+    },
+    {
+      "description": "Embla Carousel の本体と React 用ラッパーは同じリポジトリのため、major を含む全更新をまとめる",
+      "matchManagers": ["npm"],
+      "matchPackageNames": ["embla-carousel", "embla-carousel-react"],
+      "matchUpdateTypes": ["major", "minor", "patch"],
+      "groupName": "Embla Carousel"
+    },
+    {
+      "description": "drizzle-kit は対応する drizzle-orm の版を要求するため、0.x 系の分離ルールより後ろでまとめる",
+      "matchManagers": ["npm"],
+      "matchPackageNames": ["drizzle-orm", "drizzle-kit"],
+      "matchUpdateTypes": ["major", "minor", "patch"],
+      "groupName": "Drizzle"
+    },
+    {
       "description": "GitHub Actions をコミット SHA で固定し、更新は手動確認する",
       "matchManagers": ["github-actions"],
       "pinDigests": true,

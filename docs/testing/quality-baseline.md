@@ -533,24 +533,30 @@ PR #349マージ後のmain `a4dddda65412761e6be7c0d9b8ecb11601449bb9` で、同�
 
 各誤変更を適用して該当テストを実行し、失敗を確認してから `git checkout -- <file>` で復元した（復元後の `git status` は変更なし）。
 
-| #   | 対象と誤変更                                                                                   | 実行したテスト                                        | 結果                                                       |
-| --- | ---------------------------------------------------------------------------------------------- | ----------------------------------------------------- | ---------------------------------------------------------- |
-| M1  | `shifts/api.ts` `shiftVisibility`: MEMBER の閲覧条件 `PUBLISHED` → `DRAFT`（下書きが見える）   | `shift-publication.integration`                       | 失敗検出（1 件失敗: 下書きは MEMBER の全閲覧経路に出ない） |
-| M2  | `shifts/api.ts` 保存: 公開済みの枠を拒否する条件を無効化                                       | `shift-publication.integration`                       | 失敗検出（1 件: 公開後は配置・備考…を拒否する）            |
-| M3  | `shifts/api.ts` 保存: 配置の INSERT を書き込まない（書き込み欠落）                             | `shifts`・`shift-publication`・`shift-business-rules` | 失敗検出（28 件）                                          |
-| M4  | `availabilities/api.ts`: 公開済み配置日のロック判定 `PUBLISHED` → `DRAFT`                      | `availabilities`・`shift-publication`                 | 失敗検出（2 件）                                           |
-| M5  | `auto-assign/problem.ts`: 勤務不可（`UNAVAILABLE`）の除外を空集合にする                        | `auto-assign-solver`・`auto-assign-scenes`            | 失敗検出（5 件）                                           |
-| M6  | `0010`: 既存枠を `PUBLISHED` にする `UPDATE` を `DRAFT` に                                     | `migration-data`（Node）                              | 失敗検出（4 件）                                           |
-| M7  | `0002`: 配置の書き戻し `INSERT` を削除                                                         | `migration-data`（Node）                              | 失敗検出（5 件）                                           |
-| M8  | `0010`: 公開トリガーの勤務不可条件 `UNAVAILABLE` → `AVOID`                                     | `migration-data`（Node）                              | 失敗検出（2 件）                                           |
-| M9  | `0007`: ランクの並び `DESC` → `ASC`                                                            | `migration-data`（Node）                              | 失敗検出（3 件）                                           |
-| W1  | `release.yml` `deploy`: `if` を `always() && build 成功` に（E2E 失敗でも開始）                | `release-workflow`（Node）                            | 失敗検出                                                   |
-| W2  | `release.yml` `e2e`: `needs: [prepare, build]` → `[prepare]`                                   | `release-workflow`（Node）                            | 失敗検出                                                   |
-| W3  | `release.yml` ダウンロードのアクションを SHA 固定から `@v4` に                                 | `release-workflow`（Node）                            | 失敗検出（2 件: SHA 固定・成果物共有）                     |
-| W4  | `release.yml` `deploy`: `if` を 2 行に折り返し、後続行に `\|\| always()` を追加                | `release-workflow`（Node）                            | 失敗検出（1 件: 複数行の条件を未対応として拒否）           |
-| W5  | `release.yml` `deploy`: `if: >-`（ブロックスカラー）で `\|\| always()` を追加                  | `release-workflow`（Node）                            | 失敗検出（1 件: 同上）                                     |
-| W6  | `release.yml` `e2e`: 全件 E2E の `run` を `echo skip` に変え、元のコマンドをコメントだけに残す | `release-workflow`（Node）                            | 失敗検出（1 件: コメントを実設定と誤認しない）             |
-| W7  | `release.yml` `build`: `include-hidden-files: true` → `false`（行末コメントに `true` を残す）  | `release-workflow`（Node）                            | 失敗検出（1 件: 同上）                                     |
+| #   | 対象と誤変更                                                                                       | 実行したテスト                                        | 結果                                                       |
+| --- | -------------------------------------------------------------------------------------------------- | ----------------------------------------------------- | ---------------------------------------------------------- |
+| M1  | `shifts/api.ts` `shiftVisibility`: MEMBER の閲覧条件 `PUBLISHED` → `DRAFT`（下書きが見える）       | `shift-publication.integration`                       | 失敗検出（1 件失敗: 下書きは MEMBER の全閲覧経路に出ない） |
+| M2  | `shifts/api.ts` 保存: 公開済みの枠を拒否する条件を無効化                                           | `shift-publication.integration`                       | 失敗検出（1 件: 公開後は配置・備考…を拒否する）            |
+| M3  | `shifts/api.ts` 保存: 配置の INSERT を書き込まない（書き込み欠落）                                 | `shifts`・`shift-publication`・`shift-business-rules` | 失敗検出（28 件）                                          |
+| M4  | `availabilities/api.ts`: 公開済み配置日のロック判定 `PUBLISHED` → `DRAFT`                          | `availabilities`・`shift-publication`                 | 失敗検出（2 件）                                           |
+| M5  | `auto-assign/problem.ts`: 勤務不可（`UNAVAILABLE`）の除外を空集合にする                            | `auto-assign-solver`・`auto-assign-scenes`            | 失敗検出（5 件）                                           |
+| M6  | `0010`: 既存枠を `PUBLISHED` にする `UPDATE` を `DRAFT` に                                         | `migration-data`（Node）                              | 失敗検出（4 件）                                           |
+| M7  | `0002`: 配置の書き戻し `INSERT` を削除                                                             | `migration-data`（Node）                              | 失敗検出（5 件）                                           |
+| M8  | `0010`: 公開トリガーの勤務不可条件 `UNAVAILABLE` → `AVOID`                                         | `migration-data`（Node）                              | 失敗検出（2 件）                                           |
+| M9  | `0007`: ランクの並び `DESC` → `ASC`                                                                | `migration-data`（Node）                              | 失敗検出（3 件）                                           |
+| W1  | `release.yml` `deploy`: `if` を `always() && build 成功` に（E2E 失敗でも開始）                    | `release-workflow`（Node）                            | 失敗検出                                                   |
+| W2  | `release.yml` `e2e`: `needs: [prepare, build]` → `[prepare]`                                       | `release-workflow`（Node）                            | 失敗検出                                                   |
+| W3  | `release.yml` ダウンロードのアクションを SHA 固定から `@v4` に                                     | `release-workflow`（Node）                            | 失敗検出（2 件: SHA 固定・成果物共有）                     |
+| W4  | `release.yml` `deploy`: `if` を 2 行に折り返し、後続行に `\|\| always()` を追加                    | `release-workflow`（Node）                            | 失敗検出（1 件: 複数行の条件を未対応として拒否）           |
+| W5  | `release.yml` `deploy`: `if: >-`（ブロックスカラー）で `\|\| always()` を追加                      | `release-workflow`（Node）                            | 失敗検出（1 件: 同上）                                     |
+| W6  | `release.yml` `e2e`: 全件 E2E の `run` を `echo skip` に変え、元のコマンドをコメントだけに残す     | `release-workflow`（Node）                            | 失敗検出（1 件: コメントを実設定と誤認しない）             |
+| W7  | `release.yml` `build`: `include-hidden-files: true` → `false`（行末コメントに `true` を残す）      | `release-workflow`（Node）                            | 失敗検出（1 件: 同上）                                     |
+| M10 | `0002`: 資格のコピー列から `is_active` を除外（無効資格が有効へ変わる）                            | `migration-data`（Node）                              | 失敗検出（3 件: 0002・0011 と親）                          |
+| M11 | `0002`: 資格のコピーで `created_at` と `updated_at` を取り違え                                     | `migration-data`（Node）                              | 失敗検出（3 件: 同上）                                     |
+| P1  | `package.json` `test:e2e:release` に `--grep @smoke` / `\|\| true` / `--project=chromium` を追加   | `release-workflow`（Node）                            | 各 1 件失敗（package.json の変異 3 通り）                  |
+| P2  | `package.json` `test:coverage` から `pnpm run test:scripts &&` を除去                              | `release-workflow`（Node）                            | 失敗検出（1 件）                                           |
+| P3  | `package.json` `test:scripts` から `scripts/*.test.mjs` または `.github/scripts/*.test.mjs` を除去 | `release-workflow`（Node）                            | 各 1 件失敗（変異 2 通り）                                 |
+| T1  | `shift-business-rules` の固定現在日を 2027-03-01 へ進める（2027-02 が過去扱い）                    | `shift-business-rules`（Vitest）                      | 失敗検出（5 件。固定日が時限失敗を防ぐ根拠）               |
 
 **ワークフローの検証迂回（2 周目で追加）**: `.github` を一時ディレクトリへコピーし、コピーした `release.yml`・`quality-check.yml` に変異を 1 つずつ加えて `release-workflow.test.mjs` を実行した。worktree 内のワークフローは変更していない（実行後も `git status` に差分なし）。
 
@@ -642,4 +648,30 @@ rebase後のクリーンな `1ba92ebdb89b3826296846bc575961311a7227be` で以下
 
 旧SHAとrebase後の対応は `e3250d9`→`14590d9`、`9dae4fb`→`23bf564`、`6431ea5`→`82370c7`、`eaaa3a0`→`e295ed3`、`b3da5b7`→`0ee3454`、`4649bdc`→`846dc89`。range-diffで実装の意図しない変更がないことを確認し、mainの閾値採用記録は補足Aとして保持した。
 
-今回の再チェックで、資格表の全列保持assert不足、package scripts経由の検証迂回未検出、勤務可否テストの現在日未固定は未修正のまま確認された。既存コミットの一部ではGitmoji公式参照の手順を省略しており、定義の事後一致確認を手順の履行とは扱わない。今回のrebase・再検証の成功を、これらの指摘の解消とは扱わない。
+このrebase時点の再チェックでは、資格表の全列保持assert不足、package scripts経由の検証迂回未検出、勤務可否テストの現在日未固定が未修正だった（以降のコミットで対応済み。直下の「最終再レビュー指摘への追加修正」を参照）。既存コミットの一部ではGitmoji公式参照の手順を省略しており、定義の事後一致確認を手順の履行とは扱わない。このrebase・再検証の成功自体は、これらの指摘の解消とは扱わない。
+
+#### 最終再レビュー指摘への追加修正（資格・package scripts・現在日）
+
+最終再レビュー（`656b70c`）の未解決項目に対して、次の 3 コミットで対応した。
+
+| 指摘                            | 対応コミット | 内容                                                                                                                                                                                                                                    |
+| ------------------------------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0002 の資格表の全列保持が未検証 | `9a414f2`    | 0002 の後と 0011 の後に `SELECT * FROM certifications` の全列（`is_active = 0` の無効資格・説明・組織・整数のままの日時・変換後の日時）を、投入値から組み立てた期待値と比較する。既存の `drizzle/*.sql` は変更していない                |
+| package scripts 経由の検証迂回  | `7e7c2b0`    | `test:e2e:release`・`test:e2e:smoke`・`test:coverage`・`test:scripts` を実 `package.json` から読み、完全一致で固定する。絞り込み・`\|\| true`・coverage からの Node 入口除去・Node からの `scripts`／`.github/scripts` 除去を失敗させる |
+| 同時実行テストの時限失敗        | `bb0d3cc`    | `vi.useFakeTimers({ toFake: ['Date'] })` と `vi.setSystemTime` で現在日を固定し、`afterEach` で実時間へ戻す。`Date` 以外のタイマーは止めない                                                                                            |
+
+変異試験（検出力の確認）は上の表の M10・M11・P1〜P3・T1。M10・M11 は一時的に `drizzle/0002_odd_cargill.sql` を書き換えて全件を実行し、P1〜P3 は一時的に実 `package.json` を書き換えて `release-workflow.test.mjs` を実行して失敗を確認した後、`git checkout` で復元した（実行後の `git status` に差分なし。ログは worktree の `tmp/logs347/mut-*.log`）。**テスト自体の削除や、このテストファイルの実行除外は検出対象外**である。
+
+検証は `bb0d3cc23ad94f50c0c371db07f0e56fa493dd4d`（クリーン）で直列に実行した。この文書のコミットは文書のみで、テスト対象のコードは `bb0d3cc` と同一である。
+
+| 検証                            | 結果                                                                     |
+| ------------------------------- | ------------------------------------------------------------------------ |
+| `pnpm run test`                 | 成功（Node 53 件、Vitest 69 ファイル・990 テスト）                       |
+| `pnpm run test:coverage`        | 成功（同件数、閾値を満たす。L51.23%・S50.91%・F39.81%・B37.68%）         |
+| `pnpm run test:e2e:smoke`       | 成功（`mobile-chromium` 10 件）                                          |
+| `pnpm run test:e2e`             | 成功（build 後のビルド済み Worker で 66 件: Chromium + モバイル WebKit） |
+| `bash scripts/quality-check.sh` | 手動実行の終了コード 0。自動 Stop の出力ではない                         |
+
+GitHub CI は旧 head では成功済みだが、この追加修正を含む新しい head は未確認で、旧 head の結果とは区別する。カバレッジ閾値の第 3 段階の採否は今回の作業範囲外で、閾値は変更していない。
+
+Gitmoji の参照手順は、過去コミットで省略した事実を残す（事後の定義一致確認を履行とは扱わない）。上記 3 コミットと文書コミットは、コミットのたびに gitmoji.dev を読んでから絵文字（✅・📝）を選んだ。

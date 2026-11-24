@@ -15,6 +15,8 @@ import {
 } from '@tabler/icons-react';
 import { Link, useRouterState } from '@tanstack/react-router';
 
+import { AppBadge } from '@/components/AppBadge';
+import { useAccessRequests } from '@/features/access-requests/queries';
 import { hasMinimumRole, type MeResponse } from '@/features/auth/schema';
 
 const NOOP = () => {};
@@ -85,6 +87,10 @@ export function NavigationMenu({
   onNavigate?: () => void;
   excludedPaths?: readonly string[];
 }) {
+  // 承認待ち件数のバッジは ADMIN のみ。一覧と同じクエリで 30 秒ごと・画面復帰時に更新される
+  const isAdmin = hasMinimumRole(user.role, 'ADMIN');
+  const { data: pendingRequests } = useAccessRequests(isAdmin);
+  const pendingCount = pendingRequests?.length ?? 0;
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const excluded = new Set(excludedPaths);
   const navigationGroups = NAVIGATION_GROUPS.map((group) => ({
@@ -142,6 +148,13 @@ export function NavigationMenu({
                   disabled={disabled}
                   description={disabled ? '管理者に紐付けを依頼してください' : undefined}
                   leftSection={<Icon size={18} stroke={1.75} />}
+                  rightSection={
+                    to === '/users' && isAdmin && pendingCount > 0 ? (
+                      <AppBadge kind="pending" size="sm">
+                        {pendingCount}
+                      </AppBadge>
+                    ) : undefined
+                  }
                   active={activePath === to}
                   variant="light"
                   onClick={onNavigate}

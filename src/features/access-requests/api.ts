@@ -1,7 +1,8 @@
-import { eq, lt, ne, sql } from 'drizzle-orm';
+import { and, desc, eq, exists, gte, inArray, lt, ne, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { deleteCookie, getCookie } from 'hono/cookie';
 import { HTTPException } from 'hono/http-exception';
+import { validator } from 'hono/validator';
 
 import { verifyAccessRequestToken } from '@/server/auth/access-request-token';
 import {
@@ -11,11 +12,14 @@ import {
   ACCESS_REQUEST_FLOW_COOKIE_PATH,
 } from '@/server/auth/cookies';
 import { createDb, type Database } from '@/server/db/client';
-import { accessRequests, users } from '@/server/db/schema';
+import { isUniqueViolation } from '@/server/db/errors';
+import { accessRequests, instructors, users } from '@/server/db/schema';
+import { requireAuth, requireRole, type AuthVariables } from '@/server/middleware/auth';
 import { rateLimit } from '@/server/middleware/rate-limit';
 import type { Env } from '@/server/types';
 
 import { ACCESS_REQUEST_LIMIT, accessRequestCutoff } from './constants';
+import { approveAccessRequestSchema, rejectBatchSchema } from './schema';
 
 /** 接続元から推定された地域情報。取得できない項目は null */
 type RequestLocation = {
@@ -68,12 +72,50 @@ export async function deleteExpiredAccessRequests(db: Database, now: Date): Prom
   await expiredAccessRequestsDeletion(db, now);
 }
 
+/** 管理 API が返す申請の公開列。`lineUserId` は管理画面にも公開しない */
+const pendingColumns = {
+  id: accessRequests.id,
+  displayName: accessRequests.displayName,
+  pictureUrl: accessRequests.pictureUrl,
+  country: accessRequests.country,
+  region: accessRequests.region,
+  city: accessRequests.city,
+  requestedAt: accessRequests.requestedAt,
+};
+
+/** FK 制約違反（存在しない Instructor の指定）かどうかを判定する */
+function isForeignKeyViolation(e: unknown): boolean {
+  if (!(e instanceof Error)) {
+    return false;
+  }
+  return (
+    e.message.includes('FOREIGN KEY constraint failed') ||
+    (e.cause instanceof Error && e.cause.message.includes('FOREIGN KEY constraint failed'))
+  );
+}
+
 /**
  * 利用申請の Hono ルート。
- * 未登録の LINE ユーザーが、callback で発行された申請 Cookie を持って申請する。
- * 未認証で到達できるため Rate Limit を適用する。
+ * 未登録の LINE ユーザーが、callback で発行された申請 Cookie を持って申請する（未認証のため Rate Limit を適用）。
+ * 承認待ち一覧・承認・却下は ADMIN 専用で、認証済み API のため Rate Limit は適用しない。
+ * 管理操作は ACCESS_REQUESTS_ENABLED（新規申請の受付フラグ）に連動させない。
  */
-export const accessRequestsRoute = new Hono<{ Bindings: Env }>()
+export const accessRequestsRoute = new Hono<{ Bindings: Env; Variables: AuthVariables }>()
+  /** 期限内かつ未登録の申請を、申請日時の新しい順に返す（ADMIN のみ） */
+  .get('/', requireAuth, requireRole('ADMIN'), async (c) => {
+    const db = createDb(c.env.DB);
+    const rows = await db
+      .select(pendingColumns)
+      .from(accessRequests)
+      .where(
+        and(
+          gte(accessRequests.requestedAt, accessRequestCutoff(new Date())),
+          sql`NOT EXISTS (SELECT 1 FROM ${users} WHERE ${eq(users.lineUserId, accessRequests.lineUserId)})`,
+        ),
+      )
+      .orderBy(desc(accessRequests.requestedAt));
+    return c.json(rows);
+  })
   /**
    * 利用申請を受け付ける。
    * 申請の作成・更新は単一の `db.batch` で原子的に行い、上限判定を DB 側の条件に閉じ込める。
@@ -156,4 +198,147 @@ export const accessRequestsRoute = new Hono<{ Bindings: Env }>()
     deleteCookie(c, ACCESS_REQUEST_COOKIE, { path: ACCESS_REQUEST_COOKIE_PATH });
     deleteCookie(c, ACCESS_REQUEST_FLOW_COOKIE, { path: ACCESS_REQUEST_FLOW_COOKIE_PATH });
     return c.json({ requestedAt: row.requestedAt.toISOString() }, 201);
-  });
+  })
+  /**
+   * 申請を承認し、有効な MEMBER を作成する（ADMIN のみ）。インストラクターは任意で同時に紐付ける。
+   * ユーザー作成と申請削除は単一の `db.batch` で原子的に行う。申請の期限・未登録の判定と
+   * 削除の条件（今回生成したユーザー ID の作成成功）を SQL に閉じ込め、二重承認や却下との
+   * 競合で別アカウントの作成・申請だけの消失が起きないようにする。
+   * 競合を無視するのは LINE ID の重複のみで、既存ユーザーのロール・紐付けは上書きしない。
+   */
+  .post(
+    '/:id/approve',
+    requireAuth,
+    requireRole('ADMIN'),
+    validator('json', (value, c) => {
+      const parsed = approveAccessRequestSchema.safeParse(value);
+      if (!parsed.success) {
+        return c.json({ message: parsed.error.message }, 400);
+      }
+      return parsed.data;
+    }),
+    async (c) => {
+      const { instructorId } = c.req.valid('json');
+      const id = c.req.param('id');
+      const db = createDb(c.env.DB);
+      const now = new Date();
+
+      // 存在確認はエラー表示のための補助。整合性は下の SQL 条件と DB 制約で守る
+      if (instructorId !== undefined) {
+        const [instructor] = await db
+          .select({ id: instructors.id })
+          .from(instructors)
+          .where(eq(instructors.id, instructorId))
+          .limit(1);
+        if (!instructor) {
+          throw new HTTPException(404, { message: 'Instructor not found' });
+        }
+      }
+
+      const userId = crypto.randomUUID();
+      const nowSeconds = Math.floor(now.getTime() / 1000);
+      let deleted: Array<{ id: string }>;
+      try {
+        const [, result] = await db.batch([
+          db
+            .insert(users)
+            .select(
+              db
+                .select({
+                  id: sql<string>`${userId}`.as('id'),
+                  lineUserId: accessRequests.lineUserId,
+                  displayName: accessRequests.displayName,
+                  pictureUrl: accessRequests.pictureUrl,
+                  role: sql<string>`'MEMBER'`.as('role'),
+                  isActive: sql<boolean>`1`.as('is_active'),
+                  instructorId: sql<string | null>`${instructorId ?? null}`.as('instructor_id'),
+                  createdAt: sql<Date>`${nowSeconds}`.as('created_at'),
+                  updatedAt: sql<Date>`${nowSeconds}`.as('updated_at'),
+                })
+                .from(accessRequests)
+                .where(
+                  and(
+                    eq(accessRequests.id, id),
+                    gte(accessRequests.requestedAt, accessRequestCutoff(now)),
+                  ),
+                ),
+            )
+            .onConflictDoNothing({ target: users.lineUserId }),
+          db
+            .delete(accessRequests)
+            .where(
+              and(
+                eq(accessRequests.id, id),
+                exists(
+                  db
+                    .select({ one: sql`1` })
+                    .from(users)
+                    .where(eq(users.id, userId)),
+                ),
+              ),
+            )
+            .returning({ id: accessRequests.id }),
+        ]);
+        deleted = result;
+      } catch (err) {
+        if (isUniqueViolation(err)) {
+          throw new HTTPException(409, {
+            message: 'This instructor is already linked to another user',
+          });
+        }
+        if (isForeignKeyViolation(err)) {
+          throw new HTTPException(404, { message: 'Instructor not found' });
+        }
+        throw err;
+      }
+
+      if (deleted.length === 0) {
+        // ユーザーが作られなかった原因を切り分ける（申請なし・期限切れは 404、登録済みは 409）
+        const [registered] = await db
+          .select({ id: accessRequests.id })
+          .from(accessRequests)
+          .innerJoin(users, eq(users.lineUserId, accessRequests.lineUserId))
+          .where(eq(accessRequests.id, id))
+          .limit(1);
+        if (registered) {
+          throw new HTTPException(409, { message: 'Already registered' });
+        }
+        throw new HTTPException(404, { message: 'Access request not found' });
+      }
+      return c.json({ id: userId }, 201);
+    },
+  )
+  /** 申請を却下（削除）する（ADMIN のみ）。LINE ユーザーは再申請できる */
+  .delete('/:id', requireAuth, requireRole('ADMIN'), async (c) => {
+    const db = createDb(c.env.DB);
+    const deleted = await db
+      .delete(accessRequests)
+      .where(eq(accessRequests.id, c.req.param('id')))
+      .returning({ id: accessRequests.id });
+    if (deleted.length === 0) {
+      throw new HTTPException(404, { message: 'Access request not found' });
+    }
+    return c.body(null, 204);
+  })
+  /** 指定した申請だけをまとめて却下する（ADMIN のみ）。処理済みの ID は無視する */
+  .post(
+    '/reject-batch',
+    requireAuth,
+    requireRole('ADMIN'),
+    validator('json', (value, c) => {
+      const parsed = rejectBatchSchema.safeParse(value);
+      if (!parsed.success) {
+        return c.json({ message: parsed.error.message }, 400);
+      }
+      return parsed.data;
+    }),
+    async (c) => {
+      const ids = [...new Set(c.req.valid('json').ids)];
+      const db = createDb(c.env.DB);
+      const deleted = await db
+        .delete(accessRequests)
+        .where(inArray(accessRequests.id, ids))
+        .returning({ id: accessRequests.id });
+      return c.json({ deletedCount: deleted.length });
+    },
+  );

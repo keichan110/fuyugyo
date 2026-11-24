@@ -11,7 +11,7 @@ import { getAccessRequestFailure } from '../policy';
 import classes from './AccessRequestPage.module.css';
 
 type AccessRequestPageProps = {
-  /** 利用申請を送信する */
+  /** 利用許可の申請を送信する */
   onSubmit: () => void;
   /** ログイン画面へ戻る */
   onLogin: () => void;
@@ -22,7 +22,7 @@ type AccessRequestPageProps = {
 };
 
 /**
- * 利用申請画面。LINE ログイン後に未登録と判定された人が、ボタン1つで申請する。
+ * 利用許可の申請画面。LINE ログイン後に未登録と判定された人が、ボタン1つで申請する。
  * 失敗時は HTTP ステータスに応じた案内を出し、続行できない場合はボタンを切り替える。
  */
 export function AccessRequestPage({
@@ -48,18 +48,18 @@ export function AccessRequestPage({
           </AppBadge>
 
           <Title order={1} fw={200} ta="center" lts="0.15em">
-            利用申請
+            Request access
           </Title>
 
           <Text size="md" fw={300} c="dimmed" ta="center">
-            このLINEアカウントはまだ登録されていません。利用するには利用申請をしてください。申請内容は管理者が確認します。
+            このLINEアカウントには利用許可がありません。利用許可を申請すると、管理者に承認された後に利用できるようになります。
           </Text>
 
           {failure && <ErrorAlert>{failure.message}</ErrorAlert>}
 
           {canSubmit && (
             <AppButton intent="primary" size="md" loading={isSubmitting} onClick={onSubmit}>
-              利用申請
+              利用許可を申請する
             </AppButton>
           )}
           {failure?.canLogin && (

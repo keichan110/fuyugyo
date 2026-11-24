@@ -25,11 +25,11 @@ export function AccessRequestPendingPage() {
           </AppBadge>
 
           <Title order={1} fw={200} ta="center" lts="0.15em">
-            承認待ち
+            Awaiting approval
           </Title>
 
           <Text size="md" fw={300} c="dimmed" ta="center">
-            利用申請を受け付けました。管理者の承認をお待ちください。承認されるとリッチメニューから利用できます。
+            利用許可の申請を受け付けました。管理者に承認されると、利用できるようになります。
           </Text>
         </Stack>
       </Center>

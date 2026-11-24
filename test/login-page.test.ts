@@ -48,3 +48,12 @@ describe('ログイン画面の再試行', () => {
     expect(html).toContain('LINEでログイン');
   });
 });
+
+describe('ログイン画面の文言', () => {
+  it('バッジと見出しを表示し、利用条件や申請の導線を示す本文は出さない', () => {
+    const html = renderLoginPage();
+    expect(html).toContain('EXCLUSIVE ACCESS');
+    expect(html).toContain('Members only');
+    expect(html).not.toContain('招待を受けた方のみ利用可能です');
+  });
+});

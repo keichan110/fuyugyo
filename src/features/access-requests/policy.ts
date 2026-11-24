@@ -20,7 +20,7 @@ export type AccessRequestFailure = {
 export function getAccessRequestFailure(status: number | undefined): AccessRequestFailure {
   if (status === 403) {
     return {
-      message: '現在申請を受け付けられません。管理者に連絡してください',
+      message: '現在、利用許可の申請を受け付けていません。管理者に連絡してください。',
       canSubmit: false,
       canLogin: false,
     };

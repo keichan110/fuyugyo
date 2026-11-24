@@ -23,34 +23,32 @@ test('未登録の人が利用申請を送り、承認待ち画面に進める',
   ]);
 
   await page.goto('/access-request');
-  await expect(page.getByRole('heading', { name: '利用申請' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Request access' })).toBeVisible();
   await expect(
-    page.getByText('このLINEアカウントはまだ登録されていません。', { exact: false }),
+    page.getByText('このLINEアカウントには利用許可がありません。', { exact: false }),
   ).toBeVisible();
 
   const submitted = page.waitForResponse(
     (response) =>
       response.url().endsWith('/api/access-requests') && response.request().method() === 'POST',
   );
-  await page.getByRole('button', { name: '利用申請', exact: true }).click();
+  await page.getByRole('button', { name: '利用許可を申請する', exact: true }).click();
   expect((await submitted).status()).toBe(201);
 
   await expect(page).toHaveURL(/\/access-request\/pending$/);
-  await expect(
-    page.getByText('利用申請を受け付けました。管理者の承認をお待ちください。', { exact: false }),
-  ).toBeVisible();
+  await expect(page.getByText('利用許可の申請を受け付けました。', { exact: false })).toBeVisible();
 });
 
 test('申請 Cookie がない状態で申請すると、期限切れの案内とログインへの導線を表示する', async ({
   page,
 }) => {
   await page.goto('/access-request');
-  await page.getByRole('button', { name: '利用申請', exact: true }).click();
+  await page.getByRole('button', { name: '利用許可を申請する', exact: true }).click();
 
   await expect(
     page.getByText('申請の有効期限が切れました。もう一度ログインしてください。'),
   ).toBeVisible();
-  await expect(page.getByRole('button', { name: '利用申請', exact: true })).toBeHidden();
+  await expect(page.getByRole('button', { name: '利用許可を申請する', exact: true })).toBeHidden();
   await page.getByRole('button', { name: 'ログイン画面へ' }).click();
   await expect(page).toHaveURL(/\/login/);
 });

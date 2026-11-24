@@ -23,14 +23,14 @@ function renderRequestPage(failedStatus: number | null) {
   );
 }
 
-const SUBMIT_LABEL = '>利用申請</span>';
+const SUBMIT_LABEL = '>利用許可を申請する</span>';
 const LOGIN_LABEL = 'ログイン画面へ';
 
-describe('利用申請画面', () => {
-  it('初期表示は説明文と「利用申請」ボタンを出し、エラーは出さない', () => {
+describe('利用許可の申請画面', () => {
+  it('初期表示は説明文と「利用許可を申請する」ボタンを出し、エラーは出さない', () => {
     const html = renderRequestPage(null);
     expect(html).toContain(
-      'このLINEアカウントはまだ登録されていません。利用するには利用申請をしてください。申請内容は管理者が確認します。',
+      'このLINEアカウントには利用許可がありません。利用許可を申請すると、管理者に承認された後に利用できるようになります。',
     );
     expect(html).toContain(SUBMIT_LABEL);
     expect(html).not.toContain('role="alert"');
@@ -39,7 +39,7 @@ describe('利用申請画面', () => {
 
   it('403 は受付停止の案内を出し、申請ボタンを隠す', () => {
     const html = renderRequestPage(403);
-    expect(html).toContain('現在申請を受け付けられません。管理者に連絡してください');
+    expect(html).toContain('現在、利用許可の申請を受け付けていません。管理者に連絡してください。');
     expect(html).not.toContain(SUBMIT_LABEL);
     expect(html).not.toContain(LOGIN_LABEL);
   });
@@ -67,12 +67,12 @@ describe('利用申請画面', () => {
 });
 
 describe('承認待ち画面', () => {
-  it('受付済みと承認後の利用方法を案内し、操作ボタンは出さない', () => {
+  it('受付済みと承認後に利用できることを案内し、操作ボタンは出さない', () => {
     const html = renderToString(
       createElement(MantineProvider, null, createElement(AccessRequestPendingPage)),
     );
     expect(html).toContain(
-      '利用申請を受け付けました。管理者の承認をお待ちください。承認されるとリッチメニューから利用できます。',
+      '利用許可の申請を受け付けました。管理者に承認されると、利用できるようになります。',
     );
     expect(html).not.toContain('<button');
   });

@@ -33,7 +33,7 @@ function AccessRequestsPage() {
       <Stack gap="md">
         <ListHeader
           title="利用申請"
-          summary={data ? { count: data.length, unit: '件' } : undefined}
+          {...(data === undefined ? {} : { summary: { count: data.length, unit: '件' } })}
           isLoading={isLoading}
         />
         <AccessRequestList />

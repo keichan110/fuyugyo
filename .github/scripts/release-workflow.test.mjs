@@ -13,6 +13,29 @@ import test from 'node:test';
 
 const workflowsDir = new URL('../workflows/', import.meta.url);
 const readWorkflow = (name) => readFileSync(new URL(name, workflowsDir), 'utf8');
+const packageJsonUrl = new URL('../../package.json', import.meta.url);
+
+/**
+ * CI・リリースの合否を決める `package.json` の scripts を、期待する文字列と完全一致で固定する。
+ * workflow は `pnpm run <script>` までしか固定できず、実際の中身（絞り込み・失敗の握りつぶし・
+ * テストの入口の除去）はここで検証しないと素通りするため、実コマンドそのものを比較する。
+ *
+ * @param {Record<string, unknown>} scripts `package.json` の scripts
+ */
+function assertGateScripts(scripts) {
+  const expected = {
+    // 全件 E2E（Chromium とモバイル WebKit の全 project）。絞り込み・`|| true` を許さない。
+    'test:e2e:release': 'tsx e2e/prepare.ts && E2E_BUILT=1 playwright test',
+    'test:e2e:smoke': 'tsx e2e/prepare.ts && playwright test --grep @smoke',
+    // coverage は Node テスト（test:scripts）を先に必ず通し、その後に Vitest を実行する。
+    'test:coverage': 'pnpm run test:scripts && vitest run --coverage --testTimeout=20000',
+    // Node テストの入口は migration・worktree 系（scripts）と workflow 系（.github/scripts）の両方。
+    'test:scripts': 'node --test scripts/*.test.mjs .github/scripts/*.test.mjs',
+  };
+  for (const [name, command] of Object.entries(expected)) {
+    assert.equal(scripts[name], command, `package.json の ${name} が想定と異なります`);
+  }
+}
 
 const indentOf = (line) => line.length - line.trimStart().length;
 
@@ -145,7 +168,10 @@ function assertGateStep(job, label, command, allowedIf = null) {
   } else {
     assert.equal(scalarOf(step.fields.get('if'), `${label} の if`), allowedIf);
   }
-  assert.ok(!step.fields.has('continue-on-error'), `${label} が continue-on-error で失敗を無視する`);
+  assert.ok(
+    !step.fields.has('continue-on-error'),
+    `${label} が continue-on-error で失敗を無視する`,
+  );
 }
 
 /**
@@ -438,7 +464,8 @@ test('PR の必須ジョブは静的チェック・カバレッジ付きテス�
     'static/Check Prettier formatting': notCancelled,
     'static/Build application': notCancelled,
     'static/Security audit': notCancelled,
-    'test/Build coverage report': "${{ !cancelled() && hashFiles('coverage/coverage-summary.json') != '' }}",
+    'test/Build coverage report':
+      "${{ !cancelled() && hashFiles('coverage/coverage-summary.json') != '' }}",
     'test/Upload coverage report':
       "${{ !cancelled() && github.event_name == 'pull_request' && steps.coverage-report.outputs.created == 'true' }}",
     'test/Verify local dev seed': notCancelled,
@@ -463,4 +490,33 @@ test('PR の必須ジョブは静的チェック・カバレッジ付きテス�
   for (const step of stepsOf(jobs.get('coverage-comment'))) {
     assert.doesNotMatch(runTextOf(step), /pnpm run test/);
   }
+});
+
+test('package.json の合否判定スクリプトは絞り込み・握りつぶし・入口の除去をされていない', () => {
+  const { scripts } = JSON.parse(readFileSync(packageJsonUrl, 'utf8'));
+  assertGateScripts(scripts);
+  // 実ファイルを元に危険な書き換えを作り、すべて検出できることを確かめる。
+  const mutations = {
+    '全件 E2E を smoke へ絞る': {
+      'test:e2e:release': `${scripts['test:e2e:release']} --grep @smoke`,
+    },
+    '全件 E2E を `|| true` で握りつぶす': {
+      'test:e2e:release': `${scripts['test:e2e:release']} || true`,
+    },
+    '全件 E2E の project を絞る': {
+      'test:e2e:release': `${scripts['test:e2e:release']} --project=chromium`,
+    },
+    'smoke の失敗を握りつぶす': { 'test:e2e:smoke': `${scripts['test:e2e:smoke']} || true` },
+    'coverage から Node テストを外す': {
+      'test:coverage': 'vitest run --coverage --testTimeout=20000',
+    },
+    'Node テストから scripts を外す': { 'test:scripts': 'node --test .github/scripts/*.test.mjs' },
+    'Node テストから .github/scripts を外す': { 'test:scripts': 'node --test scripts/*.test.mjs' },
+  };
+  for (const [label, override] of Object.entries(mutations)) {
+    assert.throws(() => assertGateScripts({ ...scripts, ...override }), `${label}を検出できません`);
+  }
+  // 対象スクリプトが欠けた場合も通さない。
+  const { 'test:e2e:release': _removed, ...withoutRelease } = scripts;
+  assert.throws(() => assertGateScripts(withoutRelease));
 });

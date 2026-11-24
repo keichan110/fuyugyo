@@ -211,12 +211,19 @@ const PUBLIC_ROUTES: ReadonlyArray<{ method: string; path: string; reason: strin
   {
     method: 'GET',
     path: '/api/auth/line/callback',
-    reason: 'LINE からの戻り。state 検証と招待検証を行い、未認証で到達するため Rate Limit を適用',
+    reason:
+      'LINE からの戻り。state 検証を行い、未登録なら利用申請へ誘導する。未認証で到達するため Rate Limit を適用',
   },
   {
     method: 'POST',
     path: '/api/auth/logout',
     reason: 'Cookie を破棄するだけで、データ参照・更新をしない',
+  },
+  {
+    method: 'POST',
+    path: '/api/access-requests',
+    reason:
+      '未登録ユーザーの利用申請。LINE ログイン後に発行した申請専用 Cookie を検証し、未認証で到達するため Rate Limit を適用',
   },
   {
     method: 'GET',

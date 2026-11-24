@@ -9,6 +9,26 @@ import type { CookieOptions } from 'hono/utils/cookie';
 export const AUTH_COOKIE = 'auth-token';
 /** OAuth state を一時保管する Cookie 名 */
 export const SESSION_COOKIE = 'auth-session';
+/** 利用申請用の一時 Cookie 名 */
+export const ACCESS_REQUEST_COOKIE = 'access-request';
+
+/** 利用申請 Cookie を送る範囲。申請 API 以外には送信しない */
+export const ACCESS_REQUEST_COOKIE_PATH = '/api/access-requests';
+
+/**
+ * 利用申請 Cookie のオプションを返す。有効期間は申請トークンの有効期限（10 分）と揃える。
+ *
+ * @param isProduction - 本番環境かどうか
+ */
+export function accessRequestCookieOptions(isProduction: boolean): CookieOptions {
+  return {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: 'Lax',
+    path: ACCESS_REQUEST_COOKIE_PATH,
+    maxAge: 600,
+  };
+}
 
 /** OAuth state Cookie の有効期間（秒）。認証フロー完了までの短期間のみ */
 export const SESSION_MAX_AGE = 10 * 60;

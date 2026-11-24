@@ -5,6 +5,7 @@ import { csrf } from 'hono/csrf';
 import { HTTPException } from 'hono/http-exception';
 import { secureHeaders } from 'hono/secure-headers';
 
+import { accessRequestsRoute } from '@/features/access-requests/api';
 import { authRoute } from '@/features/auth/api';
 import { availabilitiesRoute } from '@/features/availabilities/api';
 import { certificationRequirementsRoute } from '@/features/certification-requirements/api';
@@ -51,6 +52,7 @@ app.onError((err, c) => {
 const routes = app
   .route('/api/health', healthRoute)
   .route('/api/auth', authRoute)
+  .route('/api/access-requests', accessRequestsRoute)
   .route('/api/availabilities', availabilitiesRoute)
   .route('/api/certifications', certificationsRoute)
   .route('/api/certification-requirements', certificationRequirementsRoute)

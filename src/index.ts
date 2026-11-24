@@ -5,7 +5,7 @@ import { csrf } from 'hono/csrf';
 import { HTTPException } from 'hono/http-exception';
 import { secureHeaders } from 'hono/secure-headers';
 
-import { accessRequestsRoute } from '@/features/access-requests/api';
+import { accessRequestsRoute, deleteExpiredAccessRequests } from '@/features/access-requests/api';
 import { authRoute } from '@/features/auth/api';
 import { availabilitiesRoute } from '@/features/availabilities/api';
 import { certificationRequirementsRoute } from '@/features/certification-requirements/api';
@@ -69,9 +69,10 @@ const routes = app
 export type AppType = typeof routes;
 
 /**
- * Cron Trigger のハンドラ。天気予報の取得を `waitUntil` に載せ、
+ * Cron Trigger のハンドラ。天気予報の取得と期限切れ利用申請の削除を `waitUntil` に載せ、
  * Sentry が通知を flush する前に処理が完了するよう、同じ Promise を返す。
- * 取得の開始と、成功・失敗の結果を Sentry Crons にチェックインする。
+ * 天気取得の開始と、成功・失敗の結果を Sentry Crons にチェックインする。
+ * 申請の削除は天気取得から独立して実行し、どちらかが失敗しても他方は実行する。
  */
 function scheduled(
   controller: ScheduledController,
@@ -90,7 +91,7 @@ function scheduled(
       recoveryThreshold: 1,
     },
   );
-  const task = (async () => {
+  const weatherTask = (async () => {
     let ok = false;
     try {
       ok = await runWeatherFetch(createDb(env.DB), { now: new Date(), fetchFn: fetch });
@@ -99,6 +100,11 @@ function scheduled(
       captureCheckIn({ monitorSlug, checkInId, status: ok ? 'ok' : 'error' });
     }
   })();
+  // 削除の失敗は記録するだけで、天気のチェックインや Cron 全体の成否には含めない
+  const cleanupTask = deleteExpiredAccessRequests(createDb(env.DB), new Date()).catch(
+    captureServerError,
+  );
+  const task = Promise.all([weatherTask, cleanupTask]).then(() => undefined);
   ctx.waitUntil(task);
   return task;
 }

@@ -5,7 +5,7 @@ import { HTTPException } from 'hono/http-exception';
 
 import { verifyAccessRequestToken } from '@/server/auth/access-request-token';
 import { ACCESS_REQUEST_COOKIE, ACCESS_REQUEST_COOKIE_PATH } from '@/server/auth/cookies';
-import { createDb } from '@/server/db/client';
+import { createDb, type Database } from '@/server/db/client';
 import { accessRequests, users } from '@/server/db/schema';
 import { rateLimit } from '@/server/middleware/rate-limit';
 import type { Env } from '@/server/types';
@@ -39,6 +39,28 @@ function readLocation(request: Request): RequestLocation {
     region: pickString(cf, 'region'),
     city: pickString(cf, 'city'),
   };
+}
+
+/**
+ * 期限切れ（`requested_at` が有効期限の境界より前）の申請を削除するクエリを組み立てる。
+ * 実行はしない。申請 API の `db.batch` に含めるために使う。
+ *
+ * @param db - Drizzle クライアント
+ * @param now - 基準時刻
+ */
+function expiredAccessRequestsDeletion(db: Database, now: Date) {
+  return db.delete(accessRequests).where(lt(accessRequests.requestedAt, accessRequestCutoff(now)));
+}
+
+/**
+ * 期限切れの申請を削除する。Cron から定期的に呼び、申請がない期間でも
+ * LINE アカウント情報・地域情報が期限後に残らないようにする。
+ *
+ * @param db - Drizzle クライアント
+ * @param now - 基準時刻
+ */
+export async function deleteExpiredAccessRequests(db: Database, now: Date): Promise<void> {
+  await expiredAccessRequestsDeletion(db, now);
 }
 
 /**
@@ -80,7 +102,7 @@ export const accessRequestsRoute = new Hono<{ Bindings: Env }>()
     // 2. 自分以外の申請が上限未満、または自分の申請が既にある場合に限り upsert する。
     //    条件を満たさなければ 0 行になり、上限到達として扱う
     const [, upserted] = await db.batch([
-      db.delete(accessRequests).where(lt(accessRequests.requestedAt, accessRequestCutoff(now))),
+      expiredAccessRequestsDeletion(db, now),
       db
         .insert(accessRequests)
         .select(

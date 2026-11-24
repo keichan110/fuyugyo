@@ -1,7 +1,7 @@
 /** 未承認の利用申請の上限件数（自分以外の申請がこの件数に達すると新規申請を受け付けない） */
 export const ACCESS_REQUEST_LIMIT = 20;
 
-/** 利用申請の有効日数。これを過ぎた申請は callback で未申請扱いにし、申請 API で削除する */
+/** 利用申請の有効日数。これを過ぎた申請は callback で未申請扱いにし、申請 API と Cron の定期削除で削除する */
 export const ACCESS_REQUEST_EXPIRES_DAYS = 7;
 
 /**

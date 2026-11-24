@@ -3,11 +3,17 @@ import { createExecutionContext, env, waitOnExecutionContext } from 'cloudflare:
 import { HTTPException } from 'hono/http-exception';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { ACCESS_REQUEST_EXPIRES_DAYS } from '../src/features/access-requests/constants';
 import { WEATHER_POINT_ID } from '../src/features/weather/schema';
 import app from '../src/index';
 import { exchangeCodeForToken, fetchLineUserProfile } from '../src/server/auth/line';
 import { createDb } from '../src/server/db/client';
-import { weatherFetchLogs, weatherFetchState, weatherPoints } from '../src/server/db/schema';
+import {
+  accessRequests,
+  weatherFetchLogs,
+  weatherFetchState,
+  weatherPoints,
+} from '../src/server/db/schema';
 import { workerSentryOptions } from '../src/server/sentry';
 
 const { captureException, captureCheckIn } = vi.hoisted(() => {
@@ -23,6 +29,7 @@ vi.mock('@sentry/cloudflare', async (importOriginal) => ({
 
 afterEach(async () => {
   await createDb(env.DB).delete(weatherPoints);
+  await createDb(env.DB).delete(accessRequests);
   vi.restoreAllMocks();
   vi.clearAllMocks();
   vi.unstubAllGlobals();
@@ -182,6 +189,63 @@ describe('Worker の通知', () => {
       status: 'error',
     });
   });
+  describe('期限切れ利用申請の定期削除', () => {
+    const DAY = 24 * 60 * 60 * 1000;
+
+    /** 経過日数を指定して申請を作る */
+    async function seedRequest(lineUserId: string, ageDays: number) {
+      await createDb(env.DB)
+        .insert(accessRequests)
+        .values({
+          id: crypto.randomUUID(),
+          lineUserId,
+          displayName: lineUserId,
+          requestedAt: new Date(Date.now() - ageDays * DAY),
+        });
+    }
+
+    async function runScheduled() {
+      const ctx = createExecutionContext();
+      await app.scheduled(
+        { cron: '23 */3 * * *', scheduledTime: Date.now(), noRetry() {} },
+        env,
+        ctx,
+      );
+      await waitOnExecutionContext(ctx);
+    }
+
+    it('期限切れの申請だけを削除し、期限内は残す', async () => {
+      await seedRequest('expired', ACCESS_REQUEST_EXPIRES_DAYS + 1);
+      await seedRequest('fresh', ACCESS_REQUEST_EXPIRES_DAYS - 1);
+      vi.stubGlobal('fetch', vi.fn<typeof fetch>());
+      await runScheduled();
+      const rows = await createDb(env.DB).select().from(accessRequests);
+      expect(rows.map((row) => row.lineUserId)).toEqual(['fresh']);
+    });
+
+    it('天気取得が失敗しても削除を行い、天気のチェックインは失敗として記録する', async () => {
+      await createDb(env.DB).insert(weatherPoints).values({
+        id: WEATHER_POINT_ID,
+        name: 'テスト地点',
+        latitude: 36,
+        longitude: 137,
+        elevationM: 1500,
+      });
+      await seedRequest('expired', ACCESS_REQUEST_EXPIRES_DAYS + 1);
+      vi.stubGlobal(
+        'fetch',
+        vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 503 })),
+      );
+      await runScheduled();
+      expect(await createDb(env.DB).select().from(accessRequests)).toHaveLength(0);
+      expect(captureCheckIn).toHaveBeenLastCalledWith({
+        monitorSlug: 'weather-fetch',
+        checkInId: 'check-in-id',
+        status: 'error',
+      });
+    });
+  });
+
   it.each([
     ['unexpected', 500, 'Internal Server Error', 1],
     ['503', 503, 'unavailable', 1],

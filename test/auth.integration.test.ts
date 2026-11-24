@@ -771,7 +771,10 @@ describe('POST /api/auth/logout', () => {
 
 /** 認証 Cookie（auth-token）を含む Set-Cookie かを判定する */
 function issuesAuthCookie(res: Response): boolean {
-  return (res.headers.get('set-cookie') ?? '').includes('auth-token=');
+  // 失効させる Set-Cookie（値が空）は発行に含めない
+  return (res.headers.get('set-cookie') ?? '')
+    .split(/,\s(?=[\w-]+=)/)
+    .some((c) => c.startsWith('auth-token=') && !c.startsWith('auth-token=;'));
 }
 
 /** どの DB 操作にも到達しない D1。到達すれば例外を投げ、認証前に拒否されたことを確かめる */
@@ -912,6 +915,8 @@ describe('未登録ユーザーの利用申請への誘導（LINE callback → �
 
   /** ログイン開始から callback までを実ルートで通す。LINE への外部通信だけを差し替える */
   async function loginViaLine(options: {
+    /** callback 時にブラウザへ残っている旧ログイン Cookie の値 */
+    authToken?: string;
     lineUserId?: string;
     displayName?: string;
     pictureUrl?: string;
@@ -922,7 +927,10 @@ describe('未登録ユーザーの利用申請への誘導（LINE callback → �
     if (options.invite) query.set('invite', options.invite);
     const login = await app.request(`/api/auth/line/login?${query}`, {}, reqEnv);
     const state = new URL(login.headers.get('location') ?? '').searchParams.get('state') ?? '';
-    const cookie = (login.headers.get('set-cookie') ?? '').split(';')[0] ?? '';
+    const sessionCookie = (login.headers.get('set-cookie') ?? '').split(';')[0] ?? '';
+    const cookie = options.authToken
+      ? `${sessionCookie}; auth-token=${options.authToken}`
+      : sessionCookie;
     vi.spyOn(globalThis, 'fetch')
       .mockResolvedValueOnce(Response.json({ access_token: 'line-access-token' }))
       .mockResolvedValueOnce(
@@ -1038,6 +1046,42 @@ describe('未登録ユーザーの利用申請への誘導（LINE callback → �
     expect(res.headers.get('location')).toBe(`${env.APP_URL}/access-request`);
     expect(cookieValue(res, 'access-request')).toBeTruthy();
     expect(issuesAuthCookie(res)).toBe(false);
+  });
+
+  describe('旧ログインが残るブラウザ', () => {
+    /** 登録済みアカウントとして発行した有効なログイン Cookie の値を作る */
+    async function staleAuthToken(): Promise<string> {
+      const registered = await seedUser({ lineUserId: 'registered-line-user' });
+      return await signJwt(
+        {
+          userId: registered.id,
+          displayName: registered.displayName,
+          role: 'MEMBER',
+          isActive: true,
+        },
+        env.JWT_SECRET,
+        '2h',
+      );
+    }
+
+    it('未登録の callback は旧 auth-token を path=/ で失効させ、申請画面へ送る', async () => {
+      const res = await loginViaLine({ authToken: await staleAuthToken() });
+
+      expect(res.headers.get('location')).toBe(`${env.APP_URL}/access-request`);
+      const expired = setCookies(res).find((c) => c.startsWith('auth-token='));
+      expect(expired).toContain('Path=/');
+      expect(expired?.toLowerCase()).toContain('max-age=0');
+      expect(cookieValue(res, 'auth-token')).toBe('');
+    });
+
+    it('申請済みで承認待ち画面へ送る場合も旧 auth-token を失効させる', async () => {
+      await seedAccessRequest(NEW_LINE_USER, new Date());
+
+      const res = await loginViaLine({ authToken: await staleAuthToken() });
+
+      expect(res.headers.get('location')).toBe(`${env.APP_URL}/access-request/pending`);
+      expect(cookieValue(res, 'auth-token')).toBe('');
+    });
   });
 
   it('他人の申請は承認待ちの判定に影響しない', async () => {

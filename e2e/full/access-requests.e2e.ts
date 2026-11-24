@@ -4,6 +4,7 @@ import { eq, like, not } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/libsql';
 
 import { getLocalD1Path } from '../../scripts/lib/get-local-d1-path.ts';
+import { REJECT_BATCH_MAX } from '../../src/features/access-requests/schema.ts';
 import { accessRequests, instructors, users } from '../../src/server/db/schema.ts';
 import { E2E_BASE_URL, E2E_PERSIST_DIR } from '../env.ts';
 import { authStatePath } from '../fixtures/auth-state.ts';
@@ -226,6 +227,55 @@ test.describe('admin', () => {
       else await expect(link).toHaveAccessibleDescription(`承認待ち ${baseline}件`);
       await closeDrawer(page);
     }
+  });
+
+  test('一括却下は API 上限の件数までしか選択できず、解除はできる', async ({ page }) => {
+    // 上限を超える件数の申請を用意する（共有 D1 の他の申請も含めて上限超えになる）
+    const total = REJECT_BATCH_MAX + 1;
+    const keys = Array.from({ length: total }, (_, i) => `lim${i}`);
+    const firstName = await seedRequest(keys[0] ?? 'lim0');
+    for (const key of keys.slice(1)) await seedRequest(key);
+
+    await page.goto('/users');
+    await page.getByRole('tab', { name: /承認待ち/ }).click();
+    const pendingPanel = page.getByRole('tabpanel', { name: /承認待ち/ });
+    await expect(pendingPanel.getByText(firstName, { exact: true })).toBeVisible();
+
+    // 上限超過時は理由を表示し、全選択は上限件数で止まる
+    await expect(pendingPanel.getByText(/一括却下は1回につき20件まで/)).toBeVisible();
+    await pendingPanel.getByRole('checkbox', { name: `先頭${REJECT_BATCH_MAX}件を選択` }).check();
+    await expect(
+      pendingPanel.getByRole('button', {
+        name: `選択した申請を却下（${REJECT_BATCH_MAX}件）`,
+      }),
+    ).toBeVisible();
+
+    // 上限到達後は未選択の申請を選べないが、選択済みの解除はできる
+    const checked = pendingPanel.getByRole('checkbox', {
+      name: /^(?!先頭).*を選択$/,
+      checked: true,
+    });
+    const unchecked = pendingPanel.getByRole('checkbox', {
+      name: /^(?!先頭).*を選択$/,
+      checked: false,
+    });
+    await expect(unchecked.first()).toBeDisabled();
+    await expect(checked).toHaveCount(REJECT_BATCH_MAX);
+    await checked.first().uncheck();
+    await expect(
+      pendingPanel.getByRole('button', {
+        name: `選択した申請を却下（${REJECT_BATCH_MAX - 1}件）`,
+      }),
+    ).toBeVisible();
+
+    // 上限内なら API は 200 で受理される
+    const rejected = page.waitForResponse((response) => response.url().endsWith('/reject-batch'));
+    await pendingPanel.getByRole('button', { name: /選択した申請を却下/ }).click();
+    await page
+      .getByRole('dialog', { name: '利用申請を却下' })
+      .getByRole('button', { name: '却下する', exact: true })
+      .click();
+    expect((await rejected).status()).toBe(200);
   });
 });
 

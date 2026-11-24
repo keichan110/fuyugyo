@@ -12,6 +12,7 @@ import { TableRowsSkeleton } from '@/components/TableRowsSkeleton';
 
 import { useAccessRequests } from '../queries';
 import { formatRequestLocation } from '../request-location';
+import { REJECT_BATCH_MAX } from '../schema';
 import type { PendingAccessRequest } from '../schema';
 import { ApproveAccessRequestModal } from './ApproveAccessRequestModal';
 import { RejectAccessRequestsModal } from './RejectAccessRequestsModal';
@@ -30,12 +31,18 @@ export function AccessRequestList() {
   const requests = data ?? [];
   // 承認・却下で一覧から消えた申請の選択は無効にする
   const selected = requests.filter((request) => selectedIds.has(request.id));
-  const allSelected = requests.length > 0 && selected.length === requests.length;
+  // 一括却下 API の上限を超えて選べないようにする（超過すると 400 になるため）
+  const selectable = requests.slice(0, REJECT_BATCH_MAX);
+  const allSelected = selectable.length > 0 && selected.length === selectable.length;
+  const overLimit = requests.length > REJECT_BATCH_MAX;
+  const limitReached = selected.length >= REJECT_BATCH_MAX;
 
   const toggle = (id: string, checked: boolean) => {
     const next = new Set(selectedIds);
-    if (checked) next.add(id);
-    else next.delete(id);
+    if (checked) {
+      if (next.size >= REJECT_BATCH_MAX) return;
+      next.add(id);
+    } else next.delete(id);
     setSelectedIds(next);
   };
 
@@ -74,12 +81,12 @@ export function AccessRequestList() {
         <>
           <Group justify="space-between">
             <Checkbox
-              label="すべて選択"
+              label={overLimit ? `先頭${REJECT_BATCH_MAX}件を選択` : 'すべて選択'}
               checked={allSelected}
               indeterminate={selected.length > 0 && !allSelected}
               onChange={(e) =>
                 setSelectedIds(
-                  e.currentTarget.checked ? new Set(requests.map((r) => r.id)) : new Set(),
+                  e.currentTarget.checked ? new Set(selectable.map((r) => r.id)) : new Set(),
                 )
               }
             />
@@ -92,6 +99,12 @@ export function AccessRequestList() {
               選択した申請を却下（{selected.length}件）
             </AppButton>
           </Group>
+          {overLimit && (
+            <Text size="xs" c="dimmed" role="status">
+              一括却下は1回につき{REJECT_BATCH_MAX}
+              件までです。選択を解除するか、却下後に残りを選択してください。
+            </Text>
+          )}
           <Paper withBorder p={0}>
             <Stack gap={0}>
               {requests.map((request) => (
@@ -101,6 +114,8 @@ export function AccessRequestList() {
                       <Checkbox
                         aria-label={`${request.displayName}を選択`}
                         checked={selectedIds.has(request.id)}
+                        // 上限到達時は未選択の項目を選べない（選択済みは解除できる）
+                        disabled={limitReached && !selectedIds.has(request.id)}
                         onChange={(e) => toggle(request.id, e.currentTarget.checked)}
                       />
                       <Avatar

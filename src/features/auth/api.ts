@@ -1,9 +1,13 @@
-import { and, eq, gt, isNull, or, sql } from 'drizzle-orm';
-import { Hono } from 'hono';
+import { and, eq, gte } from 'drizzle-orm';
+import { Hono, type Context } from 'hono';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { z } from 'zod';
 
+import { accessRequestCutoff } from '@/features/access-requests/constants';
+import { signAccessRequestToken } from '@/server/auth/access-request-token';
 import {
+  ACCESS_REQUEST_COOKIE,
+  accessRequestCookieOptions,
   AUTH_COOKIE,
   authCookieOptions,
   SESSION_COOKIE,
@@ -22,7 +26,7 @@ import {
 import { durationToSeconds } from '@/server/auth/roles';
 import { toJwtPayload, toUserRole } from '@/server/auth/user';
 import { createDb, type Database } from '@/server/db/client';
-import { invitationTokens, users } from '@/server/db/schema';
+import { accessRequests, users } from '@/server/db/schema';
 import { requireAuth, type AuthVariables } from '@/server/middleware/auth';
 import { rateLimit } from '@/server/middleware/rate-limit';
 import { captureServerError } from '@/server/sentry';
@@ -93,103 +97,76 @@ function toMeResponse(user: typeof users.$inferSelect) {
 }
 
 /**
- * 招待を消費して新規 User を作成する。User 作成と使用回数の加算は同一 `db.batch` で原子的に行い、
- * どちらかが失敗すれば両方ロールバックする（失敗した登録で招待を消費しない）。
- *
- * 1. INSERT ... SELECT（Drizzle が列順の完全一致を要求するため全列を明示する）の WHERE に招待の有効条件（アクティブ・期限内・上限未満）を置き、
- *    有効な場合に限り、新規 ID の User を MEMBER として作成する。無効なら 0 行で何も作られない。
- * 2. 続く UPDATE は、この新規 ID の User が実在する場合に限り `used_count` を加算する。
- *
- * 判定と書き込みを DB 側の単一 batch に閉じ込め、事前 SELECT とのレースを避ける。
- * 制約違反などの DB 例外はそのまま投げ、中央の `onError` で 500 とする。
- *
- * @returns 作成した User。招待が無効で作成されなかった場合は null
+ * LINE プロフィールに一致する既存 User を取得する。
+ * 表示名・画像に変更があれば追従して更新する。未登録なら null を返す（新規 User は作らない）。
  */
-async function createUserWithInvitation(
+async function findUserAndSyncProfile(
   db: Database,
   profile: LineUserProfile,
-  token: string,
 ): Promise<typeof users.$inferSelect | null> {
-  const newUserId = crypto.randomUUID();
-  const now = new Date();
-  const [inserted] = await db.batch([
-    db
-      .insert(users)
-      .select(
-        db
-          .select({
-            id: sql<string>`${newUserId}`.as('id'),
-            lineUserId: sql<string>`${profile.userId}`.as('line_user_id'),
-            displayName: sql<string>`${profile.displayName}`.as('display_name'),
-            pictureUrl: sql<string | null>`${profile.pictureUrl ?? null}`.as('picture_url'),
-            role: sql<string>`'MEMBER'`.as('role'),
-            isActive: sql<boolean>`1`.as('is_active'),
-            instructorId: sql<string | null>`NULL`.as('instructor_id'),
-            createdAt: sql<Date>`unixepoch()`.as('created_at'),
-            updatedAt: sql<Date>`unixepoch()`.as('updated_at'),
-          })
-          .from(invitationTokens)
-          .where(
-            and(
-              eq(invitationTokens.token, token),
-              eq(invitationTokens.isActive, true),
-              gt(invitationTokens.expiresAt, now),
-              or(
-                isNull(invitationTokens.maxUses),
-                gt(invitationTokens.maxUses, invitationTokens.usedCount),
-              ),
-            ),
-          ),
-      )
-      .returning(),
-    db
-      .update(invitationTokens)
-      .set({ usedCount: sql`${invitationTokens.usedCount} + 1` })
-      .where(
-        and(
-          eq(invitationTokens.token, token),
-          sql`EXISTS (SELECT 1 FROM ${users} WHERE ${users.id} = ${newUserId})`,
-        ),
-      ),
-  ]);
-  return inserted[0] ?? null;
-}
-
-/** LINE プロフィールから User を取得、なければ招待検証のうえ作成する */
-async function getOrCreateUser(
-  db: Database,
-  profile: LineUserProfile,
-  inviteToken: string | undefined,
-): Promise<{ ok: true; user: typeof users.$inferSelect } | { ok: false; reason: string }> {
   const [existing] = await db
     .select()
     .from(users)
     .where(eq(users.lineUserId, profile.userId))
     .limit(1);
-
-  if (existing) {
-    // 表示名・画像に変更があれば追従する
-    const nextPicture = profile.pictureUrl ?? null;
-    if (existing.displayName !== profile.displayName || existing.pictureUrl !== nextPicture) {
-      const [updated] = await db
-        .update(users)
-        .set({ displayName: profile.displayName, pictureUrl: nextPicture })
-        .where(eq(users.id, existing.id))
-        .returning();
-      return { ok: true, user: updated ?? existing };
-    }
-    return { ok: true, user: existing };
+  if (!existing) {
+    return null;
   }
 
-  // 新規 User は有効な招待トークン必須
-  if (!inviteToken) {
-    return { ok: false, reason: 'invitation_required' };
+  const nextPicture = profile.pictureUrl ?? null;
+  if (existing.displayName !== profile.displayName || existing.pictureUrl !== nextPicture) {
+    const [updated] = await db
+      .update(users)
+      .set({ displayName: profile.displayName, pictureUrl: nextPicture })
+      .where(eq(users.id, existing.id))
+      .returning();
+    return updated ?? existing;
   }
-  const created = await createUserWithInvitation(db, profile, inviteToken);
-  if (!created) {
-    return { ok: false, reason: 'invitation_invalid' };
+  return existing;
+}
+
+/**
+ * 未登録の LINE ユーザーを利用申請の流れへ誘導する。
+ * 期限内の申請があれば承認待ち画面へ、なければ申請 Cookie を発行して申請画面へ 302 で送る。
+ * どちらもログイン Cookie は発行せず、OAuth state の Cookie は削除する。
+ */
+async function redirectUnregistered(
+  c: Context<{ Bindings: Env; Variables: AuthVariables }>,
+  db: Database,
+  profile: LineUserProfile,
+): Promise<Response> {
+  deleteCookie(c, SESSION_COOKIE, { path: '/' });
+
+  // 期限切れの申請は未申請と同じ扱いにする（行の削除は申請 API が行う）
+  const [pending] = await db
+    .select({ id: accessRequests.id })
+    .from(accessRequests)
+    .where(
+      and(
+        eq(accessRequests.lineUserId, profile.userId),
+        gte(accessRequests.requestedAt, accessRequestCutoff(new Date())),
+      ),
+    )
+    .limit(1);
+  if (pending) {
+    return c.redirect(`${c.env.APP_URL}/access-request/pending`, 302);
   }
-  return { ok: true, user: created };
+
+  const requestToken = await signAccessRequestToken(
+    {
+      userId: profile.userId,
+      displayName: profile.displayName,
+      ...(profile.pictureUrl ? { pictureUrl: profile.pictureUrl } : {}),
+    },
+    c.env.JWT_SECRET,
+  );
+  setCookie(
+    c,
+    ACCESS_REQUEST_COOKIE,
+    requestToken,
+    accessRequestCookieOptions(isProduction(c.env)),
+  );
+  return c.redirect(`${c.env.APP_URL}/access-request`, 302);
 }
 
 /**
@@ -210,7 +187,7 @@ const loginRateLimit = rateLimit('login', {
 /**
  * callback 用の Rate Limit。超過時はログイン画面へ戻す。
  * state 検証前のため戻り先・招待は引き継がない（`session_expired` などと同じ扱い）。
- * auth-session Cookie は触らずに残すので、招待リンクを開き直せば再開できる。
+ * auth-session Cookie は触らずに残す。
  */
 const callbackRateLimit = rateLimit('callback', {
   onLimited: (c) => c.redirect(loginErrorUrl(c.env, 'rate_limited'), 302),
@@ -299,18 +276,18 @@ export const authRoute = new Hono<{
       return c.redirect(loginErrorUrl(c.env, 'profile_fetch_failed', retry), 302);
     }
 
-    // User 取得/作成（招待トークンは session 由来を優先）
+    // 既存 User はプロフィールに追従してログインさせ、未登録なら利用申請へ進める
     const db = createDb(c.env.DB);
-    const result = await getOrCreateUser(db, profile, retry.inviteToken);
-    if (!result.ok) {
-      return c.redirect(loginErrorUrl(c.env, result.reason, retry), 302);
+    const user = await findUserAndSyncProfile(db, profile);
+    if (!user) {
+      return await redirectUnregistered(c, db, profile);
     }
-    if (!result.user.isActive) {
+    if (!user.isActive) {
       return c.redirect(loginErrorUrl(c.env, 'inactive_user', retry), 302);
     }
 
     // JWT 発行 → Cookie に載せてログインセッションとする
-    const token = await signJwt(toJwtPayload(result.user), c.env.JWT_SECRET, c.env.JWT_EXPIRES_IN);
+    const token = await signJwt(toJwtPayload(user), c.env.JWT_SECRET, c.env.JWT_EXPIRES_IN);
     const maxAge = durationToSeconds(c.env.JWT_EXPIRES_IN);
     setCookie(c, AUTH_COOKIE, token, authCookieOptions(maxAge, isProduction(c.env)));
     deleteCookie(c, SESSION_COOKIE, { path: '/' });

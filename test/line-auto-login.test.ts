@@ -225,18 +225,17 @@ describe('ログインルートの認証ガード', () => {
 
 describe('ログイン失敗時の案内', () => {
   it.each([
-    [
-      'invitation_required',
-      'このLINEアカウントは登録されていません。登録済みの方は、登録したLINEアカウントでログインし直してください。初めての方は、管理者から届いた招待リンクを開いてください。',
-    ],
-    [
-      'invitation_invalid',
-      'この招待リンクは利用できません。管理者に招待リンクの再発行を依頼してください。',
-    ],
     ['inactive_user', 'このアカウントは現在利用停止中です。管理者にお問い合わせください。'],
   ])('再試行では解消しないエラー（%s）は原因と次の行動を案内する', (error, message) => {
     expect(getLoginErrorMessage(error)).toBe(message);
   });
+
+  it.each(['invitation_required', 'invitation_invalid'])(
+    '廃止した招待のエラー（%s）は招待に触れず、汎用の再試行を案内する',
+    (error) => {
+      expect(getLoginErrorMessage(error)).toBe('ログインに失敗しました。もう一度お試しください。');
+    },
+  );
 
   it.each([
     'auth_failed',
@@ -264,9 +263,11 @@ describe('ログイン失敗時の案内', () => {
   });
 
   it.each(['session_expired', 'invalid_session', 'invalid_state'])(
-    'セッションを復元できない場合（%s）は招待リンクの開き直しを案内する',
+    'セッションを復元できない場合（%s）はもう一度ログインするよう案内する',
     (error) => {
-      expect(getLoginErrorMessage(error)).toContain('招待リンクを開き直してください');
+      const message = getLoginErrorMessage(error);
+      expect(message).toBe('ログインを再開できませんでした。もう一度ログインしてください。');
+      expect(message).not.toContain('招待');
     },
   );
 });
@@ -288,7 +289,7 @@ describe('LINE 内ブラウザの自動ログイン', () => {
     expect(getLineAutoLoginUrl(lineUserAgent, {})).toBe('/api/auth/line/login?redirect=%2F');
   });
 
-  it.each(['auth_failed', 'inactive_user', 'invitation_invalid', 'rate_limited', ''])(
+  it.each(['auth_failed', 'inactive_user', 'rate_limited', ''])(
     'エラー（%s）があれば自動ログインを止める',
     (error) => {
       expect(getLineAutoLoginUrl(lineUserAgent, { error, invite: 'invite-token' })).toBeNull();

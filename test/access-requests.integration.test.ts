@@ -45,6 +45,13 @@ function envWith(overrides: Partial<Env> = {}): Env {
   };
 }
 
+/** ACCESS_REQUESTS_ENABLED を設定していない env（未設定は受付停止として扱う） */
+function withoutEnabledFlag(): Env {
+  const reqEnv = envWith();
+  Reflect.deleteProperty(reqEnv, 'ACCESS_REQUESTS_ENABLED');
+  return reqEnv;
+}
+
 /** 申請 Cookie を載せた POST リクエストを作る（同一オリジンからの正規リクエストを模す） */
 function postRequest(token?: string, cf?: Record<string, unknown>): Request {
   return new Request('http://localhost/api/access-requests', {
@@ -248,11 +255,7 @@ describe('POST /api/access-requests', () => {
       const res = await app.request(
         postRequest(await requestToken()),
         {},
-        envWith(
-          value === undefined
-            ? { ACCESS_REQUESTS_ENABLED: undefined }
-            : { ACCESS_REQUESTS_ENABLED: value },
-        ),
+        value === undefined ? withoutEnabledFlag() : envWith({ ACCESS_REQUESTS_ENABLED: value }),
       );
 
       expect(res.status).toBe(403);
@@ -369,8 +372,8 @@ describe('POST /api/access-requests', () => {
     const res = await app.request(postRequest(await requestToken()), {}, envWith());
 
     expect(res.status).toBe(409);
-    const [{ value }] = await createDb(env.DB).select({ value: count() }).from(accessRequests);
-    expect(value).toBe(0);
+    const [row] = await createDb(env.DB).select({ value: count() }).from(accessRequests);
+    expect(row?.value).toBe(0);
   });
 
   it('Rate Limit を超えると429を返し、行を作らない', async () => {

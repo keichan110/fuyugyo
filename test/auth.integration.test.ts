@@ -7,12 +7,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getLineLoginUrl } from '../src/features/auth/login-policy';
 import { meResponseSchema } from '../src/features/auth/schema';
 import app from '../src/index';
+import { verifyAccessRequestToken } from '../src/server/auth/access-request-token';
 import { signJwt, verifyJwt, type UserRole } from '../src/server/auth/jwt';
 import { createDb } from '../src/server/db/client';
-import { instructors, invitationTokens, users } from '../src/server/db/schema';
+import { accessRequests, instructors, invitationTokens, users } from '../src/server/db/schema';
 import { requireAuth, requireRole, type AuthVariables } from '../src/server/middleware/auth';
 import type { Env } from '../src/server/types';
-import { interruptBeforeBatch } from './d1-interrupt';
 
 /**
  * 認証の統合テスト（実 D1・seed した User）。Hono の HTTP 境界 × 実 D1 を継ぎ目として、
@@ -77,19 +77,6 @@ async function seedUser(overrides: Partial<typeof users.$inferInsert> = {}) {
     throw new Error('seedUser failed');
   }
   return user;
-}
-
-/** LINE ユーザー ID から作成済み User の ID を引く（ログインで登録・特定された User の確認用） */
-async function userIdByLineUserId(lineUserId: string): Promise<string> {
-  const [user] = await createDb(env.DB)
-    .select({ id: users.id })
-    .from(users)
-    .where(eq(users.lineUserId, lineUserId))
-    .limit(1);
-  if (!user) {
-    throw new Error(`User not found: ${lineUserId}`);
-  }
-  return user.id;
 }
 
 /** seed した User に対応する JWT を発行する */
@@ -410,16 +397,8 @@ describe('LINE OAuth コールバック', () => {
     },
   );
 
-  it('認証エラーから手動再試行すると、元の招待で登録して元の画面へ戻れる', async () => {
-    const owner = await seedUser({ role: 'ADMIN' });
-    await createDb(env.DB)
-      .insert(invitationTokens)
-      .values({
-        token: 'test-invitation',
-        createdBy: owner.id,
-        expiresAt: new Date(Date.now() + 3600000),
-        maxUses: 1,
-      });
+  it('認証エラーから手動再試行すると、既存ユーザーは元の画面へ戻れる', async () => {
+    const user = await seedUser({ lineUserId: 'retry-user', displayName: '再試行ユーザー' });
     const first = await startOAuth();
     const fetchMock = vi
       .spyOn(globalThis, 'fetch')
@@ -453,10 +432,9 @@ describe('LINE OAuth コールバック', () => {
     expect(success.status).toBe(302);
     expect(success.headers.get('location')).toBe(`${retry.reqEnv.APP_URL}/shifts?date=2026-01`);
     const token = success.headers.get('set-cookie')?.match(/auth-token=([^;]+)/)?.[1] ?? '';
-    const created = await userIdByLineUserId('retry-user');
     expect(await verifyJwt(token, retry.reqEnv.JWT_SECRET)).toMatchObject({
       success: true,
-      payload: { userId: created },
+      payload: { userId: user.id },
     });
     expect(decodeJwt(token)).not.toHaveProperty('lineUserId');
   });
@@ -502,47 +480,31 @@ describe('LINE OAuth コールバック', () => {
     expect(location.searchParams.get('redirect')).toBe('/');
   });
 
-  it('招待経由で初回ログイン時刻を持つJWTを発行し、元のパスとクエリへ戻る', async () => {
-    const owner = await seedUser({ role: 'ADMIN' });
-    const db = createDb(env.DB);
-    await db.insert(invitationTokens).values({
-      token: 'test-invitation',
-      createdBy: owner.id,
-      expiresAt: new Date(Date.now() + 3600000),
-      maxUses: 1,
-    });
-    const reqEnv = envWith({ AUTH_RATE_LIMITER: makeRateLimiter(20) });
-    const login = await app.request(
-      '/api/auth/line/login?redirect=%2Fshifts%3Fdate%3D2026-01&invite=test-invitation',
-      {},
-      reqEnv,
+  it('既存ユーザーのログインで初回ログイン時刻を持つJWTを発行し、元のパスとクエリへ戻る', async () => {
+    const user = await seedUser({ lineUserId: 'known-line-user', displayName: '既存ユーザー' });
+    const { reqEnv, state, cookie } = await startOAuth(
+      '/api/auth/line/login?redirect=%2Fshifts%3Fdate%3D2026-01',
     );
-    const state = new URL(login.headers.get('location') ?? '').searchParams.get('state') ?? '';
-    const sessionCookie = (login.headers.get('set-cookie') ?? '').split(';')[0] ?? '';
     vi.spyOn(globalThis, 'fetch')
       .mockResolvedValueOnce(Response.json({ access_token: 'line-access-token' }))
       .mockResolvedValueOnce(
-        Response.json({ userId: 'new-line-user', displayName: '新規ユーザー' }),
+        Response.json({ userId: 'known-line-user', displayName: '既存ユーザー' }),
       );
 
     const res = await app.request(
       `/api/auth/line/callback?code=test-code&state=${encodeURIComponent(state)}`,
-      {
-        headers: { cookie: sessionCookie },
-      },
+      { headers: { cookie } },
       reqEnv,
     );
 
     expect(res.status).toBe(302);
     expect(res.headers.get('location')).toBe(`${reqEnv.APP_URL}/shifts?date=2026-01`);
-    const cookie = res.headers.get('set-cookie') ?? '';
-    expect(cookie).toContain('Max-Age=7200');
-    const token = cookie.match(/auth-token=([^;]+)/)?.[1] ?? '';
-    const verified = await verifyJwt(token, reqEnv.JWT_SECRET);
-    const created = await userIdByLineUserId('new-line-user');
-    expect(verified).toMatchObject({
+    const setCookie = res.headers.get('set-cookie') ?? '';
+    expect(setCookie).toContain('Max-Age=7200');
+    const token = setCookie.match(/auth-token=([^;]+)/)?.[1] ?? '';
+    expect(await verifyJwt(token, reqEnv.JWT_SECRET)).toMatchObject({
       success: true,
-      payload: { userId: created, role: 'MEMBER' },
+      payload: { userId: user.id, role: 'MEMBER' },
     });
     const claims = decodeJwt(token);
     expect(claims).not.toHaveProperty('lineUserId');
@@ -911,23 +873,21 @@ describe('GET /api/auth/me（JWT と DB の乖離）', () => {
   });
 });
 
-describe('招待による新規登録（LINE callback → 実D1）', () => {
-  const NEW_LINE_USER = 'invited-line-user';
-  const fixedNow = new Date('2026-01-10T00:00:00.000Z');
+describe('未登録ユーザーの利用申請への誘導（LINE callback → 実D1）', () => {
+  const NEW_LINE_USER = 'unregistered-line-user';
+  const DAY = 24 * 60 * 60 * 1000;
 
   /** ログイン開始から callback までを実ルートで通す。LINE への外部通信だけを差し替える */
-  async function registerViaLine(options: {
+  async function loginViaLine(options: {
     lineUserId?: string;
     displayName?: string;
     pictureUrl?: string;
     invite?: string | null;
-    reqEnv?: Env;
   }) {
-    const reqEnv = options.reqEnv ?? envWith({ AUTH_RATE_LIMITER: makeRateLimiter(50) });
-    const loginEnv = { ...reqEnv, DB: env.DB };
+    const reqEnv = envWith({ AUTH_RATE_LIMITER: makeRateLimiter(50) });
     const query = new URLSearchParams({ redirect: '/shifts' });
     if (options.invite) query.set('invite', options.invite);
-    const login = await app.request(`/api/auth/line/login?${query}`, {}, loginEnv);
+    const login = await app.request(`/api/auth/line/login?${query}`, {}, reqEnv);
     const state = new URL(login.headers.get('location') ?? '').searchParams.get('state') ?? '';
     const cookie = (login.headers.get('set-cookie') ?? '').split(';')[0] ?? '';
     vi.spyOn(globalThis, 'fetch')
@@ -935,7 +895,7 @@ describe('招待による新規登録（LINE callback → 実D1）', () => {
       .mockResolvedValueOnce(
         Response.json({
           userId: options.lineUserId ?? NEW_LINE_USER,
-          displayName: options.displayName ?? '招待ユーザー',
+          displayName: options.displayName ?? '申請予定ユーザー',
           ...(options.pictureUrl === undefined ? {} : { pictureUrl: options.pictureUrl }),
         }),
       );
@@ -946,35 +906,26 @@ describe('招待による新規登録（LINE callback → 実D1）', () => {
     );
   }
 
-  /** 登録拒否の応答（302・遷移先 error・認証Cookieなし）を確認する */
-  function expectRejected(res: Response, error: string) {
-    expect(res.status).toBe(302);
-    const location = new URL(res.headers.get('location') ?? '');
-    expect(location.pathname).toBe('/login');
-    expect(location.searchParams.get('error')).toBe(error);
-    expect(issuesAuthCookie(res)).toBe(false);
+  /** 複数の Set-Cookie を1件ずつに分ける（`Expires=Thu, 01 Jan` のカンマでは分割しない） */
+  function setCookies(res: Response): string[] {
+    return (res.headers.get('set-cookie') ?? '').split(/,\s(?=[\w-]+=)/).filter(Boolean);
   }
 
-  async function seedInvite(overrides: Partial<typeof invitationTokens.$inferInsert> = {}) {
-    const owner = await seedUser({ role: 'ADMIN' });
-    const token = `invite-${crypto.randomUUID()}`;
-    await createDb(env.DB)
-      .insert(invitationTokens)
-      .values({
-        token,
-        createdBy: owner.id,
-        expiresAt: new Date(Date.now() + 3600000),
-        ...overrides,
-      });
-    return token;
+  /** 名前付きの Set-Cookie の値を取り出す（なければ undefined） */
+  function cookieValue(res: Response, name: string): string | undefined {
+    for (const header of setCookies(res)) {
+      if (header.startsWith(`${name}=`)) return header.split(';')[0]?.slice(name.length + 1);
+    }
+    return undefined;
   }
 
-  async function usedCountOf(token: string): Promise<number> {
-    const [row] = await createDb(env.DB)
-      .select({ usedCount: invitationTokens.usedCount })
-      .from(invitationTokens)
-      .where(eq(invitationTokens.token, token));
-    return row?.usedCount ?? -1;
+  async function seedAccessRequest(lineUserId: string, requestedAt: Date) {
+    await createDb(env.DB).insert(accessRequests).values({
+      id: crypto.randomUUID(),
+      lineUserId,
+      displayName: '申請済み',
+      requestedAt,
+    });
   }
 
   async function usersWithLineId(lineUserId: string): Promise<(typeof users.$inferSelect)[]> {
@@ -986,216 +937,125 @@ describe('招待による新規登録（LINE callback → 実D1）', () => {
     return row?.value ?? -1;
   }
 
-  it('招待なしの新規ログインは invitation_required で拒否され、User を作らない', async () => {
-    const before = await userCount();
-    const res = await registerViaLine({ invite: null });
-    expectRejected(res, 'invitation_required');
-    expect(await userCount()).toBe(before);
+  beforeEach(async () => {
+    await createDb(env.DB).delete(accessRequests);
   });
 
-  it('存在しない招待は invitation_invalid で拒否され、User を作らない', async () => {
-    await seedUser({ role: 'ADMIN' });
+  it('未登録は申請画面へ 302 し、申請 Cookie だけを発行して User を作らない', async () => {
     const before = await userCount();
-    const res = await registerViaLine({ invite: 'no-such-token' });
-    expectRejected(res, 'invitation_invalid');
-    expect(new URL(res.headers.get('location') ?? '').searchParams.get('invite')).toBe(
-      'no-such-token',
-    );
+
+    const res = await loginViaLine({ pictureUrl: 'https://profile.line-scdn.net/example' });
+
+    expect(res.status).toBe(302);
+    expect(res.headers.get('location')).toBe(`${env.APP_URL}/access-request`);
+    expect(issuesAuthCookie(res)).toBe(false);
+    expect(cookieValue(res, 'auth-session')).toBe('');
+    const token = cookieValue(res, 'access-request') ?? '';
+    expect(await verifyAccessRequestToken(token, env.JWT_SECRET)).toEqual({
+      userId: NEW_LINE_USER,
+      displayName: '申請予定ユーザー',
+      pictureUrl: 'https://profile.line-scdn.net/example',
+    });
+    const setCookie = setCookies(res).find((c) => c.startsWith('access-request='));
+    expect(setCookie).toContain('HttpOnly');
+    expect(setCookie).toContain('SameSite=Lax');
+    expect(setCookie).toContain('Path=/api/access-requests');
+    expect(setCookie).toContain('Max-Age=600');
+    expect(await userCount()).toBe(before);
     expect(await usersWithLineId(NEW_LINE_USER)).toHaveLength(0);
+  });
+
+  it('?invite= 付きでも招待を見ずに申請画面へ進め、User も使用回数も増えない', async () => {
+    const owner = await seedUser({ role: 'ADMIN' });
+    const invitation = 'invite-ignored';
+    await createDb(env.DB)
+      .insert(invitationTokens)
+      .values({ token: invitation, createdBy: owner.id, expiresAt: new Date(Date.now() + DAY) });
+    const before = await userCount();
+
+    const res = await loginViaLine({ invite: invitation });
+
+    expect(res.headers.get('location')).toBe(`${env.APP_URL}/access-request`);
+    expect(issuesAuthCookie(res)).toBe(false);
     expect(await userCount()).toBe(before);
+    const [row] = await createDb(env.DB)
+      .select({ usedCount: invitationTokens.usedCount })
+      .from(invitationTokens)
+      .where(eq(invitationTokens.token, invitation));
+    expect(row?.usedCount).toBe(0);
   });
 
-  it.each([
-    ['無効化済み', { isActive: false }],
-    ['期限切れ', { expiresAt: new Date(Date.now() - 1000) }],
-    ['上限到達', { maxUses: 2, usedCount: 2 }],
-  ])(
-    '%sの招待は invitation_invalid で拒否され、User 作成も使用回数加算もしない',
-    async (_n, overrides) => {
-      const token = await seedInvite(overrides);
-      const usedBefore = await usedCountOf(token);
-      const before = await userCount();
+  it('7日以内の申請がある人は承認待ち画面へ 302 し、どの Cookie も発行しない', async () => {
+    await seedAccessRequest(NEW_LINE_USER, new Date(Date.now() - 7 * DAY + 60_000));
 
-      const res = await registerViaLine({ invite: token });
+    const res = await loginViaLine({});
 
-      expectRejected(res, 'invitation_invalid');
-      expect(await usersWithLineId(NEW_LINE_USER)).toHaveLength(0);
-      expect(await userCount()).toBe(before);
-      expect(await usedCountOf(token)).toBe(usedBefore);
-    },
-  );
-
-  it('期限と同時刻の招待は拒否し、1秒前なら受け付ける（境界）', async () => {
-    vi.useFakeTimers({ toFake: ['Date'] });
-    vi.setSystemTime(fixedNow);
-    const atExpiry = await seedInvite({ expiresAt: fixedNow });
-    const rejected = await registerViaLine({ invite: atExpiry, lineUserId: 'expiry-user-a' });
-    expectRejected(rejected, 'invitation_invalid');
-    expect(await usersWithLineId('expiry-user-a')).toHaveLength(0);
-    expect(await usedCountOf(atExpiry)).toBe(0);
-
-    const justBefore = await seedInvite({ expiresAt: new Date(fixedNow.getTime() + 1000) });
-    const accepted = await registerViaLine({ invite: justBefore, lineUserId: 'expiry-user-b' });
-    expect(accepted.status).toBe(302);
-    expect(issuesAuthCookie(accepted)).toBe(true);
-    expect(await usedCountOf(justBefore)).toBe(1);
+    expect(res.status).toBe(302);
+    expect(res.headers.get('location')).toBe(`${env.APP_URL}/access-request/pending`);
+    expect(issuesAuthCookie(res)).toBe(false);
+    expect(cookieValue(res, 'access-request')).toBeUndefined();
+    expect(cookieValue(res, 'auth-session')).toBe('');
   });
 
-  it('有効な招待で MEMBER の User が1件作られ、使用回数が1だけ増え、認証Cookieを発行する', async () => {
-    const token = await seedInvite({ maxUses: 5 });
+  it('7日を過ぎた申請しかない人は申請画面へ進み、申請 Cookie を再発行する', async () => {
+    await seedAccessRequest(NEW_LINE_USER, new Date(Date.now() - 7 * DAY - 60_000));
 
-    const res = await registerViaLine({ invite: token });
+    const res = await loginViaLine({});
+
+    expect(res.headers.get('location')).toBe(`${env.APP_URL}/access-request`);
+    expect(cookieValue(res, 'access-request')).toBeTruthy();
+    expect(issuesAuthCookie(res)).toBe(false);
+  });
+
+  it('他人の申請は承認待ちの判定に影響しない', async () => {
+    await seedAccessRequest('someone-else', new Date());
+
+    const res = await loginViaLine({});
+
+    expect(res.headers.get('location')).toBe(`${env.APP_URL}/access-request`);
+  });
+
+  it('既存Userは招待や申請の有無にかかわらずログインでき、使用回数を消費しない', async () => {
+    const owner = await seedUser({ role: 'ADMIN' });
+    await createDb(env.DB)
+      .insert(invitationTokens)
+      .values({
+        token: 'invite-unused',
+        createdBy: owner.id,
+        expiresAt: new Date(Date.now() + DAY),
+      });
+    const user = await seedUser({ lineUserId: 'existing-line-user' });
+    await seedAccessRequest(user.lineUserId, new Date());
+
+    const res = await loginViaLine({ lineUserId: user.lineUserId, invite: 'invite-unused' });
 
     expect(res.status).toBe(302);
     expect(res.headers.get('location')).toBe(`${env.APP_URL}/shifts`);
     expect(issuesAuthCookie(res)).toBe(true);
-    const created = await usersWithLineId(NEW_LINE_USER);
-    expect(created).toHaveLength(1);
-    expect(created[0]).toMatchObject({
-      role: 'MEMBER',
-      isActive: true,
-      displayName: '招待ユーザー',
-      pictureUrl: null,
-      instructorId: null,
-    });
-    expect(await usedCountOf(token)).toBe(1);
-  });
-
-  it('pictureUrl 付きのプロフィールで新規登録すると、実D1にその URL が保存される', async () => {
-    const token = await seedInvite({ maxUses: 5 });
-    const pictureUrl = 'https://profile.line-scdn.net/example/picture';
-
-    const res = await registerViaLine({ invite: token, pictureUrl });
-
-    expect(res.status).toBe(302);
-    expect(issuesAuthCookie(res)).toBe(true);
-    const created = await usersWithLineId(NEW_LINE_USER);
-    expect(created).toHaveLength(1);
-    expect(created[0]).toMatchObject({ pictureUrl, role: 'MEMBER' });
-    expect(await usedCountOf(token)).toBe(1);
-  });
-
-  it('上限1の招待は1人目の登録後、次の新規登録を拒否する（逐次）', async () => {
-    const token = await seedInvite({ maxUses: 1 });
-
-    const first = await registerViaLine({ invite: token, lineUserId: 'first-user' });
-    const second = await registerViaLine({ invite: token, lineUserId: 'second-user' });
-
-    expect(first.status).toBe(302);
-    expect(issuesAuthCookie(first)).toBe(true);
-    expectRejected(second, 'invitation_invalid');
-    expect(await usersWithLineId('first-user')).toHaveLength(1);
-    expect(await usersWithLineId('second-user')).toHaveLength(0);
-    expect(await usedCountOf(token)).toBe(1);
-  });
-
-  it('無制限（maxUses なし）の招待は何人でも登録でき、使用回数だけが増える', async () => {
-    const token = await seedInvite({ maxUses: null, usedCount: 100 });
-
-    for (const id of ['unlimited-1', 'unlimited-2', 'unlimited-3']) {
-      const res = await registerViaLine({ invite: token, lineUserId: id });
-      expect(issuesAuthCookie(res)).toBe(true);
-    }
-
-    expect(await usedCountOf(token)).toBe(103);
-  });
-
-  it('既存Userの再ログインは招待が無効でも成功し、使用回数を消費しない', async () => {
-    const token = await seedInvite({ maxUses: 1, usedCount: 1, isActive: false });
-    const user = await seedUser({ lineUserId: 'existing-line-user' });
-
-    const res = await registerViaLine({ invite: token, lineUserId: user.lineUserId });
-
-    expect(res.status).toBe(302);
-    expect(issuesAuthCookie(res)).toBe(true);
-    expect(await usedCountOf(token)).toBe(1);
-    expect(await usersWithLineId(user.lineUserId)).toHaveLength(1);
+    expect(cookieValue(res, 'access-request')).toBeUndefined();
+    const [row] = await createDb(env.DB)
+      .select({ usedCount: invitationTokens.usedCount })
+      .from(invitationTokens)
+      .where(eq(invitationTokens.token, 'invite-unused'));
+    expect(row?.usedCount).toBe(0);
   });
 
   it('無効なUserは inactive_user で拒否され認証Cookieを出さない（プロフィール追従は従来どおり）', async () => {
     const user = await seedUser({ isActive: false, displayName: '旧表示名' });
 
-    const res = await registerViaLine({
+    const res = await loginViaLine({
       lineUserId: user.lineUserId,
       displayName: '新表示名',
       invite: null,
     });
 
-    expectRejected(res, 'inactive_user');
+    expect(res.status).toBe(302);
+    const location = new URL(res.headers.get('location') ?? '');
+    expect(location.pathname).toBe('/login');
+    expect(location.searchParams.get('error')).toBe('inactive_user');
+    expect(issuesAuthCookie(res)).toBe(false);
     const [after] = await usersWithLineId(user.lineUserId);
-    // 既存実装は無効Userでもプロフィールだけは追従してから拒否する。有効状態・ロールは変わらない
+    // 無効Userでもプロフィールだけは追従してから拒否する。有効状態・ロールは変わらない
     expect(after).toMatchObject({ isActive: false, role: 'MEMBER', displayName: '新表示名' });
-  });
-
-  describe('登録の原子性（User 作成と招待消費は同一 batch）', () => {
-    it('User 作成が制約違反で失敗すると 500 になり、招待を消費しない', async () => {
-      const token = await seedInvite({ maxUses: 3 });
-      // 事前確認（User なし）の後・batch の前に、同じ lineUserId の User が別経路で作られた状況
-      const interruption = interruptBeforeBatch(env.DB, async () => {
-        await createDb(env.DB)
-          .insert(users)
-          .values({ lineUserId: NEW_LINE_USER, displayName: '競合先に作られたUser' });
-      });
-      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-
-      const res = await registerViaLine({
-        invite: token,
-        reqEnv: envWith({ DB: interruption.db, AUTH_RATE_LIMITER: makeRateLimiter(50) }),
-      });
-
-      expect(consoleError).toHaveBeenCalled();
-      expect(res.status).toBe(500);
-      expect(issuesAuthCookie(res)).toBe(false);
-      expect(interruption.interruptCount()).toBe(1);
-      const rows = await usersWithLineId(NEW_LINE_USER);
-      expect(rows).toHaveLength(1);
-      expect(rows[0]?.displayName).toBe('競合先に作られたUser');
-      expect(await usedCountOf(token)).toBe(0);
-    });
-
-    it('招待の使用回数更新が実DBで失敗すると、作成済みのUserも含めて全体をロールバックする', async () => {
-      const token = await seedInvite({ maxUses: 3 });
-      // 使用回数の UPDATE だけを実DB側で失敗させる一時トリガー。INSERT は成功してから失敗する
-      await env.DB.exec(
-        "CREATE TRIGGER test_fail_invitation_update BEFORE UPDATE OF used_count ON invitation_tokens BEGIN SELECT RAISE(ABORT, 'test_forced_update_failure'); END",
-      );
-      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-      try {
-        const res = await registerViaLine({ invite: token });
-
-        expect(consoleError).toHaveBeenCalled();
-        expect(res.status).toBe(500);
-        expect(issuesAuthCookie(res)).toBe(false);
-        expect(await usersWithLineId(NEW_LINE_USER)).toHaveLength(0);
-        expect(await usedCountOf(token)).toBe(0);
-      } finally {
-        await env.DB.exec('DROP TRIGGER IF EXISTS test_fail_invitation_update');
-      }
-      // 後処理の確認: トリガーが残っていなければ同じ招待で正常に登録できる
-      const recovered = await registerViaLine({ invite: token });
-      expect(issuesAuthCookie(recovered)).toBe(true);
-      expect(await usedCountOf(token)).toBe(1);
-    });
-
-    it('上限1の招待に別の登録が割り込んでも、登録は最大1件・使用回数は1に収まる', async () => {
-      const token = await seedInvite({ maxUses: 1 });
-      // 1人目の事前確認後・batch 前に、2人目が同じ招待で先に登録を完了する
-      const interruption = interruptBeforeBatch(env.DB, async () => {
-        const winner = await registerViaLine({ invite: token, lineUserId: 'race-winner' });
-        expect(issuesAuthCookie(winner)).toBe(true);
-      });
-
-      const loser = await registerViaLine({
-        invite: token,
-        lineUserId: 'race-loser',
-        reqEnv: envWith({ DB: interruption.db, AUTH_RATE_LIMITER: makeRateLimiter(50) }),
-      });
-
-      expect(interruption.interruptCount()).toBe(1);
-      expectRejected(loser, 'invitation_invalid');
-      expect(await usersWithLineId('race-winner')).toHaveLength(1);
-      expect(await usersWithLineId('race-loser')).toHaveLength(0);
-      expect(await usedCountOf(token)).toBe(1);
-    });
   });
 });

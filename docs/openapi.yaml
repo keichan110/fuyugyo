@@ -771,6 +771,55 @@ paths:
         '500':
           $ref: '#/components/responses/ServerError'
 
+  /api/access-requests:
+    post:
+      summary: 利用申請
+      description: |
+        未登録の LINE ユーザーが利用を申請します。LINE ログインの callback で発行された
+        `access-request` Cookie（有効期限10分）が必要で、認証 Cookie は不要です。
+        同じ LINE アカウントの再申請は申請日時・表示名・推定地域を更新します。
+        未承認の申請は他人分が20件に達すると受け付けず、7日を過ぎた申請は申請時に削除します。
+      tags:
+        - 認証
+      responses:
+        '201':
+          description: 申請を受け付けた
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - requestedAt
+                properties:
+                  requestedAt:
+                    type: string
+                    format: date-time
+                    description: 申請を受け付けた時刻
+        '401':
+          description: 申請 Cookie がない・改ざん・期限切れ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccessRequestError'
+        '403':
+          description: 受付停止中、または未承認の申請が上限に達している
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccessRequestError'
+        '409':
+          description: すでに登録済みの LINE アカウント
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccessRequestError'
+        '429':
+          description: Rate Limit 超過
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccessRequestError'
+
   /api/auth/invitations:
     get:
       summary: 招待トークン一覧取得
@@ -1002,6 +1051,13 @@ components:
       name: auth-token
 
   schemas:
+    AccessRequestError:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
     HealthStatus:
       type: object
       required:

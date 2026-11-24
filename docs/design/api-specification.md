@@ -186,6 +186,45 @@ HTTP/1.1 401 Unauthorized
 }
 ```
 
+### 3.5 利用申請
+
+**エンドポイント**: `POST /api/access-requests`
+
+未登録の LINE ユーザーが利用を申請する。LINE ログインの callback で `access-request` Cookie（有効期限10分・`path=/api/access-requests`）が発行された場合のみ呼べる。
+認証 Cookie（`auth-token`）は不要で、Rate Limit を適用する。
+
+- 同じ LINE アカウントの再申請は新しい行を作らず、申請日時・表示名・推定地域を更新する
+- 未承認の申請は他人分が20件に達すると新規申請を受け付けない。申請から7日を過ぎたものは期限切れとして申請時に削除する
+- 接続元から推定した国・都道府県・市区町村を保存する（取得できない場合は保存しない）
+- `ACCESS_REQUESTS_ENABLED` が `"true"` 以外のときは受け付けない
+
+#### リクエスト
+
+```http
+POST /api/access-requests HTTP/1.1
+Cookie: access-request=eyJ...
+```
+
+#### レスポンス（成功）
+
+```http
+HTTP/1.1 201 Created
+Set-Cookie: access-request=; Path=/api/access-requests; Max-Age=0
+
+{ "requestedAt": "2026-11-24T01:00:00.000Z" }
+```
+
+#### レスポンス（エラー）
+
+エラーは `{ "message": "..." }` で返し、クライアントは HTTP ステータスで分岐する。
+
+| ステータス | 意味                                               |
+| ---------- | -------------------------------------------------- |
+| 401        | 申請 Cookie がない・改ざん・期限切れ               |
+| 403        | 受付停止中、または未承認の申請が上限に達している   |
+| 409        | すでに登録済みの LINE アカウント（申請は作らない） |
+| 429        | Rate Limit 超過                                    |
+
 ## 4. 招待システムAPI
 
 ### 4.1 招待URL生成

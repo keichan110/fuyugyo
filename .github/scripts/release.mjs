@@ -6,6 +6,21 @@ const marker = /<!-- fuyugyo-release:(.*?) -->/;
 const notesStart = '<!-- release-notes:start -->';
 const notesEnd = '<!-- release-notes:end -->';
 
+// .github/release.yml のカテゴリ順・ラベル対応と揃える（テストで同期を検証する）。
+// generate-notes は PR を最初の1カテゴリにしか載せないため、本文はここで全該当カテゴリに組み直す。
+export const releaseCategories = [
+  { title: '✨ 機能追加・改善', labels: ['enhancement'] },
+  { title: '🐛 バグ修正', labels: ['bug'] },
+  { title: '🔒 セキュリティ', labels: ['security'] },
+  { title: '🗃️ DB マイグレーションあり', labels: ['db-migration'], database: true },
+  { title: '⬆️ 依存関係の更新', labels: ['dependencies'] },
+  { title: '🔧 CI・運用', labels: ['ci-cd', 'devops'] },
+];
+export const otherCategoryTitle = 'その他の変更';
+const excludedLabel = 'skip-changelog';
+const databaseDir = 'drizzle/';
+const statusLabels = { A: '追加', D: '削除' };
+
 function metadata(release) {
   const match = release.body?.match(marker);
   return match ? JSON.parse(match[1]) : undefined;
@@ -33,6 +48,208 @@ async function listAll(api, path) {
       return result;
     }
   }
+}
+
+function localGit(args) {
+  return execFileSync('git', args, { encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
+}
+
+function escapeRegExp(text) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * generate-notes の本文を、同一リポジトリの PR 行・保持する節・末尾の文章に分解する。
+ * PR 行の文言と順序は生成結果のまま使う。New Contributors 節と比較リンクは本文ごと保持する。
+ */
+function parseGenerated(body, repository) {
+  const prPattern = new RegExp(
+    `^\\* .+ in https://github\\.com/${escapeRegExp(repository)}/pull/(\\d+)$`,
+    'i',
+  );
+  const sections = [];
+  for (const line of body.split(/\r?\n/)) {
+    if (line.startsWith('## ') || sections.length === 0) {
+      sections.push({ heading: line.startsWith('## ') ? line : undefined, lines: [] });
+    }
+    sections.at(-1).lines.push(line);
+  }
+  const pulls = new Map();
+  const foreign = [];
+  const kept = [];
+  const trailer = [];
+  for (const section of sections) {
+    if (section.heading && /^## New Contributors/i.test(section.heading)) {
+      kept.push(section.lines.join('\n').trim());
+      continue;
+    }
+    for (const [index, line] of section.lines.entries()) {
+      const text = line.trimEnd();
+      if (section.heading && index === 0) {
+        continue;
+      }
+      const match = prPattern.exec(text);
+      if (match) {
+        pulls.set(Number(match[1]), text);
+      } else if (text.startsWith('* ')) {
+        // 他リポジトリの行などは分類できないため、その他の変更へそのまま載せる。
+        foreign.push(text);
+      } else if (text.trim()) {
+        trailer.push(text);
+      }
+    }
+  }
+  return { pulls, foreign, kept, trailer };
+}
+
+/**
+ * 初回リリースの比較元。generate-notes が比較リンク（compare/<base>...<head>）で
+ * 示した場合だけ、その参照を返す。
+ */
+function generatedBase(body) {
+  const link = /\*\*Full Changelog\*\*:\s*(\S+)/.exec(body)?.[1];
+  const compare = link && /\/compare\/(.+?)\.\.\.(.+)$/.exec(link);
+  return compare ? decodeURIComponent(compare[1]) : undefined;
+}
+
+function resolveCommit(git, ref) {
+  try {
+    const resolved = git(['rev-parse', '--verify', '--quiet', `${ref}^{commit}`]).trim();
+    if (resolved) {
+      return resolved;
+    }
+  } catch {
+    // 下の共通エラーにまとめる。
+  }
+  throw new Error(`比較元 ${ref} を Git 履歴から解決できません。`);
+}
+
+/**
+ * 比較範囲を rev-list の引数で返す。公開済みタグがあればそのタグから候補 SHA まで、
+ * 初回は generate-notes の比較元、それもなければ候補 SHA から到達できる全履歴。
+ */
+function resolveRange(git, sha, latest, generatedBody) {
+  const base = latest
+    ? resolveCommit(git, `refs/tags/${latest.tag_name}`)
+    : (() => {
+        const ref = generatedBase(generatedBody);
+        return ref && resolveCommit(git, ref);
+      })();
+  return base ? [`${base}..${sha}`] : [sha];
+}
+
+/**
+ * 比較範囲の各コミットを第1親（ルートは空ツリー）と比べ、drizzle/ の変更を列挙する。
+ * 比較 API は変更ファイル数に上限があるため Git 履歴を使う。移動は削除と追加として扱う。
+ */
+function listDatabaseChanges(git, range) {
+  const commits = git(['rev-list', '--parents', '--reverse', ...range])
+    .split('\n')
+    .filter(Boolean);
+  let emptyTree;
+  const changes = [];
+  for (const line of commits) {
+    const [commit, firstParent] = line.split(' ');
+    if (!firstParent) {
+      emptyTree ??= git(['hash-object', '-t', 'tree', '/dev/null']).trim();
+    }
+    const tokens = git([
+      'diff-tree',
+      '-r',
+      '-z',
+      '--name-status',
+      '--no-renames',
+      '--no-commit-id',
+      firstParent ?? emptyTree,
+      commit,
+      '--',
+      databaseDir,
+    ])
+      .split('\0')
+      .filter(Boolean);
+    const files = [];
+    // -z の name-status は「状態, パス」の組が NUL 区切りで続く。
+    for (let i = 0; i + 1 < tokens.length; i += 2) {
+      files.push({ status: statusLabels[tokens[i]] ?? '更新', path: tokens[i + 1] });
+    }
+    if (files.length > 0) {
+      changes.push({ commit, files });
+    }
+  }
+  return changes;
+}
+
+async function loadLabels(api, repo, numbers) {
+  const labels = new Map();
+  for (const number of numbers) {
+    const pull = await api(`${repo}/pulls/${number}`);
+    labels.set(number, new Set(pull.labels.map((label) => label.name)));
+  }
+  return labels;
+}
+
+/**
+ * 候補 SHA のリリースノートを組み立てる。generate-notes の PR 行を通常一覧とし、
+ * PR のラベルで全該当カテゴリに再分類したうえで、Git 履歴から検出した drizzle/ の変更を
+ * DB カテゴリへ補う。取得に失敗した場合は例外を投げ、ドラフトを保存させない。
+ */
+async function buildNotes({ api, git, repo, repository, sha, latest, generated }) {
+  const parsed = parseGenerated(generated, repository);
+  const labels = await loadLabels(api, repo, [...parsed.pulls.keys()]);
+  const listed = new Map(
+    [...parsed.pulls].filter(([number]) => !labels.get(number).has(excludedLabel)),
+  );
+
+  const databasePulls = new Set(
+    [...listed.keys()].filter((number) => labels.get(number).has('db-migration')),
+  );
+  const direct = [];
+  for (const change of listDatabaseChanges(git, resolveRange(git, sha, latest, generated))) {
+    const related = await listAll(api, `${repo}/commits/${change.commit}/pulls`);
+    const mapped = related.filter(
+      (pull) =>
+        pull.merged_at &&
+        pull.base?.repo?.full_name?.toLowerCase() === repository.toLowerCase() &&
+        listed.has(pull.number),
+    );
+    if (mapped.length > 0) {
+      mapped.forEach((pull) => databasePulls.add(pull.number));
+    } else {
+      direct.push(change);
+    }
+  }
+
+  const sections = releaseCategories.map((category) => ({ title: category.title, lines: [] }));
+  const other = { title: otherCategoryTitle, lines: [] };
+  for (const [number, line] of listed) {
+    const matched = releaseCategories.flatMap((category, index) =>
+      category.labels.some((label) => labels.get(number).has(label)) ||
+      (category.database && databasePulls.has(number))
+        ? [index]
+        : [],
+    );
+    (matched.length > 0 ? matched.map((index) => sections[index]) : [other]).forEach((section) =>
+      section.lines.push(line),
+    );
+  }
+  const database = sections[releaseCategories.findIndex((category) => category.database)];
+  for (const { commit, files } of direct) {
+    const paths = files.map((file) => `\`${file.path}\`（${file.status}）`).join('、');
+    database.lines.push(
+      `* [\`${commit.slice(0, 7)}\`](https://github.com/${repository}/commit/${commit}) ${paths}`,
+    );
+  }
+  other.lines.push(...parsed.foreign);
+
+  return [
+    ...[...sections, other]
+      .filter((section) => section.lines.length > 0)
+      .map((section) => `## ${section.title}\n${section.lines.join('\n')}`),
+    ...parsed.kept,
+    parsed.trailer.join('\n'),
+  ]
+    .filter(Boolean)
+    .join('\n\n');
 }
 
 function updateBody(release, state, notes) {
@@ -84,7 +301,7 @@ function nextTag(releases, refs) {
   return tag;
 }
 
-async function saveDraft(api, repo, env, draft, latest, tag) {
+async function saveDraft(api, git, repo, env, draft, latest, tag) {
   const sha = env.RELEASE_SHA;
   const previous = draft && metadata(draft);
   let notes;
@@ -94,7 +311,15 @@ async function saveDraft(api, repo, env, draft, latest, tag) {
       target_commitish: sha,
       ...(latest ? { previous_tag_name: latest.tag_name } : {}),
     });
-    notes = generated.body;
+    notes = await buildNotes({
+      api,
+      git,
+      repo,
+      repository: env.GITHUB_REPOSITORY,
+      sha,
+      latest,
+      generated: generated.body,
+    });
   }
   const state = {
     sha,
@@ -116,7 +341,7 @@ async function saveDraft(api, repo, env, draft, latest, tag) {
   return { tag, sha, id: release.id, draft: true, url: release.html_url };
 }
 
-async function prepareRelease(api, repo, env) {
+async function prepareRelease(api, git, repo, env) {
   await assertApproval(api, repo);
   const releases = await listAll(api, `${repo}/releases`);
   const refs = await api(`${repo}/git/matching-refs/tags/`);
@@ -149,7 +374,7 @@ async function prepareRelease(api, repo, env) {
   const tag = draft?.tag_name ?? nextTag(releases, refs);
   // 公開済みタグは動かさない。失敗時などにタグだけ存在する候補も同じ SHA に限定する。
   await assertTag(api, repo, { tag_name: tag }, sha, refs);
-  return saveDraft(api, repo, env, draft, latest, tag);
+  return saveDraft(api, git, repo, env, draft, latest, tag);
 }
 
 async function loadCandidate(api, repo, env) {
@@ -214,9 +439,9 @@ async function publishRelease(api, repo, candidate) {
 
 /**
  * 固定したコミットのドラフト準備・承認後の検証・公開を行う。
- * API 呼び出しを差し替えることで、本番にアクセスせずに状態遷移を検証できる。
+ * API 呼び出しと Git 実行を差し替えることで、本番にアクセスせずに状態遷移を検証できる。
  */
-export async function runRelease(command, env, api = ghApi) {
+export async function runRelease(command, env, api = ghApi, git = localGit) {
   const repo = `repos/${env.GITHUB_REPOSITORY}`;
   if (!/^[a-f0-9]{40}$/.test(env.RELEASE_SHA ?? '')) {
     throw new Error('完全なコミット SHA が必要です。');
@@ -225,7 +450,7 @@ export async function runRelease(command, env, api = ghApi) {
     throw new Error('実行 ID が必要です。');
   }
   if (command === 'prepare') {
-    return prepareRelease(api, repo, env);
+    return prepareRelease(api, git, repo, env);
   }
   if (!['verify', 'publish'].includes(command)) {
     throw new Error('未対応の操作です。');

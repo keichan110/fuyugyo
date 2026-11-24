@@ -190,7 +190,8 @@ HTTP/1.1 401 Unauthorized
 
 **エンドポイント**: `POST /api/access-requests`
 
-未登録の LINE ユーザーが利用を申請する。LINE ログインの callback で `access-request` Cookie（有効期限10分・`path=/api/access-requests`）が発行された場合のみ呼べる。
+未登録の LINE ユーザーが利用を申請する。LINE ログインの callback で `access-request` Cookie（有効期限10分・`path=/api/access-requests`）が発行され、かつ OAuth 開始時に発行された `access-request-flow` Cookie（有効期限20分・`path=/api`）が申請 Cookie に埋め込まれた値と一致する場合のみ呼べる。
+ログアウトや次のログイン開始でフロー Cookie が変わると、それ以前の申請 Cookie では申請できない（401）。
 認証 Cookie（`auth-token`）は不要で、Rate Limit を適用する。
 
 - 同じ LINE アカウントの再申請は新しい行を作らず、申請日時・表示名・推定地域を更新する
@@ -202,7 +203,7 @@ HTTP/1.1 401 Unauthorized
 
 ```http
 POST /api/access-requests HTTP/1.1
-Cookie: access-request=eyJ...
+Cookie: access-request=eyJ...; access-request-flow=3f2c...
 ```
 
 #### レスポンス（成功）
@@ -210,6 +211,7 @@ Cookie: access-request=eyJ...
 ```http
 HTTP/1.1 201 Created
 Set-Cookie: access-request=; Path=/api/access-requests; Max-Age=0
+Set-Cookie: access-request-flow=; Path=/api; Max-Age=0
 
 { "requestedAt": "2026-11-24T01:00:00.000Z" }
 ```
@@ -220,7 +222,7 @@ Set-Cookie: access-request=; Path=/api/access-requests; Max-Age=0
 
 | ステータス | 意味                                               |
 | ---------- | -------------------------------------------------- |
-| 401        | 申請 Cookie がない・改ざん・期限切れ               |
+| 401        | 申請 Cookie がない・改ざん・期限切れ、またはフロー Cookie と不一致 |
 | 403        | 受付停止中、または未承認の申請が上限に達している   |
 | 409        | すでに登録済みの LINE アカウント（申請は作らない） |
 | 429        | Rate Limit 超過                                    |

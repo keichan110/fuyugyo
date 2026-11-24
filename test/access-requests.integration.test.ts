@@ -23,6 +23,8 @@ import { interruptBeforeBatch } from './d1-interrupt';
 
 const DAY = 24 * 60 * 60 * 1000;
 const LINE_USER = 'line-requester';
+/** OAuth 開始時に発行されるフロー識別子。申請トークンとフロー Cookie に同じ値を入れる */
+const FLOW = 'flow-current';
 
 /** テスト中に件数を数える擬似 Rate Limiter。CF ネイティブ binding は決定論的に動かせないため注入する */
 function makeRateLimiter(limit: number) {
@@ -53,21 +55,37 @@ function withoutEnabledFlag(): Env {
   return reqEnv;
 }
 
-/** 申請 Cookie を載せた POST リクエストを作る（同一オリジンからの正規リクエストを模す） */
-function postRequest(token?: string, cf?: Record<string, unknown>): Request {
+/**
+ * 申請 Cookie とフロー Cookie を載せた POST リクエストを作る（同一オリジンからの正規リクエストを模す）。
+ * `flow` を省くと現在のフローと一致する値を、`null` ならフロー Cookie なしで送る
+ */
+function postRequest(
+  token?: string,
+  cf?: Record<string, unknown>,
+  flow: string | null = FLOW,
+): Request {
+  const cookies = [
+    ...(token === undefined ? [] : [`access-request=${token}`]),
+    ...(flow === null ? [] : [`access-request-flow=${flow}`]),
+  ];
   return new Request('http://localhost/api/access-requests', {
     method: 'POST',
     headers: {
       'sec-fetch-site': 'same-origin',
-      ...(token === undefined ? {} : { cookie: `access-request=${token}` }),
+      ...(cookies.length === 0 ? {} : { cookie: cookies.join('; ') }),
     },
     ...(cf ? { cf } : {}),
   });
 }
 
-/** 申請トークンを発行する */
-function requestToken(userId = LINE_USER, extra: { pictureUrl?: string } = {}) {
-  return signAccessRequestToken({ userId, displayName: '申請者', ...extra }, env.JWT_SECRET);
+/** 申請トークンを発行する。既定ではフロー識別子 `FLOW` を埋め込む */
+function requestToken(
+  userId = LINE_USER,
+  extra: { pictureUrl?: string; flow?: string | undefined } = {},
+) {
+  // `flow: undefined` を明示したときだけフロー識別子なしにする（既定値は適用しない）
+  const { flow, ...rest } = 'flow' in extra ? extra : { ...extra, flow: FLOW };
+  return signAccessRequestToken({ userId, displayName: '申請者', flow, ...rest }, env.JWT_SECRET);
 }
 
 /** 他人の申請を n 件 seed する */
@@ -171,7 +189,7 @@ describe('POST /api/access-requests', () => {
 
     vi.setSystemTime(new Date('2026-01-12T00:00:00.000Z'));
     const token = await signAccessRequestToken(
-      { userId: LINE_USER, displayName: '改名後' },
+      { userId: LINE_USER, displayName: '改名後', flow: FLOW },
       env.JWT_SECRET,
     );
     const res = await app.request(
@@ -264,13 +282,64 @@ describe('POST /api/access-requests', () => {
     },
   );
 
+  it('成功時は申請 Cookie とフロー Cookie の両方を発行時と同じ Path で失効させる', async () => {
+    const res = await app.request(postRequest(await requestToken()), {}, envWith());
+
+    expect(res.status).toBe(201);
+    const cookies = (res.headers.get('set-cookie') ?? '').split(/,\s(?=[\w-]+=)/);
+    const expired = (name: string, path: string) =>
+      cookies.some(
+        (c) =>
+          c.startsWith(`${name}=;`) &&
+          c.includes(`Path=${path}`) &&
+          c.toLowerCase().includes('max-age=0'),
+      );
+    expect(expired('access-request', '/api/access-requests')).toBe(true);
+    expect(expired('access-request-flow', '/api')).toBe(true);
+  });
+
+  describe('フロー識別子の照合', () => {
+    it('フロー Cookie が現在のフローと異なると401で行を作らない', async () => {
+      const res = await app.request(
+        postRequest(await requestToken(), undefined, 'flow-newer'),
+        {},
+        envWith(),
+      );
+
+      expect(res.status).toBe(401);
+      expect(await allRequests()).toHaveLength(0);
+    });
+
+    it('フロー Cookie がないと401で行を作らない', async () => {
+      const res = await app.request(
+        postRequest(await requestToken(), undefined, null),
+        {},
+        envWith(),
+      );
+
+      expect(res.status).toBe(401);
+      expect(await allRequests()).toHaveLength(0);
+    });
+
+    it('フロー識別子を持たない申請トークンは、フロー Cookie があっても401になる', async () => {
+      const res = await app.request(
+        postRequest(await requestToken(LINE_USER, { flow: undefined })),
+        {},
+        envWith(),
+      );
+
+      expect(res.status).toBe(401);
+      expect(await allRequests()).toHaveLength(0);
+    });
+  });
+
   describe('申請 Cookie の検証', () => {
     /** 検証条件のうち 1 つだけを崩した申請トークンを作る */
     async function craft(
       options: { secret?: string; audience?: string; issuer?: string; expiresAt?: number } = {},
     ) {
       const now = Math.floor(Date.now() / 1000);
-      return await new SignJWT({ userId: LINE_USER, displayName: '申請者' })
+      return await new SignJWT({ userId: LINE_USER, displayName: '申請者', flow: FLOW })
         .setProtectedHeader({ alg: 'HS256' })
         .setIssuer(options.issuer ?? 'fuyugyo')
         .setAudience(options.audience ?? 'fuyugyo-access-request')
@@ -343,6 +412,7 @@ describe('POST /api/access-requests', () => {
         userId: LINE_USER,
         displayName: '申請者',
         pictureUrl: 'https://example.com/p.png',
+        flow: FLOW,
       });
       expect(
         await verifyAccessRequestToken(token, 'another-secret-that-is-long-enough'),

@@ -8,7 +8,10 @@ import { signAccessRequestToken } from '@/server/auth/access-request-token';
 import {
   ACCESS_REQUEST_COOKIE,
   ACCESS_REQUEST_COOKIE_PATH,
+  ACCESS_REQUEST_FLOW_COOKIE,
+  ACCESS_REQUEST_FLOW_COOKIE_PATH,
   accessRequestCookieOptions,
+  accessRequestFlowCookieOptions,
   AUTH_COOKIE,
   authCookieOptions,
   SESSION_COOKIE,
@@ -156,11 +159,16 @@ async function redirectUnregistered(
     return c.redirect(`${c.env.APP_URL}/access-request/pending`, 302);
   }
 
+  // OAuth 開始時に発行したフロー識別子を申請トークンへ埋め込む。ここでフロー Cookie は更新しない
+  // （遅れて届いた callback が、ログアウトや次の OAuth 開始で破棄したフローを復活させないため）。
+  // フロー Cookie がなければ識別子を入れず、その申請トークンでは申請できない
+  const flow = getCookie(c, ACCESS_REQUEST_FLOW_COOKIE);
   const requestToken = await signAccessRequestToken(
     {
       userId: profile.userId,
       displayName: profile.displayName,
       ...(profile.pictureUrl ? { pictureUrl: profile.pictureUrl } : {}),
+      ...(flow ? { flow } : {}),
     },
     c.env.JWT_SECRET,
   );
@@ -225,6 +233,13 @@ export const authRoute = new Hono<{
 
     // アカウント切替後に旧アカウントの申請 Cookie で申請できないよう、OAuth 開始時に破棄する
     deleteCookie(c, ACCESS_REQUEST_COOKIE, { path: ACCESS_REQUEST_COOKIE_PATH });
+    // OAuth 開始ごとに新しいフロー識別子で上書きし、以前のフローの申請トークンを無効にする
+    setCookie(
+      c,
+      ACCESS_REQUEST_FLOW_COOKIE,
+      crypto.randomUUID(),
+      accessRequestFlowCookieOptions(isProduction(c.env)),
+    );
 
     const authUrl = buildLineAuthUrl(lineConfig(c.env), state, inviteToken);
     return c.redirect(authUrl, 302);
@@ -307,6 +322,7 @@ export const authRoute = new Hono<{
     deleteCookie(c, AUTH_COOKIE, { path: '/' });
     deleteCookie(c, SESSION_COOKIE, { path: '/' });
     deleteCookie(c, ACCESS_REQUEST_COOKIE, { path: ACCESS_REQUEST_COOKIE_PATH });
+    deleteCookie(c, ACCESS_REQUEST_FLOW_COOKIE, { path: ACCESS_REQUEST_FLOW_COOKIE_PATH });
     return c.json({ ok: true } as const);
   })
   /**

@@ -4,7 +4,12 @@ import { deleteCookie, getCookie } from 'hono/cookie';
 import { HTTPException } from 'hono/http-exception';
 
 import { verifyAccessRequestToken } from '@/server/auth/access-request-token';
-import { ACCESS_REQUEST_COOKIE, ACCESS_REQUEST_COOKIE_PATH } from '@/server/auth/cookies';
+import {
+  ACCESS_REQUEST_COOKIE,
+  ACCESS_REQUEST_COOKIE_PATH,
+  ACCESS_REQUEST_FLOW_COOKIE,
+  ACCESS_REQUEST_FLOW_COOKIE_PATH,
+} from '@/server/auth/cookies';
 import { createDb, type Database } from '@/server/db/client';
 import { accessRequests, users } from '@/server/db/schema';
 import { rateLimit } from '@/server/middleware/rate-limit';
@@ -80,7 +85,10 @@ export const accessRequestsRoute = new Hono<{ Bindings: Env }>()
 
     const token = getCookie(c, ACCESS_REQUEST_COOKIE);
     const profile = token ? await verifyAccessRequestToken(token, c.env.JWT_SECRET) : null;
-    if (!profile) {
+    // 申請トークンのフロー識別子が現在のフロー Cookie と一致しなければ無効扱いにする。
+    // ログアウトや次の OAuth 開始でフロー Cookie が変わると、古いトークンでは申請できない
+    const flow = getCookie(c, ACCESS_REQUEST_FLOW_COOKIE);
+    if (!profile || !profile.flow || profile.flow !== flow) {
       throw new HTTPException(401, { message: 'Access request session is invalid' });
     }
 
@@ -146,5 +154,6 @@ export const accessRequestsRoute = new Hono<{ Bindings: Env }>()
     }
 
     deleteCookie(c, ACCESS_REQUEST_COOKIE, { path: ACCESS_REQUEST_COOKIE_PATH });
+    deleteCookie(c, ACCESS_REQUEST_FLOW_COOKIE, { path: ACCESS_REQUEST_FLOW_COOKIE_PATH });
     return c.json({ requestedAt: row.requestedAt.toISOString() }, 201);
   });

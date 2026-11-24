@@ -776,7 +776,10 @@ paths:
       summary: 利用申請
       description: |
         未登録の LINE ユーザーが利用を申請します。LINE ログインの callback で発行された
-        `access-request` Cookie（有効期限10分）が必要で、認証 Cookie は不要です。
+        `access-request` Cookie（有効期限10分）と、その申請 Cookie に埋め込まれた値と一致する
+        `access-request-flow` Cookie（OAuth 開始時に発行・有効期限20分・`path=/api`）が必要で、
+        認証 Cookie は不要です。ログアウトや次のログイン開始でフロー Cookie が変わると、
+        それ以前の申請 Cookie では申請できません（401）。
         同じ LINE アカウントの再申請は申請日時・表示名・推定地域を更新します。
         未承認の申請は他人分が20件に達すると受け付けず、7日を過ぎた申請は申請時に削除します。
       tags:
@@ -796,7 +799,7 @@ paths:
                     format: date-time
                     description: 申請を受け付けた時刻
         '401':
-          description: 申請 Cookie がない・改ざん・期限切れ
+          description: 申請 Cookie がない・改ざん・期限切れ、またはフロー Cookie と不一致
           content:
             application/json:
               schema:

@@ -16,6 +16,32 @@ export const ACCESS_REQUEST_COOKIE = 'access-request';
 export const ACCESS_REQUEST_COOKIE_PATH = '/api/access-requests';
 
 /**
+ * 利用申請フロー識別子の Cookie 名。
+ * OAuth 開始ごとに発行し、申請トークンに埋め込んだ値と POST 時に照合する。
+ * ログアウトや次の OAuth 開始で値が変わるため、遅れて届いた callback の申請トークンは使えなくなる。
+ */
+export const ACCESS_REQUEST_FLOW_COOKIE = 'access-request-flow';
+
+/** フロー識別子 Cookie を送る範囲。login・callback・logout・申請 API のすべてが `/api` 配下 */
+export const ACCESS_REQUEST_FLOW_COOKIE_PATH = '/api';
+
+/**
+ * フロー識別子 Cookie のオプションを返す。
+ * 有効期間は OAuth の往復（10 分）と申請トークンの有効期限（10 分）を合わせた 20 分。
+ *
+ * @param isProduction - 本番環境かどうか
+ */
+export function accessRequestFlowCookieOptions(isProduction: boolean): CookieOptions {
+  return {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: 'Lax',
+    path: ACCESS_REQUEST_FLOW_COOKIE_PATH,
+    maxAge: 1200,
+  };
+}
+
+/**
  * 利用申請 Cookie のオプションを返す。有効期間は申請トークンの有効期限（10 分）と揃える。
  *
  * @param isProduction - 本番環境かどうか

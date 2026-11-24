@@ -357,6 +357,26 @@ describe('GET /api/auth/line/login', () => {
 
     expect(expiresAccessRequestCookie(res)).toBe(true);
   });
+
+  it('OAuth 開始ごとに新しいフロー識別子の Cookie を発行する', async () => {
+    const reqEnv = envWith({ AUTH_RATE_LIMITER: makeRateLimiter(20) });
+
+    const first = await app.request('/api/auth/line/login', {}, reqEnv);
+    const second = await app.request('/api/auth/line/login', {}, reqEnv);
+
+    const flowCookie = (res: Response) =>
+      (res.headers.get('set-cookie') ?? '')
+        .split(/,\s(?=[\w-]+=)/)
+        .find((c) => c.startsWith('access-request-flow='));
+    const firstFlow = flowCookie(first);
+    expect(firstFlow).toBeTruthy();
+    expect(firstFlow).toContain('HttpOnly');
+    expect(firstFlow).toContain('SameSite=Lax');
+    expect(firstFlow).toContain('Path=/api');
+    expect(firstFlow).not.toContain('Path=/api/');
+    expect(firstFlow).toContain('Max-Age=1200');
+    expect(firstFlow?.split(';')[0]).not.toBe(flowCookie(second)?.split(';')[0]);
+  });
 });
 
 /** 申請 Cookie を発行時と同じ Path で失効させる Set-Cookie があるかを判定する */
@@ -767,6 +787,22 @@ describe('POST /api/auth/logout', () => {
 
     expect(expiresAccessRequestCookie(res)).toBe(true);
   });
+
+  it('フロー識別子の Cookie を発行時と同じ Path で失効させる', async () => {
+    const res = await app.request(
+      '/api/auth/logout',
+      { method: 'POST', headers: { 'sec-fetch-site': 'same-origin' } },
+      envWith({}),
+    );
+
+    const header = res.headers.get('set-cookie') ?? '';
+    const expired = header
+      .split(/,\s(?=[\w-]+=)/)
+      .find((c) => c.startsWith('access-request-flow='));
+    expect(expired).toContain('Path=/api');
+    expect(expired).not.toContain('Path=/api/');
+    expect(expired?.toLowerCase()).toContain('max-age=0');
+  });
 });
 
 /** 認証 Cookie（auth-token）を含む Set-Cookie かを判定する */
@@ -913,24 +949,38 @@ describe('未登録ユーザーの利用申請への誘導（LINE callback → �
   const NEW_LINE_USER = 'unregistered-line-user';
   const DAY = 24 * 60 * 60 * 1000;
 
-  /** ログイン開始から callback までを実ルートで通す。LINE への外部通信だけを差し替える */
-  async function loginViaLine(options: {
-    /** callback 時にブラウザへ残っている旧ログイン Cookie の値 */
-    authToken?: string;
-    lineUserId?: string;
-    displayName?: string;
-    pictureUrl?: string;
-    invite?: string | null;
-  }) {
-    const reqEnv = envWith({ AUTH_RATE_LIMITER: makeRateLimiter(50) });
+  /** 実ルートでログインを開始し、state・OAuth セッション Cookie・フロー識別子を取り出す */
+  async function startLogin(reqEnv: Env, invite?: string | null) {
     const query = new URLSearchParams({ redirect: '/shifts' });
-    if (options.invite) query.set('invite', options.invite);
+    if (invite) query.set('invite', invite);
     const login = await app.request(`/api/auth/line/login?${query}`, {}, reqEnv);
     const state = new URL(login.headers.get('location') ?? '').searchParams.get('state') ?? '';
-    const sessionCookie = (login.headers.get('set-cookie') ?? '').split(';')[0] ?? '';
-    const cookie = options.authToken
-      ? `${sessionCookie}; auth-token=${options.authToken}`
-      : sessionCookie;
+    return {
+      state,
+      sessionCookie: (login.headers.get('set-cookie') ?? '').split(';')[0] ?? '',
+      flow: cookieValue(login, 'access-request-flow') ?? '',
+    };
+  }
+
+  /** startLogin 後の callback を実ルートで通す。LINE への外部通信だけを差し替える */
+  async function finishCallback(
+    reqEnv: Env,
+    started: Awaited<ReturnType<typeof startLogin>>,
+    options: {
+      authToken?: string;
+      lineUserId?: string;
+      displayName?: string;
+      pictureUrl?: string;
+      /** callback 時にブラウザが送るフロー Cookie。省略で startLogin の値、null で送らない */
+      flowCookie?: string | null;
+    },
+  ) {
+    const flowCookie = options.flowCookie === undefined ? started.flow : options.flowCookie;
+    const cookie = [
+      started.sessionCookie,
+      ...(flowCookie === null ? [] : [`access-request-flow=${flowCookie}`]),
+      ...(options.authToken ? [`auth-token=${options.authToken}`] : []),
+    ].join('; ');
     vi.spyOn(globalThis, 'fetch')
       .mockResolvedValueOnce(Response.json({ access_token: 'line-access-token' }))
       .mockResolvedValueOnce(
@@ -941,10 +991,24 @@ describe('未登録ユーザーの利用申請への誘導（LINE callback → �
         }),
       );
     return await app.request(
-      `/api/auth/line/callback?code=code&state=${encodeURIComponent(state)}`,
+      `/api/auth/line/callback?code=code&state=${encodeURIComponent(started.state)}`,
       { headers: { cookie } },
       reqEnv,
     );
+  }
+
+  /** ログイン開始から callback までを実ルートで通す */
+  async function loginViaLine(options: {
+    /** callback 時にブラウザへ残っている旧ログイン Cookie の値 */
+    authToken?: string;
+    lineUserId?: string;
+    displayName?: string;
+    pictureUrl?: string;
+    invite?: string | null;
+  }) {
+    const reqEnv = envWith({ AUTH_RATE_LIMITER: makeRateLimiter(50) });
+    const started = await startLogin(reqEnv, options.invite);
+    return await finishCallback(reqEnv, started, options);
   }
 
   /** 複数の Set-Cookie を1件ずつに分ける（`Expires=Thu, 01 Jan` のカンマでは分割しない） */
@@ -992,10 +1056,12 @@ describe('未登録ユーザーの利用申請への誘導（LINE callback → �
     expect(issuesAuthCookie(res)).toBe(false);
     expect(cookieValue(res, 'auth-session')).toBe('');
     const token = cookieValue(res, 'access-request') ?? '';
+    // 申請トークンには OAuth 開始時のフロー識別子（フロー Cookie の値）が入る
     expect(await verifyAccessRequestToken(token, env.JWT_SECRET)).toEqual({
       userId: NEW_LINE_USER,
       displayName: '申請予定ユーザー',
       pictureUrl: 'https://profile.line-scdn.net/example',
+      flow: expect.stringMatching(/^[\w-]{36}$/),
     });
     const setCookie = setCookies(res).find((c) => c.startsWith('access-request='));
     expect(setCookie).toContain('HttpOnly');
@@ -1046,6 +1112,98 @@ describe('未登録ユーザーの利用申請への誘導（LINE callback → �
     expect(res.headers.get('location')).toBe(`${env.APP_URL}/access-request`);
     expect(cookieValue(res, 'access-request')).toBeTruthy();
     expect(issuesAuthCookie(res)).toBe(false);
+  });
+
+  describe('フロー識別子による申請 Cookie の失効', () => {
+    /** 申請 API へ、ブラウザが送る Cookie を載せて POST する */
+    async function postAccessRequest(reqEnv: Env, cookies: string[]) {
+      return await app.request(
+        '/api/access-requests',
+        {
+          method: 'POST',
+          headers: { cookie: cookies.join('; '), 'sec-fetch-site': 'same-origin' },
+        },
+        reqEnv,
+      );
+    }
+
+    function accessRequestEnv(): Env {
+      return envWith({ ACCESS_REQUESTS_ENABLED: 'true', AUTH_RATE_LIMITER: makeRateLimiter(50) });
+    }
+
+    it('(a) login → callback → 申請 POST が通る', async () => {
+      const reqEnv = accessRequestEnv();
+      const started = await startLogin(reqEnv);
+      const callback = await finishCallback(reqEnv, started, {});
+
+      const res = await postAccessRequest(reqEnv, [
+        `access-request=${cookieValue(callback, 'access-request')}`,
+        `access-request-flow=${started.flow}`,
+      ]);
+
+      expect(res.status).toBe(201);
+    });
+
+    it('callback はフロー Cookie を更新も再発行もしない', async () => {
+      const reqEnv = accessRequestEnv();
+      const started = await startLogin(reqEnv);
+
+      const callback = await finishCallback(reqEnv, started, {});
+
+      expect(cookieValue(callback, 'access-request-flow')).toBeUndefined();
+    });
+
+    it('(b) callback 後に再度 login してフロー値が変わると、旧申請トークンの POST は401になる', async () => {
+      const reqEnv = accessRequestEnv();
+      const started = await startLogin(reqEnv);
+      const callback = await finishCallback(reqEnv, started, {});
+      const oldToken = cookieValue(callback, 'access-request');
+
+      // 次の OAuth 開始でフロー Cookie が新しい値に置き換わる
+      const next = await startLogin(reqEnv);
+      expect(next.flow).not.toBe(started.flow);
+      const res = await postAccessRequest(reqEnv, [
+        `access-request=${oldToken}`,
+        `access-request-flow=${next.flow}`,
+      ]);
+
+      expect(res.status).toBe(401);
+      expect(await createDb(env.DB).select().from(accessRequests)).toHaveLength(0);
+    });
+
+    it('(c) logout 後（フロー Cookie が消えた状態）の POST は401になる', async () => {
+      const reqEnv = accessRequestEnv();
+      const started = await startLogin(reqEnv);
+      const callback = await finishCallback(reqEnv, started, {});
+      await app.request(
+        '/api/auth/logout',
+        { method: 'POST', headers: { 'sec-fetch-site': 'same-origin' } },
+        reqEnv,
+      );
+
+      // ログアウトでフロー Cookie が失効するため、遅れて届いた callback が申請 Cookie を
+      // 再発行してもフロー Cookie なしの POST になる
+      const res = await postAccessRequest(reqEnv, [
+        `access-request=${cookieValue(callback, 'access-request')}`,
+      ]);
+
+      expect(res.status).toBe(401);
+    });
+
+    it('(d) フロー Cookie なしの callback で得た申請トークンは、後からフロー Cookie があっても401になる', async () => {
+      const reqEnv = accessRequestEnv();
+      const started = await startLogin(reqEnv);
+      const callback = await finishCallback(reqEnv, started, { flowCookie: null });
+      const token = cookieValue(callback, 'access-request') ?? '';
+
+      expect(await verifyAccessRequestToken(token, env.JWT_SECRET)).not.toHaveProperty('flow');
+      const res = await postAccessRequest(reqEnv, [
+        `access-request=${token}`,
+        `access-request-flow=${started.flow}`,
+      ]);
+
+      expect(res.status).toBe(401);
+    });
   });
 
   describe('旧ログインが残るブラウザ', () => {

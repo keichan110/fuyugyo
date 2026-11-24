@@ -2,6 +2,8 @@ import { signAccessRequestToken } from '../../src/server/auth/access-request-tok
 import {
   ACCESS_REQUEST_COOKIE,
   ACCESS_REQUEST_COOKIE_PATH,
+  ACCESS_REQUEST_FLOW_COOKIE,
+  ACCESS_REQUEST_FLOW_COOKIE_PATH,
 } from '../../src/server/auth/cookies.ts';
 import { E2E_BASE_URL, E2E_JWT_SECRET } from '../env.ts';
 import { expect, test } from '../fixtures/test.ts';
@@ -9,16 +11,20 @@ import { expect, test } from '../fixtures/test.ts';
 test('未登録の人が利用申請を送り、承認待ち画面に進める', async ({ page }) => {
   // LINE の OAuth 往復は再現できないため、callback が発行する申請 Cookie を直接作る。
   // E2E 環境では request.cf がなく位置が取れないが、その場合も申請できることを確認する。
+  // OAuth 開始時に発行されるフロー識別子も、申請トークンとフロー Cookie に同じ値で設定する
+  const flow = crypto.randomUUID();
   const token = await signAccessRequestToken(
-    { userId: `e2e-requester-${crypto.randomUUID()}`, displayName: 'E2E申請者' },
+    { userId: `e2e-requester-${crypto.randomUUID()}`, displayName: 'E2E申請者', flow },
     E2E_JWT_SECRET,
   );
+  const domain = new URL(E2E_BASE_URL).hostname;
   await page.context().addCookies([
+    { name: ACCESS_REQUEST_COOKIE, value: token, domain, path: ACCESS_REQUEST_COOKIE_PATH },
     {
-      name: ACCESS_REQUEST_COOKIE,
-      value: token,
-      domain: new URL(E2E_BASE_URL).hostname,
-      path: ACCESS_REQUEST_COOKIE_PATH,
+      name: ACCESS_REQUEST_FLOW_COOKIE,
+      value: flow,
+      domain,
+      path: ACCESS_REQUEST_FLOW_COOKIE_PATH,
     },
   ]);
 

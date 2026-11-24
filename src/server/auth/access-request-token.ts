@@ -19,6 +19,8 @@ const accessRequestProfileSchema = z.object({
   userId: z.string().min(1),
   displayName: z.string(),
   pictureUrl: z.string().optional(),
+  /** OAuth 開始時に発行したフロー識別子。申請 POST で現在のフロー Cookie と照合する */
+  flow: z.string().min(1).optional(),
 });
 
 /** 申請トークンに載せる LINE プロフィール */
@@ -32,7 +34,7 @@ function toSecretKey(secret: string): Uint8Array {
 /**
  * 利用申請用の短期トークンを発行する。
  *
- * @param profile - 載せる LINE プロフィール
+ * @param profile - 載せる LINE プロフィール（フロー識別子を含められる）
  * @param secret - 署名用シークレット（`c.env.JWT_SECRET`）
  * @returns 署名済み JWT 文字列（有効期限 10 分）
  */

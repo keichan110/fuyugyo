@@ -108,6 +108,54 @@ const EXPECTED_INSTRUCTORS = [
     updated_at: epoch('2025-11-05T00:00:00.000Z'),
   },
 ];
+// 全移行後の資格の期待値。投入した値のうち日時だけが epoch 秒へ変わり、移行で増えた列は無い。
+// 無効（is_active = 0）の資格が有効へ変わらないことと、既に整数だった日時が保たれることを含む。
+const EXPECTED_CERTIFICATIONS = [
+  {
+    id: 'cert-ski-1',
+    department_code: 'ski',
+    name: 'スキー1級',
+    short_name: 'S1',
+    organization: 'SAJ',
+    description: '最上位の級',
+    is_active: 1,
+    created_at: epoch('2025-11-03T00:00:00.000Z'),
+    updated_at: epoch('2025-11-04T00:00:00.000Z'),
+  },
+  {
+    id: 'cert-ski-2',
+    department_code: 'ski',
+    name: 'スキー2級',
+    short_name: 'S2',
+    organization: 'SAJ',
+    description: null,
+    is_active: 1,
+    created_at: 1762128000,
+    updated_at: 1762128000,
+  },
+  {
+    id: 'cert-ski-3',
+    department_code: 'ski',
+    name: 'スキー3級',
+    short_name: 'S3',
+    organization: 'SAJ',
+    description: null,
+    is_active: 1,
+    created_at: epoch('2025-11-03T00:00:00.000Z'),
+    updated_at: epoch('2025-11-03T00:00:00.000Z'),
+  },
+  {
+    id: 'cert-snow-1',
+    department_code: 'snowboard',
+    name: 'SB1級',
+    short_name: 'B1',
+    organization: 'JSBA',
+    description: null,
+    is_active: 0,
+    created_at: epoch('2025-11-03T00:00:00.000Z'),
+    updated_at: epoch('2025-11-03T00:00:00.000Z'),
+  },
+];
 // 全移行後のユーザーの期待値。picture_url は投入していないため null のまま。
 const EXPECTED_USERS = [
   {
@@ -134,10 +182,10 @@ test('既存データの移行で ID・値・日時・配置・資格が保た�
         ('dep-ski', 'ski', 'スキー', '旧部門', 1, '2025-11-01T01:02:03.000Z', '2025-11-02T01:02:03.000Z'),
         ('dep-snow', 'snowboard', 'スノーボード', NULL, 1, '2025-11-01T01:02:03.000Z', '2025-11-01T01:02:03.000Z');
       INSERT INTO certifications (id, department_id, name, short_name, organization, description, is_active, created_at, updated_at) VALUES
-        ('cert-ski-1', 'dep-ski', 'スキー1級', 'S1', 'SAJ', NULL, 1, '2025-11-03T00:00:00.000Z', '2025-11-04T00:00:00.000Z'),
+        ('cert-ski-1', 'dep-ski', 'スキー1級', 'S1', 'SAJ', '最上位の級', 1, '2025-11-03T00:00:00.000Z', '2025-11-04T00:00:00.000Z'),
         ('cert-ski-2', 'dep-ski', 'スキー2級', 'S2', 'SAJ', NULL, 1, 1762128000, 1762128000),
         ('cert-ski-3', 'dep-ski', 'スキー3級', 'S3', 'SAJ', NULL, 1, '2025-11-03T00:00:00.000Z', '2025-11-03T00:00:00.000Z'),
-        ('cert-snow-1', 'dep-snow', 'SB1級', 'B1', 'SAJ', NULL, 0, '2025-11-03T00:00:00.000Z', '2025-11-03T00:00:00.000Z');
+        ('cert-snow-1', 'dep-snow', 'SB1級', 'B1', 'JSBA', NULL, 0, '2025-11-03T00:00:00.000Z', '2025-11-03T00:00:00.000Z');
       INSERT INTO instructors (id, last_name, first_name, status, notes, created_at, updated_at) VALUES
         ('i-1', '山田', '太郎', 'ACTIVE', '備考1', '2025-11-05T00:00:00.000Z', '2025-11-06T00:00:00.000Z'),
         ('i-2', '佐藤', '花子', 'INACTIVE', NULL, '2025-11-05T00:00:00.000Z', '2025-11-05T00:00:00.000Z');
@@ -269,12 +317,8 @@ test('既存データの移行で ID・値・日時・配置・資格が保た�
 
   await t.test('0002: 部門 ID がコードへ置き換わり、枠・配置・資格・ユーザー紐付けが残る', () => {
     db.migrate('0002');
-    assert.deepEqual(db.rows(`SELECT id, department_code, name FROM certifications ORDER BY id`), [
-      { id: 'cert-ski-1', department_code: 'ski', name: 'スキー1級' },
-      { id: 'cert-ski-2', department_code: 'ski', name: 'スキー2級' },
-      { id: 'cert-ski-3', department_code: 'ski', name: 'スキー3級' },
-      { id: 'cert-snow-1', department_code: 'snowboard', name: 'SB1級' },
-    ]);
+    // 表の作り直しで全列（無効資格・説明・日時を含む）が投入値のまま移る。
+    assert.deepEqual(db.rows(`SELECT * FROM certifications ORDER BY id`), EXPECTED_CERTIFICATIONS);
     assert.deepEqual(
       db.rows(
         `SELECT id, date, department_code, shift_type_id, description FROM shifts ORDER BY id`,
@@ -580,7 +624,8 @@ test('既存データの移行で ID・値・日時・配置・資格が保た�
     db.migrate('0011');
     assert.equal(db.rows(`SELECT count(*) AS n FROM shifts`)[0].n, 4);
     assert.equal(db.rows(`SELECT count(*) AS n FROM shift_assignments`)[0].n, 4);
-    // 全移行を通した後も、講師・ユーザーの全列が投入した値（日時は変換後）のまま残る。
+    // 全移行を通した後も、資格・講師・ユーザーの全列が投入した値（日時は変換後）のまま残る。
+    assert.deepEqual(db.rows(`SELECT * FROM certifications ORDER BY id`), EXPECTED_CERTIFICATIONS);
     assert.deepEqual(db.rows(`SELECT * FROM instructors ORDER BY id`), EXPECTED_INSTRUCTORS);
     assert.deepEqual(db.rows(`SELECT * FROM users ORDER BY id`), EXPECTED_USERS);
     assert.equal(db.foreignKeyViolations(), 0);

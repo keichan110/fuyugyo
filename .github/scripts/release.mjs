@@ -17,6 +17,7 @@ export const releaseCategories = [
   { title: '🔧 CI・運用', labels: ['ci-cd', 'devops'] },
 ];
 export const otherCategoryTitle = 'その他の変更';
+const changesHeading = "## What's Changed";
 const excludedLabel = 'skip-changelog';
 const databaseDir = 'drizzle/';
 const statusLabels = { A: '追加', D: '削除' };
@@ -75,6 +76,7 @@ function parseGenerated(body, repository) {
   const foreign = [];
   const kept = [];
   const trailer = [];
+  const preamble = [];
   const unclassifiable = (text) => {
     throw new Error(`generate-notes の PR 項目を分類できません。\n${text}`);
   };
@@ -90,6 +92,7 @@ function parseGenerated(body, repository) {
       foreign.push(item);
     }
   };
+  let inChanges = false;
   let contributors;
   let current;
   for (const line of body.split(/\r?\n/)) {
@@ -103,6 +106,7 @@ function parseGenerated(body, repository) {
       continue;
     }
     if (text.startsWith('## ')) {
+      inChanges = text === changesHeading;
       if (contributors) {
         kept.push(contributors.join('\n').trim());
         contributors = undefined;
@@ -112,6 +116,11 @@ function parseGenerated(body, repository) {
       }
     } else if (contributors) {
       contributors.push(text);
+    } else if (inChanges && text.startsWith('### ')) {
+      // GitHub が付けたカテゴリ見出しは、再分類した節に置き換える。
+      continue;
+    } else if (text.startsWith('<!-- Release notes generated using configuration ')) {
+      preamble.push(text);
     } else if (text.startsWith('* ')) {
       if (itemEnd.test(text)) {
         classify([text]);
@@ -132,7 +141,7 @@ function parseGenerated(body, repository) {
   if (contributors) {
     kept.push(contributors.join('\n').trim());
   }
-  return { pulls, foreign, kept, trailer };
+  return { pulls, foreign, kept, trailer, preamble };
 }
 
 /**
@@ -298,10 +307,12 @@ async function buildNotes({ api, git, repo, repository, sha, latest, generated }
   }
   other.lines.push(...parsed.foreign);
 
+  const categories = [...sections, other]
+    .filter((section) => section.lines.length > 0)
+    .map((section) => `### ${section.title}\n${section.lines.join('\n')}`);
   return [
-    ...[...sections, other]
-      .filter((section) => section.lines.length > 0)
-      .map((section) => `## ${section.title}\n${section.lines.join('\n')}`),
+    ...parsed.preamble,
+    categories.length > 0 ? [changesHeading, ...categories].join('\n\n') : '',
     ...parsed.kept,
     parsed.trailer.join('\n'),
   ]

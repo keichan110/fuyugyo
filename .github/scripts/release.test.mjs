@@ -350,15 +350,23 @@ function createRepo(t) {
 }
 
 const draftOf = (state) => state.releases.find((release) => release.draft);
-const dbHeading = '## 🗃️ DB マイグレーションあり';
+const dbHeading = '### 🗃️ DB マイグレーションあり';
 
 test('PR は全該当カテゴリに1回ずつ載り、同じカテゴリへ対応するラベルが重なっても重複しない', async () => {
+  const comment = '<!-- Release notes generated using configuration in .github/release.yml -->';
   const notes = [
+    comment,
+    '',
     "## What's Changed",
+    '### ✨ 機能追加・改善',
     prLine('機能追加', 1),
+    '### 🔧 CI・運用',
     prLine('CI 更新', 2),
+    '### その他の変更',
     prLine('ラベルなし', 3),
+    '### 🐛 バグ修正',
     prLine('内部変更', 4),
+    '### 🔒 セキュリティ',
     prLine('脆弱性修正', 5),
     '',
     '## New Contributors',
@@ -379,8 +387,10 @@ test('PR は全該当カテゴリに1回ずつ載り、同じカテゴリへ対�
   });
   await runRelease('prepare', env, state.api, state.git);
   const body = draftOf(state).body;
-  const section = (title, ...lines) => `## ${title}\n${lines.join('\n')}`;
+  const section = (title, ...lines) => `### ${title}\n${lines.join('\n')}`;
   const expected = [
+    comment,
+    "## What's Changed",
     section('✨ 機能追加・改善', prLine('機能追加', 1)),
     section('🐛 バグ修正', prLine('脆弱性修正', 5)),
     section('🔒 セキュリティ', prLine('脆弱性修正', 5)),
@@ -467,7 +477,7 @@ test('範囲内の drizzle/ の変更を PR 行またはコミットとパスで
   ].join('\n');
   assert.ok(body.includes(database), body);
   // DB へ補完された PR は「その他の変更」には重ねない
-  assert.ok(body.includes(`## その他の変更\n${prLine('アプリ変更', 12)}\n`));
+  assert.ok(body.includes(`### その他の変更\n${prLine('アプリ変更', 12)}\n`));
   assert.equal(body.split(prLine('マイグレーション追加', 10)).length, 2);
   assert.doesNotMatch(body, /0000_init|0001_old/);
   assert.equal(draftOf(state).target_commitish, appOnly);
@@ -491,7 +501,7 @@ test('db-migration ラベルがなくても PR に対応付いた drizzle/ の�
   await runRelease('prepare', { ...env, RELEASE_SHA: change }, state.api, state.git);
   assert.ok(
     draftOf(state).body.includes(
-      `## ✨ 機能追加・改善\n${prLine('機能', 1)}\n\n${dbHeading}\n${prLine('機能', 1)}\n`,
+      `### ✨ 機能追加・改善\n${prLine('機能', 1)}\n\n${dbHeading}\n${prLine('機能', 1)}\n`,
     ),
   );
   assert.doesNotMatch(draftOf(state).body, /commit\//);
@@ -703,6 +713,7 @@ test('複数行の PR 項目を1項目として保持し、分類・除外・重
   const foreign = '* 他リポジトリの変更 by @someone in https://github.com/other/app/pull/7';
   const notes = [
     "## What's Changed",
+    '### ✨ 機能追加・改善',
     multi('機能 追加', 1),
     multi('除外 対象', 2),
     prLine('単一行', 3),
@@ -717,8 +728,9 @@ test('複数行の PR 項目を1項目として保持し、分類・除外・重
   });
   await runRelease('prepare', env, state.api, state.git);
   const body = draftOf(state).body;
-  const section = (title, ...lines) => `## ${title}\n${lines.join('\n')}`;
+  const section = (title, ...lines) => `### ${title}\n${lines.join('\n')}`;
   const expected = [
+    "## What's Changed",
     section('✨ 機能追加・改善', multi('機能 追加', 1)),
     section('🐛 バグ修正', multi('機能 追加', 1)),
     section('⬆️ 依存関係の更新', prLine('単一行', 3)),
@@ -755,8 +767,9 @@ test('継続行が見出し・箇条書き記号で始まる除外 PR の断片�
   });
   await runRelease('prepare', env, state.api, state.git);
   const body = draftOf(state).body;
-  const section = (title, ...lines) => `## ${title}\n${lines.join('\n')}`;
+  const section = (title, ...lines) => `### ${title}\n${lines.join('\n')}`;
   const expected = [
+    "## What's Changed",
     section('✨ 機能追加・改善', prLine('前の項目', 1), tricky(4)),
     section('🐛 バグ修正', prLine('後の項目', 3)),
     section('その他の変更', foreign),

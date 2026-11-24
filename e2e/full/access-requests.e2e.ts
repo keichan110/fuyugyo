@@ -1,6 +1,6 @@
 import { createClient } from '@libsql/client';
 import type { Page } from '@playwright/test';
-import { eq, like } from 'drizzle-orm';
+import { eq, like, not } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/libsql';
 
 import { getLocalD1Path } from '../../scripts/lib/get-local-d1-path.ts';
@@ -65,14 +65,24 @@ async function userOf(key: string) {
   return row;
 }
 
+/** このテストが作った以外の承認待ち件数。共有ローカル D1 に他の申請が残っていても件数の検証が成立するよう、基準値として使う */
+async function countOtherRequests(): Promise<number> {
+  const rows = await withDb((db) =>
+    db
+      .select({ lineUserId: accessRequests.lineUserId })
+      .from(accessRequests)
+      .where(not(like(accessRequests.lineUserId, `${LINE_PREFIX}-%`))),
+  );
+  return rows.length;
+}
+
 /**
- * テストデータを消す。承認待ちは件数がナビのバッジに出るため、他のテストが残した申請も含めて全件消し、
- * 「申請なし」を前提にする（後続の画面テストへバッジ表示が影響しないようにもする）。
- * ユーザー・インストラクターはこのテストが作ったものだけを消す。
+ * このテストが作ったデータだけを消す。共有ローカル D1 の他の申請は削除しない。
+ * ユーザー・インストラクターも、このテストが作ったものだけを消す。
  */
 async function cleanup(): Promise<void> {
   await withDb(async (db) => {
-    await db.delete(accessRequests);
+    await db.delete(accessRequests).where(like(accessRequests.lineUserId, `${LINE_PREFIX}-%`));
     await db.delete(users).where(like(users.lineUserId, `${LINE_PREFIX}-%`));
     await db.delete(instructors).where(eq(instructors.lastName, INSTRUCTOR_LAST_NAME));
   });
@@ -98,6 +108,7 @@ test.describe('admin', () => {
   test.use({ storageState: authStatePath('admin') });
 
   test('承認待ちを承認・却下でき、件数バッジが更新される', async ({ page }) => {
+    const baseline = await countOtherRequests();
     // 位置を持つ申請・持たない申請・紐付け承認用・単体却下用・一括却下用
     const withLocation = await seedRequest('a', {
       country: 'JP',
@@ -126,10 +137,11 @@ test.describe('admin', () => {
     await expect(page.getByRole('tab', { name: 'ユーザー', selected: true })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'ユーザー管理' })).toBeVisible();
 
-    // バッジは申請がある間だけ件数を表示する（件数は他のデータを含み得るため数字の有無で確認する）
+    // バッジは申請がある間だけ件数を表示する（他の申請を含めた基準値との合計で確認する）
     {
-      const { link } = await openUsersNavLink(page, /^ユーザー\s*\d+$/);
+      const { link } = await openUsersNavLink(page, /^ユーザー$/);
       await expect(link).toBeVisible();
+      await expect(link).toHaveAccessibleDescription(`承認待ち ${baseline + 5}件`);
       await closeDrawer(page);
     }
 
@@ -202,12 +214,16 @@ test.describe('admin', () => {
     expect(await requestExists('d')).toBe(false);
     expect(await requestExists('e')).toBe(false);
 
-    // 申請がなくなるとバッジは消える
-    await expect(pendingPanel.getByText('承認待ちの申請はありません')).toBeVisible();
+    // このテストの申請がなくなると、バッジは他の申請の件数だけになる（なければ消える）
+    if (baseline === 0) {
+      await expect(pendingPanel.getByText('承認待ちの申請はありません')).toBeVisible();
+    }
     await page.getByRole('tab', { name: 'ユーザー', exact: true }).click();
     {
       const { link } = await openUsersNavLink(page, /^ユーザー$/);
       await expect(link).toBeVisible();
+      if (baseline === 0) await expect(link).toHaveAccessibleDescription('');
+      else await expect(link).toHaveAccessibleDescription(`承認待ち ${baseline}件`);
       await closeDrawer(page);
     }
   });

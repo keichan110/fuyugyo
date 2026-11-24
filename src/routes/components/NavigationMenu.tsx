@@ -1,4 +1,4 @@
-import { NavLink, Stack, Text } from '@mantine/core';
+import { NavLink, Stack, Text, VisuallyHidden } from '@mantine/core';
 import {
   IconCalendarCog,
   IconCalendarWeek,
@@ -14,6 +14,7 @@ import {
   type Icon,
 } from '@tabler/icons-react';
 import { Link, useRouterState } from '@tanstack/react-router';
+import { useId } from 'react';
 
 import { AppBadge } from '@/components/AppBadge';
 import { useAccessRequests } from '@/features/access-requests/queries';
@@ -91,6 +92,8 @@ export function NavigationMenu({
   const isAdmin = hasMinimumRole(user.role, 'ADMIN');
   const { data: pendingRequests } = useAccessRequests(isAdmin);
   const pendingCount = pendingRequests?.length ?? 0;
+  // サイドバーとドロワーで同時に描画され得るため、説明要素の id はインスタンスごとに一意にする
+  const pendingDescriptionId = useId();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const excluded = new Set(excludedPaths);
   const navigationGroups = NAVIGATION_GROUPS.map((group) => ({
@@ -127,6 +130,7 @@ export function NavigationMenu({
             )}
             {group.items.map(({ to, label, icon: Icon }) => {
               const disabled = to === '/availabilities' && !user.instructorId;
+              const showPendingBadge = to === '/users' && isAdmin && pendingCount > 0;
               return (
                 <NavLink
                   key={to}
@@ -148,11 +152,18 @@ export function NavigationMenu({
                   disabled={disabled}
                   description={disabled ? '管理者に紐付けを依頼してください' : undefined}
                   leftSection={<Icon size={18} stroke={1.75} />}
+                  // リンクのアクセシブル名は「ユーザー」のまま保ち、件数は説明（aria-describedby）で伝える
+                  aria-describedby={showPendingBadge ? pendingDescriptionId : undefined}
                   rightSection={
-                    to === '/users' && isAdmin && pendingCount > 0 ? (
-                      <AppBadge kind="pending" size="sm">
-                        {pendingCount}
-                      </AppBadge>
+                    showPendingBadge ? (
+                      <>
+                        <AppBadge kind="pending" size="sm" aria-hidden>
+                          {pendingCount}
+                        </AppBadge>
+                        <VisuallyHidden id={pendingDescriptionId} aria-hidden>
+                          承認待ち {pendingCount}件
+                        </VisuallyHidden>
+                      </>
                     ) : undefined
                   }
                   active={activePath === to}

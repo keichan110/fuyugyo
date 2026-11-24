@@ -85,22 +85,15 @@ export const accessRequestsRoute = new Hono<{ Bindings: Env }>()
     }
 
     const db = createDb(c.env.DB);
-    const [registered] = await db
-      .select({ id: users.id })
-      .from(users)
-      .where(eq(users.lineUserId, profile.userId))
-      .limit(1);
-    if (registered) {
-      throw new HTTPException(409, { message: 'Already registered' });
-    }
-
     const now = new Date();
     const location = readLocation(c.req.raw);
     const pictureUrl = profile.pictureUrl ?? null;
 
     // 1. 期限切れの申請を削除する（件数にも含めない）
-    // 2. 自分以外の申請が上限未満、または自分の申請が既にある場合に限り upsert する。
-    //    条件を満たさなければ 0 行になり、上限到達として扱う
+    // 2. 「未登録」かつ「自分以外の申請が上限未満、または自分の申請が既にある」場合に限り upsert する。
+    //    登録済み判定を upsert と同じ文に含めることで、承認（User 作成）と競合しても
+    //    承認済みアカウントの申請が再作成されないようにする。
+    //    条件を満たさなければ 0 行になり、原因は後で users を照会して切り分ける
     const [, upserted] = await db.batch([
       expiredAccessRequestsDeletion(db, now),
       db
@@ -119,8 +112,9 @@ export const accessRequestsRoute = new Hono<{ Bindings: Env }>()
             })
             .from(sql`(SELECT 1)`)
             .where(
-              sql`(SELECT count(*) FROM ${accessRequests} WHERE ${ne(accessRequests.lineUserId, profile.userId)}) < ${ACCESS_REQUEST_LIMIT}
-                OR EXISTS (SELECT 1 FROM ${accessRequests} WHERE ${eq(accessRequests.lineUserId, profile.userId)})`,
+              sql`((SELECT count(*) FROM ${accessRequests} WHERE ${ne(accessRequests.lineUserId, profile.userId)}) < ${ACCESS_REQUEST_LIMIT}
+                OR EXISTS (SELECT 1 FROM ${accessRequests} WHERE ${eq(accessRequests.lineUserId, profile.userId)}))
+                AND NOT EXISTS (SELECT 1 FROM ${users} WHERE ${eq(users.lineUserId, profile.userId)})`,
             ),
         )
         .onConflictDoUpdate({
@@ -139,6 +133,15 @@ export const accessRequestsRoute = new Hono<{ Bindings: Env }>()
 
     const [row] = upserted;
     if (!row) {
+      // 0 行の原因が登録済みか上限到達かを切り分ける
+      const [registered] = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.lineUserId, profile.userId))
+        .limit(1);
+      if (registered) {
+        throw new HTTPException(409, { message: 'Already registered' });
+      }
       throw new HTTPException(403, { message: 'Access request limit reached' });
     }
 

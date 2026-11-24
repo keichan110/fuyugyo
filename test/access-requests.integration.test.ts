@@ -14,6 +14,7 @@ import { signJwt } from '../src/server/auth/jwt';
 import { createDb } from '../src/server/db/client';
 import { accessRequests, users } from '../src/server/db/schema';
 import type { Env } from '../src/server/types';
+import { interruptBeforeBatch } from './d1-interrupt';
 
 /**
  * 利用申請 API の統合テスト（実 D1）。
@@ -374,6 +375,24 @@ describe('POST /api/access-requests', () => {
     expect(res.status).toBe(409);
     const [row] = await createDb(env.DB).select({ value: count() }).from(accessRequests);
     expect(row?.value).toBe(0);
+  });
+
+  it('申請の書き込み直前に User が作成されても、申請は作られず409になる', async () => {
+    const interruption = interruptBeforeBatch(env.DB, async () => {
+      await createDb(env.DB)
+        .insert(users)
+        .values({ lineUserId: LINE_USER, displayName: '承認済み', role: 'MEMBER', isActive: true });
+    });
+
+    const res = await app.request(
+      postRequest(await requestToken()),
+      {},
+      envWith({ DB: interruption.db }),
+    );
+
+    expect(interruption.interruptCount()).toBe(1);
+    expect(res.status).toBe(409);
+    expect(await allRequests()).toHaveLength(0);
   });
 
   it('Rate Limit を超えると429を返し、行を作らない', async () => {

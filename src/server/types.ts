@@ -21,6 +21,8 @@ export type Env = {
   JWT_ABSOLUTE_EXPIRES_IN: string;
   /** 招待トークンのデフォルト有効期限（例: "168h"） */
   INVITE_DEFAULT_EXPIRES: string;
+  /** 利用申請の受付設定。文字列 true の場合のみ受付。ダッシュボードでの変更は次回デプロイで wrangler.toml の値に戻る */
+  ACCESS_REQUESTS_ENABLED?: string;
   /** JWT 署名用シークレット（`wrangler secret`/`.dev.vars` で注入） */
   JWT_SECRET: string;
   /** LINE Login のチャネル ID */

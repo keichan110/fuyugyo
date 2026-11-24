@@ -85,6 +85,13 @@
       "when": 1794402821739,
       "tag": "0011_brown_sabretooth",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1795523650684,
+      "tag": "0012_flat_the_hunter",
+      "breakpoints": true
     }
   ]
 }

@@ -253,6 +253,22 @@ export const users = sqliteTable(
   ],
 );
 
+/** 未登録ユーザーの利用申請 */
+export const accessRequests = sqliteTable(
+  'access_requests',
+  {
+    id: text('id').primaryKey(),
+    lineUserId: text('line_user_id').notNull().unique(),
+    displayName: text('display_name').notNull(),
+    pictureUrl: text('picture_url'),
+    country: text('country'),
+    region: text('region'),
+    city: text('city'),
+    requestedAt: integer('requested_at', { mode: 'timestamp' }).notNull(),
+  },
+  (t) => [index('idx_access_requests_requested_at').on(t.requestedAt)],
+);
+
 /** 招待 URL 管理テーブル */
 export const invitationTokens = sqliteTable(
   'invitation_tokens',

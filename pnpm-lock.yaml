@@ -10,43 +10,43 @@ importers:
     dependencies:
       '@mantine/carousel':
         specifier: 9.4.1
-        version: 9.4.1(@mantine/core@9.4.1(@mantine/hooks@9.4.1(react@19.2.7))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(@mantine/hooks@9.4.1(react@19.2.7))(embla-carousel-react@8.6.0(react@19.2.7))(embla-carousel@8.6.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+        version: 9.4.1(@mantine/core@9.4.1(@mantine/hooks@9.4.1(react@19.2.9))(@types/react@19.2.18)(react-dom@19.2.7(react@19.2.9))(react@19.2.9))(@mantine/hooks@9.4.1(react@19.2.9))(embla-carousel-react@8.6.0(react@19.2.9))(embla-carousel@8.6.0)(react-dom@19.2.7(react@19.2.9))(react@19.2.9)
       '@mantine/charts':
         specifier: 9.4.1
-        version: 9.4.1(@mantine/core@9.4.1(@mantine/hooks@9.4.1(react@19.2.7))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(@mantine/hooks@9.4.1(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(recharts@3.9.2(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react-is@16.13.1)(react@19.2.7)(redux@5.0.1))
+        version: 9.4.1(@mantine/core@9.4.1(@mantine/hooks@9.4.1(react@19.2.9))(@types/react@19.2.18)(react-dom@19.2.7(react@19.2.9))(react@19.2.9))(@mantine/hooks@9.4.1(react@19.2.9))(react-dom@19.2.7(react@19.2.9))(react@19.2.9)(recharts@3.9.2(@types/react@19.2.18)(react-dom@19.2.7(react@19.2.9))(react-is@16.13.1)(react@19.2.9)(redux@5.0.1))
       '@mantine/core':
         specifier: ^9.4.1
-        version: 9.4.1(@mantine/hooks@9.4.1(react@19.2.7))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+        version: 9.4.1(@mantine/hooks@9.4.1(react@19.2.9))(@types/react@19.2.18)(react-dom@19.2.7(react@19.2.9))(react@19.2.9)
       '@mantine/dates':
         specifier: 9.4.1
-        version: 9.4.1(@mantine/core@9.4.1(@mantine/hooks@9.4.1(react@19.2.7))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(@mantine/hooks@9.4.1(react@19.2.7))(dayjs@1.11.23)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+        version: 9.4.1(@mantine/core@9.4.1(@mantine/hooks@9.4.1(react@19.2.9))(@types/react@19.2.18)(react-dom@19.2.7(react@19.2.9))(react@19.2.9))(@mantine/hooks@9.4.1(react@19.2.9))(dayjs@1.11.23)(react-dom@19.2.7(react@19.2.9))(react@19.2.9)
       '@mantine/form':
         specifier: 9.4.1
-        version: 9.4.1(react@19.2.7)
+        version: 9.4.1(react@19.2.9)
       '@mantine/hooks':
         specifier: ^9.4.1
-        version: 9.4.1(react@19.2.7)
+        version: 9.4.1(react@19.2.9)
       '@mantine/notifications':
         specifier: 9.4.1
-        version: 9.4.1(@mantine/core@9.4.1(@mantine/hooks@9.4.1(react@19.2.7))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(@mantine/hooks@9.4.1(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+        version: 9.4.1(@mantine/core@9.4.1(@mantine/hooks@9.4.1(react@19.2.9))(@types/react@19.2.18)(react-dom@19.2.7(react@19.2.9))(react@19.2.9))(@mantine/hooks@9.4.1(react@19.2.9))(react-dom@19.2.7(react@19.2.9))(react@19.2.9)
       '@mantine/schedule':
         specifier: 9.4.1
-        version: 9.4.1(@mantine/core@9.4.1(@mantine/hooks@9.4.1(react@19.2.7))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(@mantine/dates@9.4.1(@mantine/core@9.4.1(@mantine/hooks@9.4.1(react@19.2.7))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(@mantine/hooks@9.4.1(react@19.2.7))(dayjs@1.11.23)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(@mantine/hooks@9.4.1(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+        version: 9.4.1(@mantine/core@9.4.1(@mantine/hooks@9.4.1(react@19.2.9))(@types/react@19.2.18)(react-dom@19.2.7(react@19.2.9))(react@19.2.9))(@mantine/dates@9.4.1(@mantine/core@9.4.1(@mantine/hooks@9.4.1(react@19.2.9))(@types/react@19.2.18)(react-dom@19.2.7(react@19.2.9))(react@19.2.9))(@mantine/hooks@9.4.1(react@19.2.9))(dayjs@1.11.23)(react-dom@19.2.7(react@19.2.9))(react@19.2.9))(@mantine/hooks@9.4.1(react@19.2.9))(react-dom@19.2.7(react@19.2.9))(react@19.2.9)
       '@sentry/cloudflare':
         specifier: ^11.11.0
         version: 11.11.0(@cloudflare/workers-types@4.20260628.1)(vite@8.1.0(@types/node@26.0.1)(esbuild@0.28.1)(jiti@2.7.0)(sugarss@5.0.1(postcss@8.5.33))(tsx@4.22.4))(wrangler@4.105.0(@cloudflare/workers-types@4.20260628.1))
       '@sentry/react':
         specifier: ^11.11.0
-        version: 11.11.0(react@19.2.7)
+        version: 11.11.0(react@19.2.9)
       '@tabler/icons-react':
         specifier: ^3.44.0
-        version: 3.44.0(react@19.2.7)
+        version: 3.44.0(react@19.2.9)
       '@tanstack/react-query':
         specifier: 5.101.4
-        version: 5.101.4(react@19.2.7)
+        version: 5.101.4(react@19.2.9)
       '@tanstack/react-router':
         specifier: 1.170.16
-        version: 1.170.16(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+        version: 1.170.16(react-dom@19.2.7(react@19.2.9))(react@19.2.9)
       dayjs:
         specifier: ^1.11.21
         version: 1.11.23
@@ -58,7 +58,7 @@ importers:
         version: 8.6.0
       embla-carousel-react:
         specifier: ^8.6.0
-        version: 8.6.0(react@19.2.7)
+        version: 8.6.0(react@19.2.9)
       hono:
         specifier: 4.12.34
         version: 4.12.34
@@ -66,14 +66,14 @@ importers:
         specifier: 6.2.3
         version: 6.2.3
       react:
-        specifier: 19.2.7
-        version: 19.2.7
+        specifier: 19.2.9
+        version: 19.2.9
       react-dom:
         specifier: 19.2.7
-        version: 19.2.7(react@19.2.7)
+        version: 19.2.7(react@19.2.9)
       recharts:
         specifier: ^3.9.2
-        version: 3.9.2(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react-is@16.13.1)(react@19.2.7)(redux@5.0.1)
+        version: 3.9.2(@types/react@19.2.18)(react-dom@19.2.7(react@19.2.9))(react-is@16.13.1)(react@19.2.9)(redux@5.0.1)
       zod:
         specifier: 4.4.3
         version: 4.4.3
@@ -110,16 +110,16 @@ importers:
         version: 1.167.17
       '@tanstack/router-plugin':
         specifier: 1.168.18
-        version: 1.168.18(@tanstack/react-router@1.170.16(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(esbuild@0.28.1)(rolldown@1.1.3)(vite@8.1.0(@types/node@26.0.1)(esbuild@0.28.1)(jiti@2.7.0)(sugarss@5.0.1(postcss@8.5.33))(tsx@4.22.4))
+        version: 1.168.18(@tanstack/react-router@1.170.16(react-dom@19.2.7(react@19.2.9))(react@19.2.9))(esbuild@0.28.1)(rolldown@1.1.3)(vite@8.1.0(@types/node@26.0.1)(esbuild@0.28.1)(jiti@2.7.0)(sugarss@5.0.1(postcss@8.5.33))(tsx@4.22.4))
       '@types/node':
         specifier: 26.0.1
         version: 26.0.1
       '@types/react':
-        specifier: 19.2.17
-        version: 19.2.17
+        specifier: 19.2.18
+        version: 19.2.18
       '@types/react-dom':
         specifier: 19.2.3
-        version: 19.2.3(@types/react@19.2.17)
+        version: 19.2.3(@types/react@19.2.18)
       '@vitejs/plugin-react':
         specifier: 6.0.5
         version: 6.0.5(vite@8.1.0(@types/node@26.0.1)(esbuild@0.28.1)(jiti@2.7.0)(sugarss@5.0.1(postcss@8.5.33))(tsx@4.22.4))
@@ -1664,8 +1664,8 @@ packages:
     peerDependencies:
       '@types/react': ^19.2.0
 
-  '@types/react@19.2.17':
-    resolution: {integrity: sha512-MXfmqaVPEVgkBT/aY0aGCkRWWtByiYQXo3xdQ8r5RzuFrPiRn8Gar2tQdXSUQ2GKV3bkXckek89V8wQBY2Q/Aw==}
+  '@types/react@19.2.18':
+    resolution: {integrity: sha512-AnzbBERsrLKtk2XSfTbYRLjQPdy116Sty4q+T+Bp3IC4l6jNBvreVPAHmpq9qhXQM7CXZPjLVmGMw9sy+hxQ3w==}
 
   '@types/use-sync-external-store@0.0.6':
     resolution: {integrity: sha512-zFDAD+tlpf2r4asuHEj0XH6pY6i0g5NeAHPn+15wk3BV6JA69eERFXC1gyGThDkVa1zCyKr5jox1+2LbV/AMLg==}
@@ -2744,8 +2744,8 @@ packages:
       react: '>=16.6.0'
       react-dom: '>=16.6.0'
 
-  react@19.2.7:
-    resolution: {integrity: sha512-HNe9WslTbXmFK8o8cmwgAeJFSBvt1bPdHCVKtaaV+WlAN36mpT4hcRpwbf3fY56ar2oIXzsBpOAiIRHAdY0OlQ==}
+  react@19.2.9:
+    resolution: {integrity: sha512-RuLdAokXv3sRmZa2/N8QH0KmTBIgDKC+buRUikGqow31+mGSGidLCX2o4XFq8OV+xBFWfhM9DVgTq1PPHADH4w==}
     engines: {node: '>=0.10.0'}
 
   readdirp@5.0.0:
@@ -3661,18 +3661,18 @@ snapshots:
       '@floating-ui/core': 1.7.5
       '@floating-ui/utils': 0.2.11
 
-  '@floating-ui/react-dom@2.1.8(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
+  '@floating-ui/react-dom@2.1.8(react-dom@19.2.7(react@19.2.9))(react@19.2.9)':
     dependencies:
       '@floating-ui/dom': 1.7.6
-      react: 19.2.7
-      react-dom: 19.2.7(react@19.2.7)
+      react: 19.2.9
+      react-dom: 19.2.7(react@19.2.9)
 
-  '@floating-ui/react@0.27.19(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
+  '@floating-ui/react@0.27.19(react-dom@19.2.7(react@19.2.9))(react@19.2.9)':
     dependencies:
-      '@floating-ui/react-dom': 2.1.8(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      '@floating-ui/react-dom': 2.1.8(react-dom@19.2.7(react@19.2.9))(react@19.2.9)
       '@floating-ui/utils': 0.2.11
-      react: 19.2.7
-      react-dom: 19.2.7(react@19.2.7)
+      react: 19.2.9
+      react-dom: 19.2.7(react@19.2.9)
       tabbable: 6.5.0
 
   '@floating-ui/utils@0.2.11': {}
@@ -3886,77 +3886,77 @@ snapshots:
   '@libsql/win32-x64-msvc@0.5.29':
     optional: true
 
-  '@mantine/carousel@9.4.1(@mantine/core@9.4.1(@mantine/hooks@9.4.1(react@19.2.7))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(@mantine/hooks@9.4.1(react@19.2.7))(embla-carousel-react@8.6.0(react@19.2.7))(embla-carousel@8.6.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
+  '@mantine/carousel@9.4.1(@mantine/core@9.4.1(@mantine/hooks@9.4.1(react@19.2.9))(@types/react@19.2.18)(react-dom@19.2.7(react@19.2.9))(react@19.2.9))(@mantine/hooks@9.4.1(react@19.2.9))(embla-carousel-react@8.6.0(react@19.2.9))(embla-carousel@8.6.0)(react-dom@19.2.7(react@19.2.9))(react@19.2.9)':
     dependencies:
-      '@mantine/core': 9.4.1(@mantine/hooks@9.4.1(react@19.2.7))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
-      '@mantine/hooks': 9.4.1(react@19.2.7)
+      '@mantine/core': 9.4.1(@mantine/hooks@9.4.1(react@19.2.9))(@types/react@19.2.18)(react-dom@19.2.7(react@19.2.9))(react@19.2.9)
+      '@mantine/hooks': 9.4.1(react@19.2.9)
       embla-carousel: 8.6.0
-      embla-carousel-react: 8.6.0(react@19.2.7)
-      react: 19.2.7
-      react-dom: 19.2.7(react@19.2.7)
+      embla-carousel-react: 8.6.0(react@19.2.9)
+      react: 19.2.9
+      react-dom: 19.2.7(react@19.2.9)
 
-  '@mantine/charts@9.4.1(@mantine/core@9.4.1(@mantine/hooks@9.4.1(react@19.2.7))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(@mantine/hooks@9.4.1(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(recharts@3.9.2(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react-is@16.13.1)(react@19.2.7)(redux@5.0.1))':
+  '@mantine/charts@9.4.1(@mantine/core@9.4.1(@mantine/hooks@9.4.1(react@19.2.9))(@types/react@19.2.18)(react-dom@19.2.7(react@19.2.9))(react@19.2.9))(@mantine/hooks@9.4.1(react@19.2.9))(react-dom@19.2.7(react@19.2.9))(react@19.2.9)(recharts@3.9.2(@types/react@19.2.18)(react-dom@19.2.7(react@19.2.9))(react-is@16.13.1)(react@19.2.9)(redux@5.0.1))':
     dependencies:
-      '@mantine/core': 9.4.1(@mantine/hooks@9.4.1(react@19.2.7))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
-      '@mantine/hooks': 9.4.1(react@19.2.7)
-      react: 19.2.7
-      react-dom: 19.2.7(react@19.2.7)
-      recharts: 3.9.2(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react-is@16.13.1)(react@19.2.7)(redux@5.0.1)
+      '@mantine/core': 9.4.1(@mantine/hooks@9.4.1(react@19.2.9))(@types/react@19.2.18)(react-dom@19.2.7(react@19.2.9))(react@19.2.9)
+      '@mantine/hooks': 9.4.1(react@19.2.9)
+      react: 19.2.9
+      react-dom: 19.2.7(react@19.2.9)
+      recharts: 3.9.2(@types/react@19.2.18)(react-dom@19.2.7(react@19.2.9))(react-is@16.13.1)(react@19.2.9)(redux@5.0.1)
 
-  '@mantine/core@9.4.1(@mantine/hooks@9.4.1(react@19.2.7))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
+  '@mantine/core@9.4.1(@mantine/hooks@9.4.1(react@19.2.9))(@types/react@19.2.18)(react-dom@19.2.7(react@19.2.9))(react@19.2.9)':
     dependencies:
-      '@floating-ui/react': 0.27.19(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
-      '@mantine/hooks': 9.4.1(react@19.2.7)
+      '@floating-ui/react': 0.27.19(react-dom@19.2.7(react@19.2.9))(react@19.2.9)
+      '@mantine/hooks': 9.4.1(react@19.2.9)
       clsx: 2.1.1
-      react: 19.2.7
-      react-dom: 19.2.7(react@19.2.7)
-      react-number-format: 5.4.5(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
-      react-remove-scroll: 2.7.2(@types/react@19.2.17)(react@19.2.7)
+      react: 19.2.9
+      react-dom: 19.2.7(react@19.2.9)
+      react-number-format: 5.4.5(react-dom@19.2.7(react@19.2.9))(react@19.2.9)
+      react-remove-scroll: 2.7.2(@types/react@19.2.18)(react@19.2.9)
       type-fest: 5.7.0
     transitivePeerDependencies:
       - '@types/react'
 
-  '@mantine/dates@9.4.1(@mantine/core@9.4.1(@mantine/hooks@9.4.1(react@19.2.7))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(@mantine/hooks@9.4.1(react@19.2.7))(dayjs@1.11.23)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
+  '@mantine/dates@9.4.1(@mantine/core@9.4.1(@mantine/hooks@9.4.1(react@19.2.9))(@types/react@19.2.18)(react-dom@19.2.7(react@19.2.9))(react@19.2.9))(@mantine/hooks@9.4.1(react@19.2.9))(dayjs@1.11.23)(react-dom@19.2.7(react@19.2.9))(react@19.2.9)':
     dependencies:
-      '@mantine/core': 9.4.1(@mantine/hooks@9.4.1(react@19.2.7))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
-      '@mantine/hooks': 9.4.1(react@19.2.7)
+      '@mantine/core': 9.4.1(@mantine/hooks@9.4.1(react@19.2.9))(@types/react@19.2.18)(react-dom@19.2.7(react@19.2.9))(react@19.2.9)
+      '@mantine/hooks': 9.4.1(react@19.2.9)
       clsx: 2.1.1
       dayjs: 1.11.23
-      react: 19.2.7
-      react-dom: 19.2.7(react@19.2.7)
+      react: 19.2.9
+      react-dom: 19.2.7(react@19.2.9)
 
-  '@mantine/form@9.4.1(react@19.2.7)':
+  '@mantine/form@9.4.1(react@19.2.9)':
     dependencies:
       '@standard-schema/spec': 1.1.0
       fast-deep-equal: 3.1.3
       klona: 2.0.6
-      react: 19.2.7
+      react: 19.2.9
 
-  '@mantine/hooks@9.4.1(react@19.2.7)':
+  '@mantine/hooks@9.4.1(react@19.2.9)':
     dependencies:
-      react: 19.2.7
+      react: 19.2.9
 
-  '@mantine/notifications@9.4.1(@mantine/core@9.4.1(@mantine/hooks@9.4.1(react@19.2.7))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(@mantine/hooks@9.4.1(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
+  '@mantine/notifications@9.4.1(@mantine/core@9.4.1(@mantine/hooks@9.4.1(react@19.2.9))(@types/react@19.2.18)(react-dom@19.2.7(react@19.2.9))(react@19.2.9))(@mantine/hooks@9.4.1(react@19.2.9))(react-dom@19.2.7(react@19.2.9))(react@19.2.9)':
     dependencies:
-      '@mantine/core': 9.4.1(@mantine/hooks@9.4.1(react@19.2.7))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
-      '@mantine/hooks': 9.4.1(react@19.2.7)
-      '@mantine/store': 9.4.1(react@19.2.7)
-      react: 19.2.7
-      react-dom: 19.2.7(react@19.2.7)
-      react-transition-group: 4.4.5(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      '@mantine/core': 9.4.1(@mantine/hooks@9.4.1(react@19.2.9))(@types/react@19.2.18)(react-dom@19.2.7(react@19.2.9))(react@19.2.9)
+      '@mantine/hooks': 9.4.1(react@19.2.9)
+      '@mantine/store': 9.4.1(react@19.2.9)
+      react: 19.2.9
+      react-dom: 19.2.7(react@19.2.9)
+      react-transition-group: 4.4.5(react-dom@19.2.7(react@19.2.9))(react@19.2.9)
 
-  '@mantine/schedule@9.4.1(@mantine/core@9.4.1(@mantine/hooks@9.4.1(react@19.2.7))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(@mantine/dates@9.4.1(@mantine/core@9.4.1(@mantine/hooks@9.4.1(react@19.2.7))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(@mantine/hooks@9.4.1(react@19.2.7))(dayjs@1.11.23)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(@mantine/hooks@9.4.1(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
+  '@mantine/schedule@9.4.1(@mantine/core@9.4.1(@mantine/hooks@9.4.1(react@19.2.9))(@types/react@19.2.18)(react-dom@19.2.7(react@19.2.9))(react@19.2.9))(@mantine/dates@9.4.1(@mantine/core@9.4.1(@mantine/hooks@9.4.1(react@19.2.9))(@types/react@19.2.18)(react-dom@19.2.7(react@19.2.9))(react@19.2.9))(@mantine/hooks@9.4.1(react@19.2.9))(dayjs@1.11.23)(react-dom@19.2.7(react@19.2.9))(react@19.2.9))(@mantine/hooks@9.4.1(react@19.2.9))(react-dom@19.2.7(react@19.2.9))(react@19.2.9)':
     dependencies:
-      '@mantine/core': 9.4.1(@mantine/hooks@9.4.1(react@19.2.7))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
-      '@mantine/dates': 9.4.1(@mantine/core@9.4.1(@mantine/hooks@9.4.1(react@19.2.7))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(@mantine/hooks@9.4.1(react@19.2.7))(dayjs@1.11.23)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
-      '@mantine/hooks': 9.4.1(react@19.2.7)
-      react: 19.2.7
-      react-dom: 19.2.7(react@19.2.7)
+      '@mantine/core': 9.4.1(@mantine/hooks@9.4.1(react@19.2.9))(@types/react@19.2.18)(react-dom@19.2.7(react@19.2.9))(react@19.2.9)
+      '@mantine/dates': 9.4.1(@mantine/core@9.4.1(@mantine/hooks@9.4.1(react@19.2.9))(@types/react@19.2.18)(react-dom@19.2.7(react@19.2.9))(react@19.2.9))(@mantine/hooks@9.4.1(react@19.2.9))(dayjs@1.11.23)(react-dom@19.2.7(react@19.2.9))(react@19.2.9)
+      '@mantine/hooks': 9.4.1(react@19.2.9)
+      react: 19.2.9
+      react-dom: 19.2.7(react@19.2.9)
       rrule: 2.8.1
 
-  '@mantine/store@9.4.1(react@19.2.7)':
+  '@mantine/store@9.4.1(react@19.2.9)':
     dependencies:
-      react: 19.2.7
+      react: 19.2.9
 
   '@napi-rs/wasm-runtime@1.1.6(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)':
     dependencies:
@@ -4046,7 +4046,7 @@ snapshots:
 
   '@poppinss/exception@1.2.3': {}
 
-  '@reduxjs/toolkit@2.12.0(react-redux@9.3.0(@types/react@19.2.17)(react@19.2.7)(redux@5.0.1))(react@19.2.7)':
+  '@reduxjs/toolkit@2.12.0(react-redux@9.3.0(@types/react@19.2.18)(react@19.2.9)(redux@5.0.1))(react@19.2.9)':
     dependencies:
       '@standard-schema/spec': 1.1.0
       '@standard-schema/utils': 0.3.0
@@ -4055,8 +4055,8 @@ snapshots:
       redux-thunk: 3.1.0(redux@5.0.1)
       reselect: 5.2.0
     optionalDependencies:
-      react: 19.2.7
-      react-redux: 9.3.0(@types/react@19.2.17)(react@19.2.7)(redux@5.0.1)
+      react: 19.2.9
+      react-redux: 9.3.0(@types/react@19.2.18)(react@19.2.9)(redux@5.0.1)
 
   '@rolldown/binding-android-arm64@1.1.3':
     optional: true
@@ -4163,12 +4163,12 @@ snapshots:
       '@sentry/conventions': 0.30.0
       '@sentry/core': 11.11.0
 
-  '@sentry/react@11.11.0(react@19.2.7)':
+  '@sentry/react@11.11.0(react@19.2.9)':
     dependencies:
       '@sentry/browser': 11.11.0
       '@sentry/conventions': 0.30.0
       '@sentry/core': 11.11.0
-      react: 19.2.7
+      react: 19.2.9
 
   '@sentry/replay-canvas@11.11.0':
     dependencies:
@@ -4194,10 +4194,10 @@ snapshots:
 
   '@standard-schema/utils@0.3.0': {}
 
-  '@tabler/icons-react@3.44.0(react@19.2.7)':
+  '@tabler/icons-react@3.44.0(react@19.2.9)':
     dependencies:
       '@tabler/icons': 3.44.0
-      react: 19.2.7
+      react: 19.2.9
 
   '@tabler/icons@3.44.0': {}
 
@@ -4205,26 +4205,26 @@ snapshots:
 
   '@tanstack/query-core@5.101.4': {}
 
-  '@tanstack/react-query@5.101.4(react@19.2.7)':
+  '@tanstack/react-query@5.101.4(react@19.2.9)':
     dependencies:
       '@tanstack/query-core': 5.101.4
-      react: 19.2.7
+      react: 19.2.9
 
-  '@tanstack/react-router@1.170.16(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
+  '@tanstack/react-router@1.170.16(react-dom@19.2.7(react@19.2.9))(react@19.2.9)':
     dependencies:
       '@tanstack/history': 1.162.0
-      '@tanstack/react-store': 0.9.3(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      '@tanstack/react-store': 0.9.3(react-dom@19.2.7(react@19.2.9))(react@19.2.9)
       '@tanstack/router-core': 1.171.13
       isbot: 5.1.44
-      react: 19.2.7
-      react-dom: 19.2.7(react@19.2.7)
+      react: 19.2.9
+      react-dom: 19.2.7(react@19.2.9)
 
-  '@tanstack/react-store@0.9.3(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
+  '@tanstack/react-store@0.9.3(react-dom@19.2.7(react@19.2.9))(react@19.2.9)':
     dependencies:
       '@tanstack/store': 0.9.3
-      react: 19.2.7
-      react-dom: 19.2.7(react@19.2.7)
-      use-sync-external-store: 1.6.0(react@19.2.7)
+      react: 19.2.9
+      react-dom: 19.2.7(react@19.2.9)
+      use-sync-external-store: 1.6.0(react@19.2.9)
 
   '@tanstack/router-cli@1.167.17':
     dependencies:
@@ -4254,7 +4254,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@tanstack/router-plugin@1.168.18(@tanstack/react-router@1.170.16(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(esbuild@0.28.1)(rolldown@1.1.3)(vite@8.1.0(@types/node@26.0.1)(esbuild@0.28.1)(jiti@2.7.0)(sugarss@5.0.1(postcss@8.5.33))(tsx@4.22.4))':
+  '@tanstack/router-plugin@1.168.18(@tanstack/react-router@1.170.16(react-dom@19.2.7(react@19.2.9))(react@19.2.9))(esbuild@0.28.1)(rolldown@1.1.3)(vite@8.1.0(@types/node@26.0.1)(esbuild@0.28.1)(jiti@2.7.0)(sugarss@5.0.1(postcss@8.5.33))(tsx@4.22.4))':
     dependencies:
       '@babel/core': 7.29.7
       '@babel/template': 7.29.7
@@ -4266,7 +4266,7 @@ snapshots:
       unplugin: 3.2.0(esbuild@0.28.1)(rolldown@1.1.3)(vite@8.1.0(@types/node@26.0.1)(esbuild@0.28.1)(jiti@2.7.0)(sugarss@5.0.1(postcss@8.5.33))(tsx@4.22.4))
       zod: 4.4.3
     optionalDependencies:
-      '@tanstack/react-router': 1.170.16(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      '@tanstack/react-router': 1.170.16(react-dom@19.2.7(react@19.2.9))(react@19.2.9)
       vite: 8.1.0(@types/node@26.0.1)(esbuild@0.28.1)(jiti@2.7.0)(sugarss@5.0.1(postcss@8.5.33))(tsx@4.22.4)
     transitivePeerDependencies:
       - '@farmfe/core'
@@ -4339,11 +4339,11 @@ snapshots:
     dependencies:
       undici-types: 8.3.0
 
-  '@types/react-dom@19.2.3(@types/react@19.2.17)':
+  '@types/react-dom@19.2.3(@types/react@19.2.18)':
     dependencies:
-      '@types/react': 19.2.17
+      '@types/react': 19.2.18
 
-  '@types/react@19.2.17':
+  '@types/react@19.2.18':
     dependencies:
       csstype: 3.2.3
 
@@ -4700,11 +4700,11 @@ snapshots:
 
   electron-to-chromium@1.5.380: {}
 
-  embla-carousel-react@8.6.0(react@19.2.7):
+  embla-carousel-react@8.6.0(react@19.2.9):
     dependencies:
       embla-carousel: 8.6.0
       embla-carousel-reactive-utils: 8.6.0(embla-carousel@8.6.0)
-      react: 19.2.7
+      react: 19.2.9
 
   embla-carousel-reactive-utils@8.6.0(embla-carousel@8.6.0):
     dependencies:
@@ -5302,82 +5302,82 @@ snapshots:
 
   punycode@2.3.1: {}
 
-  react-dom@19.2.7(react@19.2.7):
+  react-dom@19.2.7(react@19.2.9):
     dependencies:
-      react: 19.2.7
+      react: 19.2.9
       scheduler: 0.27.0
 
   react-is@16.13.1: {}
 
-  react-number-format@5.4.5(react-dom@19.2.7(react@19.2.7))(react@19.2.7):
+  react-number-format@5.4.5(react-dom@19.2.7(react@19.2.9))(react@19.2.9):
     dependencies:
-      react: 19.2.7
-      react-dom: 19.2.7(react@19.2.7)
+      react: 19.2.9
+      react-dom: 19.2.7(react@19.2.9)
 
-  react-redux@9.3.0(@types/react@19.2.17)(react@19.2.7)(redux@5.0.1):
+  react-redux@9.3.0(@types/react@19.2.18)(react@19.2.9)(redux@5.0.1):
     dependencies:
       '@types/use-sync-external-store': 0.0.6
-      react: 19.2.7
-      use-sync-external-store: 1.6.0(react@19.2.7)
+      react: 19.2.9
+      use-sync-external-store: 1.6.0(react@19.2.9)
     optionalDependencies:
-      '@types/react': 19.2.17
+      '@types/react': 19.2.18
       redux: 5.0.1
 
-  react-remove-scroll-bar@2.3.8(@types/react@19.2.17)(react@19.2.7):
+  react-remove-scroll-bar@2.3.8(@types/react@19.2.18)(react@19.2.9):
     dependencies:
-      react: 19.2.7
-      react-style-singleton: 2.2.3(@types/react@19.2.17)(react@19.2.7)
+      react: 19.2.9
+      react-style-singleton: 2.2.3(@types/react@19.2.18)(react@19.2.9)
       tslib: 2.8.1
     optionalDependencies:
-      '@types/react': 19.2.17
+      '@types/react': 19.2.18
 
-  react-remove-scroll@2.7.2(@types/react@19.2.17)(react@19.2.7):
+  react-remove-scroll@2.7.2(@types/react@19.2.18)(react@19.2.9):
     dependencies:
-      react: 19.2.7
-      react-remove-scroll-bar: 2.3.8(@types/react@19.2.17)(react@19.2.7)
-      react-style-singleton: 2.2.3(@types/react@19.2.17)(react@19.2.7)
+      react: 19.2.9
+      react-remove-scroll-bar: 2.3.8(@types/react@19.2.18)(react@19.2.9)
+      react-style-singleton: 2.2.3(@types/react@19.2.18)(react@19.2.9)
       tslib: 2.8.1
-      use-callback-ref: 1.3.3(@types/react@19.2.17)(react@19.2.7)
-      use-sidecar: 1.1.3(@types/react@19.2.17)(react@19.2.7)
+      use-callback-ref: 1.3.3(@types/react@19.2.18)(react@19.2.9)
+      use-sidecar: 1.1.3(@types/react@19.2.18)(react@19.2.9)
     optionalDependencies:
-      '@types/react': 19.2.17
+      '@types/react': 19.2.18
 
-  react-style-singleton@2.2.3(@types/react@19.2.17)(react@19.2.7):
+  react-style-singleton@2.2.3(@types/react@19.2.18)(react@19.2.9):
     dependencies:
       get-nonce: 1.0.1
-      react: 19.2.7
+      react: 19.2.9
       tslib: 2.8.1
     optionalDependencies:
-      '@types/react': 19.2.17
+      '@types/react': 19.2.18
 
-  react-transition-group@4.4.5(react-dom@19.2.7(react@19.2.7))(react@19.2.7):
+  react-transition-group@4.4.5(react-dom@19.2.7(react@19.2.9))(react@19.2.9):
     dependencies:
       '@babel/runtime': 7.29.7
       dom-helpers: 5.2.1
       loose-envify: 1.4.0
       prop-types: 15.8.1
-      react: 19.2.7
-      react-dom: 19.2.7(react@19.2.7)
+      react: 19.2.9
+      react-dom: 19.2.7(react@19.2.9)
 
-  react@19.2.7: {}
+  react@19.2.9: {}
 
   readdirp@5.0.0: {}
 
-  recharts@3.9.2(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react-is@16.13.1)(react@19.2.7)(redux@5.0.1):
+  recharts@3.9.2(@types/react@19.2.18)(react-dom@19.2.7(react@19.2.9))(react-is@16.13.1)(react@19.2.9)(redux@5.0.1):
     dependencies:
-      '@reduxjs/toolkit': 2.12.0(react-redux@9.3.0(@types/react@19.2.17)(react@19.2.7)(redux@5.0.1))(react@19.2.7)
+      '@reduxjs/toolkit': 2.12.0(react-redux@9.3.0(@types/react@19.2.18)(react@19.2.9)(redux@5.0.1))(react@19.2.9)
       clsx: 2.1.1
       decimal.js-light: 2.5.1
       es-toolkit: 1.49.0
       eventemitter3: 5.0.4
       immer: 11.1.15
-      react: 19.2.7
-      react-dom: 19.2.7(react@19.2.7)
+      react: 19.2.9
+      react-dom: 19.2.7(react@19.2.9)
       react-is: 16.13.1
-      react-redux: 9.3.0(@types/react@19.2.17)(react@19.2.7)(redux@5.0.1)
+      react-redux: 9.3.0(@types/react@19.2.18)(react@19.2.9)(redux@5.0.1)
       reselect: 5.2.0
       tiny-invariant: 1.3.3
-      use-sync-external-store: 1.6.0(react@19.2.7)
+      use-sync-external-store: 1.6.0(react@19.2.9)
       victory-vendor: 37.3.6
     transitivePeerDependencies:
       - '@types/react'
@@ -5592,24 +5592,24 @@ snapshots:
     dependencies:
       punycode: 2.3.1
 
-  use-callback-ref@1.3.3(@types/react@19.2.17)(react@19.2.7):
+  use-callback-ref@1.3.3(@types/react@19.2.18)(react@19.2.9):
     dependencies:
-      react: 19.2.7
+      react: 19.2.9
       tslib: 2.8.1
     optionalDependencies:
-      '@types/react': 19.2.17
+      '@types/react': 19.2.18
 
-  use-sidecar@1.1.3(@types/react@19.2.17)(react@19.2.7):
+  use-sidecar@1.1.3(@types/react@19.2.18)(react@19.2.9):
     dependencies:
       detect-node-es: 1.1.0
-      react: 19.2.7
+      react: 19.2.9
       tslib: 2.8.1
     optionalDependencies:
-      '@types/react': 19.2.17
+      '@types/react': 19.2.18
 
-  use-sync-external-store@1.6.0(react@19.2.7):
+  use-sync-external-store@1.6.0(react@19.2.9):
     dependencies:
-      react: 19.2.7
+      react: 19.2.9
 
   util-deprecate@1.0.2: {}
 

@@ -3,7 +3,7 @@ import { useDisclosure } from '@mantine/hooks';
 import { Link, Navigate, Outlet, useLocation } from '@tanstack/react-router';
 
 import { useMe } from '@/features/auth/queries';
-import { getUnauthenticatedRedirect } from '@/features/auth/route-policy';
+import { getUnauthenticatedRedirect, isAccessRequestPath } from '@/features/auth/route-policy';
 
 import { MobileNavigation } from './MobileNavigation';
 import { NavigationMenu } from './NavigationMenu';
@@ -19,7 +19,8 @@ export function RootLayout() {
   const mobileKeyboardOpened = useMobileKeyboardOpen();
   const [desktopNavbarOpened, { toggle: toggleDesktopNavbar }] = useDisclosure(true);
 
-  if (isLoading) {
+  // 利用申請系の画面は認証状態にかかわらず、ログイン画面と同じ単独画面として表示する
+  if (isLoading || isAccessRequestPath(location.pathname)) {
     return <Outlet />;
   }
   if (!user) {

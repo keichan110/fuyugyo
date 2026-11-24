@@ -807,10 +807,7 @@ describe('POST /api/auth/logout', () => {
 
 /** 認証 Cookie（auth-token）を含む Set-Cookie かを判定する */
 function issuesAuthCookie(res: Response): boolean {
-  // 失効させる Set-Cookie（値が空）は発行に含めない
-  return (res.headers.get('set-cookie') ?? '')
-    .split(/,\s(?=[\w-]+=)/)
-    .some((c) => c.startsWith('auth-token=') && !c.startsWith('auth-token=;'));
+  return (res.headers.get('set-cookie') ?? '').includes('auth-token=');
 }
 
 /** どの DB 操作にも到達しない D1。到達すれば例外を投げ、認証前に拒否されたことを確かめる */
@@ -1222,23 +1219,20 @@ describe('未登録ユーザーの利用申請への誘導（LINE callback → �
       );
     }
 
-    it('未登録の callback は旧 auth-token を path=/ で失効させ、申請画面へ送る', async () => {
+    it('未登録の callback は auth-token に触れない（別タブの登録済みログインを消さない）', async () => {
       const res = await loginViaLine({ authToken: await staleAuthToken() });
 
       expect(res.headers.get('location')).toBe(`${env.APP_URL}/access-request`);
-      const expired = setCookies(res).find((c) => c.startsWith('auth-token='));
-      expect(expired).toContain('Path=/');
-      expect(expired?.toLowerCase()).toContain('max-age=0');
-      expect(cookieValue(res, 'auth-token')).toBe('');
+      expect(res.headers.get('set-cookie') ?? '').not.toContain('auth-token');
     });
 
-    it('申請済みで承認待ち画面へ送る場合も旧 auth-token を失効させる', async () => {
+    it('申請済みで承認待ち画面へ送る場合も auth-token に触れない', async () => {
       await seedAccessRequest(NEW_LINE_USER, new Date());
 
       const res = await loginViaLine({ authToken: await staleAuthToken() });
 
       expect(res.headers.get('location')).toBe(`${env.APP_URL}/access-request/pending`);
-      expect(cookieValue(res, 'auth-token')).toBe('');
+      expect(res.headers.get('set-cookie') ?? '').not.toContain('auth-token');
     });
   });
 

@@ -20,7 +20,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { fetchMe } from '../src/features/auth/auth-guard';
 import { logoutMutationOptions, ME_QUERY_KEY, meQueryOptions } from '../src/features/auth/queries';
-import { getUnauthenticatedRedirect } from '../src/features/auth/route-policy';
+import { getUnauthenticatedRedirect, isAccessRequestPath } from '../src/features/auth/route-policy';
 import type { MeResponse } from '../src/features/auth/schema';
 import { mySeasonStatsQueryOptions, seasonStatsQueryKey } from '../src/features/shifts/queries';
 import { isIgnoredBrowserError } from '../src/lib/sentry-filter';
@@ -132,6 +132,18 @@ describe('未認証時のルーティング', () => {
 
   it('利用申請画面に似たパスの保護画面はログインへ置き換える', () => {
     expect(getUnauthenticatedRedirect('/access-request/other')).not.toBeNull();
+  });
+
+  it.each([
+    ['/access-request', true],
+    ['/access-request/', true],
+    ['/access-request/pending', true],
+    ['/access-request/pending/', true],
+    ['/login', false],
+    ['/access-request/other', false],
+    ['/shifts', false],
+  ])('単独表示の判定（%s → %s）', (pathname, expected) => {
+    expect(isAccessRequestPath(pathname)).toBe(expected);
   });
 
   it('未認証になった保護画面の内容を描画しない', async () => {

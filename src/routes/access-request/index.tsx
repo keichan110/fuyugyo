@@ -1,14 +1,9 @@
-import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
+import { createFileRoute, useNavigate } from '@tanstack/react-router';
 
 import { AccessRequestPage } from '@/features/access-requests/components/AccessRequestPage';
 import { AccessRequestError, useSubmitAccessRequest } from '@/features/access-requests/queries';
-import { fetchMe } from '@/features/auth/auth-guard';
 
 export const Route = createFileRoute('/access-request/')({
-  // 認証済みの人は申請不要のためトップへ送る
-  beforeLoad: async ({ context }) => {
-    if (await fetchMe(context.queryClient)) throw redirect({ to: '/' });
-  },
   component: AccessRequestRoute,
 });
 

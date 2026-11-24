@@ -132,7 +132,7 @@ async function findUserAndSyncProfile(
 /**
  * 未登録の LINE ユーザーを利用申請の流れへ誘導する。
  * 期限内の申請があれば承認待ち画面へ、なければ申請 Cookie を発行して申請画面へ 302 で送る。
- * どちらもログイン Cookie は発行せず、既存のログイン Cookie と OAuth state の Cookie は削除する。
+ * どちらもログイン Cookie は発行せず、OAuth state の Cookie は削除する。
  */
 async function redirectUnregistered(
   c: Context<{ Bindings: Env; Variables: AuthVariables }>,
@@ -140,9 +140,6 @@ async function redirectUnregistered(
   profile: LineUserProfile,
 ): Promise<Response> {
   deleteCookie(c, SESSION_COOKIE, { path: '/' });
-  // 登録済みアカウントのログインが残るブラウザでも申請画面へ届くよう、旧セッションを破棄する
-  // （残すと /me が旧アカウントを返し、ガードが申請画面から `/` へ送ってしまう）
-  deleteCookie(c, AUTH_COOKIE, { path: '/' });
 
   // 期限切れの申請は未申請と同じ扱いにする（行の削除は申請 API が行う）
   const [pending] = await db

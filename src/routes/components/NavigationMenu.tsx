@@ -136,7 +136,9 @@ export function NavigationMenu({
                   }
                   label={label}
                   disabled={disabled}
-                  description={disabled ? '管理者に紐付けを依頼してください' : undefined}
+                  description={
+                    disabled ? 'インストラクターの方は、管理者に連携を依頼してください' : undefined
+                  }
                   leftSection={<Icon size={18} stroke={1.75} />}
                   active={activePath === to}
                   variant="light"

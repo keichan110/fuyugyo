@@ -50,7 +50,7 @@ function AvailabilitiesPage() {
           <ListEmptyState
             icon={<IconLock size={32} stroke={1.5} />}
             title="インストラクターへの紐付けが必要です"
-            description="シフト希望を登録するには、アカウントをインストラクターに紐付ける必要があります。管理者に紐付けを依頼してください。"
+            description="シフト希望を登録するには、アカウントをインストラクターに紐付ける必要があります。インストラクターの方は、管理者に連携を依頼してください。"
           />
         )}
       </Stack>

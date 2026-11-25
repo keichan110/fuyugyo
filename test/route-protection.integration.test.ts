@@ -125,9 +125,9 @@ const PROTECTED_ROUTES: readonly RouteSpec[] = [
   },
   { method: 'DELETE', path: '/api/instructors/:id/certifications/:certId', minRole: 'MANAGER' },
 
-  { method: 'POST', path: '/api/invitations', minRole: 'MANAGER', body: {} },
-  { method: 'GET', path: '/api/invitations', minRole: 'MANAGER' },
-  { method: 'POST', path: '/api/invitations/:token/deactivate', minRole: 'MANAGER' },
+  { method: 'POST', path: '/api/invitations', minRole: 'ADMIN' },
+  { method: 'GET', path: '/api/invitations', minRole: 'ADMIN' },
+  { method: 'POST', path: '/api/invitations/:token/deactivate', minRole: 'ADMIN' },
 
   { method: 'GET', path: '/api/users', minRole: 'MANAGER' },
   { method: 'GET', path: '/api/users/:id', minRole: 'MANAGER' },

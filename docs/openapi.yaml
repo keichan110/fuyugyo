@@ -28,7 +28,7 @@ tags:
   - name: ユーザー管理
     description: 管理者向けユーザー参照 API
   - name: 招待管理
-    description: 招待トークン参照 API
+    description: 招待リンクの発行・一覧・停止（ADMIN のみ）と検証 API
 
 paths:
   /api/health:
@@ -771,35 +771,54 @@ paths:
         '500':
           $ref: '#/components/responses/ServerError'
 
-  /api/auth/invitations:
+  /api/invitations:
     get:
-      summary: 招待トークン一覧取得
-      description: 管理者・マネージャーが作成済み招待トークン一覧を取得します。
+      summary: 有効な招待リンク一覧取得
+      description: ADMIN のみ。期限内・停止されていない・使用上限に達していないリンクを新しい順に返します。
       tags:
         - 招待管理
       security:
         - bearerAuth: []
         - sessionCookie: []
-      parameters:
-        - name: includeInactive
-          in: query
-          description: true の場合、無効化済みトークンも含みます。
-          schema:
-            type: string
-            enum: ['true', 'false']
-        - name: showAll
-          in: query
-          description: 管理者が true を指定すると全ユーザー分を取得します。
-          schema:
-            type: string
-            enum: ['true', 'false']
       responses:
         '200':
-          description: 招待トークン一覧
+          description: 有効な招待リンク一覧
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/InvitationListResponse'
+                type: array
+                items:
+                  $ref: '#/components/schemas/InvitationListItem'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    post:
+      summary: 招待リンク発行
+      description: |
+        ADMIN のみ。リクエストボディは不要です。
+        同じ ADMIN が発行した有効な 24 時間・無制限リンクのうち、発行から 1 時間以内（ちょうど 1 時間を含む）の最新があれば 200 で返します。
+        なければ 24 時間・無制限で新規作成して 201 で返します。既存のリンクは停止しません。
+      tags:
+        - 招待管理
+      security:
+        - bearerAuth: []
+        - sessionCookie: []
+      responses:
+        '200':
+          description: 1 時間以内に発行済みのリンクを再利用
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Invitation'
+        '201':
+          description: 新規に発行
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Invitation'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -807,10 +826,12 @@ paths:
         '500':
           $ref: '#/components/responses/ServerError'
 
-  /api/auth/invitations/active:
-    get:
-      summary: 最新の有効招待取得
-      description: 現在有効な最新の招待トークン情報を返します。
+  /api/invitations/{token}/deactivate:
+    parameters:
+      - $ref: '#/components/parameters/Token'
+    post:
+      summary: 招待リンク停止
+      description: ADMIN のみ。物理削除せず停止します。
       tags:
         - 招待管理
       security:
@@ -818,11 +839,11 @@ paths:
         - sessionCookie: []
       responses:
         '200':
-          description: 有効招待情報
+          description: 停止後のリンク
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ActiveInvitationResponse'
+                $ref: '#/components/schemas/Invitation'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -832,12 +853,12 @@ paths:
         '500':
           $ref: '#/components/responses/ServerError'
 
-  /api/auth/invitations/{token}/verify:
+  /api/invitations/{token}/verify:
     parameters:
       - $ref: '#/components/parameters/Token'
     get:
       summary: 招待トークン検証
-      description: 招待トークンの有効性を認証なしで検証します。
+      description: 招待トークンの有効性を認証なしで検証します（Rate Limit 対象）。発行から 24 時間ちょうどで利用できなくなります。
       tags:
         - 招待管理
       responses:
@@ -847,12 +868,14 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/InvitationValidationSuccess'
-        '400':
-          $ref: '#/components/responses/ValidationError'
         '404':
           $ref: '#/components/responses/NotFound'
         '410':
           $ref: '#/components/responses/Gone'
+        '422':
+          description: 旧リンクの使用上限に達している
+        '429':
+          description: Rate Limit 超過
         '500':
           $ref: '#/components/responses/ServerError'
 
@@ -2034,95 +2057,54 @@ components:
         data:
           $ref: '#/components/schemas/UserDetail'
 
-    InvitationListItem:
+    Invitation:
       type: object
       properties:
         token:
-          type: string
-        description:
           type: string
         expiresAt:
           type: string
           format: date-time
         isActive:
           type: boolean
+        createdBy:
+          type: string
+          nullable: true
+          description: 作成者。作成者が削除済みの場合は null
         maxUses:
           type: integer
           nullable: true
+          description: 旧リンクのみ。新規リンクは null（無制限）
         usedCount:
           type: integer
-        createdAt:
-          type: string
-          format: date-time
-        createdBy:
-          type: string
-        creatorName:
-          type: string
-        creatorRole:
-          type: string
-          enum: [ADMIN, MANAGER, MEMBER]
-        isExpired:
-          type: boolean
-        remainingUses:
-          type: integer
-          nullable: true
-
-    InvitationListResponse:
-      type: object
-      properties:
-        success:
-          type: boolean
-          enum: [true]
-        data:
-          type: array
-          items:
-            $ref: '#/components/schemas/InvitationListItem'
-
-    ActiveInvitationData:
-      type: object
-      properties:
-        token:
-          type: string
         description:
           type: string
-        expiresAt:
-          type: string
-          format: date-time
-        isActive:
-          type: boolean
-        maxUses:
-          type: integer
-          nullable: true
-        usageCount:
-          type: integer
-        remainingUses:
-          type: integer
           nullable: true
         createdAt:
           type: string
           format: date-time
-        createdBy:
+        updatedAt:
           type: string
-          description: 招待作成者の表示名
+          format: date-time
 
-    ActiveInvitationResponse:
-      type: object
-      properties:
-        success:
-          type: boolean
-          enum: [true]
-        data:
-          $ref: '#/components/schemas/ActiveInvitationData'
+    InvitationListItem:
+      allOf:
+        - $ref: '#/components/schemas/Invitation'
+        - type: object
+          properties:
+            createdByName:
+              type: string
+              nullable: true
+              description: 作成者の表示名。削除済みの場合は null
 
     InvitationValidationSuccess:
       type: object
       properties:
-        success:
-          type: boolean
-          enum: [true]
-        data:
-          type: object
-          properties:
-            isValid:
-              type: boolean
-              enum: [true]
+        token:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+        description:
+          type: string
+          nullable: true

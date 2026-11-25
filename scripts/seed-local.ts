@@ -1,9 +1,8 @@
 /**
  * ローカル開発用シードスクリプト。
- * 招待トークン作成には `invitation_tokens.created_by` (NOT NULL FK) を満たす User が必要だが、
- * 初回はユーザーが1人もいない。DB へ直接 INSERT する（API のロールチェックは経由しない）ため、
- * FK を満たすためだけの非アクティブな placeholder User と、
- * 実際の LINE アカウントでログインするための恒久招待トークンを冪等に用意する。
+ * 初回はユーザーが1人もいないため、招待トークンの作成者（nullable FK の `invitation_tokens.created_by`）になる
+ * 非アクティブな placeholder User と、実際の LINE アカウントでログインするための恒久招待トークンを、
+ * DB へ直接 INSERT して（API のロールチェックは経由しない）冪等に用意する。
  */
 import { createClient } from '@libsql/client';
 import { eq } from 'drizzle-orm';

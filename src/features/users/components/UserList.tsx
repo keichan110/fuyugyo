@@ -15,6 +15,9 @@ import { ListToolbar } from '@/components/ListToolbar';
 import mobileClasses from '@/components/MobileListItem.module.css';
 import { SearchInput } from '@/components/SearchInput';
 import { TableRowsSkeleton } from '@/components/TableRowsSkeleton';
+import { useMe } from '@/features/auth/queries';
+import { hasMinimumRole } from '@/features/auth/schema';
+import { InvitationLinkButton } from '@/features/invitations/components/InvitationLinkButton';
 
 import { useUsers } from '../queries';
 import { USER_ROLE_META } from '../role-meta';
@@ -33,6 +36,8 @@ export function UserList() {
   const [drawerState, setDrawerState] = useState<UserDrawerState | null>(null);
 
   const { data, isLoading, isError } = useUsers();
+  const { data: me } = useMe();
+  const isAdmin = me ? hasMinimumRole(me.role, 'ADMIN') : false;
   const allUsers = useMemo(() => data ?? [], [data]);
 
   const visibleUsers = useMemo(() => {
@@ -51,6 +56,7 @@ export function UserList() {
         title="ユーザー管理"
         summary={{ count: visibleUsers.length, unit: '名' }}
         isLoading={isLoading}
+        action={isAdmin ? <InvitationLinkButton /> : undefined}
       />
 
       <ListToolbar>

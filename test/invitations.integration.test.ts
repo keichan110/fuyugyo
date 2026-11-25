@@ -1,6 +1,6 @@
 import { env } from 'cloudflare:test';
-import { eq, inArray } from 'drizzle-orm';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { eq } from 'drizzle-orm';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   invitationListSchema,
@@ -31,13 +31,6 @@ const noAuth: RequestInit = {};
 
 function authHeader(token: string): RequestInit {
   return { headers: { cookie: `auth-token=${token}`, 'Content-Type': 'application/json' } };
-}
-
-function authJsonRequest(token: string, body: unknown): RequestInit {
-  return {
-    headers: { cookie: `auth-token=${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  };
 }
 
 /**
@@ -108,168 +101,152 @@ beforeEach(async () => {
 
 // ─── POST /api/invitations ────────────────────────────────────────────────────
 
+/** 認証付きで招待を発行する（ボディなし） */
+async function issue(token: string): Promise<Response> {
+  return await app.request(
+    '/api/invitations',
+    { method: 'POST', ...authHeader(token) },
+    envWith({}),
+  );
+}
+
+/** 指定秒前に発行されたものとして招待を seed する（24時間・無制限） */
+async function seedIssuedAgo(
+  createdBy: string,
+  secondsAgo: number,
+  overrides: Partial<typeof invitationTokens.$inferInsert> = {},
+) {
+  const createdAt = new Date(Math.floor(Date.now() / 1000 - secondsAgo) * 1000);
+  return await seedInvitation(createdBy, {
+    createdAt,
+    updatedAt: createdAt,
+    expiresAt: new Date(createdAt.getTime() + 24 * 60 * 60 * 1000),
+    ...overrides,
+  });
+}
+
+async function allInvitations() {
+  return await createDb(env.DB).select().from(invitationTokens);
+}
+
 describe('POST /api/invitations', () => {
   it('未認証は 401 を返す', async () => {
     const res = await app.request(
       '/api/invitations',
-      { method: 'POST', ...noAuth, headers: { 'Content-Type': 'application/json' }, body: '{}' },
+      { method: 'POST', headers: { 'Content-Type': 'application/json' } },
       envWith({}),
     );
     expect(res.status).toBe(401);
   });
 
-  it('MEMBER は 403 で弾かれる', async () => {
-    const { token } = await seedUserToken('MEMBER');
-    const res = await app.request(
-      '/api/invitations',
-      { method: 'POST', ...authJsonRequest(token, {}) },
-      envWith({}),
-    );
+  it.each(['MEMBER', 'MANAGER'] as const)('%s は 403 で弾かれ、リンクを作らない', async (role) => {
+    const { token } = await seedUserToken(role);
+    const res = await issue(token);
     expect(res.status).toBe(403);
+    expect(await allInvitations()).toHaveLength(0);
   });
 
-  it('MANAGER は招待トークンを作成できる', async () => {
-    const { token } = await seedUserToken('MANAGER');
-    const res = await app.request(
-      '/api/invitations',
-      {
-        method: 'POST',
-        ...authJsonRequest(token, { description: 'テスト招待', maxUses: 5 }),
-      },
-      envWith({}),
-    );
+  it('ADMIN はボディなしで24時間・無制限のリンクを 201 で作成できる', async () => {
+    const { token, userId } = await seedUserToken('ADMIN');
+    const res = await issue(token);
     expect(res.status).toBe(201);
 
     const body = invitationSchema.parse(await res.json());
-    expect(body.description).toBe('テスト招待');
-    expect(body.maxUses).toBe(5);
-    expect(body.usedCount).toBe(0);
-    expect(body.isActive).toBe(true);
-  });
-
-  it('ADMIN は招待トークンを作成できる', async () => {
-    const { token } = await seedUserToken('ADMIN');
-    const res = await app.request(
-      '/api/invitations',
-      { method: 'POST', ...authJsonRequest(token, {}) },
-      envWith({}),
-    );
-    expect(res.status).toBe(201);
-
-    const body = invitationSchema.parse(await res.json());
-    expect(body.maxUses).toBeNull();
-    expect(body.isActive).toBe(true);
-  });
-
-  it('expiresInHours を指定すると有効期限が設定される', async () => {
-    const { token } = await seedUserToken('MANAGER');
-    const before = Date.now();
-    const res = await app.request(
-      '/api/invitations',
-      { method: 'POST', ...authJsonRequest(token, { expiresInHours: 24 }) },
-      envWith({}),
-    );
-    expect(res.status).toBe(201);
-
-    const body = invitationSchema.parse(await res.json());
-    const expectedExpiresAt = before + 24 * 3600 * 1000;
-    // 1 秒以内の誤差を許容する
-    expect(Math.abs(body.expiresAt.getTime() - expectedExpiresAt)).toBeLessThan(2000);
-  });
-
-  it('expiresInHours 省略時は INVITE_DEFAULT_EXPIRES が使われる', async () => {
-    const { token } = await seedUserToken('MANAGER');
-    const before = Date.now();
-    const res = await app.request(
-      '/api/invitations',
-      { method: 'POST', ...authJsonRequest(token, {}) },
-      // INVITE_DEFAULT_EXPIRES = "168h"（7日）
-      envWith({ INVITE_DEFAULT_EXPIRES: '168h' }),
-    );
-    expect(res.status).toBe(201);
-
-    const body = invitationSchema.parse(await res.json());
-    const expectedExpiresAt = before + 168 * 3600 * 1000;
-    expect(Math.abs(body.expiresAt.getTime() - expectedExpiresAt)).toBeLessThan(2000);
-  });
-
-  it('maxUses に 0 以下の値を渡すと 400 を返す', async () => {
-    const { token } = await seedUserToken('MANAGER');
-    const res = await app.request(
-      '/api/invitations',
-      { method: 'POST', ...authJsonRequest(token, { maxUses: 0 }) },
-      envWith({}),
-    );
-    expect(res.status).toBe(400);
-  });
-
-  it('既存のアクティブな招待は新規作成時に自動失効する', async () => {
-    const { token, userId } = await seedUserToken('MANAGER');
-    const previous = await seedInvitation(userId, { description: '旧招待' });
-
-    const res = await app.request(
-      '/api/invitations',
-      { method: 'POST', ...authJsonRequest(token, { description: '新招待' }) },
-      envWith({}),
-    );
-    expect(res.status).toBe(201);
-
-    const db = createDb(env.DB);
-    const [updatedPrevious] = await db
-      .select({ isActive: invitationTokens.isActive })
-      .from(invitationTokens)
-      .where(eq(invitationTokens.token, previous.token))
-      .limit(1);
-    expect(updatedPrevious?.isActive).toBe(false);
-
-    const listRes = await app.request('/api/invitations', authHeader(token), envWith({}));
-    const list = invitationListSchema.parse(await listRes.json());
-    const activeRows = list.filter((inv) => inv.isActive);
-    expect(activeRows.length).toBe(1);
-    expect(activeRows[0]?.description).toBe('新招待');
-  });
-
-  it('期限切れだが isActive=true の招待も新規作成時に失効する', async () => {
-    const { token, userId } = await seedUserToken('MANAGER');
-    const expired = await seedInvitation(userId, {
-      description: '期限切れ招待',
-      expiresAt: new Date(Date.now() - 1000),
+    expect(body).toMatchObject({
+      createdBy: userId,
+      maxUses: null,
+      usedCount: 0,
+      isActive: true,
+      description: null,
     });
-
-    const res = await app.request(
-      '/api/invitations',
-      { method: 'POST', ...authJsonRequest(token, {}) },
-      envWith({}),
-    );
-    expect(res.status).toBe(201);
-
-    const db = createDb(env.DB);
-    const [updatedExpired] = await db
-      .select({ isActive: invitationTokens.isActive })
-      .from(invitationTokens)
-      .where(eq(invitationTokens.token, expired.token))
-      .limit(1);
-    expect(updatedExpired?.isActive).toBe(false);
+    expect(body.expiresAt.getTime() - body.createdAt.getTime()).toBe(24 * 60 * 60 * 1000);
+    expect(Math.abs(body.createdAt.getTime() - Date.now())).toBeLessThan(5000);
   });
 
-  it('複数のアクティブな招待が残っていても全て失効する（移行ケース）', async () => {
-    const { token, userId } = await seedUserToken('MANAGER');
-    const first = await seedInvitation(userId, { description: '招待1' });
-    const second = await seedInvitation(userId, { description: '招待2' });
+  it('1時間以内の再発行は同じリンクを 200 で返し、増やさない', async () => {
+    const { token } = await seedUserToken('ADMIN');
+    const first = invitationSchema.parse(await (await issue(token)).json());
+    const second = await issue(token);
+    expect(second.status).toBe(200);
+    expect(invitationSchema.parse(await second.json()).token).toBe(first.token);
+    expect(await allInvitations()).toHaveLength(1);
+  });
 
-    const res = await app.request(
-      '/api/invitations',
-      { method: 'POST', ...authJsonRequest(token, {}) },
-      envWith({}),
+  it('同時発行でもリンクは1件だけ作られ、全員が同じトークンを受け取る', async () => {
+    const { token } = await seedUserToken('ADMIN');
+    const responses = await Promise.all([issue(token), issue(token), issue(token), issue(token)]);
+    const tokens = await Promise.all(
+      responses.map(async (res) => invitationSchema.parse(await res.json()).token),
     );
-    expect(res.status).toBe(201);
+    expect(new Set(tokens).size).toBe(1);
+    expect(responses.filter((res) => res.status === 201)).toHaveLength(1);
+    expect(await allInvitations()).toHaveLength(1);
+  });
 
-    const db = createDb(env.DB);
-    const rows = await db
-      .select({ token: invitationTokens.token, isActive: invitationTokens.isActive })
-      .from(invitationTokens)
-      .where(inArray(invitationTokens.token, [first.token, second.token]));
-    expect(rows.every((row) => row.isActive === false)).toBe(true);
+  it('発行からちょうど1時間のリンクはまだ再利用する', async () => {
+    const { token, userId } = await seedUserToken('ADMIN');
+    // 実行の遅れで秒が進まないよう時刻を固定し、境界（ちょうど3600秒前）を確定させる
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      vi.setSystemTime(nowSeconds * 1000);
+      const seeded = await seedIssuedAgo(userId, 3600);
+      const res = await issue(token);
+      expect(res.status).toBe(200);
+      expect(invitationSchema.parse(await res.json()).token).toBe(seeded.token);
+      expect(await allInvitations()).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('1時間を超えたリンクは再利用せず、新規発行して既存は停止しない', async () => {
+    const { token, userId } = await seedUserToken('ADMIN');
+    const old = await seedIssuedAgo(userId, 3601);
+    const res = await issue(token);
+    expect(res.status).toBe(201);
+    expect(invitationSchema.parse(await res.json()).token).not.toBe(old.token);
+
+    const rows = await allInvitations();
+    expect(rows).toHaveLength(2);
+    expect(rows.every((row) => row.isActive)).toBe(true);
+  });
+
+  it.each([
+    ['停止済み', { isActive: false }],
+    ['使用上限あり', { maxUses: 5 }],
+    ['24時間でない', { expiresAt: new Date(Date.now() + 72 * 60 * 60 * 1000) }],
+  ])('再利用候補にならない（%s）場合は新規発行する', async (_label, overrides) => {
+    const { token, userId } = await seedUserToken('ADMIN');
+    const seeded = await seedIssuedAgo(userId, 60, overrides);
+    const res = await issue(token);
+    expect(res.status).toBe(201);
+    expect(invitationSchema.parse(await res.json()).token).not.toBe(seeded.token);
+  });
+
+  it('他の ADMIN が発行したリンクは再利用せず、双方のリンクが併存する', async () => {
+    const a = await seedUserToken('ADMIN');
+    const b = await seedUserToken('ADMIN');
+    const first = invitationSchema.parse(await (await issue(a.token)).json());
+    const second = await issue(b.token);
+    expect(second.status).toBe(201);
+    expect(invitationSchema.parse(await second.json()).token).not.toBe(first.token);
+    expect(await allInvitations()).toHaveLength(2);
+  });
+
+  it('同じ秒に複数の候補があればトークンの降順で固定した最新を返す', async () => {
+    const { token, userId } = await seedUserToken('ADMIN');
+    const createdAt = new Date(Math.floor(Date.now() / 1000 - 60) * 1000);
+    const base = {
+      createdAt,
+      updatedAt: createdAt,
+      expiresAt: new Date(createdAt.getTime() + 24 * 60 * 60 * 1000),
+    };
+    await seedInvitation(userId, { ...base, token: 'aaa-token' });
+    await seedInvitation(userId, { ...base, token: 'zzz-token' });
+    const res = await issue(token);
+    expect(res.status).toBe(200);
+    expect(invitationSchema.parse(await res.json()).token).toBe('zzz-token');
   });
 });
 
@@ -281,116 +258,98 @@ describe('GET /api/invitations', () => {
     expect(res.status).toBe(401);
   });
 
-  it('MEMBER は 403 で弾かれる', async () => {
-    const { token } = await seedUserToken('MEMBER');
+  it.each(['MEMBER', 'MANAGER'] as const)('%s は 403 で弾かれる', async (role) => {
+    const { token } = await seedUserToken(role);
     const res = await app.request('/api/invitations', authHeader(token), envWith({}));
     expect(res.status).toBe(403);
   });
 
-  it('MANAGER は招待一覧を取得できる', async () => {
-    const { token, userId } = await seedUserToken('MANAGER');
-    await seedInvitation(userId, { description: '招待A' });
-    await seedInvitation(userId, { description: '招待B' });
-
-    const res = await app.request('/api/invitations', authHeader(token), envWith({}));
-    expect(res.status).toBe(200);
-
-    const body = invitationListSchema.parse(await res.json());
-    expect(body.length).toBe(2);
-  });
-
-  it('ADMIN は招待一覧を取得できる', async () => {
+  it('有効なリンクだけを新しい順に返し、停止済み・期限切れ・上限到達は除外する', async () => {
     const { token, userId } = await seedUserToken('ADMIN');
-    await seedInvitation(userId);
+    const older = await seedIssuedAgo(userId, 7200);
+    const newer = await seedIssuedAgo(userId, 60);
+    await seedIssuedAgo(userId, 30, { isActive: false });
+    await seedInvitation(userId, { expiresAt: new Date(Date.now() - 1000) });
+    await seedIssuedAgo(userId, 20, { maxUses: 2, usedCount: 2 });
+    // 旧リンク: 上限が残っていれば有効のまま一覧に出る
+    const legacy = await seedIssuedAgo(userId, 10000, { maxUses: 3, usedCount: 1 });
 
     const res = await app.request('/api/invitations', authHeader(token), envWith({}));
     expect(res.status).toBe(200);
-
     const body = invitationListSchema.parse(await res.json());
-    expect(body.length).toBe(1);
+    expect(body.map((row) => row.token)).toEqual([newer.token, older.token, legacy.token]);
   });
 
-  it('createdAt 降順で返す', async () => {
-    const { token, userId } = await seedUserToken('MANAGER');
-    const older = await seedInvitation(userId, {
-      description: '古い招待',
-      createdAt: new Date(Date.now() - 60 * 60 * 1000),
-    });
-    const newer = await seedInvitation(userId, {
-      description: '新しい招待',
-      createdAt: new Date(),
-    });
+  it('作成者名を返し、作成者が削除済みなら null にする', async () => {
+    const admin = await seedUserToken('ADMIN');
+    const other = await seedUserToken('ADMIN');
+    await seedIssuedAgo(admin.userId, 60);
+    await seedIssuedAgo(other.userId, 120);
+    await env.DB.prepare('DELETE FROM users WHERE id = ?').bind(other.userId).run();
 
-    const res = await app.request('/api/invitations', authHeader(token), envWith({}));
-    expect(res.status).toBe(200);
-
+    const res = await app.request('/api/invitations', authHeader(admin.token), envWith({}));
     const body = invitationListSchema.parse(await res.json());
-    expect(body.map((inv) => inv.token)).toEqual([newer.token, older.token]);
+    expect(body.map((row) => row.createdByName)).toEqual(['テストADMIN', null]);
+    expect(body[1]?.createdBy).toBeNull();
   });
 });
 
-// ─── POST /api/invitations/:token/deactivate ──────────────────────────────────
+// ─── POST /api/invitations/:token/deactivate ─────────────────────────────────
 
 describe('POST /api/invitations/:token/deactivate', () => {
   it('未認証は 401 を返す', async () => {
     const { userId } = await seedUserToken('ADMIN');
     const inv = await seedInvitation(userId);
-
     const res = await app.request(
       `/api/invitations/${inv.token}/deactivate`,
-      { method: 'POST', ...noAuth, headers: { 'Content-Type': 'application/json' } },
+      { method: 'POST', headers: { 'Content-Type': 'application/json' } },
       envWith({}),
     );
     expect(res.status).toBe(401);
   });
 
-  it('MEMBER は 403 で弾かれる', async () => {
-    const { userId } = await seedUserToken('ADMIN');
-    const { token: memberToken } = await seedUserToken('MEMBER');
-    const inv = await seedInvitation(userId);
-
+  it.each(['MEMBER', 'MANAGER'] as const)('%s は 403 で弾かれ、停止されない', async (role) => {
+    const admin = await seedUserToken('ADMIN');
+    const inv = await seedInvitation(admin.userId);
+    const { token } = await seedUserToken(role);
     const res = await app.request(
       `/api/invitations/${inv.token}/deactivate`,
-      { method: 'POST', ...authHeader(memberToken) },
+      { method: 'POST', ...authHeader(token) },
       envWith({}),
     );
     expect(res.status).toBe(403);
+    const [row] = await createDb(env.DB)
+      .select()
+      .from(invitationTokens)
+      .where(eq(invitationTokens.token, inv.token));
+    expect(row?.isActive).toBe(true);
   });
 
-  it('MANAGER は招待を無効化できる', async () => {
-    const { token, userId } = await seedUserToken('MANAGER');
-    const inv = await seedInvitation(userId);
-
-    const res = await app.request(
-      `/api/invitations/${inv.token}/deactivate`,
-      { method: 'POST', ...authHeader(token) },
-      envWith({}),
-    );
-    expect(res.status).toBe(200);
-
-    const body = invitationSchema.parse(await res.json());
-    expect(body.isActive).toBe(false);
-  });
-
-  it('ADMIN は招待を無効化できる', async () => {
+  it('ADMIN は停止でき、停止したリンクは verify できず一覧からも消える', async () => {
     const { token, userId } = await seedUserToken('ADMIN');
     const inv = await seedInvitation(userId);
-
     const res = await app.request(
       `/api/invitations/${inv.token}/deactivate`,
       { method: 'POST', ...authHeader(token) },
       envWith({}),
     );
     expect(res.status).toBe(200);
+    expect(invitationSchema.parse(await res.json()).isActive).toBe(false);
 
-    const body = invitationSchema.parse(await res.json());
-    expect(body.isActive).toBe(false);
+    const verify = await app.request(
+      `/api/invitations/${inv.token}/verify`,
+      noAuth,
+      envWith({ AUTH_RATE_LIMITER: makeUnlimitedRateLimiter() }),
+    );
+    expect(verify.status).toBe(410);
+    const list = await app.request('/api/invitations', authHeader(token), envWith({}));
+    expect(invitationListSchema.parse(await list.json())).toHaveLength(0);
   });
 
   it('存在しないトークンは 404 を返す', async () => {
     const { token } = await seedUserToken('ADMIN');
     const res = await app.request(
-      '/api/invitations/nonexistent-token/deactivate',
+      '/api/invitations/no-such-token/deactivate',
       { method: 'POST', ...authHeader(token) },
       envWith({}),
     );
@@ -417,6 +376,30 @@ describe('GET /api/invitations/:token/verify', () => {
     expect(body).not.toHaveProperty('createdBy');
     expect(body).not.toHaveProperty('usedCount');
     expect(body).not.toHaveProperty('isActive');
+  });
+
+  it('発行からちょうど24時間で verify できなくなる（その1秒前までは有効）', async () => {
+    const { userId } = await seedUserToken('ADMIN');
+    const createdAtSeconds = Math.floor(Date.now() / 1000);
+    const createdAt = new Date(createdAtSeconds * 1000);
+    const inv = await seedInvitation(userId, {
+      createdAt,
+      expiresAt: new Date((createdAtSeconds + 24 * 60 * 60) * 1000),
+    });
+
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      vi.setSystemTime((createdAtSeconds + 24 * 60 * 60 - 1) * 1000);
+      expect(
+        (await app.request(`/api/invitations/${inv.token}/verify`, noAuth, reqEnv())).status,
+      ).toBe(200);
+      vi.setSystemTime((createdAtSeconds + 24 * 60 * 60) * 1000);
+      expect(
+        (await app.request(`/api/invitations/${inv.token}/verify`, noAuth, reqEnv())).status,
+      ).toBe(410);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('存在しないトークンは 404 を返す', async () => {

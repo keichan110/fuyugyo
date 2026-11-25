@@ -125,6 +125,8 @@ async function createUserWithInvitation(
             role: sql<string>`'MEMBER'`.as('role'),
             isActive: sql<boolean>`1`.as('is_active'),
             instructorId: sql<string | null>`NULL`.as('instructor_id'),
+            // 招待者として、リンク作成者を新規ユーザーへ転記する（作成者が削除済みなら null）
+            invitedBy: sql<string | null>`${invitationTokens.createdBy}`.as('invited_by'),
             createdAt: sql<Date>`unixepoch()`.as('created_at'),
             updatedAt: sql<Date>`unixepoch()`.as('updated_at'),
           })

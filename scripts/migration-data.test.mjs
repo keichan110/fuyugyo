@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 /**
  * 既存データを持つ本番相当の DB へ、データを変換・移送するマイグレーション
- * （0001・0002・0003・0006・0007・0008・0010）を順に適用して結果を検証する。
+ * （0001・0002・0003・0006・0007・0008・0010・0012）を順に適用して結果を検証する。
  *
  * 実際の `drizzle/*.sql` を書き換えずに、Wrangler のローカル D1（Miniflare）を
  * 専用の永続化ディレクトリで起動する。実テーブル名・外部キー・既存トリガーのまま
@@ -630,4 +630,55 @@ test('既存データの移行で ID・値・日時・配置・資格が保た�
     assert.deepEqual(db.rows(`SELECT * FROM users ORDER BY id`), EXPECTED_USERS);
     assert.equal(db.foreignKeyViolations(), 0);
   });
+
+  await t.test(
+    '0012: 招待リンクの全列と既存ユーザーが保たれ、作成者・招待者の削除は参照だけ null にする',
+    () => {
+      db.migrate('0012');
+      // 表の作り直し後も、既存リンクの期限・上限・使用回数・説明・日時がそのまま残る。
+      assert.deepEqual(db.rows(`SELECT * FROM invitation_tokens ORDER BY token`), [
+        {
+          token: 'tok-1',
+          expires_at: epoch('2026-02-01T00:00:00.000Z'),
+          is_active: 1,
+          created_by: 'u-1',
+          max_uses: 5,
+          used_count: 2,
+          description: '招待',
+          created_at: epoch('2025-11-09T00:00:00.000Z'),
+          updated_at: epoch('2025-11-09T00:00:00.000Z'),
+        },
+      ]);
+      // 既存ユーザーの招待者は null。それ以外の列は変わらない。
+      assert.deepEqual(db.rows(`SELECT id, invited_by FROM users ORDER BY id`), [
+        { id: 'u-1', invited_by: null },
+      ]);
+      assert.equal(db.foreignKeyViolations(), 0);
+      const indexes = db
+        .rows(
+          `SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'invitation_tokens' AND name LIKE 'idx_%' ORDER BY name`,
+        )
+        .map((row) => row.name);
+      assert.deepEqual(indexes, [
+        'idx_invitation_tokens_active',
+        'idx_invitation_tokens_active_expires',
+        'idx_invitation_tokens_created_by',
+        'idx_invitation_tokens_expires_at',
+      ]);
+
+      // 招待経由で登録されたユーザーを作り、作成者を削除する。リンクと登録ユーザーは残り、参照だけが null になる。
+      db.exec(`
+        INSERT INTO users (id, line_user_id, display_name, role, is_active, invited_by, created_at, updated_at)
+          VALUES ('u-2', 'line-2', '招待された人', 'MEMBER', 1, 'u-1', ${D_NEW}, ${D_NEW});
+        DELETE FROM users WHERE id = 'u-1';
+      `);
+      assert.deepEqual(db.rows(`SELECT token, created_by, used_count FROM invitation_tokens`), [
+        { token: 'tok-1', created_by: null, used_count: 2 },
+      ]);
+      assert.deepEqual(db.rows(`SELECT id, invited_by FROM users ORDER BY id`), [
+        { id: 'u-2', invited_by: null },
+      ]);
+      assert.equal(db.foreignKeyViolations(), 0);
+    },
+  );
 });

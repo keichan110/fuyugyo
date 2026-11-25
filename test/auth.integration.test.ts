@@ -362,6 +362,20 @@ describe('GET /api/auth/line/login', () => {
   });
 });
 
+describe('LINE 認可 URL', () => {
+  it.each(['/api/auth/line/login', '/api/auth/line/login?invite=test-invitation'])(
+    '通常・招待付きの両方で bot_prompt=normal を付ける（%s）',
+    async (path) => {
+      const res = await app.request(path, {}, envWith({ AUTH_RATE_LIMITER: makeRateLimiter(20) }));
+      const location = new URL(res.headers.get('location') ?? '');
+      expect(location.origin + location.pathname).toBe(
+        'https://access.line.me/oauth2/v2.1/authorize',
+      );
+      expect(location.searchParams.get('bot_prompt')).toBe('normal');
+    },
+  );
+});
+
 describe('LINE OAuth コールバック', () => {
   /** OAuth 開始エンドポイントを通して state と Cookie を取得する */
   async function startOAuth(
@@ -1098,6 +1112,54 @@ describe('招待による新規登録（LINE callback → 実D1）', () => {
     }
 
     expect(await usedCountOf(token)).toBe(103);
+  });
+
+  it('招待で登録した User にリンク作成者が invitedBy として記録される', async () => {
+    const token = await seedInvite();
+    const [invitation] = await createDb(env.DB)
+      .select()
+      .from(invitationTokens)
+      .where(eq(invitationTokens.token, token));
+
+    const res = await registerViaLine({ invite: token });
+
+    expect(res.status).toBe(302);
+    const [created] = await usersWithLineId(NEW_LINE_USER);
+    expect(created?.invitedBy).toBe(invitation?.createdBy);
+    expect(created?.invitedBy).not.toBeNull();
+  });
+
+  it('招待者（リンク作成者）を削除しても、登録ユーザーとリンクは残り参照だけが null になる', async () => {
+    const token = await seedInvite();
+    const res = await registerViaLine({ invite: token });
+    expect(res.status).toBe(302);
+    const [invitation] = await createDb(env.DB)
+      .select()
+      .from(invitationTokens)
+      .where(eq(invitationTokens.token, token));
+    const creatorId = invitation?.createdBy ?? '';
+
+    await env.DB.prepare('DELETE FROM users WHERE id = ?').bind(creatorId).run();
+
+    const [created] = await usersWithLineId(NEW_LINE_USER);
+    expect(created).toMatchObject({ role: 'MEMBER', isActive: true, invitedBy: null });
+    const [kept] = await createDb(env.DB)
+      .select()
+      .from(invitationTokens)
+      .where(eq(invitationTokens.token, token));
+    expect(kept).toMatchObject({ createdBy: null, usedCount: 1 });
+  });
+
+  it('既存Userは招待付きでログインしても invitedBy を設定されない', async () => {
+    const token = await seedInvite();
+    const user = await seedUser({ lineUserId: 'existing-line-user-2' });
+
+    const res = await registerViaLine({ invite: token, lineUserId: user.lineUserId });
+
+    expect(res.status).toBe(302);
+    const [after] = await usersWithLineId(user.lineUserId);
+    expect(after?.invitedBy).toBeNull();
+    expect(await usedCountOf(token)).toBe(0);
   });
 
   it('既存Userの再ログインは招待が無効でも成功し、使用回数を消費しない', async () => {

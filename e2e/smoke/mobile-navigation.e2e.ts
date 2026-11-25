@@ -29,9 +29,7 @@ for (const role of ['member', 'manager', 'admin'] as const) {
       await expect(drawer.getByRole('link', { name: 'ユーザー', exact: true })).toHaveCount(
         role === 'member' ? 0 : 1,
       );
-      await expect(drawer.getByRole('link', { name: '招待', exact: true })).toHaveCount(
-        role === 'admin' ? 1 : 0,
-      );
+      await expect(drawer.getByRole('link', { name: '招待', exact: true })).toHaveCount(0);
       if (role !== 'member') {
         await drawer.getByRole('link', { name: '資格', exact: true }).click();
         await expect(drawer).toBeHidden();
@@ -54,7 +52,7 @@ for (const role of ['member', 'manager', 'admin'] as const) {
       await expect(navigation.getByRole('link')).toHaveCount(role === 'member' ? 2 : 3);
       await expect(navigation.getByRole('button', { name: /シフト希望/ })).toBeDisabled();
       await expect(navigation.getByRole('button', { name: /シフト希望/ })).toHaveAccessibleName(
-        'シフト希望（管理者に紐付けを依頼してください）',
+        'シフト希望（インストラクターの方は、管理者に連携を依頼してください）',
       );
       await expect(
         navigation.getByRole('button', { name: /シフト希望/ }).locator('.tabler-icon-lock'),
@@ -72,14 +70,18 @@ for (const role of ['member', 'manager', 'admin'] as const) {
       await page.goto('/availabilities');
       await expect(page.getByRole('heading', { name: 'シフト希望', exact: true })).toBeVisible();
       await expect(page.getByText('インストラクターへの紐付けが必要です')).toBeVisible();
-      await expect(page.getByText('管理者に紐付けを依頼してください。')).toBeVisible();
+      await expect(
+        page.getByText('インストラクターの方は、管理者に連携を依頼してください。'),
+      ).toBeVisible();
       await expect(page.getByRole('button', { name: /^(連携|紐付け)/ })).toHaveCount(0);
       await expect(page.getByRole('button', { name: '一括設定' })).toHaveCount(0);
       expect(availabilityRequested).toBe(false);
 
       await navigation.getByRole('button', { name: 'その他' }).click();
       await expect(
-        page.getByRole('dialog', { name: 'その他' }).getByText('未紐付け', { exact: true }),
+        page
+          .getByRole('dialog', { name: 'その他' })
+          .getByText('インストラクターの方は、管理者に連携を依頼してください', { exact: true }),
       ).toBeVisible();
     });
   });
@@ -120,7 +122,9 @@ for (const role of ['member', 'manager', 'admin'] as const) {
       await page.reload();
       const disabled = page.getByRole('button', { name: /シフト希望/ }).filter({ visible: true });
       await expect(disabled).toBeDisabled();
-      await expect(disabled).toContainText('管理者に紐付けを依頼してください');
+      await expect(disabled).toContainText(
+        'インストラクターの方は、管理者に連携を依頼してください',
+      );
       await expect(link).toHaveCount(0);
       await expect(page.getByRole('button', { name: /^(連携|紐付け)/ })).toHaveCount(0);
     });

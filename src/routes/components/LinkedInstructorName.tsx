@@ -9,13 +9,13 @@ type LinkedInstructorNameProps = {
 
 /**
  * アカウント表示で LINE 表示名の下に添える、紐付け先インストラクター名の薄いテキスト。
- * 未紐付けなら「未紐付け」と表示する。
+ * 未紐付けなら連携の依頼先を案内する。
  */
 export function LinkedInstructorName({ instructorId }: LinkedInstructorNameProps) {
   if (!instructorId) {
     return (
       <Text size="xs" c="dimmed">
-        未紐付け
+        インストラクターの方は、管理者に連携を依頼してください
       </Text>
     );
   }

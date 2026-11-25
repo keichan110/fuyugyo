@@ -19,8 +19,6 @@ export type Env = {
   JWT_REFRESH_INTERVAL: string;
   /** 初回ログインからの絶対期限（例: "7d"） */
   JWT_ABSOLUTE_EXPIRES_IN: string;
-  /** 招待トークンのデフォルト有効期限（例: "168h"） */
-  INVITE_DEFAULT_EXPIRES: string;
   /** JWT 署名用シークレット（`wrangler secret`/`.dev.vars` で注入） */
   JWT_SECRET: string;
   /** LINE Login のチャネル ID */

@@ -57,6 +57,8 @@ export function buildLineAuthUrl(config: LineConfig, state: string, inviteToken?
     state: inviteToken ? `${state}:${inviteToken}` : state,
     scope: 'profile openid',
     ui_locales: 'ja-JP',
+    // 公式アカウントの友だち追加を促す（チャネル連携が済んでいれば同意画面に表示される）
+    bot_prompt: 'normal',
   });
   return `https://access.line.me/oauth2/v2.1/authorize?${params.toString()}`;
 }

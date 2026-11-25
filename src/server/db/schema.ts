@@ -258,6 +258,34 @@ export const users = sqliteTable(
   ],
 );
 
+/** ユーザー宛て通知テーブル（宛先ユーザーごとに1行） */
+export const notifications = sqliteTable(
+  'notifications',
+  {
+    id: primaryId(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** 件名と本文は生成時の写し。後から書き換えない */
+    title: text('title').notNull(),
+    body: text('body').notNull(),
+    /** アプリ内パス。遷移先がない通知は null */
+    actionUrl: text('action_url'),
+    /** 生成元が指定する出来事の識別子。同じユーザーには同じ値の通知を1件だけ保存する */
+    eventKey: text('event_key').notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp' })
+      .notNull()
+      .default(sql`(unixepoch())`),
+    /** 初めて既読にした日時。未読は null */
+    readAt: integer('read_at', { mode: 'timestamp' }),
+  },
+  (t) => [
+    uniqueIndex('idx_notifications_user_event').on(t.userId, t.eventKey),
+    index('idx_notifications_user_created').on(t.userId, t.createdAt, t.id),
+    index('idx_notifications_user_read').on(t.userId, t.readAt),
+  ],
+);
+
 /** 招待 URL 管理テーブル */
 export const invitationTokens = sqliteTable(
   'invitation_tokens',

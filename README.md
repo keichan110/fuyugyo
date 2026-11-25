@@ -131,6 +131,7 @@ features/<name>/
 - `/api/shift-types` - シフト種別管理 (CRUD)
 - `/api/users` - ユーザー管理 (CRUD)
 - `/api/invitations` - 招待管理
+- `/api/notifications` - 本人宛て通知の一覧・既読化
 - `/api/availabilities` - 出勤可能日の登録・管理
 - `/api/certification-requirements` - 資格要件の設定
 - `/api/department-shift-types` - 部門別シフト種別の設定

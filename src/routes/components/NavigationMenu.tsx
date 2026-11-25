@@ -8,7 +8,6 @@ import {
   IconCloud,
   IconHome,
   IconSettings,
-  IconTicket,
   IconUser,
   IconUsers,
   type Icon,
@@ -68,10 +67,7 @@ const NAVIGATION_GROUPS: NavigationGroup[] = [
   {
     id: 'user-management',
     label: 'ユーザー管理',
-    items: [
-      { to: '/users', label: 'ユーザー', icon: IconUsers, minimumRole: 'MANAGER' },
-      { to: '/invitations', label: '招待', icon: IconTicket, minimumRole: 'ADMIN' },
-    ],
+    items: [{ to: '/users', label: 'ユーザー', icon: IconUsers, minimumRole: 'MANAGER' }],
   },
 ];
 

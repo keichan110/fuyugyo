@@ -9,7 +9,6 @@ declare global {
       JWT_EXPIRES_IN: string;
       JWT_REFRESH_INTERVAL: string;
       JWT_ABSOLUTE_EXPIRES_IN: string;
-      INVITE_DEFAULT_EXPIRES: string;
       JWT_SECRET: string;
       LINE_CHANNEL_ID: string;
       LINE_CHANNEL_SECRET: string;

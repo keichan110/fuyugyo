@@ -86,10 +86,8 @@ test.describe('manager のユーザー管理', () => {
 test.describe('MEMBER の管理操作', () => {
   test.use({ storageState: authStatePath('member') });
   test('直接URLと書込APIの両方でシフト管理・招待発行を拒否する', async ({ page }) => {
-    for (const path of ['/shifts/manage', '/invitations']) {
-      await page.goto(path);
-      await expect(page).toHaveURL('/');
-    }
+    await page.goto('/shifts/manage');
+    await expect(page).toHaveURL('/');
     expect(
       (
         await page.request.put('/api/shifts/assignments', {
@@ -98,6 +96,7 @@ test.describe('MEMBER の管理操作', () => {
       ).status(),
     ).toBe(403);
     expect((await page.request.post('/api/invitations', { data: {} })).status()).toBe(403);
+    expect((await page.request.get('/api/invitations')).status()).toBe(403);
   });
 });
 

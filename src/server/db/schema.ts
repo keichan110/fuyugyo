@@ -8,6 +8,7 @@ import {
   sqliteTable,
   text,
   uniqueIndex,
+  type AnySQLiteColumn,
 } from 'drizzle-orm/sqlite-core';
 
 import { CONDITIONS } from '../../features/weather/daily';
@@ -243,6 +244,10 @@ export const users = sqliteTable(
     instructorId: text('instructor_id').references(() => instructors.id, {
       onDelete: 'set null',
     }),
+    // 招待リンクで登録した場合の招待者（リンク作成者）。既存ユーザー・招待者削除後は null。
+    invitedBy: text('invited_by').references((): AnySQLiteColumn => users.id, {
+      onDelete: 'set null',
+    }),
     ...timestamps,
   },
   (t) => [
@@ -260,9 +265,8 @@ export const invitationTokens = sqliteTable(
     token: text('token').primaryKey(),
     expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(),
     isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
-    createdBy: text('created_by')
-      .notNull()
-      .references(() => users.id),
+    // 作成者が削除されてもリンクは保持する（null）。
+    createdBy: text('created_by').references(() => users.id, { onDelete: 'set null' }),
     maxUses: integer('max_uses'),
     usedCount: integer('used_count').notNull().default(0),
     description: text('description'),

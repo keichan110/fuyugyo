@@ -74,9 +74,10 @@ GET /api/auth/line/login?redirect_uri=/shifts HTTP/1.1
 ```
 
 **クエリパラメータ**:
-| パラメータ | 型 | 必須 | 説明 |
-|-----------|---|------|------|
-| redirect_uri | string | No | 認証後のリダイレクト先（デフォルト: /shifts） |
+
+| パラメータ   | 型     | 必須 | 説明                                          |
+| ------------ | ------ | ---- | --------------------------------------------- |
+| redirect_uri | string | No   | 認証後のリダイレクト先（デフォルト: /shifts） |
 
 #### レスポンス
 
@@ -98,10 +99,11 @@ GET /api/auth/line/callback?code=ABC123&state=xyz789 HTTP/1.1
 ```
 
 **クエリパラメータ**:
-| パラメータ | 型 | 必須 | 説明 |
-|-----------|---|------|------|
-| code | string | Yes | LINE認証コード |
-| state | string | Yes | CSRF対策用state |
+
+| パラメータ | 型     | 必須 | 説明            |
+| ---------- | ------ | ---- | --------------- |
+| code       | string | Yes  | LINE認証コード  |
+| state      | string | Yes  | CSRF対策用state |
 
 #### レスポンス（成功）
 
@@ -298,10 +300,11 @@ Cookie: auth-token=eyJ...
 ```
 
 **Query Parameters**:
-| パラメータ | 型 | 必須 | 説明 |
-|-----------|---|------|------|
-| role | string | No | 権限でフィルタ（admin/manager/member） |
-| active_only | boolean | No | アクティブユーザーのみ |
+
+| パラメータ  | 型      | 必須 | 説明                                   |
+| ----------- | ------- | ---- | -------------------------------------- |
+| role        | string  | No   | 権限でフィルタ（admin/manager/member） |
+| active_only | boolean | No   | アクティブユーザーのみ                 |
 
 #### レスポンス
 
@@ -372,10 +375,11 @@ Cookie: auth-token=eyJ...
 ```
 
 **Body Parameters**:
-| パラメータ | 型 | 必須 | 説明 |
-|-----------|---|------|------|
-| role | string | No | 新しい権限（admin/manager/member） |
-| is_active | boolean | No | アクティブ状態 |
+
+| パラメータ | 型      | 必須 | 説明                               |
+| ---------- | ------- | ---- | ---------------------------------- |
+| role       | string  | No   | 新しい権限（admin/manager/member） |
+| is_active  | boolean | No   | アクティブ状態                     |
 
 #### レスポンス（成功）
 
@@ -431,12 +435,13 @@ Cookie: auth-token=eyJ...
 
 ### 6.2 招待システムエラー
 
-| コード                    | HTTPステータス | 説明                     |
-| ------------------------- | -------------- | ------------------------ |
-| INVITATION_NOT_FOUND      | 404            | 招待URLが存在しない      |
-| INVITATION_EXPIRED        | 400            | 招待URLの有効期限切れ    |
-| INVITATION_INACTIVE       | 400            | 招待URLが無効化済み      |
-| INVITATION_LIMIT_EXCEEDED | 400            | 使用回数上限に達している |
+招待系の API は独自のエラーコードを持たず、HTTP ステータスと `message` で失敗を返す（4.4 の検証 API を参照）。
+
+| HTTPステータス | 意味                                         |
+| -------------- | -------------------------------------------- |
+| 404            | 招待リンクが存在しない                       |
+| 410            | 停止済み、または期限切れ（期限ちょうどから） |
+| 422            | 旧リンクの使用回数上限に達している           |
 
 ### 6.3 LINE認証エラー
 
@@ -459,11 +464,11 @@ Cookie: auth-token=eyJ...
 
 ### 7.1 制限仕様
 
-| エンドポイント        | 制限 | 期間  |
-| --------------------- | ---- | ----- |
-| /api/auth/line/login  | 10回 | 1分間 |
-| /api/auth/invitations | 5回  | 1分間 |
-| /api/auth/users       | 30回 | 1分間 |
+| エンドポイント                  | 制限 | 期間  |
+| ------------------------------- | ---- | ----- |
+| /api/auth/line/login            | 10回 | 1分間 |
+| /api/invitations/{token}/verify | 20回 | 1分間 |
+| /api/auth/users                 | 30回 | 1分間 |
 
 ### 7.2 制限超過レスポンス
 
@@ -492,14 +497,9 @@ Content-Security-Policy: default-src 'self'
 
 ## 9. バリデーションスキーマ
 
-### 9.1 招待URL作成
+### 9.1 招待リンク発行
 
-```typescript
-const createInvitationSchema = z.object({
-  expires_hours: z.number().min(1).max(720).optional().default(168),
-  max_uses: z.number().positive().nullable().optional().default(null),
-});
-```
+`POST /api/invitations` はリクエストボディを受け取らない。有効期限（24時間）と使用回数（無制限）はサーバー側で固定する（4.1 を参照）。
 
 ### 9.2 ユーザー更新
 
@@ -596,7 +596,7 @@ interface Invitation {
   token: string;
   expires_at: string;
   is_active: boolean;
-  created_by: string;
+  created_by: string | null;
   max_uses: number | null;
   used_count: number;
   created_at: string;
@@ -621,11 +621,9 @@ curl -X GET "https://your-app.pages.dev/api/auth/users" \
   -H "Cookie: auth-token=eyJ..." \
   -H "Content-Type: application/json"
 
-# 招待URL生成
-curl -X POST "https://your-app.pages.dev/api/auth/invitations" \
-  -H "Cookie: auth-token=eyJ..." \
-  -H "Content-Type: application/json" \
-  -d '{"expires_hours": 168}'
+# 招待リンク発行（ADMIN のみ・ボディ不要）
+curl -X POST "https://your-app.pages.dev/api/invitations" \
+  -H "Cookie: auth-token=eyJ..."
 
 # ユーザー権限更新
 curl -X PUT "https://your-app.pages.dev/api/auth/users/user-uuid" \

@@ -185,12 +185,18 @@ describe('POST /api/invitations', () => {
 
   it('発行からちょうど1時間のリンクはまだ再利用する', async () => {
     const { token, userId } = await seedUserToken('ADMIN');
-    const seeded = await seedIssuedAgo(userId, 3600);
-    const res = await issue(token);
-    // 実行の遅れで秒が進んだ場合に備え、1時間を含む境界のみ確認する
-    expect([200, 201]).toContain(res.status);
-    if (res.status === 200) {
+    // 実行の遅れで秒が進まないよう時刻を固定し、境界（ちょうど3600秒前）を確定させる
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      vi.setSystemTime(nowSeconds * 1000);
+      const seeded = await seedIssuedAgo(userId, 3600);
+      const res = await issue(token);
+      expect(res.status).toBe(200);
       expect(invitationSchema.parse(await res.json()).token).toBe(seeded.token);
+      expect(await allInvitations()).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
     }
   });
 

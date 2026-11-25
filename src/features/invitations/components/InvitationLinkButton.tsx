@@ -20,10 +20,13 @@ export function InvitationLinkButton() {
   const [opened, setOpened] = useState(false);
   const issue = useIssueInvitation();
   const deactivate = useDeactivateInvitation();
-  // 停止したトークン。現在表示中のリンクが停止済みかどうかの判定に使う
-  const [stoppedToken, setStoppedToken] = useState<string | null>(null);
+  // このモーダルで停止したトークン。連続・並行して別のリンクを停止しても、先に停止したものを保持する
+  const [stoppedTokens, setStoppedTokens] = useState<ReadonlySet<string>>(new Set());
+  // 停止リクエストの実行中トークン（複数を同時に停止できるため Set で持つ）
+  const [stoppingTokens, setStoppingTokens] = useState<ReadonlySet<string>>(new Set());
   const [listOpened, setListOpened] = useState(false);
-  const { data: invitations } = useInvitations(opened);
+  const invitationsQuery = useInvitations(opened);
+  const invitations = invitationsQuery.data;
   const isDesktop = useMediaQuery('(min-width: 48em)');
 
   const handleOpen = () => {
@@ -31,20 +34,35 @@ export function InvitationLinkButton() {
     issue.mutate();
   };
 
-  const handleDeactivate = (token: string) => {
-    deactivate.mutate(token, {
-      onSuccess: () => {
-        setStoppedToken(token);
-        notifications.show({ color: 'green', message: '招待リンクを停止しました' });
-      },
-      onError: (error) => {
-        notifications.show({ color: 'red', message: error.message });
-      },
-    });
+  const handleDeactivate = async (token: string) => {
+    setStoppingTokens((prev) => new Set(prev).add(token));
+    try {
+      // mutate のコールバックは後続の停止で呼ばれなくなるため、呼び出しごとに解決する mutateAsync を使う
+      await deactivate.mutateAsync(token);
+      setStoppedTokens((prev) => new Set(prev).add(token));
+      notifications.show({ color: 'green', message: '招待リンクを停止しました' });
+    } catch (error) {
+      notifications.show({
+        color: 'red',
+        message: error instanceof Error ? error.message : '招待リンクの停止に失敗しました',
+      });
+    } finally {
+      setStoppingTokens((prev) => {
+        const next = new Set(prev);
+        next.delete(token);
+        return next;
+      });
+    }
   };
 
   const current = issue.data;
-  const isStopped = current !== undefined && stoppedToken === current.token;
+  // 一覧が最新（再取得中でない）のときに表示中のリンクが無ければ、他の管理者による停止や期限切れとして停止扱いにする
+  const missingFromList =
+    current !== undefined &&
+    invitationsQuery.isSuccess &&
+    !invitationsQuery.isFetching &&
+    !invitationsQuery.data.some((item) => item.token === current.token);
+  const isStopped = current !== undefined && (stoppedTokens.has(current.token) || missingFromList);
 
   return (
     <>
@@ -89,10 +107,26 @@ export function InvitationLinkButton() {
               rightSection={<IconChevronDown size={16} stroke={1.5} />}
               onClick={() => setListOpened((value) => !value)}
             >
-              発行済みの招待リンク
+              {invitations
+                ? `発行済みの招待リンク（${invitations.length}件）`
+                : '発行済みの招待リンク'}
             </AppButton>
             <Collapse expanded={listOpened}>
               <Stack gap="xs">
+                {invitationsQuery.isLoading && (
+                  <Group gap="sm" role="status">
+                    <Loader size="sm" />
+                    <Text size="sm">読み込んでいます…</Text>
+                  </Group>
+                )}
+                {invitationsQuery.isError && (
+                  <Stack gap="sm">
+                    <ErrorAlert>{invitationsQuery.error.message}</ErrorAlert>
+                    <AppButton intent="secondary" onClick={() => void invitationsQuery.refetch()}>
+                      再試行
+                    </AppButton>
+                  </Stack>
+                )}
                 {invitations?.length === 0 && (
                   <Text size="sm" c="dimmed">
                     有効な招待リンクはありません
@@ -110,8 +144,9 @@ export function InvitationLinkButton() {
                       intent="danger"
                       emphasis="low"
                       compact
-                      loading={deactivate.isPending && deactivate.variables === item.token}
-                      onClick={() => handleDeactivate(item.token)}
+                      aria-label={`${item.createdByName ?? '削除済みのユーザー'}が発行した招待リンク（${formatDateTimeJst(item.expiresAt)} まで）を停止`}
+                      loading={stoppingTokens.has(item.token)}
+                      onClick={() => void handleDeactivate(item.token)}
                     >
                       停止
                     </AppButton>
@@ -167,50 +202,31 @@ function CurrentInvitation({
       ) : (
         <Group gap="sm" justify="flex-end" wrap="wrap">
           <CopyButton value={url} timeout={2000}>
-            {({ copied, copy }) =>
-              isDesktop ? (
-                <AppButton
-                  intent="primary"
-                  success={copied}
-                  leftSection={copied ? <IconCheck size={16} /> : <IconCopy size={16} />}
-                  onClick={copy}
-                >
-                  {copied ? 'コピーしました' : 'リンクをコピー'}
+            {({ copied, copy }) => {
+              const icon = copied ? <IconCheck size={16} /> : <IconCopy size={16} />;
+              const label = copied ? 'コピーしました' : 'リンクをコピー';
+              // success は primary 専用の props のため、意図ごとに分ける
+              return isDesktop ? (
+                <AppButton intent="primary" success={copied} leftSection={icon} onClick={copy}>
+                  {label}
                 </AppButton>
               ) : (
-                <AppButton
-                  intent="secondary"
-                  leftSection={copied ? <IconCheck size={16} /> : <IconCopy size={16} />}
-                  onClick={copy}
-                >
-                  {copied ? 'コピーしました' : 'リンクをコピー'}
+                <AppButton intent="secondary" leftSection={icon} onClick={copy}>
+                  {label}
                 </AppButton>
-              )
-            }
+              );
+            }}
           </CopyButton>
-          {isDesktop ? (
-            <AppButton
-              intent="secondary"
-              component="a"
-              href={lineShareUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              leftSection={<IconBrandLine size={16} />}
-            >
-              LINE で送る
-            </AppButton>
-          ) : (
-            <AppButton
-              intent="primary"
-              component="a"
-              href={lineShareUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              leftSection={<IconBrandLine size={16} />}
-            >
-              LINE で送る
-            </AppButton>
-          )}
+          <AppButton
+            intent={isDesktop ? 'secondary' : 'primary'}
+            component="a"
+            href={lineShareUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            leftSection={<IconBrandLine size={16} />}
+          >
+            LINE で送る
+          </AppButton>
         </Group>
       )}
     </Stack>

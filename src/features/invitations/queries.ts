@@ -42,7 +42,7 @@ export function useInvitations(enabled: boolean) {
 
 /**
  * 招待リンクを発行（または1時間以内の既存リンクを再取得）するミューテーション。
- * 成功後は一覧キャッシュを無効化する。
+ * 成功後は一覧を再取得し終えてから完了とする（表示中のリンクが一覧に残っているかを最新の状態で判定できるように）。
  */
 export function useIssueInvitation() {
   const queryClient = useQueryClient();
@@ -54,15 +54,15 @@ export function useIssueInvitation() {
       }
       return invitationSchema.parse(await res.json());
     },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: INVITATIONS_QUERY_KEY });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: INVITATIONS_QUERY_KEY });
     },
   });
 }
 
 /**
  * 招待リンクを停止するミューテーション。引数に停止するトークンを渡す。
- * 成功後は一覧キャッシュを無効化する。
+ * 成功後は一覧を再取得し終えてから完了とする。
  */
 export function useDeactivateInvitation() {
   const queryClient = useQueryClient();
@@ -74,8 +74,8 @@ export function useDeactivateInvitation() {
       }
       return invitationSchema.parse(await res.json());
     },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: INVITATIONS_QUERY_KEY });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: INVITATIONS_QUERY_KEY });
     },
   });
 }

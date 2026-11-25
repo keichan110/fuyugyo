@@ -34,7 +34,7 @@ test.describe('ADMIN の招待リンク', () => {
 
     // 発行済み一覧は折りたたまれており、開くと作成者名が見える
     await dialog.getByRole('button', { name: '発行済みの招待リンク' }).click();
-    await expect(dialog.getByRole('button', { name: '停止', exact: true }).first()).toBeVisible();
+    await expect(dialog.getByRole('button', { name: /を停止$/ }).first()).toBeVisible();
 
     await page.keyboard.press('Escape');
     await expect(dialog).toBeHidden();
@@ -59,6 +59,94 @@ test.describe('ADMIN の招待リンク', () => {
     await expect(page.getByRole('heading', { name: 'Members only' })).toBeVisible();
     await expect(page.getByRole('button', { name: /LINE/ })).toBeVisible();
     await expect(page).toHaveURL(new RegExp(`invite=${invitation.token}`));
+  });
+
+  test('表示中のリンクと別のリンクを続けて停止しても、先に停止したリンクは共有できない', async ({
+    page,
+  }) => {
+    // 別の ADMIN が発行したリンク B を、一覧 API の境界で再現する（共有 D1 のリンクは増やさない）
+    const now = Date.now();
+    const linkB = {
+      token: 'e2e-other-admin-link',
+      expiresAt: new Date(now + 12 * 60 * 60 * 1000).toISOString(),
+      isActive: true,
+      createdBy: null,
+      createdByName: 'E2E別の管理者',
+      maxUses: null,
+      usedCount: 1,
+      description: null,
+      createdAt: new Date(now - 12 * 60 * 60 * 1000).toISOString(),
+      updatedAt: new Date(now - 12 * 60 * 60 * 1000).toISOString(),
+    };
+    let linkBStopped = false;
+    let releaseDeactivateA = () => {};
+    const deactivateAGate = new Promise<void>((resolve) => {
+      releaseDeactivateA = resolve;
+    });
+    await page.route('**/api/invitations', async (route) => {
+      if (route.request().method() !== 'GET') return route.fallback();
+      const response = await route.fetch();
+      const items: unknown = await response.json();
+      return route.fulfill({
+        response,
+        json: [...(Array.isArray(items) ? items : []), ...(linkBStopped ? [] : [linkB])],
+      });
+    });
+    await page.route('**/api/invitations/*/deactivate', async (route) => {
+      if (route.request().url().includes(linkB.token)) {
+        linkBStopped = true;
+        return route.fulfill({ json: { ...linkB, isActive: false } });
+      }
+      // リンク A の停止は、B の停止が終わるまで完了させない（連続・並行操作の再現）
+      await deactivateAGate;
+      return route.fallback();
+    });
+
+    await page.goto('/users');
+    await page.getByRole('button', { name: '招待リンク', exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: '招待リンク' });
+    await expect(dialog.getByRole('link', { name: 'LINE で送る' })).toBeVisible();
+    await dialog.getByRole('button', { name: /^発行済みの招待リンク/ }).click();
+
+    // 表示中のリンク A（E2E管理者が発行）→ 別のリンク B の順に停止する
+    await dialog
+      .getByRole('button', { name: /^E2E管理者が発行した招待リンク.*を停止$/ })
+      .first()
+      .click();
+    await dialog
+      .getByRole('button', { name: /^E2E別の管理者が発行した招待リンク.*を停止$/ })
+      .click();
+    await expect.poll(() => linkBStopped).toBe(true);
+    releaseDeactivateA();
+
+    await expect(dialog.getByText('このリンクは停止しました。')).toBeVisible();
+    await expect(dialog.getByRole('button', { name: 'リンクをコピー' })).toHaveCount(0);
+    await expect(dialog.getByRole('link', { name: 'LINE で送る' })).toHaveCount(0);
+    await expect(dialog.getByRole('button', { name: '新しいリンクを発行' })).toBeVisible();
+  });
+
+  test('発行済み一覧の取得に失敗したら理由と再試行を表示し、再試行で一覧を表示する', async ({
+    page,
+  }) => {
+    let failing = true;
+    await page.route('**/api/invitations', async (route) => {
+      if (route.request().method() !== 'GET') return route.fallback();
+      if (failing) {
+        return route.fulfill({ status: 500, json: { message: '一覧を取得できません' } });
+      }
+      return route.fallback();
+    });
+
+    await page.goto('/users');
+    await page.getByRole('button', { name: '招待リンク', exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: '招待リンク' });
+    await dialog.getByRole('button', { name: /^発行済みの招待リンク/ }).click();
+    // 取得失敗は自動再試行のあとで表示されるため、待ち時間を長めにとる
+    await expect(dialog.getByText('一覧を取得できません')).toBeVisible({ timeout: 20_000 });
+    failing = false;
+    await dialog.getByRole('button', { name: '再試行' }).click();
+    await expect(dialog.getByText('一覧を取得できません')).toBeHidden();
+    await expect(dialog.getByRole('button', { name: /を停止$/ }).first()).toBeVisible();
   });
 });
 

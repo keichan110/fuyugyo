@@ -6,13 +6,13 @@ import { ensureAuthenticated } from '@/features/auth/auth-guard';
 import { useMe } from '@/features/auth/queries';
 import { CurrentAttendance } from '@/features/dashboard/components/CurrentAttendance';
 import { DashboardAvailabilityLink } from '@/features/dashboard/components/DashboardAvailabilityLink';
-import { DashboardNotifications } from '@/features/dashboard/components/DashboardNotifications';
 import { SeasonStatsSection } from '@/features/dashboard/components/SeasonStatsSection';
 import { UpcomingShifts } from '@/features/dashboard/components/UpcomingShifts';
+import { NotificationInbox } from '@/features/notifications/components/NotificationInbox';
 import { parseDate, todayString, WEEKDAY_LABELS } from '@/features/shifts/view-utils';
 
 /**
- * ホーム（ルートパス）。通知と今日・明日の出勤状況を表示し、インストラクター連携済みなら
+ * ホーム（ルートパス）。お知らせの受信箱と今日・明日の出勤状況を表示し、インストラクター連携済みなら
  * 直近の勤務予定・シフト希望導線・今シーズンの統計も表示する。
  */
 export const Route = createFileRoute('/')({
@@ -41,7 +41,7 @@ function DashboardPage() {
           {todayLabel}
         </Title>
 
-        <DashboardNotifications instructorId={instructorId ?? null} />
+        <NotificationInbox />
 
         <Timeline active={0} bulletSize={32} lineWidth={2}>
           <Timeline.Item

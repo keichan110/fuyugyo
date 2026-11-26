@@ -18,6 +18,9 @@ for (const role of ['member', 'manager', 'admin'] as const) {
         await expect(navigation.getByRole('link').nth(index)).toHaveAccessibleName(label);
       }
       await expect(page.getByRole('button', { name: 'ナビゲーションを開く' })).toBeHidden();
+      // トップの内容を入れ替えても、下部タブからシフト希望を開ける
+      await navigation.getByRole('link', { name: 'シフト希望', exact: true }).click();
+      await expect(page.getByRole('heading', { name: 'シフト希望', exact: true })).toBeVisible();
       await navigation.getByRole('button', { name: 'その他' }).click();
       const drawer = page.getByRole('dialog', { name: 'その他' });
       await expect(drawer).toBeVisible();

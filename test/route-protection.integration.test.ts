@@ -129,6 +129,9 @@ const PROTECTED_ROUTES: readonly RouteSpec[] = [
   { method: 'GET', path: '/api/invitations', minRole: 'ADMIN' },
   { method: 'POST', path: '/api/invitations/:token/deactivate', minRole: 'ADMIN' },
 
+  { method: 'GET', path: '/api/notifications/me', minRole: 'MEMBER' },
+  { method: 'PUT', path: '/api/notifications/:id/read', minRole: 'MEMBER' },
+
   { method: 'GET', path: '/api/users', minRole: 'MANAGER' },
   { method: 'GET', path: '/api/users/:id', minRole: 'MANAGER' },
   {

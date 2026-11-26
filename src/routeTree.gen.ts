@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as WeatherPointRouteImport } from './routes/weather-point'
 import { Route as UsersRouteImport } from './routes/users'
 import { Route as ShiftTypesRouteImport } from './routes/shift-types'
+import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as InstructorsRouteImport } from './routes/instructors'
 import { Route as CertificationsRouteImport } from './routes/certifications'
@@ -38,6 +39,11 @@ const UsersRoute = UsersRouteImport.update({
 const ShiftTypesRoute = ShiftTypesRouteImport.update({
   id: '/shift-types',
   path: '/shift-types',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NotificationsRoute = NotificationsRouteImport.update({
+  id: '/notifications',
+  path: '/notifications',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -111,6 +117,7 @@ export interface FileRoutesByFullPath {
   '/certifications': typeof CertificationsRoute
   '/instructors': typeof InstructorsRoute
   '/login': typeof LoginRoute
+  '/notifications': typeof NotificationsRoute
   '/shift-types': typeof ShiftTypesRoute
   '/users': typeof UsersRoute
   '/weather-point': typeof WeatherPointRoute
@@ -127,6 +134,7 @@ export interface FileRoutesByTo {
   '/certifications': typeof CertificationsRoute
   '/instructors': typeof InstructorsRoute
   '/login': typeof LoginRoute
+  '/notifications': typeof NotificationsRoute
   '/shift-types': typeof ShiftTypesRoute
   '/users': typeof UsersRoute
   '/weather-point': typeof WeatherPointRoute
@@ -145,6 +153,7 @@ export interface FileRoutesById {
   '/certifications': typeof CertificationsRoute
   '/instructors': typeof InstructorsRoute
   '/login': typeof LoginRoute
+  '/notifications': typeof NotificationsRoute
   '/shift-types': typeof ShiftTypesRoute
   '/users': typeof UsersRoute
   '/weather-point': typeof WeatherPointRoute
@@ -164,6 +173,7 @@ export interface FileRouteTypes {
     | '/certifications'
     | '/instructors'
     | '/login'
+    | '/notifications'
     | '/shift-types'
     | '/users'
     | '/weather-point'
@@ -180,6 +190,7 @@ export interface FileRouteTypes {
     | '/certifications'
     | '/instructors'
     | '/login'
+    | '/notifications'
     | '/shift-types'
     | '/users'
     | '/weather-point'
@@ -197,6 +208,7 @@ export interface FileRouteTypes {
     | '/certifications'
     | '/instructors'
     | '/login'
+    | '/notifications'
     | '/shift-types'
     | '/users'
     | '/weather-point'
@@ -215,6 +227,7 @@ export interface RootRouteChildren {
   CertificationsRoute: typeof CertificationsRoute
   InstructorsRoute: typeof InstructorsRoute
   LoginRoute: typeof LoginRoute
+  NotificationsRoute: typeof NotificationsRoute
   ShiftTypesRoute: typeof ShiftTypesRoute
   UsersRoute: typeof UsersRoute
   WeatherPointRoute: typeof WeatherPointRoute
@@ -241,6 +254,13 @@ declare module '@tanstack/react-router' {
       path: '/shift-types'
       fullPath: '/shift-types'
       preLoaderRoute: typeof ShiftTypesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/notifications': {
+      id: '/notifications'
+      path: '/notifications'
+      fullPath: '/notifications'
+      preLoaderRoute: typeof NotificationsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -367,6 +387,7 @@ const rootRouteChildren: RootRouteChildren = {
   CertificationsRoute: CertificationsRoute,
   InstructorsRoute: InstructorsRoute,
   LoginRoute: LoginRoute,
+  NotificationsRoute: NotificationsRoute,
   ShiftTypesRoute: ShiftTypesRoute,
   UsersRoute: UsersRoute,
   WeatherPointRoute: WeatherPointRoute,

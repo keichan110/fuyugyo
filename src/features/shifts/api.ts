@@ -48,6 +48,10 @@ import type { Env } from '@/server/types';
 
 import { groupShiftsByWorkingDay, summarizeShifts } from './aggregators';
 import {
+  buildShiftPublicationNotificationInserts,
+  type PublishingShift,
+} from './publication-notifications/api';
+import {
   dateStringSchema,
   instructorWorkloadQuerySchema,
   monthStringSchema,
@@ -1569,6 +1573,7 @@ export const shiftsRoute = new Hono<{
       }
       const savedByDate = new Map(savedRows.map((row) => [formatDate(row.date), row]));
       const operations: BatchItem<'sqlite'>[] = [];
+      const publishing: PublishingShift[] = [];
       const replacesStatuses = input.dates.some((item) => item.status !== undefined);
       for (const item of input.dates) {
         const saved = savedByDate.get(item.date);
@@ -1590,6 +1595,11 @@ export const shiftsRoute = new Hono<{
           guard.operation,
           db.update(shifts).set({ status }).where(eq(shifts.id, guard.id)),
         );
+        // 通知は保存済みの下書きを公開する場合だけ。新規の空枠には担当者がいない。
+        if (saved?.status === 'DRAFT' && status === 'PUBLISHED') {
+          // 上の guard が成功した枠の更新世代は、確認した世代の次になる
+          publishing.push({ id: saved.id, revision: saved.revision + 1 });
+        }
         if (status === 'DRAFT') {
           // 公開解除後に何も残らない枠だけ削除する。必要人数0は明示した計画なので残す。
           operations.push(
@@ -1606,6 +1616,10 @@ export const shiftsRoute = new Hono<{
           );
         }
       }
+      // 公開と通知の保存を同じ batch で確定し、片方だけが残らないようにする
+      operations.push(
+        ...(await buildShiftPublicationNotificationInserts(db, input.departmentCode, publishing)),
+      );
       const [head, ...rest] = operations;
       if (head) {
         try {

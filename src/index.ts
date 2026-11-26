@@ -13,6 +13,7 @@ import { departmentShiftTypesRoute } from '@/features/department-shift-types/api
 import { healthRoute } from '@/features/health/api';
 import { instructorsRoute } from '@/features/instructors/api';
 import { invitationsRoute } from '@/features/invitations/api';
+import { notificationsRoute } from '@/features/notifications/api';
 import { seasonAnalysisRoute } from '@/features/season-analysis/api';
 import { shiftTypesRoute } from '@/features/shift-types/api';
 import { shiftsRoute } from '@/features/shifts/api';
@@ -58,6 +59,7 @@ const routes = app
   .route('/api/shift-types', shiftTypesRoute)
   .route('/api/instructors', instructorsRoute)
   .route('/api/invitations', invitationsRoute)
+  .route('/api/notifications', notificationsRoute)
   .route('/api/users', usersRoute)
   .route('/api/shifts', shiftsRoute)
   .route('/api/season-analysis', seasonAnalysisRoute)

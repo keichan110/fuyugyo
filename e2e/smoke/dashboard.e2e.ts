@@ -60,4 +60,12 @@ test.describe('MEMBER のダッシュボード', () => {
       ).toBeVisible();
     },
   );
+
+  test('旧シフト希望リマインダーを表示しない', { tag: '@smoke' }, async ({ page }) => {
+    await page.goto('/');
+    await expect(page.getByRole('heading', { level: 2, name: 'このあと' })).toBeVisible();
+    // 表示前に「0件」と判定しないよう、勤務可否などの初期表示の取得が落ち着くまで待つ
+    await page.waitForLoadState('networkidle');
+    await expect(page.getByText('月分のシフト希望を確認してください')).toHaveCount(0);
+  });
 });

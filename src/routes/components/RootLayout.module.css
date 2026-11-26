@@ -1,0 +1,19 @@
+/* 端末共通の Deep Teal ヘッダー。Mantine の既定値より優先するためクラスを重ねる */
+.header.header {
+  padding-inline: env(safe-area-inset-left, 0px) env(safe-area-inset-right, 0px);
+  color: var(--app-color-warm-white);
+  background-color: var(--mantine-color-brand-6);
+  border-color: var(--mantine-color-brand-6);
+}
+
+/* 暗い面では主色のフォーカスリングが見えないため、Warm White にする */
+.header.header :focus-visible {
+  outline: 2px solid var(--app-color-warm-white);
+  outline-offset: 2px;
+}
+
+@media print {
+  .header.header {
+    display: none;
+  }
+}

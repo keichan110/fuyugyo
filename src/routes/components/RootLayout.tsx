@@ -4,6 +4,7 @@ import { Navigate, Outlet, useLocation } from '@tanstack/react-router';
 
 import { useMe } from '@/features/auth/queries';
 import { getUnauthenticatedRedirect } from '@/features/auth/route-policy';
+import { NotificationHeaderLink } from '@/features/notifications/components/NotificationHeaderLink';
 
 import { AppLogo } from './AppLogo';
 import { MobileNavigation } from './MobileNavigation';
@@ -67,6 +68,7 @@ export function RootLayout() {
             <AppLogo />
           </Group>
           <Group gap="xs" wrap="nowrap">
+            <NotificationHeaderLink />
             <Group visibleFrom="sm" gap={0} wrap="nowrap">
               <UserMenu user={user} />
             </Group>

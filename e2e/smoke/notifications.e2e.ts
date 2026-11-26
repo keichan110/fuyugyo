@@ -7,7 +7,9 @@ import {
   OTHER_USER_NOTIFICATION_TITLE,
   readShiftRelatedRecords,
   resetNotifications,
+  resetPublicationDraft,
 } from '../fixtures/business-data.ts';
+import { BUSINESS_DATE } from '../fixtures/business-date.ts';
 import { blockExternalRequests } from '../fixtures/network.ts';
 import { expect, test } from '../fixtures/test.ts';
 
@@ -264,6 +266,65 @@ test.describe('お知らせの受信箱', () => {
       const history = page.getByRole('main');
       await expect(rowHeadingsOf(history)).toHaveText(titles(1, 20));
       await expect(readButtonOf(history)).toHaveCount(0);
+    },
+  );
+});
+
+test.describe('シフト公開のお知らせ', () => {
+  test.use({ storageState: authStatePath('manager') });
+  test.beforeEach(async () => resetPublicationDraft());
+
+  test(
+    'シフトを公開すると担当者の受信箱に届き、公開日を開いて既読にできる',
+    { tag: '@smoke' },
+    async ({ page, browser }) => {
+      // 2ロールの複数画面を通すため、単一操作のテストより長い実行枠を確保する。
+      test.setTimeout(60_000);
+      const member = await browser.newContext({ storageState: authStatePath('member') });
+      try {
+        await blockExternalRequests(member);
+        const memberPage = await member.newPage();
+        await memberPage.clock.setFixedTime(`${BUSINESS_DATE}T09:00:00+09:00`);
+        await page.clock.setFixedTime(`${BUSINESS_DATE}T09:00:00+09:00`);
+
+        await page.goto('/shifts/manage?department=ski');
+        await page
+          .getByRole('button', {
+            name: new RegExp(`${Number(BUSINESS_DATE.slice(5, 7))}/20.*の割り当てを編集`),
+          })
+          .click();
+        await page.getByRole('switch', { name: 'この枠をメンバーに公開' }).click();
+        await page
+          .getByRole('dialog', { name: 'この枠を公開しますか？' })
+          .getByRole('button', { name: '公開する', exact: true })
+          .click();
+        await expect(page.getByRole('switch', { name: 'この枠をメンバーに公開' })).toBeChecked();
+
+        await memberPage.goto('/');
+        const inbox = inboxOf(memberPage);
+        const row = inbox.getByRole('article', { name: 'シフトが公開されました', exact: true });
+        await expect(row).toContainText(`${BUSINESS_DATE} / スキー / 一般レッスン`);
+        await expect(row).toContainText('· 未読');
+        await expect(inbox.getByText('未読 1件', { exact: true })).toBeVisible();
+
+        await row.getByRole('link', { name: '関連画面を開く', exact: true }).click();
+        await expect(memberPage).toHaveURL(new RegExp(`/shifts\\?.*date=${BUSINESS_DATE}`));
+        await expect(
+          memberPage.getByRole('button', { name: /一般レッスン.*鈴木 次郎/ }),
+        ).toBeVisible();
+
+        await memberPage.goto('/');
+        await readButtonOf(row).click();
+        await expect(inbox.getByText('未読のお知らせはありません', { exact: true })).toBeVisible();
+        await inbox.getByRole('link', { name: 'すべて見る', exact: true }).click();
+        await expect(
+          memberPage
+            .getByRole('main')
+            .getByRole('article', { name: 'シフトが公開されました', exact: true }),
+        ).toContainText('· 既読');
+      } finally {
+        await member.close();
+      }
     },
   );
 });

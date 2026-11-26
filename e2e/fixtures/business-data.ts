@@ -1,9 +1,10 @@
 import { createClient } from '@libsql/client';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/libsql';
 
 import { getLocalD1Path } from '../../scripts/lib/get-local-d1-path.ts';
 import {
+  departmentShiftTypes,
   instructorAvailabilities,
   notifications,
   shiftAssignments,
@@ -12,7 +13,7 @@ import {
 } from '../../src/server/db/schema.ts';
 import { E2E_PERSIST_DIR } from '../env.ts';
 import { BUSINESS_DATE } from './business-date.ts';
-import { E2E_USERS, type E2eUser } from './users.ts';
+import { E2E_LINKED_INSTRUCTOR_IDS, E2E_USERS, type E2eUser } from './users.ts';
 
 /** 権限変更テスト専用ユーザー。ログイン主体の3ロールや無効ユーザーは変更しない。 */
 export const ROLE_TARGET_ID = '00000000-0000-4000-8000-00000000a005';
@@ -41,6 +42,39 @@ export async function resetBusinessData(): Promise<void> {
           isActive: true,
         })
         .onConflictDoUpdate({ target: users.id, set: { role: 'MEMBER', isActive: true } }),
+    ]);
+  } finally {
+    await client.close();
+  }
+}
+
+/**
+ * 公開通知テスト用に、対象日へ MEMBER を割り当てたスキーの下書きを用意し直す。
+ * MEMBER のお知らせは全件消し、これから行う公開の通知だけが届く状態にする。
+ */
+export async function resetPublicationDraft(): Promise<void> {
+  await resetBusinessData();
+  const client = createClient({ url: `file:${getLocalD1Path(E2E_PERSIST_DIR)}` });
+  try {
+    const db = drizzle(client);
+    const [frame] = await db
+      .select({ shiftTypeId: departmentShiftTypes.shiftTypeId })
+      .from(departmentShiftTypes)
+      .where(eq(departmentShiftTypes.departmentCode, 'ski'))
+      .limit(1);
+    if (!frame) throw new Error('E2E のスキーのシフト種別が未投入です');
+    const shiftId = '00000000-0000-4000-8000-a36800000001';
+    await db.batch([
+      db.delete(notifications).where(eq(notifications.userId, e2eUserId('member'))),
+      db.insert(shifts).values({
+        id: shiftId,
+        date: new Date(`${BUSINESS_DATE}T00:00:00Z`),
+        departmentCode: 'ski',
+        shiftTypeId: frame.shiftTypeId,
+      }),
+      db
+        .insert(shiftAssignments)
+        .values({ shiftId, instructorId: E2E_LINKED_INSTRUCTOR_IDS.member }),
     ]);
   } finally {
     await client.close();
@@ -145,8 +179,8 @@ function buildNotificationRows(allRead: boolean) {
 }
 
 /**
- * 通知テストの固定 ID のお知らせだけを投入し直す。
- * 既読化したテストの後でも、別のブラウザー project が同じ初期状態から実行できる。
+ * お知らせを全件消してから、通知テストの固定 ID のお知らせを投入し直す。
+ * 先に実行した公開操作の通知を残さず、既読化したテストの後でも同じ初期状態から実行できる。
  *
  * @param options - `allRead` を指定すると MEMBER 宛てをすべて既読にする
  */
@@ -155,15 +189,7 @@ export async function resetNotifications(options: { allRead?: boolean } = {}): P
   try {
     const db = drizzle(client);
     const rows = buildNotificationRows(options.allRead ?? false);
-    await db.batch([
-      db.delete(notifications).where(
-        inArray(
-          notifications.id,
-          rows.map((row) => row.id),
-        ),
-      ),
-      db.insert(notifications).values(rows),
-    ]);
+    await db.batch([db.delete(notifications), db.insert(notifications).values(rows)]);
   } finally {
     await client.close();
   }

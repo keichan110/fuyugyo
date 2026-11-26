@@ -234,7 +234,8 @@ function ShiftTypeRow({
       p="sm"
       style={{
         cursor: isUpdating ? 'wait' : 'pointer',
-        background: selected ? 'var(--mantine-color-blue-light)' : undefined,
+        background: selected ? 'var(--mantine-color-brand-light)' : undefined,
+        borderColor: selected ? 'var(--mantine-color-brand-6)' : undefined,
       }}
       onClick={onSelect}
     >

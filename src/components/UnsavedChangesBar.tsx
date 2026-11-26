@@ -39,6 +39,12 @@ export function UnsavedChangesBar({
           </AppButton>
           <AppButton
             intent="primary"
+            // 固定バーの主操作は Mint の塗りと Deep Teal の文字で目立たせる
+            style={{
+              '--button-bg': 'var(--mantine-color-accent-4)',
+              '--button-hover': 'var(--mantine-color-accent-3)',
+              '--button-color': 'var(--mantine-color-brand-6)',
+            }}
             leftSection={<IconDeviceFloppy size={18} />}
             onClick={onSave}
             loading={loading}

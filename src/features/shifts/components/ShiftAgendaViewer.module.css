@@ -3,8 +3,13 @@
   position: sticky;
   top: 0;
   z-index: 1;
-  background: var(--mantine-color-body);
+  background: var(--app-color-warm-white);
   padding-block: 8px;
+}
+
+/* 日付ごとの一覧は、ページの地の上でも白い面にする */
+.agendaView {
+  background: var(--mantine-color-body);
 }
 
 /* AgendaView は日付見出しの個別描画を差し替えられないため、同日イベントの属性から色を適用する。 */
@@ -24,7 +29,7 @@
 }
 
 .eventBody[data-includes-me] {
-  background-color: var(--mantine-color-blue-0);
+  background-color: var(--mantine-color-brand-0);
 }
 
 .departmentBar {

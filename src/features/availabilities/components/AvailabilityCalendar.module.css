@@ -34,6 +34,9 @@
  */
 .monthView {
   --min-day-width: 44px;
+  /* ページの地の上でも、日付の表は白い面にする（角は表の枠線に合わせて丸める） */
+  background: var(--mantine-color-body);
+  border-radius: var(--mantine-radius-default);
 }
 
 .calendarDay[data-staged]::after {

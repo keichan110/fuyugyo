@@ -12,7 +12,15 @@ type AppTableProps = TableProps & {
 export function AppTable({ minWidth, children, ...props }: AppTableProps) {
   return (
     <Table.ScrollContainer minWidth={minWidth}>
-      <Table highlightOnHover withTableBorder withRowBorders verticalSpacing="sm" {...props}>
+      <Table
+        highlightOnHover
+        withTableBorder
+        withRowBorders
+        verticalSpacing="sm"
+        // ページの地の上でも白い面を保つ
+        bg="var(--mantine-color-body)"
+        {...props}
+      >
         {children}
       </Table>
     </Table.ScrollContainer>

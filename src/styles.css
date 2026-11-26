@@ -1,5 +1,48 @@
 /* Mantine のグローバルスタイルは main.tsx で import 済み。ここはアプリ固有のスタイルのみ */
 
+:root {
+  /* ページ背景と、暗いブランド色の面に載せる文字に使う Warm White */
+  --app-color-warm-white: #f4f1ea;
+  /* Warm White の上で白いカードを区切る境界線 */
+  --app-color-card-border: #e3ded3;
+}
+
 body {
   margin: 0;
+}
+
+/*
+ * ページの地だけを Warm White にする。Mantine の body トークンは変えず、
+ * カード・入力・表・Drawer・固定バーは白い面のまま残す。
+ */
+:root[data-mantine-color-scheme='light'] body,
+:root[data-mantine-color-scheme='light'] .mantine-AppShell-main {
+  background-color: var(--app-color-warm-white);
+}
+
+/*
+ * 控えめな文字は暖色の灰色にする。Mantine 標準の gray-6 は Warm White の上でコントラストが
+ * 足りないため、Warm White と白の両方で 4.5:1 以上になる色へ差し替える。
+ * :root の指定は Mantine が実行時に注入する変数に負けるため、body で上書きする。
+ */
+:root[data-mantine-color-scheme='light'] body {
+  --mantine-color-dimmed: #6b665c;
+}
+
+/* 枠線を持つカード面（Card と withBorder の Paper）の境界色。標準の gray は上書きしない */
+:root[data-mantine-color-scheme='light'] .mantine-Paper-root[data-with-border] {
+  --paper-border-color: var(--app-color-card-border);
+}
+
+/* 選択中のナビ項目は、淡い塗りに加えて枠でも示す。フォーカスリングは枠の外側に出る */
+.mantine-NavLink-root:where([data-active]) {
+  box-shadow: inset 0 0 0 1px var(--mantine-primary-color-filled);
+}
+
+/* 紙面はインクを使わないよう白に戻す */
+@media print {
+  :root[data-mantine-color-scheme='light'] body,
+  :root[data-mantine-color-scheme='light'] .mantine-AppShell-main {
+    background-color: var(--mantine-color-white);
+  }
 }

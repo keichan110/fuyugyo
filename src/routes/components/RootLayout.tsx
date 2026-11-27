@@ -1,16 +1,21 @@
-import { AppShell, Burger, Group, Text } from '@mantine/core';
+import { AppShell, Burger, Group } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import { Link, Navigate, Outlet, useLocation } from '@tanstack/react-router';
+import { Navigate, Outlet, useLocation } from '@tanstack/react-router';
 
 import { useMe } from '@/features/auth/queries';
 import { getUnauthenticatedRedirect } from '@/features/auth/route-policy';
+import { NotificationHeaderLink } from '@/features/notifications/components/NotificationHeaderLink';
 
+import { AppLogo } from './AppLogo';
 import { MobileNavigation } from './MobileNavigation';
 import { NavigationMenu } from './NavigationMenu';
+import classes from './RootLayout.module.css';
 import { useMobileKeyboardOpen } from './useMobileKeyboardOpen';
 import { UserMenu } from './UserMenu';
 
 const MOBILE_NAVIGATION_HEIGHT = 48;
+const MOBILE_HEADER_HEIGHT = 44;
+const DESKTOP_HEADER_HEIGHT = 60;
 
 /** 認証状態に応じてログイン画面または認証済みアプリシェルを描画する。 */
 export function RootLayout() {
@@ -34,7 +39,7 @@ export function RootLayout() {
     <AppShell
       style={{ '--mobile-navigation-height': `${MOBILE_NAVIGATION_HEIGHT}px` }}
       data-mobile-keyboard-open={mobileKeyboardOpened || undefined}
-      header={{ height: { base: 0, sm: 60 } }}
+      header={{ height: { base: MOBILE_HEADER_HEIGHT, sm: DESKTOP_HEADER_HEIGHT } }}
       footer={{
         height: {
           base: `calc(${MOBILE_NAVIGATION_HEIGHT}px + env(safe-area-inset-bottom, 0px))`,
@@ -49,7 +54,7 @@ export function RootLayout() {
       }}
       padding="md"
     >
-      <AppShell.Header visibleFrom="sm">
+      <AppShell.Header className={classes.header}>
         <Group h="100%" px={{ base: 'xs', sm: 'md' }} justify="space-between" wrap="nowrap">
           <Group gap="xs" wrap="nowrap">
             <Burger
@@ -58,19 +63,19 @@ export function RootLayout() {
               onClick={toggleDesktopNavbar}
               aria-label={desktopNavbarOpened ? 'サイドバーを閉じる' : 'サイドバーを開く'}
               size="sm"
+              color="var(--app-color-warm-white)"
             />
-            <Text component={Link} to="/" fw={700} size="lg" c="blue" td="none">
-              Fuyugyō
-            </Text>
+            <AppLogo />
           </Group>
           <Group gap="xs" wrap="nowrap">
+            <NotificationHeaderLink />
             <Group visibleFrom="sm" gap={0} wrap="nowrap">
               <UserMenu user={user} />
             </Group>
           </Group>
         </Group>
       </AppShell.Header>
-      <AppShell.Navbar p="sm">
+      <AppShell.Navbar className={classes.navbar} p="sm">
         <AppShell.Section grow>
           <NavigationMenu user={user} />
         </AppShell.Section>

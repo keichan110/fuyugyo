@@ -373,7 +373,10 @@ function AgendaDayList({
             mode="static"
             dateHeaderFormat={(date) => shortDateLabel(date.slice(0, 10))}
             styles={{ agendaViewHeader: { display: 'none' } }}
-            classNames={{ agendaViewDateGroup: classes.agendaDateGroup }}
+            classNames={{
+              agendaView: classes.agendaView,
+              agendaViewDateGroup: classes.agendaDateGroup,
+            }}
             renderEvent={(event, props) => {
               // AgendaView の payload は汎用型のため、ここで自前の型へ絞り込む
               // （events はこのコンポーネント自身が組み立てているため安全）

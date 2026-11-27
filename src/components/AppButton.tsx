@@ -74,12 +74,20 @@ export const AppButton = polymorphicFactory<AppButtonFactory>(
 
     if (intent === 'primary') {
       return (
-        <Button ref={ref} {...props} {...(success ? { color: 'teal' } : {})} variant="filled" />
+        <Button ref={ref} {...props} {...(success ? { color: 'green' } : {})} variant="filled" />
       );
     }
 
     if (intent === 'toggle') {
-      return <Button ref={ref} {...props} variant={active ? 'light' : 'default'} />;
+      // オンの状態は、淡い塗りに加えて主色の枠でも示す
+      return (
+        <Button
+          ref={ref}
+          {...(active ? { bd: '1px solid var(--mantine-primary-color-filled)' } : {})}
+          {...props}
+          variant={active ? 'light' : 'default'}
+        />
+      );
     }
 
     const variant = {

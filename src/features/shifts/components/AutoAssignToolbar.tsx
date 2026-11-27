@@ -51,7 +51,7 @@ export function AutoAssignToolbar({
         {autoAssignMode ? (
           <>
             <Stack gap={2}>
-              <Text size="sm" c="blue" fw={600}>
+              <Text size="sm" c="brand" fw={600}>
                 自動割当する日を選択（{selectedDateCount}日）
               </Text>
               <Text size="xs" c="dimmed">

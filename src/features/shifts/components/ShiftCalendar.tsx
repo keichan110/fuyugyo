@@ -189,7 +189,7 @@ export function ShiftCalendar({
 
       {focusedInstructor && (
         <Group gap="xs" mb="xs" wrap="wrap">
-          <Text size="xs" c="blue">
+          <Text size="xs" c="brand">
             {focusedInstructor.name}の配置日を強調中
           </Text>
           <AppButton intent="tertiary" size="compact-xs" onClick={onClearInstructor}>
@@ -263,13 +263,14 @@ export function ShiftCalendar({
                   : undefined,
               backgroundColor:
                 autoAssignMode && autoAssignDates.has(date)
-                  ? 'var(--mantine-color-blue-0)'
+                  ? 'var(--mantine-color-brand-1)'
                   : outside
                     ? 'light-dark(var(--mantine-color-gray-1), var(--mantine-color-dark-6))'
                     : staffingBackground(required, assigned),
-              outline:
+              // outline はキーボードのフォーカスリングに空けておき、選択の枠は内側に描く
+              boxShadow:
                 autoAssignMode && autoAssignDates.has(date)
-                  ? '2px solid var(--mantine-color-blue-5)'
+                  ? 'inset 0 0 0 2px var(--mantine-color-brand-6)'
                   : undefined,
             },
           };

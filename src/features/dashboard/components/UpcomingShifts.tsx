@@ -3,6 +3,7 @@ import { Badge, Box, Divider, Group, Paper, Stack, Text } from '@mantine/core';
 import { Calendar, type CalendarProps } from '@mantine/dates';
 import dayjs, { type Dayjs } from 'dayjs';
 
+import { AppBadge } from '@/components/AppBadge';
 import { useMyAvailabilities } from '@/features/availabilities/queries';
 import type { Availability } from '@/features/availabilities/schema';
 import { getDepartmentAppearance } from '@/features/departments/appearance';
@@ -51,6 +52,20 @@ function getWeekendDayProps(date: string) {
 function getCountdownLabel(dateStr: string): string {
   const diffDays = dayjs(dateStr).diff(dayjs(todayString()), 'day');
   return diffDays <= 0 ? '今日' : `あと${diffDays}日`;
+}
+
+/** 次回勤務日のカウントダウンバッジ。当日は Mint の塗りで「今日」を目立たせる */
+function CountdownBadge({ dateStr }: { dateStr: string }) {
+  const label = getCountdownLabel(dateStr);
+  return label === '今日' ? (
+    <AppBadge kind="highlight" size="sm">
+      {label}
+    </AppBadge>
+  ) : (
+    <Badge size="sm" variant="light" color="brand">
+      {label}
+    </Badge>
+  );
 }
 
 /**
@@ -256,11 +271,7 @@ export function UpcomingShifts({ instructorId }: { instructorId: string }) {
                     {shortDateLabel(group.dateStr)}
                   </Text>
                   {/* 次回勤務（先頭グループ）にのみカウントダウンを表示する */}
-                  {index === 0 && (
-                    <Badge size="sm" variant="light" color="blue">
-                      {getCountdownLabel(group.dateStr)}
-                    </Badge>
-                  )}
+                  {index === 0 && <CountdownBadge dateStr={group.dateStr} />}
                 </Group>
                 <Stack gap={0}>
                   {group.shifts.map((viewItem) => (
@@ -282,7 +293,7 @@ export function UpcomingShifts({ instructorId }: { instructorId: string }) {
             );
 
             return index === 0 ? (
-              <Paper key={group.dateStr} p="md" bg="blue.0" radius="md">
+              <Paper key={group.dateStr} p="md" bg="brand.0" radius="md">
                 {content}
               </Paper>
             ) : (

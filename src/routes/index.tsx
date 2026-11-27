@@ -69,7 +69,7 @@ function DashboardPage() {
                 </Title>
               }
               bullet={
-                <ThemeIcon size={32} radius="xl" color="cyan" variant="light">
+                <ThemeIcon size={32} radius="xl" color="brand" variant="light">
                   <IconCalendarEvent size={18} stroke={1.8} />
                 </ThemeIcon>
               }

@@ -1,10 +1,16 @@
 /* 月見出し: スクロール中も月ラベルが隠れないよう先頭に固定表示する */
 .monthHeader {
   position: sticky;
-  top: 0;
+  /* 固定の共通ヘッダーに隠れないよう、その下端に固定する */
+  top: var(--app-shell-header-offset, 0px);
   z-index: 1;
-  background: var(--mantine-color-body);
+  background: var(--app-color-warm-white);
   padding-block: 8px;
+}
+
+/* 日付ごとの一覧は、ページの地の上でも白い面にする */
+.agendaView {
+  background: var(--mantine-color-body);
 }
 
 /* AgendaView は日付見出しの個別描画を差し替えられないため、同日イベントの属性から色を適用する。 */
@@ -24,7 +30,7 @@
 }
 
 .eventBody[data-includes-me] {
-  background-color: var(--mantine-color-blue-0);
+  background-color: var(--mantine-color-brand-0);
 }
 
 .departmentBar {

@@ -35,7 +35,7 @@ export function NotificationInbox() {
             お知らせ
           </Title>
           {data && data.unreadCount > 0 && (
-            <AppBadge kind="count">未読 {data.unreadCount}件</AppBadge>
+            <AppBadge kind="highlight">未読 {data.unreadCount}件</AppBadge>
           )}
         </Group>
         {data?.hasHistory && (

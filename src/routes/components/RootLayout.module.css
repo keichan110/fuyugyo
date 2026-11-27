@@ -17,3 +17,8 @@
     display: none;
   }
 }
+
+.navbar.navbar {
+  background-color: var(--app-color-warm-white);
+  border-inline-end-color: #c8c1b4;
+}

@@ -75,7 +75,7 @@ export function RootLayout() {
           </Group>
         </Group>
       </AppShell.Header>
-      <AppShell.Navbar p="sm">
+      <AppShell.Navbar className={classes.navbar} p="sm">
         <AppShell.Section grow>
           <NavigationMenu user={user} />
         </AppShell.Section>

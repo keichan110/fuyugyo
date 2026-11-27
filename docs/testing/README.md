@@ -87,7 +87,7 @@ e2e/
 - **ポート**: E2E の dev サーバーは `5180`。通常の開発サーバー（5173）と同時に起動できる。`E2E_PORT` を設定すると `vite.config.ts` が `.dev-port` より優先して使う。
 - **D1**: `.wrangler/e2e-state` に分離する。`E2E_PERSIST_DIR` を設定すると `vite.config.ts` が `@cloudflare/vite-plugin` の `persistState` に渡す。開発用の `.wrangler/state` には触れない。seed は書き込み先が E2E 用ディレクトリ外だと例外で止まる。
 - **環境変数**: `CLOUDFLARE_ENV=e2e` で起動すると、vite-plugin は `.dev.vars.e2e` だけを読み、`.dev.vars` と `.env` は読まない。`wrangler.toml` に `[env.e2e]` は無いため「環境 e2e の設定が見つからない」旨の警告が出るが、トップレベルの設定が使われるので想定内。`.dev.vars.e2e` は `prepare.ts` が毎回生成する（`.gitignore` 済み）。
-- **Sentry**: サーバー側は `.dev.vars.e2e` の `SENTRY_DSN=`（空）で、クライアント側は webServer の `VITE_SENTRY_DSN=''` で無効化する。E2E から Sentry へは送信されない。
+- **Sentry**: サーバー側は `wrangler.toml` に `SENTRY_DSN` を置かないため無効（`prepare.ts` / `serve-built.ts` でも空に上書きして念のため二重化）。クライアント側は dev サーバーでは `VITE_SENTRY_DSN=''` で無効化し、リリース E2E のビルド済みバンドルは本番 DSN を持つがループバックのホストでは初期化をスキップする。さらにフィクスチャが外部通信を遮断し、Sentry への送信試行があればテストを失敗させる。
 
 ## 時計の固定
 

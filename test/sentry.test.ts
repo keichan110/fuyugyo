@@ -20,14 +20,29 @@ afterEach(() => {
 describe('Sentry の初期化とルート通知', () => {
   it('DSN 未設定なら初期化しない', () => {
     vi.stubEnv('VITE_SENTRY_DSN', '');
-    initializeSentry();
+    initializeSentry('example.test');
     expect(init).not.toHaveBeenCalled();
+  });
+
+  it.each(['localhost', '127.0.0.1', '[::1]'])(
+    'ループバックのホスト %s では初期化しない',
+    (hostname) => {
+      vi.stubEnv('VITE_SENTRY_DSN', 'https://public@example.com/1');
+      initializeSentry(hostname);
+      expect(init).not.toHaveBeenCalled();
+    },
+  );
+
+  it('本番相当のホストで DSN があれば初期化する', () => {
+    vi.stubEnv('VITE_SENTRY_DSN', 'https://public@example.com/1');
+    initializeSentry('fuyugyo.example.com');
+    expect(init).toHaveBeenCalledOnce();
   });
 
   it('release と除外判定を設定し、個人情報の自動収集を無効にする', () => {
     vi.stubEnv('VITE_SENTRY_DSN', 'https://public@example.com/1');
     vi.stubEnv('VITE_SENTRY_RELEASE', 'commit-sha');
-    initializeSentry();
+    initializeSentry('fuyugyo.example.com');
     const options = init.mock.calls[0]?.[0];
     expect(options).toMatchObject({
       dsn: 'https://public@example.com/1',

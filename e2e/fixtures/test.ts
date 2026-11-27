@@ -1,4 +1,4 @@
-import { test as base } from '@playwright/test';
+import { test as base, expect } from '@playwright/test';
 
 import { E2E_FIXED_NOW } from '../env.ts';
 import { blockExternalRequests } from './network.ts';
@@ -10,9 +10,11 @@ import { blockExternalRequests } from './network.ts';
  */
 export const test = base.extend({
   context: async ({ context }, provide) => {
-    await blockExternalRequests(context);
+    const sentryAttempts = await blockExternalRequests(context);
     await provide(context);
+    // 処理中のハンドラが記録し終えるのを待ってから判定し、判定失敗でも遮断の解除を飛ばさない。
     await context.unrouteAll({ behavior: 'wait' });
+    expect(sentryAttempts, 'Sentry への送信が試行された').toEqual([]);
   },
   page: async ({ page }, provide) => {
     await page.clock.setFixedTime(E2E_FIXED_NOW);

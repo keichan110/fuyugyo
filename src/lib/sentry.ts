@@ -2,10 +2,25 @@ import * as Sentry from '@sentry/react';
 
 import { isIgnoredBrowserError } from './sentry-filter';
 
-/** DSN が設定された場合だけブラウザのエラー通知を有効にする。 */
-export function initializeSentry(): void {
+/**
+ * ループバックのホスト名かどうかを判定する。
+ * @param hostname `URL.hostname` 形式のホスト名（IPv6 は `[::1]`）
+ * @returns localhost・127.0.0.1・[::1] のいずれかなら true
+ */
+export function isLoopbackHost(hostname: string): boolean {
+  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]';
+}
+
+/**
+ * DSN が設定され、かつループバック以外のホストで動作する場合だけブラウザのエラー通知を有効にする。
+ * リリース E2E やプレビューは本番ビルド（DSN 埋め込み済み）をローカルで動かすため、
+ * ループバックのホストでは初期化せず、本番の Sentry へ送信しない。
+ * @param hostname 動作中のホスト名（ブラウザでは `window.location.hostname`）
+ */
+export function initializeSentry(hostname: string): void {
   const dsn = import.meta.env.VITE_SENTRY_DSN;
   if (!dsn) return;
+  if (isLoopbackHost(hostname)) return;
 
   Sentry.init({
     dsn,

@@ -4,11 +4,12 @@ Worker の fetch・scheduled を `@sentry/cloudflare` の `withSentry` で監視
 
 ## 設定
 
-- `wrangler.toml` の `[vars]` に `SENTRY_DSN` を定義する。値は Worker 用プロジェクト（`fuyugyo-worker`）の DSN を使う。通常の Release ワークフローでデプロイすると Cloudflare Worker の Vars に反映される。
-- DSN は公開可能な送信先情報のため、`JWT_REFRESH_INTERVAL` などと同様に設定ファイルで管理する。GitHub Actions Variables や Cloudflare Secret への登録は不要。
+- Sentry プロジェクトはブラウザと共通の 1 つで、DSN も同じ値を使う。Release ワークフローが GitHub Actions のリポジトリ変数 `VITE_SENTRY_DSN` を `SENTRY_DSN` として `wrangler deploy --var` で渡し、Cloudflare Worker の Vars に反映される。
+- `wrangler.toml` には `SENTRY_DSN` を定義しない。そのためローカル開発・テスト・E2E では既定で無効になる。本番以外からは通知しないため、`.dev.vars` にも DSN を設定しない。
+- `--var SENTRY_DSN` を付けずに手動デプロイ（`pnpm run deploy` など）すると、Worker の Sentry が無効になる。本番へは Release ワークフローを使う。変数が未登録の場合、Release ワークフローは検証ステップで失敗する。
 - `SENTRY_RELEASE` は Release ワークフローがデプロイ対象のコミット SHA を `wrangler deploy --var` で渡す。SPA と同じ SHA になる。
-- DSN が空なら通知を無効にする。ローカルで本番プロジェクトへ通知しないよう、`.dev.vars` に `SENTRY_DSN=""` を設定する。ローカルでも通知を試す場合は検証用プロジェクトの DSN に置き換える。
-- テストでは `vitest.config.ts` のバインディングで `SENTRY_DSN` を空に上書きし、本番への通知を無効にする。
+- DSN が空・未設定なら通知を無効にする。
+- テストでは `vitest.config.ts` のバインディングで `SENTRY_DSN` を空に上書きし、念のため通知を無効にする。
 
 すでに Cloudflare に同名の Secret を登録済みの場合は、Vars と競合するためリリース作業時に削除してからデプロイする。SDK の送信に `SENTRY_AUTH_TOKEN` は不要。ソースマップのアップロードに使う `SENTRY_AUTH_TOKEN` は引き続き GitHub Actions Secrets で管理する。
 
@@ -25,7 +26,7 @@ SDK v11 の `dataCollection` でユーザー情報・Cookie・HTTP ヘッダ・�
 
 ## メール通知
 
-Sentry の Worker 用プロジェクトで Issue Alert を作成し、以下を設定する。
+Sentry プロジェクトで Issue Alert を作成し、以下を設定する。
 
 1. トリガーは **新しい issue が作成されたとき** と **解決済み issue が再発したとき** のいずれかに一致する条件にする。
 2. アクションは担当者または担当チームへのメール通知にする。受信先アカウントのメール通知設定も確認する。
@@ -39,7 +40,7 @@ DSN 登録とリリース後、機密情報を含まないテスト例外を一�
 
 ## 死活監視（Uptime Monitor）
 
-Sentry 管理画面での設定が必要。Worker 用プロジェクト（`fuyugyo-worker`）で以下を設定する。
+Sentry 管理画面での設定が必要。Sentry プロジェクトで以下を設定する。
 
 1. **Monitors** から **Uptime Monitor** を作成する。自動作成された監視がある場合は先に確認し、重複して追加せず対象 URL を変更する。
 2. URL は実際に利用者がアクセスする本番のオリジンに `/api/health` を付ける。`wrangler.toml` の `APP_URL` はローカル向けのため、その値を流用しない。
@@ -68,7 +69,7 @@ HTTP 200・304 と、地点未登録・Expires 前による取得不要は `ok`�
 
 管理画面では以下を設定・確認する。
 
-1. リリース後の次の Cron 実行を待ち、Worker 用プロジェクトで `weather-fetch` が作成され、上表の設定とチェックインが表示されることを確認する。別の slug で重複作成しない。
+1. リリース後の次の Cron 実行を待ち、Sentry プロジェクトで `weather-fetch` が作成され、上表の設定とチェックインが表示されることを確認する。別の slug で重複作成しない。
 2. Issue Alert の条件を `monitor.slug equals weather-fetch` にし、新規・再発の issue で担当者・担当チームへメールを送る。既存の Issue Alert がこの監視も通知する場合は重複させない。
 3. 初回の正常実行で `in_progress` → `ok` を確認する。ローカルの DSN が空の場合と自動テストでは送信しない。
 

@@ -45,7 +45,9 @@ export default defineConfig({
       ...(useBuiltWorker ? {} : { CLOUDFLARE_ENV: 'e2e' }),
       E2E_PORT: String(E2E_PORT),
       E2E_PERSIST_DIR,
-      // .env のクライアント側 Sentry DSN を空で上書きして送信を無効にする
+      // dev サーバー（スモーク）のクライアント側 Sentry DSN だけを空で上書きする。
+      // ビルド済みバンドル（リリース E2E）は src/lib/sentry.ts のループバック判定と
+      // e2e/fixtures/network.ts の外部通信遮断で送信を防ぐ。
       VITE_SENTRY_DSN: '',
     },
   },

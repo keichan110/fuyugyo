@@ -14,7 +14,7 @@ const E2E_VARS_FILE = '.dev.vars.e2e';
 
 /**
  * 値は wrangler.toml の `[vars]` より優先される。
- * Sentry を空にして送信を止め、アプリ URL を E2E 用にする。
+ * SENTRY_DSN は wrangler.toml に無いが、念のため空にして送信を止め、アプリ URL を E2E 用にする。
  */
 const e2eVars = [
   `JWT_SECRET=${E2E_JWT_SECRET}`,

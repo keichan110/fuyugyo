@@ -106,6 +106,18 @@ jobs:
             exit 1
           fi
 
+      # DSN と CSP は別々に管理しているため、食い違いによる送信ブロックをデプロイ前に検出する。
+      - name: Verify CSP allows Sentry ingestion
+        run: |
+          origin=$(node -e 'const u = new URL(process.env.VITE_SENTRY_DSN); console.log(`${u.protocol}//${u.host}`)')
+          connect_src=$(grep -o 'connect-src[^;]*' dist/client/_headers | head -n 1)
+          if ! printf '%s\n' "$connect_src" | tr -s ' \t' '\n\n' | grep -qxF "$origin"; then
+            echo "::error::connect-src in public/_headers does not allow $origin"
+            exit 1
+          fi
+        env:
+          VITE_SENTRY_DSN: ${{ vars.VITE_SENTRY_DSN }}
+
       # e2e ジョブのコンテナイメージを lockfile の Playwright と同じ版に揃えるため後続へ渡す
       - name: Get Playwright version
         id: playwright-version

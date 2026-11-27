@@ -1,0 +1,53 @@
+name: Publish LINE Rich Menu
+run-name: Publish LINE Rich Menu (${{ inputs.environment }})
+
+# 手順と復旧方法: docs/settings/line-rich-menu.md
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 公開先の GitHub Environment
+        type: environment
+        required: true
+      assignment_stopped:
+        description: 旧版の移行時のみ。アプリ側の割り当て停止と処理中の要求の完了を確認した
+        type: boolean
+        default: false
+      batch_request_ids:
+        description: 再開時のみ。ログの「旧ID:新ID:リクエストID」（複数はカンマ区切り）
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
+# 複数の環境が同じ公式アカウントを指しても同時に操作しないよう、全体で 1 グループにする。
+# 移行の途中で止めないため、実行中のものは取り消さない
+concurrency:
+  group: line-rich-menu
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    if: github.repository == 'keichan110/fuyugyo' && github.ref == 'refs/heads/main'
+    environment: ${{ inputs.environment }}
+    # 一括置換の状態確認を最大まで待っても終わる時間にする
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      - name: Publish rich menus
+        run: node scripts/line-rich-menu/main.ts
+        env:
+          TARGET_ENVIRONMENT: ${{ inputs.environment }}
+          LINE_MESSAGING_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_MESSAGING_CHANNEL_ACCESS_TOKEN }}
+          LINE_LIFF_URL: ${{ vars.LINE_LIFF_URL }}
+          LINE_OFFICIAL_ACCOUNT_ID: ${{ vars.LINE_OFFICIAL_ACCOUNT_ID }}
+          LINE_ASSIGNMENT_STOPPED: ${{ inputs.assignment_stopped }}
+          LINE_BATCH_REQUEST_IDS: ${{ inputs.batch_request_ids }}

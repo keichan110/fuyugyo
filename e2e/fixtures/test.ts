@@ -1,4 +1,4 @@
-import { test as base } from '@playwright/test';
+import { test as base, expect } from '@playwright/test';
 
 import { E2E_FIXED_NOW } from '../env.ts';
 import { blockExternalRequests } from './network.ts';
@@ -10,8 +10,9 @@ import { blockExternalRequests } from './network.ts';
  */
 export const test = base.extend({
   context: async ({ context }, provide) => {
-    await blockExternalRequests(context);
+    const sentryAttempts = await blockExternalRequests(context);
     await provide(context);
+    expect(sentryAttempts, 'Sentry への送信が試行された').toEqual([]);
     await context.unrouteAll({ behavior: 'wait' });
   },
   page: async ({ page }, provide) => {

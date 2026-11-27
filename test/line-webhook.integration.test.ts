@@ -78,12 +78,16 @@ async function post(
   return { response, ctx };
 }
 
-/** 正しい署名で送り、バックグラウンドの返信完了まで待つ。 */
-async function deliver(events: unknown[], settings: Settings = {}) {
-  const body = JSON.stringify({ destination: 'bot', events });
+/** 本文に正しい署名を付けて送り、バックグラウンドの返信完了まで待つ。 */
+async function deliverRaw(body: string | Uint8Array<ArrayBuffer>, settings: Settings = {}) {
   const { response, ctx } = await post(body, await sign(body), settings);
   await waitOnExecutionContext(ctx);
   return response;
+}
+
+/** イベント一覧を正しい署名で送り、バックグラウンドの返信完了まで待つ。 */
+function deliver(events: unknown[], settings: Settings = {}) {
+  return deliverRaw(JSON.stringify({ destination: 'bot', events }), settings);
 }
 
 /** 返信対象となるテキストイベントを作る。 */
@@ -129,8 +133,7 @@ describe('POST /api/line/webhook の返信', () => {
 
   it('署名は整形を含む受信バイト列そのものに対して検証する', async () => {
     const body = `{\n  "events": [ ${JSON.stringify(textEvent('a'))} ]\n}\n`;
-    const { response, ctx } = await post(body, await sign(body));
-    await waitOnExecutionContext(ctx);
+    const response = await deliverRaw(body);
 
     expect(response.status).toBe(200);
     expect(sentReplies()).toEqual([reply('a')]);
@@ -248,8 +251,7 @@ describe('POST /api/line/webhook の認証と本文検証', () => {
   });
 
   it.each([undefined, ''])('署名鍵が %j の場合は 503 を返す', async (secret) => {
-    const { response, ctx } = await post(body, await sign(body), { secret });
-    await waitOnExecutionContext(ctx);
+    const response = await deliverRaw(body, { secret });
 
     expect(response.status).toBe(503);
     expect(dbAccess).not.toHaveBeenCalled();
@@ -266,8 +268,7 @@ describe('POST /api/line/webhook の認証と本文検証', () => {
     '{"events":{}}',
     '{"events":"message"}',
   ])('署名が正しくても本文 %j は 400 を返す', async (invalid) => {
-    const { response, ctx } = await post(invalid, await sign(invalid));
-    await waitOnExecutionContext(ctx);
+    const response = await deliverRaw(invalid);
 
     expect(response.status).toBe(400);
     expect(fetchMock).not.toHaveBeenCalled();
@@ -280,8 +281,7 @@ describe('POST /api/line/webhook の認証と本文検証', () => {
       0xff,
       ...new TextEncoder().encode('"}'),
     ]);
-    const { response, ctx } = await post(invalid, await sign(invalid));
-    await waitOnExecutionContext(ctx);
+    const response = await deliverRaw(invalid);
 
     expect(response.status).toBe(400);
   });

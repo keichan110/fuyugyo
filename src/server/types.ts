@@ -25,6 +25,12 @@ export type Env = {
   LINE_CHANNEL_ID: string;
   /** LINE Login のチャネルシークレット（`wrangler secret`/`.dev.vars` で注入） */
   LINE_CHANNEL_SECRET: string;
+  /** LINE Messaging API のチャネルシークレット（Webhook 署名の検証鍵。LINE Login とは別） */
+  LINE_MESSAGING_CHANNEL_SECRET?: string;
+  /** LINE Messaging API のチャネルアクセストークン（返信に使う） */
+  LINE_MESSAGING_CHANNEL_ACCESS_TOKEN?: string;
+  /** 文字列 `true` のときだけ、個人トークのテキストをオウム返しする（検証用） */
+  LINE_MESSAGING_ECHO_ENABLED?: string;
   /** アプリのベース URL。LINE コールバック URL とログイン後リダイレクトの基点 */
   APP_URL: string;
   /** 認証系エンドポイント用の CF ネイティブ Rate Limiter */

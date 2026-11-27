@@ -226,6 +226,11 @@ const PUBLIC_ROUTES: ReadonlyArray<{ method: string; path: string; reason: strin
     path: '/api/invitations/:token/verify',
     reason: '招待リンクを開く未登録ユーザー向けに、公開用フィールドだけを返す。Rate Limit を適用',
   },
+  {
+    method: 'POST',
+    path: '/api/line/webhook',
+    reason: 'LINE からの受信。Cookie 認証の代わりに Webhook 署名を検証し、DB に触れない',
+  },
 ];
 
 const PARAM_SAMPLES: Record<string, string> = { departmentCode: 'ski' };

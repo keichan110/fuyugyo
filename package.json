@@ -53,7 +53,7 @@
     "embla-carousel": "^8.6.0",
     "embla-carousel-react": "^8.6.0",
     "hono": "4.12.34",
-    "jose": "6.2.3",
+    "jose": "6.2.18",
     "react": "19.2.7",
     "react-dom": "19.2.7",
     "recharts": "^3.9.2",

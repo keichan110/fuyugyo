@@ -12,7 +12,9 @@ test.describe('ADMIN のダッシュボード', () => {
 
   test('固定日付が選択された状態でトップが表示される', { tag: '@smoke' }, async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByRole('button', { name: /^今日 1\/15（木）/, pressed: true })).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: /^今日 1\/15（木）/, pressed: true }),
+    ).toBeVisible();
     await expect(page.getByRole('heading', { level: 2, name: '個人の予定' })).toBeVisible();
   });
 

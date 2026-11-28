@@ -89,7 +89,7 @@ export function TeamSchedule({
   );
 }
 
-/** 日付を選ぶボタン。曜日（今日は「今日」）・日・自分の勤務を示す点を縦に並べる */
+/** 日付を選ぶボタン。曜日（当日には「今日」を併記）・日・自分の勤務を示す点を縦に並べる */
 function DayButton({
   date,
   isToday,
@@ -103,6 +103,7 @@ function DayButton({
   working: boolean;
   onSelect: () => void;
 }) {
+  const weekday = WEEKDAY_LABELS[weekdayIndex(date)];
   const label = [
     isToday ? `今日 ${shortDateLabel(date)}` : shortDateLabel(date),
     ...(working ? ['自分の勤務あり'] : []),
@@ -116,8 +117,8 @@ function DayButton({
       aria-label={label}
       onClick={onSelect}
     >
-      <Text component="span" size="xs" lh={1.2}>
-        {isToday ? '今日' : WEEKDAY_LABELS[weekdayIndex(date)]}
+      <Text component="span" size="xs" fz={isToday ? 10 : undefined} lh="14px">
+        {isToday ? `今日 ${weekday}` : weekday}
       </Text>
       <Text component="span" size="md" fw={700} lh={1.4}>
         {Number(date.slice(8, 10))}

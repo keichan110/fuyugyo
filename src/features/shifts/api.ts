@@ -454,6 +454,16 @@ export type PublishedShift = Pick<
   'date' | 'department' | 'shiftType' | 'assignedInstructors'
 >;
 
+/** 表示ビューから、閲覧用の通知に含める項目だけを取り出す。 */
+function toPublishedShift({
+  date,
+  department,
+  shiftType,
+  assignedInstructors,
+}: ShiftViewItem): PublishedShift {
+  return { date, department, shiftType, assignedInstructors };
+}
+
 /**
  * 指定期間の公開済みで担当者がいる勤務枠を取得する（サーバー専用）。
  * 閲覧範囲はロールを問わず、Web の MEMBER と同じ。
@@ -470,12 +480,65 @@ export async function loadPublishedSchedule(
   to: string,
 ): Promise<PublishedShift[]> {
   const items = await loadShiftView(db, parseShiftDate(from), parseShiftDate(to), 'MEMBER');
-  return items.map(({ date, department, shiftType, assignedInstructors }) => ({
-    date,
-    department,
-    shiftType,
-    assignedInstructors,
-  }));
+  return items.map(toPublishedShift);
+}
+
+/** 直近の勤務日を決めるのに使う、本人の勤務枠の件数 */
+const UPCOMING_SLOT_LIMIT = 3;
+
+/**
+ * 本人が担当する公開済みの勤務枠を表示順に3枠まで選び、その日付を取得する（サーバー専用）。
+ * 閲覧範囲はロールを問わず、Web の MEMBER と同じ。未来側の期限は設けない。
+ *
+ * @param db - Drizzle の DB クライアント
+ * @param instructorId - 本人のインストラクター ID
+ * @param from - 開始日（YYYY-MM-DD、この日を含む）
+ * @returns 重複のない日付（YYYY-MM-DD）の昇順。同じ日に複数枠があれば3日より少なくなる
+ */
+export async function loadUpcomingWorkingDates(
+  db: Database,
+  instructorId: string,
+  from: string,
+): Promise<string[]> {
+  // 日付の重複を除くのは3枠に制限した後にする（4枠目以降の日を繰り上げない）
+  const rows = await db
+    .select({ date: shifts.date })
+    .from(shifts)
+    .innerJoin(shiftAssignments, eq(shiftAssignments.shiftId, shifts.id))
+    .innerJoin(shiftTypes, eq(shiftTypes.id, shifts.shiftTypeId))
+    .leftJoin(
+      departmentShiftTypes,
+      and(
+        eq(departmentShiftTypes.departmentCode, shifts.departmentCode),
+        eq(departmentShiftTypes.shiftTypeId, shifts.shiftTypeId),
+      ),
+    )
+    .where(
+      and(
+        eq(shiftAssignments.instructorId, instructorId),
+        gte(shifts.date, parseShiftDate(from)),
+        shiftVisibility(db, 'MEMBER'),
+      ),
+    )
+    .orderBy(...shiftViewOrder)
+    .limit(UPCOMING_SLOT_LIMIT);
+  return [...new Set(rows.map((row) => formatDate(row.date)))];
+}
+
+/**
+ * 指定した日付だけの、公開済みで担当者がいる勤務枠を取得する（サーバー専用）。
+ * 閲覧範囲はロールを問わず、Web の MEMBER と同じ。
+ *
+ * @param db - Drizzle の DB クライアント
+ * @param dates - 対象日（YYYY-MM-DD）。D1 のバインド上限に収まる件数で指定する
+ * @returns `loadPublishedSchedule` と同じ並び順の勤務枠。対象日がなければ空配列
+ */
+export async function loadPublishedScheduleByDates(
+  db: Database,
+  dates: string[],
+): Promise<PublishedShift[]> {
+  const items = await loadShiftViewByDates(db, dates.map(parseShiftDate), undefined, 'MEMBER');
+  return items.map(toPublishedShift);
 }
 
 /**

@@ -156,6 +156,7 @@ const PROTECTED_ROUTES: readonly RouteSpec[] = [
   { method: 'GET', path: '/api/shifts/assignment-editor', minRole: 'MANAGER' },
   { method: 'GET', path: '/api/shifts/agenda', minRole: 'MEMBER' },
   { method: 'GET', path: '/api/shifts/calendar', minRole: 'MEMBER' },
+  { method: 'GET', path: '/api/shifts/assignment-calendar', minRole: 'MANAGER' },
   { method: 'GET', path: '/api/shifts/requirements', minRole: 'MANAGER' },
   { method: 'GET', path: '/api/shifts/attendance', minRole: 'MEMBER' },
   { method: 'GET', path: '/api/shifts', minRole: 'MEMBER' },

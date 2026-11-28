@@ -56,7 +56,7 @@ function authJsonRequest(token: string, body: unknown): RequestInit {
   };
 }
 
-async function seedToken(role: 'MANAGER' | 'MEMBER' = 'MEMBER'): Promise<string> {
+async function seedToken(role: 'ADMIN' | 'MANAGER' | 'MEMBER' = 'MEMBER'): Promise<string> {
   const db = createDb(env.DB);
   const [user] = await db
     .insert(users)
@@ -207,6 +207,80 @@ beforeEach(async () => {
 
 // ─── GET /api/shifts/calendar ─────────────────────────────────────────────
 
+describe('閲覧と割り当ての表示条件', () => {
+  it('閲覧は全ロールで一致し、割り当て画面は全枠を返す', async () => {
+    const ski = await seedDepartment('スキー', 'ski');
+    const type = await seedShiftType();
+    const inst = await seedInstructor('山田', '太郎');
+    const visible = await seedShift('2026-01-10', ski, type, [inst]);
+    const draft = await seedShift('2026-01-11', ski, type, [inst]);
+    const empty = await seedShift('2026-01-12', ski, type);
+    const db = createDb(env.DB);
+    await db.update(shifts).set({ status: 'DRAFT' }).where(eq(shifts.id, draft));
+    await db
+      .update(shifts)
+      .set({ description: '備考', requiredCount: 2 })
+      .where(eq(shifts.id, empty));
+    const member = await seedToken('MEMBER');
+    const manager = await seedToken('MANAGER');
+    const admin = await seedToken('ADMIN');
+    for (const path of [
+      '/api/shifts/calendar?month=2026-01',
+      '/api/shifts/agenda?cursor=2026-01-10&direction=future&limit=7',
+      '/api/shifts/attendance?dates=2026-01-10,2026-01-11,2026-01-12',
+      '/api/shifts',
+    ]) {
+      const bodies = [];
+      for (const token of [member, manager, admin]) {
+        const response = await app.request(path, authHeader(token), envWith({}));
+        expect(response.status).toBe(200);
+        bodies.push(await response.json());
+      }
+      expect(bodies[1]).toEqual(bodies[0]);
+      expect(bodies[2]).toEqual(bodies[0]);
+      expect(JSON.stringify(bodies[0])).toContain(visible);
+      expect(JSON.stringify(bodies[0])).not.toContain(draft);
+      expect(JSON.stringify(bodies[0])).not.toContain(empty);
+    }
+    const response = await app.request(
+      '/api/shifts/assignment-calendar?month=2026-01',
+      authHeader(manager),
+      envWith({}),
+    );
+    const body = shiftViewResponseSchema.parse(await response.json());
+    expect(body.shifts.map((shift) => shift.id).sort()).toEqual([visible, draft, empty].sort());
+  });
+
+  it('アジェンダは表示対象の枠がある日だけをページングする', async () => {
+    const ski = await seedDepartment('スキー', 'ski');
+    const type = await seedShiftType();
+    const inst = await seedInstructor('山田', '太郎');
+    // 非表示の2日を先に並べ、日付の取得段階で除外されないと limit=1 の枠を消費する配置にする
+    const draft = await seedShift('2026-01-10', ski, type, [inst]);
+    const empty = await seedShift('2026-01-11', ski, type);
+    await seedShift('2026-01-12', ski, type, [inst]);
+    const db = createDb(env.DB);
+    await db.update(shifts).set({ status: 'DRAFT' }).where(eq(shifts.id, draft));
+    await db
+      .update(shifts)
+      .set({ description: '備考', requiredCount: 2 })
+      .where(eq(shifts.id, empty));
+
+    for (const role of ['MEMBER', 'MANAGER', 'ADMIN'] as const) {
+      const token = await seedToken(role);
+      const response = await app.request(
+        '/api/shifts/agenda?cursor=2026-01-10&direction=future&limit=1',
+        authHeader(token),
+        envWith({}),
+      );
+      expect(response.status).toBe(200);
+      const body = shiftAgendaResponseSchema.parse(await response.json());
+      expect(body.days.map((day) => day.date)).toEqual(['2026-01-12']);
+      expect(body.pageInfo.nextCursor).toBe('2026-01-13');
+    }
+  });
+});
+
 describe('GET /api/shifts/calendar', () => {
   it('指定月の全シフトとサマリを返し、前後月は含まない', async () => {
     const ski = await seedDepartment('スキー', 'ski');
@@ -216,7 +290,7 @@ describe('GET /api/shifts/calendar', () => {
     // 2026-01 に3件（月初・月中・月末）、前月末と翌月初に各1件
     await seedShift('2026-01-01', ski, st, [inst]);
     await seedShift('2026-01-15', snb, st, [inst]);
-    await seedShift('2026-01-31', ski, st, []);
+    await seedShift('2026-01-31', ski, st, [inst]);
     await seedShift('2025-12-31', ski, st, [inst]); // 前月
     await seedShift('2026-02-01', ski, st, [inst]); // 翌月
     const token = await seedToken('MANAGER');
@@ -231,7 +305,7 @@ describe('GET /api/shifts/calendar', () => {
 
     expect(body.shifts).toHaveLength(3);
     expect(body.summary.totalShifts).toBe(3);
-    expect(body.summary.totalAssignments).toBe(2);
+    expect(body.summary.totalAssignments).toBe(3);
     expect(body.summary.dateRange).toEqual({
       from: '2026-01-01',
       to: '2026-01-31',
@@ -347,9 +421,10 @@ describe('GET /api/shifts/calendar', () => {
       { departmentCode: ski, shiftTypeId: afternoon, sortOrder: 1 },
       { departmentCode: ski, shiftTypeId: fullDay, sortOrder: 2 },
     ]);
-    await seedShift('2026-01-15', ski, morning);
-    await seedShift('2026-01-15', ski, fullDay);
-    await seedShift('2026-01-15', ski, afternoon);
+    const inst = await seedInstructor('山田', '太郎');
+    await seedShift('2026-01-15', ski, morning, [inst]);
+    await seedShift('2026-01-15', ski, fullDay, [inst]);
+    await seedShift('2026-01-15', ski, afternoon, [inst]);
     const token = await seedToken('MANAGER');
 
     const res = await app.request(
@@ -443,9 +518,10 @@ describe('GET /api/shifts/agenda', () => {
       { departmentCode: ski, shiftTypeId: afternoon, sortOrder: 1 },
       { departmentCode: ski, shiftTypeId: fullDay, sortOrder: 2 },
     ]);
-    await seedShift('2026-01-10', ski, morning);
-    await seedShift('2026-01-10', ski, fullDay);
-    await seedShift('2026-01-10', ski, afternoon);
+    const inst = await seedInstructor('山田', '太郎');
+    await seedShift('2026-01-10', ski, morning, [inst]);
+    await seedShift('2026-01-10', ski, fullDay, [inst]);
+    await seedShift('2026-01-10', ski, afternoon, [inst]);
     const token = await seedToken('MANAGER');
 
     const res = await app.request(

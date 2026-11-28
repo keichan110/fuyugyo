@@ -124,7 +124,7 @@ describe('下書きと公開', () => {
     expect(
       (await save([{ date, instructorIds: [instructorId], description: '非公開の備考' }])).status,
     ).toBe(200);
-    const calendar = await request('shifts/calendar?month=2027-01', manager);
+    const calendar = await request('shifts/assignment-calendar?month=2027-01', manager);
     expect(shiftViewResponseSchema.parse(await calendar.json()).shifts[0]).toMatchObject({
       status: 'DRAFT',
       description: '非公開の備考',
@@ -455,7 +455,7 @@ describe('下書きと公開', () => {
 
 describe('月の公開範囲の置き換え', () => {
   async function windowInput(manager: string, shiftTypeId: string, through: string | null) {
-    const response = await request('shifts/calendar?month=2027-01', manager);
+    const response = await request('shifts/assignment-calendar?month=2027-01', manager);
     const calendar = shiftViewResponseSchema.parse(await response.json());
     const saved = new Map(
       calendar.shifts

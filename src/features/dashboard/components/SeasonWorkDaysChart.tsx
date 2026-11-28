@@ -17,7 +17,7 @@ export function SeasonWorkDaysChart({ monthlyTrend }: { monthlyTrend: SeasonMont
 
   return (
     <Stack gap="md">
-      <Title order={3} size="h4">
+      <Title order={3} size="h5">
         月別・シーズン通算勤務日数
       </Title>
       {hasData ? (

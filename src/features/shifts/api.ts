@@ -136,6 +136,7 @@ const shiftViewOrder = [
   asc(sql`case when ${departmentShiftTypes.sortOrder} is null then 1 else 0 end`),
   asc(departmentShiftTypes.sortOrder),
   asc(shiftTypes.name),
+  asc(shiftTypes.id),
 ];
 
 function chunkArray<T>(items: T[], size: number = MAX_IN_ARRAY_CHUNK_SIZE): T[][] {
@@ -445,6 +446,36 @@ async function loadShiftView(
       })),
     };
   });
+}
+
+/** 公開済みの勤務枠。備考や下書きの管理情報など、閲覧用の通知に含めない項目は持たない。 */
+export type PublishedShift = Pick<
+  ShiftViewItem,
+  'date' | 'department' | 'shiftType' | 'assignedInstructors'
+>;
+
+/**
+ * 指定期間の公開済みで担当者がいる勤務枠を取得する（サーバー専用）。
+ * 閲覧範囲はロールを問わず、Web の MEMBER と同じ。
+ *
+ * @param db - Drizzle の DB クライアント
+ * @param from - 開始日（YYYY-MM-DD、この日を含む）
+ * @param to - 終了日（YYYY-MM-DD、この日を含む）
+ * @returns 日付、部門（スキー、スノーボード）、部門内の種別表示順、種別名・ID の順の勤務枠。
+ * 担当者は資格順・かな順
+ */
+export async function loadPublishedSchedule(
+  db: Database,
+  from: string,
+  to: string,
+): Promise<PublishedShift[]> {
+  const items = await loadShiftView(db, parseShiftDate(from), parseShiftDate(to), 'MEMBER');
+  return items.map(({ date, department, shiftType, assignedInstructors }) => ({
+    date,
+    department,
+    shiftType,
+    assignedInstructors,
+  }));
 }
 
 /**

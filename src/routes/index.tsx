@@ -1,4 +1,4 @@
-import { Container, Stack, Title } from '@mantine/core';
+import { Container, Stack, Title, VisuallyHidden } from '@mantine/core';
 import { createFileRoute, redirect } from '@tanstack/react-router';
 
 import { ensureAuthenticated } from '@/features/auth/auth-guard';
@@ -7,7 +7,6 @@ import { PersonalSchedule } from '@/features/dashboard/components/PersonalSchedu
 import { SeasonStatsSection } from '@/features/dashboard/components/SeasonStatsSection';
 import { TeamSchedule } from '@/features/dashboard/components/TeamSchedule';
 import { NotificationInbox } from '@/features/notifications/components/NotificationInbox';
-import { parseDate, WEEKDAY_LABELS } from '@/features/shifts/view-utils';
 import { scheduleToday } from '@/lib/schedule-date-range';
 
 /**
@@ -30,18 +29,17 @@ export const Route = createFileRoute('/')({
 function DashboardPage() {
   const { data: user } = useMe();
   const instructorId = user?.instructorId;
-  // ホーム全体で学校（日本時間）の当日を基準にする
+  // 全体と個人の予定は、学校（日本時間）の当日を共通の基準にする
   const today = scheduleToday();
-  const todayDate = parseDate(today);
-  const todayLabel = `${todayDate.getUTCMonth() + 1}月${todayDate.getUTCDate()}日（${WEEKDAY_LABELS[todayDate.getUTCDay()]}）`;
 
   return (
     <Container size="sm" py="md">
-      <Stack gap="xl">
-        <Title order={1} size="h2">
-          {todayLabel}
-        </Title>
+      {/* 画面はお知らせから始め、ページ見出しは読み上げ用に残す。Stack の余白を増やさないよう外に置く */}
+      <VisuallyHidden>
+        <Title order={1}>ホーム</Title>
+      </VisuallyHidden>
 
+      <Stack gap="xl">
         <NotificationInbox />
 
         {/* 全出勤者の表示で本人データではないため、未連携でも表示する */}

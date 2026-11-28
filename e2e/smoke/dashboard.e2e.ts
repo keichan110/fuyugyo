@@ -10,10 +10,10 @@ declare global {
 test.describe('ADMIN のダッシュボード', () => {
   test.use({ storageState: authStatePath('admin') });
 
-  test('固定日付の見出し付きでトップが表示される', { tag: '@smoke' }, async ({ page }) => {
+  test('固定日付が選択された状態でトップが表示される', { tag: '@smoke' }, async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByRole('heading', { level: 1, name: '1月15日（木）' })).toBeVisible();
-    await expect(page.getByRole('heading', { level: 2, name: 'このあと' })).toBeVisible();
+    await expect(page.getByRole('button', { name: /^今日 1\/15（木）/, pressed: true })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 2, name: '個人の予定' })).toBeVisible();
   });
 
   test('ビルド済みダッシュボードで CSP 違反が発生しない', async ({ page }) => {
@@ -32,7 +32,7 @@ test.describe('ADMIN のダッシュボード', () => {
     const policy =
       headers?.['content-security-policy'] ?? headers?.['content-security-policy-report-only'];
     expect(policy).toContain("script-src 'self'");
-    await expect(page.getByRole('heading', { level: 2, name: 'このあと' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 2, name: '個人の予定' })).toBeVisible();
     const violations = await page.evaluate(async () => {
       // 描画後のフレームまで待ち、初期表示中にキューに入った違反をブラウザ内で回収する。
       await new Promise<void>((resolve) => {
@@ -52,8 +52,8 @@ test.describe('MEMBER のダッシュボード', () => {
     { tag: '@smoke' },
     async ({ page }) => {
       await page.goto('/');
-      // 「このあと」の次の勤務（1/16 の一般レッスン）に、自分と同僚の名前が並ぶ
-      await expect(page.getByRole('heading', { level: 2, name: 'このあと' })).toBeVisible();
+      // 「個人の予定」の次の勤務（1/16 の一般レッスン）に、自分と同僚の名前が並ぶ
+      await expect(page.getByRole('heading', { level: 2, name: '個人の予定' })).toBeVisible();
       await expect(page.getByText('あと1日', { exact: true })).toBeVisible();
       await expect(
         page.getByText('高橋 一郎 ・ 鈴木 次郎').filter({ visible: true }),
@@ -63,7 +63,7 @@ test.describe('MEMBER のダッシュボード', () => {
 
   test('旧シフト希望リマインダーを表示しない', { tag: '@smoke' }, async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByRole('heading', { level: 2, name: 'このあと' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 2, name: '個人の予定' })).toBeVisible();
     // 表示前に「0件」と判定しないよう、勤務可否などの初期表示の取得が落ち着くまで待つ
     await page.waitForLoadState('networkidle');
     await expect(page.getByText('月分のシフト希望を確認してください')).toHaveCount(0);

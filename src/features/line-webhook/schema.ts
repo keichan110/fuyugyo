@@ -12,7 +12,11 @@ export const lineWebhookBodySchema = z.object({
  * 返信に対応するリッチメニューの操作値（`postback.data`）。完全一致だけを受け付ける。
  * 公開済みのメニューとの契約のため、値は `scripts/line-rich-menu/definitions.ts` と合わせる。
  */
-export const lineReplyActionSchema = z.enum(['action=team-schedule', 'action=my-schedule']);
+export const lineReplyActionSchema = z.enum([
+  'action=team-schedule',
+  'action=my-schedule',
+  'action=announcements',
+]);
 
 /** 返信に対応する操作値 */
 export type LineReplyAction = z.infer<typeof lineReplyActionSchema>;

@@ -122,6 +122,29 @@ export async function listNotifications(
   return toNotificationList(items, totals, options.limit);
 }
 
+/**
+ * 本人の未読通知を新しい順に読み、未読の総数と通知の有無を添える（サーバー専用）。
+ * 未読が0件のときに、通知がないのか既読だけなのかを区別するために使う。
+ *
+ * @param db - Drizzle クライアント
+ * @param userId - 通知の宛先ユーザー ID。認証済みの本人の値を渡す
+ * @param limit - 返す件数の上限
+ * @returns 上限件数までの未読通知、本人の未読総数、既読を含む本人の通知があるか
+ */
+export async function listUnreadNotifications(db: Database, userId: string, limit: number) {
+  const { owned, list, unreadTotal } = buildNotificationListQueries(db, userId, {
+    limit,
+    unreadOnly: true,
+  });
+  // 一覧・未読総数・有無が同じ時点の値になるよう、1つの batch で読む
+  const [items, totals, existing] = await db.batch([
+    list,
+    unreadTotal,
+    db.select({ id: notifications.id }).from(notifications).where(owned).limit(1),
+  ]);
+  return { ...toNotificationList(items, totals, limit), hasAny: existing.length > 0 };
+}
+
 /** 一覧の並び順上の位置を cursor 文字列にする。 */
 function encodeCursor(position: NotificationPosition): string {
   return `${Math.floor(position.createdAt.getTime() / 1000)}_${position.id}`;

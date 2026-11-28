@@ -1,20 +1,33 @@
 import { createExecutionContext, env, waitOnExecutionContext } from 'cloudflare:test';
 import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { z } from 'zod';
 
 import app from '../src/index';
 import { createDb } from '../src/server/db/client';
-import { instructors, users } from '../src/server/db/schema';
+import {
+  certificationRequirements,
+  certifications,
+  departmentShiftTypes,
+  instructorCertifications,
+  instructors,
+  shiftAssignments,
+  shifts,
+  shiftTypes,
+  users,
+} from '../src/server/db/schema';
 
 const SECRET = 'test-messaging-channel-secret';
 const ACCESS_TOKEN = 'test-messaging-access-token';
 const REPLY_ENDPOINT = 'https://api.line.me/v2/bot/message/reply';
+/** 日本時間では 2026-11-28 の 0 時（UTC では前日） */
+const NOW = new Date('2026-11-27T15:00:00.000Z');
+const EMPTY_TEXT = '全体の勤務予定（11/28（土）〜12/4（金））\nこの期間の勤務予定はありません。';
 
 /** 受信側の設定（未指定の項目はテストの既定値、undefined は未設定を表す） */
 type Settings = {
   secret?: string | undefined;
   accessToken?: string | undefined;
-  echoEnabled?: string | undefined;
 };
 
 const { captureException } = vi.hoisted(() => {
@@ -32,13 +45,26 @@ const dbAccess = vi.fn();
 // Sentry が console.error を包み直すため、呼び出しは差し込んだモックで観測する
 const errorLog = vi.fn<typeof console.error>();
 
-beforeEach(() => {
+beforeEach(async () => {
+  const db = createDb(env.DB);
+  await db.delete(shiftAssignments);
+  await db.delete(shifts);
+  await db.delete(certificationRequirements);
+  await db.delete(departmentShiftTypes);
+  await db.delete(instructorCertifications);
+  await db.delete(certifications);
+  await db.delete(users);
+  await db.delete(instructors);
+  await db.delete(shiftTypes);
+  await db.insert(users).values({ lineUserId: 'U-private', displayName: '返信対象' });
+  vi.setSystemTime(NOW);
   fetchMock.mockImplementation(async () => Response.json({}));
   vi.stubGlobal('fetch', fetchMock);
   vi.spyOn(console, 'error').mockImplementation(errorLog);
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
   vi.resetAllMocks();
   vi.unstubAllGlobals();
@@ -64,17 +90,15 @@ async function post(
   signature: string | null,
   settings: Settings = {},
 ) {
-  const { secret, accessToken, echoEnabled } = {
+  const { secret, accessToken } = {
     secret: SECRET,
     accessToken: ACCESS_TOKEN,
-    echoEnabled: 'true',
     ...settings,
   };
   const requestEnv = {
     ...env,
     LINE_MESSAGING_CHANNEL_SECRET: secret,
     LINE_MESSAGING_CHANNEL_ACCESS_TOKEN: accessToken,
-    LINE_MESSAGING_ECHO_ENABLED: echoEnabled,
     get DB() {
       dbAccess();
       return env.DB;
@@ -103,15 +127,15 @@ function deliver(events: unknown[], settings: Settings = {}) {
   return deliverRaw(JSON.stringify({ destination: 'bot', events }), settings);
 }
 
-/** 返信対象となるテキストイベントを作る。 */
-function textEvent(id: string, text = `本文-${id}`) {
+/** 返信対象となる全体の勤務予定の操作イベントを作る。 */
+function scheduleEvent(id: string, userId = 'U-private') {
   return {
-    type: 'message',
+    type: 'postback',
     webhookEventId: id,
     replyToken: `reply-token-${id}`,
     deliveryContext: { isRedelivery: false },
-    source: { type: 'user', userId: 'U-private' },
-    message: { type: 'text', id: `message-${id}`, text },
+    source: { type: 'user', userId },
+    postback: { data: 'action=team-schedule' },
   };
 }
 
@@ -120,15 +144,26 @@ function sentReplies(): unknown[] {
   return fetchMock.mock.calls.map(([, init]) => JSON.parse(String(init?.body)));
 }
 
-/** イベント ID に対応する、期待する返信本文を作る。 */
-function reply(id: string, text = `本文-${id}`) {
-  return { replyToken: `reply-token-${id}`, messages: [{ type: 'text', text }] };
+/** 勤務がない場合の、イベント ID に対応する期待する返信本文を作る。 */
+function reply(id: string) {
+  return { replyToken: `reply-token-${id}`, messages: [{ type: 'text', text: EMPTY_TEXT }] };
+}
+
+/** 返信先の順に依存せず比較するため、Reply token の順に並べる。 */
+function sortedReplies() {
+  return sentReplies()
+    .map((body) => JSON.stringify(body))
+    .sort();
+}
+
+/** `reply` の期待値を `sortedReplies` と同じ形式にする。 */
+function expectedReplies(...ids: string[]) {
+  return ids.map((id) => JSON.stringify(reply(id))).sort();
 }
 
 describe('POST /api/line/webhook の返信', () => {
-  it('個人トークのテキストを元の文字列のまま一回返信し、空本文の 200 を返す', async () => {
-    const text = '  こんにちは\n"LINE" 😀 \\ $  ';
-    const response = await deliver([textEvent('a', text)]);
+  it('勤務予定の操作に一回返信し、空本文の 200 を返す', async () => {
+    const response = await deliver([scheduleEvent('a')]);
 
     expect(response.status).toBe(200);
     expect(await response.text()).toBe('');
@@ -139,13 +174,12 @@ describe('POST /api/line/webhook の返信', () => {
     const headers = new Headers(init?.headers);
     expect(headers.get('authorization')).toBe(`Bearer ${ACCESS_TOKEN}`);
     expect(headers.get('content-type')).toBe('application/json');
-    expect(sentReplies()).toEqual([reply('a', text)]);
-    expect(dbAccess).not.toHaveBeenCalled();
+    expect(sentReplies()).toEqual([reply('a')]);
     expect(errorLog).not.toHaveBeenCalled();
   });
 
   it('署名は整形を含む受信バイト列そのものに対して検証する', async () => {
-    const body = `{\n  "events": [ ${JSON.stringify(textEvent('a'))} ]\n}\n`;
+    const body = `{\n  "events": [ ${JSON.stringify(scheduleEvent('a'))} ]\n}\n`;
     const response = await deliverRaw(body);
 
     expect(response.status).toBe(200);
@@ -160,39 +194,60 @@ describe('POST /api/line/webhook の返信', () => {
           finish = resolve;
         }),
     );
-    const body = JSON.stringify({ events: [textEvent('a')] });
+    const body = JSON.stringify({ events: [scheduleEvent('a')] });
     const { response, ctx } = await post(body, await sign(body));
 
     expect(response.status).toBe(200);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
     finish(Response.json({}));
     await waitOnExecutionContext(ctx);
   });
 
-  it('複数イベントは対象だけに返信し、同じリクエスト内の重複は一回に抑える', async () => {
+  it('複数イベントは対象だけにそれぞれ返信する', async () => {
     const response = await deliver([
-      textEvent('a'),
-      { ...textEvent('group'), source: { type: 'group', groupId: 'G' } },
-      textEvent('a'),
-      textEvent('b'),
+      scheduleEvent('a'),
+      { ...scheduleEvent('group'), source: { type: 'group', groupId: 'G', userId: 'U-private' } },
+      scheduleEvent('b'),
     ]);
 
     expect(response.status).toBe(200);
-    expect(sentReplies()).toEqual([reply('a'), reply('b')]);
+    expect(sortedReplies()).toEqual(expectedReplies('a', 'b'));
   });
 
-  const base = textEvent('x');
+  it('同じリクエスト内でイベント ID か Reply token が重複するイベントは一回に抑える', async () => {
+    await deliver([
+      scheduleEvent('a'),
+      scheduleEvent('a'),
+      { ...scheduleEvent('a'), replyToken: 'reply-token-same-event' },
+      { ...scheduleEvent('a'), webhookEventId: 'same-token' },
+      scheduleEvent('b'),
+    ]);
+
+    expect(sortedReplies()).toEqual(expectedReplies('a', 'b'));
+  });
+
+  const base = scheduleEvent('x');
   it.each<[string, unknown]>([
     ['null', null],
-    ['文字列', 'message'],
-    ['message 以外', { ...base, type: 'follow' }],
-    ['グループ', { ...base, source: { type: 'group', groupId: 'G', userId: 'U' } }],
-    ['複数人トーク', { ...base, source: { type: 'room', roomId: 'R', userId: 'U' } }],
+    ['文字列', 'postback'],
+    [
+      'テキスト',
+      { ...base, type: 'message', message: { type: 'text', text: 'action=team-schedule' } },
+    ],
+    ['画像', { ...base, type: 'message', message: { type: 'image', id: '1' } }],
+    ['スタンプ', { ...base, type: 'message', message: { type: 'sticker', id: '1' } }],
+    ['後続の個人勤務予定', { ...base, postback: { data: 'action=my-schedule' } }],
+    ['後続のお知らせ', { ...base, postback: { data: 'action=announcements' } }],
+    ['未知の操作', { ...base, postback: { data: 'action=unknown' } }],
+    ['追加の値がある操作', { ...base, postback: { data: 'action=team-schedule&page=1' } }],
+    ['空白を含む操作', { ...base, postback: { data: ' action=team-schedule' } }],
+    ['空の操作', { ...base, postback: { data: '' } }],
+    ['postback なし', { ...base, postback: undefined }],
+    ['グループ', { ...base, source: { type: 'group', groupId: 'G', userId: 'U-private' } }],
+    ['複数人トーク', { ...base, source: { type: 'room', roomId: 'R', userId: 'U-private' } }],
     ['source なし', { ...base, source: undefined }],
-    ['テキスト以外', { ...base, message: { type: 'sticker', id: '1' } }],
-    ['空の本文', { ...base, message: { type: 'text', text: '' } }],
-    ['本文なし', { ...base, message: { type: 'text' } }],
-    ['message なし', { ...base, message: undefined }],
+    ['userId なし', { ...base, source: { type: 'user' } }],
+    ['空の userId', { ...base, source: { type: 'user', userId: '' } }],
     ['replyToken なし', { ...base, replyToken: undefined }],
     ['空の replyToken', { ...base, replyToken: '' }],
     ['webhookEventId なし', { ...base, webhookEventId: undefined }],
@@ -200,11 +255,12 @@ describe('POST /api/line/webhook の返信', () => {
     ['deliveryContext なし', { ...base, deliveryContext: undefined }],
     ['isRedelivery なし', { ...base, deliveryContext: {} }],
     ['再配信', { ...base, deliveryContext: { isRedelivery: true } }],
-  ])('%s のイベントは読み飛ばす', async (_label, event) => {
+  ])('%s のイベントは D1 を参照せず読み飛ばす', async (_label, event) => {
     const response = await deliver([event], { accessToken: undefined });
 
     expect(response.status).toBe(200);
     expect(await response.text()).toBe('');
+    expect(dbAccess).not.toHaveBeenCalled();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -216,30 +272,76 @@ describe('POST /api/line/webhook の返信', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it.each([undefined, '', 'false', 'TRUE', '1'])(
-    'フラグが %j の場合は返信せず 200 を返す',
-    async (echoEnabled) => {
-      const response = await deliver([textEvent('a')], { echoEnabled, accessToken: undefined });
-
-      expect(response.status).toBe(200);
-      expect(await response.text()).toBe('');
-      expect(fetchMock).not.toHaveBeenCalled();
-    },
-  );
-
   it.each([undefined, ''])(
     '返信対象があるのにアクセストークンが %j の場合は 503 を返す',
     async (accessToken) => {
-      const response = await deliver([textEvent('a')], { accessToken });
+      const response = await deliver([scheduleEvent('a')], { accessToken });
 
       expect(response.status).toBe(503);
+      expect(dbAccess).not.toHaveBeenCalled();
       expect(fetchMock).not.toHaveBeenCalled();
     },
   );
 });
 
+describe('返信先の認可', () => {
+  it.each<[string, Partial<typeof users.$inferInsert> | null]>([
+    ['未登録', null],
+    ['無効', { isActive: false }],
+    ['無効な管理者', { isActive: false, role: 'ADMIN' }],
+    ['未知のロール', { role: 'OWNER' }],
+    ['小文字のロール', { role: 'member' }],
+  ])('%sのユーザーには勤務を取得せず返信しない', async (_label, values) => {
+    if (values) {
+      await createDb(env.DB)
+        .insert(users)
+        .values({ lineUserId: 'U-target', displayName: '対象', ...values });
+    }
+    const prepare = vi.spyOn(env.DB, 'prepare');
+
+    const response = await deliver([scheduleEvent('a', 'U-target')]);
+
+    expect(response.status).toBe(200);
+    // ユーザーの照合だけで終了し、勤務は問い合わせない
+    expect(prepare).toHaveBeenCalledTimes(1);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(errorLog).not.toHaveBeenCalled();
+  });
+
+  it.each(['MEMBER', 'MANAGER', 'ADMIN'])('有効な %s には返信する', async (role) => {
+    await createDb(env.DB)
+      .insert(users)
+      .values({ lineUserId: 'U-target', displayName: '対象', role });
+
+    await deliver([scheduleEvent('a', 'U-target')]);
+
+    expect(sentReplies()).toEqual([reply('a')]);
+  });
+
+  it('許可されていないイベントがあっても、別のイベントには返信する', async () => {
+    await deliver([scheduleEvent('unknown', 'U-unknown'), scheduleEvent('a')]);
+
+    expect(sentReplies()).toEqual([reply('a')]);
+  });
+
+  it('D1 の失敗は返信せず、元の例外を含めずに記録する', async () => {
+    vi.spyOn(env.DB, 'prepare').mockImplementationOnce(() => {
+      throw new Error('private-d1-error U-private');
+    });
+
+    const response = await deliver([scheduleEvent('a')]);
+
+    expect(response.status).toBe(200);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(errorLog.mock.calls).toEqual([
+      ['[line-webhook] reply failed', { kind: 'processing_error' }],
+    ]);
+    expect(captureException).not.toHaveBeenCalled();
+  });
+});
+
 describe('POST /api/line/webhook の認証と本文検証', () => {
-  const body = JSON.stringify({ events: [textEvent('a')] });
+  const body = JSON.stringify({ events: [scheduleEvent('a')] });
 
   it.each<[string, () => Promise<{ body: string; signature: string | null }>]>([
     ['署名ヘッダーなし', async () => ({ body, signature: null })],
@@ -316,10 +418,10 @@ describe('Reply API の失敗', () => {
     ],
   ])('%s は再試行せず固定の内容だけを記録し、別のイベントを処理する', async (_label, fail, log) => {
     fetchMock.mockImplementationOnce(fail);
-    const response = await deliver([textEvent('a'), textEvent('b')]);
+    const response = await deliver([scheduleEvent('a'), scheduleEvent('b')]);
 
     expect(response.status).toBe(200);
-    expect(sentReplies()).toEqual([reply('a'), reply('b')]);
+    expect(sortedReplies()).toEqual(expectedReplies('a', 'b'));
     expect(errorLog.mock.calls).toEqual([['[line-webhook] reply failed', log]]);
   });
 
@@ -334,10 +436,11 @@ describe('Reply API の失敗', () => {
           init?.signal?.addEventListener('abort', () => reject(new Error('private-abort-error')));
         }),
     );
-    const body = JSON.stringify({ events: [textEvent('a'), textEvent('b')] });
+    const body = JSON.stringify({ events: [scheduleEvent('a'), scheduleEvent('b')] });
     const { response, ctx } = await post(body, await sign(body));
 
     expect(response.status).toBe(200);
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
     expect(timeout.mock.calls).toEqual([[5000], [5000]]);
     expect(fetchMock.mock.calls.map(([, init]) => init?.signal)).toEqual(
       controllers.map((controller) => controller.signal),
@@ -356,9 +459,7 @@ describe('友だち追加でのリッチメニュー割り当て', () => {
     `https://api.line.me/v2/bot/user/${userId}/richmenu/${MENU_ID}`;
 
   beforeEach(async () => {
-    const db = createDb(env.DB);
-    await db.delete(users);
-    await db.delete(instructors);
+    await createDb(env.DB).delete(users);
     fetchMock.mockImplementation(async (input) =>
       Response.json(String(input) === ALIAS_URL ? { richMenuId: MENU_ID } : {}),
     );
@@ -391,23 +492,16 @@ describe('友だち追加でのリッチメニュー割り当て', () => {
     return fetchMock.mock.calls.map(([url, init]) => `${init?.method} ${String(url)}`);
   }
 
-  it.each([
-    [undefined, false],
-    ['false', true],
-    ['true', false],
-  ])(
-    'エコー設定 %j・再配信 %s でも割り当て、トークには返信しない',
-    async (echoEnabled, isRedelivery) => {
-      await seedUser('U-linked');
+  it.each([false, true])('再配信 %s でも割り当て、トークには返信しない', async (isRedelivery) => {
+    await seedUser('U-linked');
 
-      const response = await deliver([followEvent('U-linked', isRedelivery)], { echoEnabled });
+    const response = await deliver([followEvent('U-linked', isRedelivery)]);
 
-      expect(response.status).toBe(200);
-      expect(await response.text()).toBe('');
-      expect(sentRequests()).toEqual([`GET ${ALIAS_URL}`, `POST ${assignUrl('U-linked')}`]);
-      expect(captureException).not.toHaveBeenCalled();
-    },
-  );
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe('');
+    expect(sentRequests()).toEqual([`GET ${ALIAS_URL}`, `POST ${assignUrl('U-linked')}`]);
+    expect(captureException).not.toHaveBeenCalled();
+  });
 
   it('同じ配送内の重複はユーザーごとに一回にし、再度の配送にも同じメニューを割り当てる', async () => {
     await seedUser('U-a');
@@ -427,10 +521,10 @@ describe('友だち追加でのリッチメニュー割り当て', () => {
     expect(sentRequests()).toEqual([`GET ${ALIAS_URL}`, `POST ${assignUrl('U-a')}`]);
   });
 
-  it('同じ配送のテキストは従来どおり返信する', async () => {
+  it('同じ配送の勤務予定の操作にも返信する', async () => {
     await seedUser('U-linked');
 
-    await deliver([followEvent('U-linked'), textEvent('a')]);
+    await deliver([followEvent('U-linked'), scheduleEvent('a', 'U-linked')]);
 
     expect(sentRequests().sort()).toEqual([
       `GET ${ALIAS_URL}`,
@@ -545,5 +639,222 @@ describe('友だち追加でのリッチメニュー割り当て', () => {
       .from(users)
       .where(eq(users.lineUserId, 'U-private'));
     expect(user?.instructorId).not.toBeNull();
+  });
+});
+
+describe('全体の勤務予定の内容', () => {
+  /** 本人を含むインストラクター、勤務種別、期間内外の勤務を作成する。 */
+  async function seedSchedule() {
+    const db = createDb(env.DB);
+    await db.insert(instructors).values([
+      {
+        id: 'i-self',
+        lastName: '本人',
+        firstName: '花子',
+        lastNameKana: 'ん',
+        firstNameKana: 'ん',
+      },
+      {
+        id: 'i-a',
+        lastName: '青木',
+        firstName: '一',
+        lastNameKana: 'あおき',
+        firstNameKana: 'はじめ',
+      },
+      {
+        id: 'i-w',
+        lastName: '渡辺',
+        firstName: '二',
+        lastNameKana: 'わたなべ',
+        firstNameKana: 'じ',
+      },
+    ]);
+    // 資格順はかな順より優先する
+    await db.insert(certifications).values({
+      id: 'cert',
+      departmentCode: 'ski',
+      name: '指導員',
+      shortName: '指',
+      organization: '連盟',
+    });
+    await db
+      .insert(instructorCertifications)
+      .values({ instructorId: 'i-w', certificationId: 'cert' });
+    await db.insert(shiftTypes).values([
+      { id: 't-general', name: '一般レッスン' },
+      { id: 't-group', name: '団体レッスン' },
+      { id: 't-unlisted-b', name: '同名の種別' },
+      { id: 't-unlisted-a', name: '同名の種別' },
+    ]);
+    await db.insert(departmentShiftTypes).values([
+      { id: 'f-ski-general', departmentCode: 'ski', shiftTypeId: 't-general', sortOrder: 2 },
+      { departmentCode: 'ski', shiftTypeId: 't-group', sortOrder: 1 },
+      { departmentCode: 'snowboard', shiftTypeId: 't-general', sortOrder: 1 },
+    ]);
+    await db
+      .insert(certificationRequirements)
+      .values({ departmentShiftTypeId: 'f-ski-general', certificationId: 'cert', tierRank: 1 });
+
+    async function seedShift(
+      date: string,
+      departmentCode: string,
+      shiftTypeId: string,
+      instructorIds: string[],
+      status: 'DRAFT' | 'PUBLISHED' = 'PUBLISHED',
+    ) {
+      const id = crypto.randomUUID();
+      await db.insert(shifts).values({
+        id,
+        date: new Date(`${date}T00:00:00.000Z`),
+        departmentCode,
+        shiftTypeId,
+        status,
+        description: 'private-description',
+      });
+      for (const instructorId of instructorIds) {
+        await db.insert(shiftAssignments).values({ shiftId: id, instructorId });
+      }
+    }
+
+    // 期間の前後
+    await seedShift('2026-11-26', 'ski', 't-general', ['i-a']);
+    await seedShift('2026-12-05', 'ski', 't-general', ['i-a']);
+    // 期間の初日（登録順は表示順と逆にする）
+    await seedShift('2026-11-28', 'snowboard', 't-general', ['i-a']);
+    await seedShift('2026-11-28', 'ski', 't-unlisted-b', ['i-a']);
+    await seedShift('2026-11-28', 'ski', 't-unlisted-a', ['i-w']);
+    await seedShift('2026-11-28', 'ski', 't-general', ['i-self', 'i-a', 'i-w']);
+    await seedShift('2026-11-28', 'ski', 't-group', ['i-a']);
+    // 公開していない枠と担当者のいない枠
+    await seedShift('2026-11-29', 'ski', 't-general', ['i-self'], 'DRAFT');
+    await seedShift('2026-11-29', 'ski', 't-group', []);
+    // 月またぎと期間の末日
+    await seedShift('2026-12-01', 'ski', 't-group', ['i-a']);
+    await seedShift('2026-12-04', 'snowboard', 't-general', ['i-self']);
+    await seedShift('2026-11-27', 'ski', 't-group', ['i-w']);
+  }
+
+  const replySchema = z.object({
+    messages: z.tuple([
+      z.object({
+        type: z.literal('flex'),
+        altText: z.string(),
+        contents: z.object({ type: z.literal('carousel'), contents: z.array(z.unknown()) }),
+      }),
+    ]),
+  });
+  const textSchema = z.object({
+    type: z.literal('text'),
+    text: z.string().optional(),
+    contents: z.array(z.object({ text: z.string(), weight: z.string().optional() })).optional(),
+  });
+  const boxSchema = z.object({ type: z.literal('box'), contents: z.array(z.unknown()) });
+  const bubbleSchema = z.object({
+    header: z.object({ contents: z.tuple([textSchema, textSchema]) }),
+    body: boxSchema,
+  });
+
+  /** 勤務枠を「部門 / 種別 / 担当者」に要約する。太字の部分は `*` で囲む。 */
+  function summarizeSlot(component: unknown): string {
+    const [title, members] = boxSchema.parse(component).contents;
+    const [department, shiftType] = boxSchema.parse(title).contents;
+    const label = textSchema.parse(boxSchema.parse(department).contents[0]).text;
+    const { text, contents } = textSchema.parse(members);
+    const names =
+      text ??
+      contents?.map((span) => (span.weight === 'bold' ? `*${span.text}*` : span.text)).join('');
+    return `${label} / ${textSchema.parse(shiftType).text} / ${names}`;
+  }
+
+  /** 返信されたカードを、日付と本文の要約にする。 */
+  async function deliverSchedule(userId: string) {
+    await deliver([scheduleEvent('a', userId)]);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [message] = replySchema.parse(sentReplies()[0]).messages;
+    const days = message.contents.contents.map((bubble) => {
+      const { header, body } = bubbleSchema.parse(bubble);
+      const lines = body.contents.flatMap((component) => {
+        const text = textSchema.safeParse(component);
+        if (text.success) return [text.data.text];
+        return boxSchema.safeParse(component).success ? [summarizeSlot(component)] : [];
+      });
+      return [header.contents[1].text, ...lines];
+    });
+    return { altText: message.altText, days };
+  }
+
+  const EMPTY_DAY = 'この日の勤務予定はありません。';
+
+  it('日本時間の当日から7日間の公開済み勤務を日付と表示順に返し、本人だけを太字にする', async () => {
+    await seedSchedule();
+    await createDb(env.DB)
+      .insert(users)
+      .values({ lineUserId: 'U-self', displayName: '本人', instructorId: 'i-self' });
+
+    const { altText, days } = await deliverSchedule('U-self');
+
+    expect(altText).toBe('全体の勤務予定（11/28（土）〜12/4（金））勤務予定のある日：3日');
+    expect(days).toEqual([
+      [
+        '11/28（土）',
+        'スキー / 団体レッスン / 青木 一',
+        'スキー / 一般レッスン / 渡辺 二、青木 一、*本人 花子*',
+        'スキー / 同名の種別 / 渡辺 二',
+        'スキー / 同名の種別 / 青木 一',
+        'スノーボード / 一般レッスン / 青木 一',
+      ],
+      ['11/29（日）', EMPTY_DAY],
+      ['11/30（月）', EMPTY_DAY],
+      ['12/1（火）', 'スキー / 団体レッスン / 青木 一'],
+      ['12/2（水）', EMPTY_DAY],
+      ['12/3（木）', EMPTY_DAY],
+      ['12/4（金）', 'スノーボード / 一般レッスン / *本人 花子*'],
+    ]);
+    const sent = JSON.stringify(sentReplies());
+    expect(sent).not.toContain('private-description');
+    expect(sent).not.toContain('http');
+  });
+
+  it('日本時間の日付が変わる直前は、前日からの7日間を返す', async () => {
+    await seedSchedule();
+    vi.setSystemTime(new Date(NOW.getTime() - 1));
+
+    const { days } = await deliverSchedule('U-private');
+
+    expect(days.map(([date]) => date)).toEqual([
+      '11/27（金）',
+      '11/28（土）',
+      '11/29（日）',
+      '11/30（月）',
+      '12/1（火）',
+      '12/2（水）',
+      '12/3（木）',
+    ]);
+    expect(days[0]).toEqual(['11/27（金）', 'スキー / 団体レッスン / 渡辺 二']);
+  });
+
+  it.each(['MEMBER', 'MANAGER', 'ADMIN'])(
+    '%s にも公開済みで担当者のいる枠だけを返し、未紐付けなら強調しない',
+    async (role) => {
+      await seedSchedule();
+      await createDb(env.DB)
+        .insert(users)
+        .values({ lineUserId: 'U-target', displayName: '対象', role });
+
+      const { days } = await deliverSchedule('U-target');
+
+      expect(days[1]).toEqual(['11/29（日）', EMPTY_DAY]);
+      expect(days[6]).toEqual(['12/4（金）', 'スノーボード / 一般レッスン / 本人 花子']);
+      expect(JSON.stringify(sentReplies())).not.toContain('"span"');
+    },
+  );
+
+  it('期間内が下書きと担当者のいない枠だけの場合はテキストを返す', async () => {
+    await seedSchedule();
+    await createDb(env.DB).update(shifts).set({ status: 'DRAFT' });
+
+    await deliver([scheduleEvent('a')]);
+
+    expect(sentReplies()).toEqual([reply('a')]);
   });
 });

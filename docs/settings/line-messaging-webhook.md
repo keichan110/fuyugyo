@@ -1,6 +1,6 @@
 # LINE Messaging API の Webhook
 
-`POST /api/line/webhook` で Webhook を受信する。友だち追加では[個別リッチメニュー](line-rich-menu.md#アプリによる個別割り当て)を割り当て、リッチメニューの「全体の勤務予定」には個人トークで返信する。ここでは動作と、検証用の LINE 公式アカウントと検証用の HTTPS Worker で確認する手順を示す。デプロイと秘密情報の登録は担当者が手作業で行う。
+`POST /api/line/webhook` で Webhook を受信する。友だち追加では[個別リッチメニュー](line-rich-menu.md#アプリによる個別割り当て)を割り当て、リッチメニューの「全体の勤務予定」と「直近の勤務予定」には個人トークで返信する。ここでは動作と、検証用の LINE 公式アカウントと検証用の HTTPS Worker で確認する手順を示す。デプロイと秘密情報の登録は担当者が手作業で行う。
 
 ## 動作
 
@@ -25,21 +25,33 @@
 | メニュー | `postback.data`        | 返信                              |
 | -------- | ---------------------- | --------------------------------- |
 | 左       | `action=team-schedule` | 全体の勤務予定（今日を含む7日間） |
-| 中央     | `action=my-schedule`   | 未対応（返信しない）              |
+| 中央     | `action=my-schedule`   | 直近の勤務予定（本人の勤務日）    |
 | 右       | `action=announcements` | 未対応（返信しない）              |
 
 通常のメッセージ（テキスト・画像・スタンプ等）、未知の操作値、グループ・複数人トーク、再配信には返信しない。
 
 ### 返信を受け取れるユーザー
 
-署名を検証したイベントの `source.userId` をユーザーの LINE ユーザー ID と照合し、有効な MEMBER・MANAGER・ADMIN にだけ返信する。未登録・無効・未知のロールには、勤務を取得せず返信もしない。インストラクターに未紐付けでも返信する。
+署名を検証したイベントの `source.userId` をユーザーの LINE ユーザー ID と照合し、有効な MEMBER・MANAGER・ADMIN にだけ返信する。未登録・無効・未知のロールには、勤務を取得せず返信もしない。インストラクターに未紐付けでも返信する（直近の勤務予定は、勤務を取得せず紐付けがないことを知らせる）。
 
 ### 返信の内容
 
-- 日本時間の今日を含む7日間の、公開済みで担当者がいる勤務枠。範囲はロールを問わず Web の MEMBER と同じ。備考・連絡先・Web へのリンクは含めない。
-- 1日1枚のカードを日付順に7枚送る。勤務がない日のカードには「この日の勤務予定はありません。」と表示する。7日間すべてに勤務がなければ、テキスト1件で知らせる。
+#### 共通
+
+- 対象は公開済みで担当者がいる勤務枠。範囲はロールを問わず Web の MEMBER と同じ。備考・連絡先・Web へのリンクは含めない。
+- 1日1枚のカードを日付順に送る。カードの小ラベルは返信の種類を示し、トーク一覧の代替テキストには返信の種類・期間・勤務予定のある日数を表示する。
 - 勤務枠は、スキー・スノーボードの順、部門内の種別表示順、種別名の順。担当者は資格順・かな順で、本人の名前だけを太字にする。
 - カード1枚の JSON は UTF-8 で 7,000 バイト以内（LINE のカルーセルの上限 50 KB に収める）。入りきらない場合は、表示順に「ほかN名」「ほかN勤務枠」で省略する。本人が省略される側にいる場合は表示されない。極端に長い名称は「…」で短縮する。
+
+#### 全体の勤務予定
+
+- 日本時間の今日を含む7日間の勤務枠を、7枚のカードにする。勤務がない日のカードには「この日の勤務予定はありません。」と表示する。7日間すべてに勤務がなければ、テキスト1件で知らせる。
+
+#### 直近の勤務予定
+
+- 日本時間の今日以降で本人が担当する公開済みの勤務枠を、日付と表示順に3枠まで選び、その日付だけをカードにする（最大3枚）。同じ日に複数の枠があれば3枚より少なくなる。今日の枠は終了時刻を過ぎていても含み、未来側の期限はない。
+- 選んだ日のカードには、他の担当者だけの枠を含むその日のすべての勤務枠を表示する（上記のサイズ上限は適用する）。
+- 対象の勤務がなければ「今後の勤務予定はありません」、インストラクターに未紐付けなら「インストラクター情報が紐付いていないため、勤務予定を確認できません。」のテキスト1件を返す。
 
 ### 返信の失敗と重複
 
@@ -102,7 +114,7 @@ curl -i -X POST https://api.line.me/v2/bot/message/validate/reply \
   --data @line-message-sample.json
 ```
 
-`line-message-sample.json` の `messages[0].contents` を [Flex Message Simulator](https://developers.line.biz/flex-simulator/) に貼り付け、日付の見出し、部門ラベルの配色、区切り線、本人の太字を確認する。長い名前や多人数の表示は、サンプルの値を変えて確認する。確認後は 2 つの一時ファイルを削除する。
+`line-message-sample.json` の `messages[0].contents` を [Flex Message Simulator](https://developers.line.biz/flex-simulator/) に貼り付け、小ラベル、日付の見出し、部門ラベルの配色、区切り線、本人の太字を確認する。直近の勤務予定は `label` を `直近の勤務予定`、`dates` を本人の勤務がある日だけにする。長い名前や多人数の表示は、サンプルの値を変えて確認する。確認後は 2 つの一時ファイルを削除する。
 
 ## 2. 検証用 Worker を用意する
 
@@ -159,12 +171,14 @@ INSERT INTO department_shift_types (id, department_code, shift_type_id, sort_ord
 INSERT INTO shifts (id, date, department_code, shift_type_id, status) VALUES
   ('verify-today', unixepoch(date('now', '+9 hours')), 'ski', 'verify-type', 'PUBLISHED'),
   ('verify-last', unixepoch(date('now', '+9 hours', '+6 days')), 'snowboard', 'verify-type', 'PUBLISHED'),
-  ('verify-draft', unixepoch(date('now', '+9 hours', '+1 day')), 'ski', 'verify-type', 'DRAFT');
+  ('verify-draft', unixepoch(date('now', '+9 hours', '+1 day')), 'ski', 'verify-type', 'DRAFT'),
+  ('verify-next', unixepoch(date('now', '+9 hours', '+10 days')), 'ski', 'verify-type', 'PUBLISHED');
 INSERT INTO shift_assignments (id, shift_id, instructor_id) VALUES
   ('verify-a1', 'verify-today', 'verify-self'),
   ('verify-a2', 'verify-today', 'verify-other'),
   ('verify-a3', 'verify-last', 'verify-other'),
-  ('verify-a4', 'verify-draft', 'verify-self');
+  ('verify-a4', 'verify-draft', 'verify-self'),
+  ('verify-a5', 'verify-next', 'verify-self');
 ```
 
 ```bash
@@ -186,15 +200,24 @@ pnpm exec wrangler d1 execute fuyugyo-line-verify --remote --file line-verify-se
 1. リッチメニュー下段の左を押す。トークに発言が表示されず、7枚のカードが 1 回だけ届くことを確認する。
 2. 今日のカードで本人の名前だけが太字になり、下書きの日は勤務予定なし、6日後はスノーボードの勤務が表示されることを確認する。
 3. 長い名前が折り返されること、カードを横にスワイプできること、トーク一覧に返信の種類と期間が表示されることを確認する。
-4. 下段の中央・右、テキスト、スタンプを送り、返信がないことを確認する。
-5. 勤務がない状態を確認する。次のコマンドで下書きに戻して左を押し、テキストが 1 件届くことを確認する。
+4. リッチメニュー下段の中央を押す。トークに送信テキストが表示されず、小ラベルが「直近の勤務予定」のカードが 1 回だけ届くことを確認する。
+5. カードは今日と10日後の日付の2枚で、下書きの日と本人の勤務がない6日後は含まれないことを確認する。今日のカードには同僚も表示され、本人の名前だけが太字になること、トーク一覧に返信の種類・期間・勤務予定のある日数が表示されることを確認する。
+6. 下段の右、テキスト、スタンプを送り、返信がないことを確認する。上段のタップでは、引き続き LIFF が開くことを確認する。
+7. 勤務がない状態を確認する。次のコマンドで下書きに戻して左と中央を押し、それぞれテキストが 1 件届くことを確認する。
 
    ```bash
    pnpm exec wrangler d1 execute fuyugyo-line-verify --remote --config wrangler.line-verify.toml \
      --command "UPDATE shifts SET status = 'DRAFT'"
    ```
 
-6. 返信がない場合は次のコマンドでログを確認してから、もう一度操作する。
+8. 未紐付けの状態を確認する。次のコマンドで紐付けを外して中央を押し、紐付けがないことを知らせるテキストが届くことを確認する（SQL での変更ではリッチメニューは切り替わらない）。
+
+   ```bash
+   pnpm exec wrangler d1 execute fuyugyo-line-verify --remote --config wrangler.line-verify.toml \
+     --command "UPDATE users SET instructor_id = NULL WHERE id = 'verify-user'"
+   ```
+
+9. 返信がない場合は次のコマンドでログを確認してから、もう一度操作する。
 
    ```bash
    pnpm exec wrangler tail --config wrangler.line-verify.toml

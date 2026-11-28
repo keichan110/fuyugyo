@@ -11,6 +11,8 @@ GitHub Actions の手動ワークフロー `Publish LINE Rich Menu` で、デフ
 
 下段の postback の `data` は左から `action=team-schedule`・`action=my-schedule`・`action=announcements`。Webhook の受信側との契約のため、変更する場合は受信側も合わせる。連携済み用をユーザーへ個別に割り当てる処理はこのワークフローに含まず、[アプリが行う](#アプリによる個別割り当て)。
 
+下段の左（全体の勤務予定）と中央（直近の勤務予定）には [Webhook](line-messaging-webhook.md#返信の内容) が返信する。右は未対応で返信しない。
+
 タップ領域・画像・LIFF URL を変えると別の版になる。版は定義と画像のハッシュを含む管理名 `fuyugyo-richmenu:<用途>:<SHA-256>` で識別する。この形式に完全一致しないメニューは変更も削除もしない。画像は JPEG、1 MB 以下で、定義の `size` と同じ寸法にする。
 
 ## 事前準備
@@ -139,7 +141,7 @@ curl -X DELETE -H "Authorization: Bearer $LINE_TOKEN" https://api.line.me/v2/bot
    ```
 
 4. 上段のタップで LIFF が開くことを確認する。
-5. 下段の左・中央・右をタップし、トークに発言が表示されないことを確認する。Webhook の受信ログを確認できる場合は、`postback.data` が左から `action=team-schedule`・`action=my-schedule`・`action=announcements` であることを確認する。
+5. 下段の左・中央・右をタップし、トークに発言が表示されないことを確認する。Webhook の受信ログを確認できる場合は、`postback.data` が左から `action=team-schedule`・`action=my-schedule`・`action=announcements` であることを確認する。Webhook を設定した公式アカウントでは、中央のタップで送信テキストが表示されないまま直近の勤務予定が返信されることも、[個人トークでの実機確認](line-messaging-webhook.md#4-個人トークで実機確認する)の手順で確認する。
 6. 各領域の境界付近をタップし、意図した操作になることを確認する。
 7. 割り当てを解除し、デフォルト用に戻ることを確認する。
 

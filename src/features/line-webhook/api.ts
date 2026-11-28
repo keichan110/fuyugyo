@@ -6,18 +6,29 @@
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 
+import { createDb, type Database } from '@/server/db/client';
+import type { LineMessage } from '@/server/line/message';
+import { sendLineReply } from '@/server/line/reply';
+import { findLineReplyUser, type LineReplyUser } from '@/server/line/reply-user';
 import { assignInstructorRichMenu } from '@/server/line/rich-menu';
 import type { Env } from '@/server/types';
 
 import {
-  lineEchoEventSchema,
   lineFollowEventSchema,
+  lineReplyEventSchema,
   lineWebhookBodySchema,
-  type LineEchoEvent,
+  type LineReplyAction,
+  type LineReplyEvent,
 } from './schema';
+import { buildTeamScheduleMessage } from './team-schedule/api';
 
-const REPLY_ENDPOINT = 'https://api.line.me/v2/bot/message/reply';
-const REPLY_TIMEOUT_MS = 5000;
+/** 操作値ごとの返信内容の組み立て。操作値を追加すると、ここの定義漏れが型エラーになる */
+const REPLY_BUILDERS: Record<
+  LineReplyAction,
+  (db: Database, user: LineReplyUser) => Promise<LineMessage>
+> = {
+  'action=team-schedule': buildTeamScheduleMessage,
+};
 
 /**
  * 受信したバイト列に対する署名（HMAC-SHA256 の Base64 表現）を検証する。
@@ -59,14 +70,23 @@ function parseEvents(body: ArrayBuffer): unknown[] {
   return parsed.data.events;
 }
 
-/** 返信対象のイベントを、同一リクエスト内の `webhookEventId` の重複を除いて抽出する。 */
-function selectEchoEvents(events: unknown[]): LineEchoEvent[] {
-  const targets = new Map<string, LineEchoEvent>();
+/**
+ * 返信対象のイベントを抽出する。
+ * 同一リクエスト内で `webhookEventId` か Reply token が重複するイベントは、最初の1件だけを残す。
+ */
+function selectReplyEvents(events: unknown[]): LineReplyEvent[] {
+  const eventIds = new Set<string>();
+  const replyTokens = new Set<string>();
+  const targets: LineReplyEvent[] = [];
   for (const event of events) {
-    const parsed = lineEchoEventSchema.safeParse(event);
-    if (parsed.success) targets.set(parsed.data.webhookEventId, parsed.data);
+    const parsed = lineReplyEventSchema.safeParse(event);
+    if (!parsed.success) continue;
+    const { webhookEventId, replyToken } = parsed.data;
+    if (!eventIds.has(webhookEventId) && !replyTokens.has(replyToken)) targets.push(parsed.data);
+    eventIds.add(webhookEventId);
+    replyTokens.add(replyToken);
   }
-  return [...targets.values()];
+  return targets;
 }
 
 /** 友だち追加したユーザーの ID を、同一リクエスト内の重複を除いて抽出する。 */
@@ -80,43 +100,25 @@ function selectFollowerIds(events: unknown[]): string[] {
 }
 
 /**
- * 受信したテキストをそのまま返信する。失敗しても例外は投げず、再試行もしない。
- * ログには秘密情報や本文が混入しないよう、固定の失敗種別と HTTP ステータスだけを残す。
+ * 送信者を認可してから返信内容を組み立てて返信する。許可されていないユーザーには返信しない。
+ * 例外は D1 のクエリ引数（LINE ユーザー ID）を含み得るため、固定の失敗種別だけを記録する。
  */
-async function sendReply(accessToken: string, event: LineEchoEvent): Promise<void> {
-  const signal = AbortSignal.timeout(REPLY_TIMEOUT_MS);
+async function respond(env: Env, accessToken: string, event: LineReplyEvent): Promise<void> {
   try {
-    const response = await fetch(REPLY_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        replyToken: event.replyToken,
-        messages: [{ type: 'text', text: event.message.text }],
-      }),
-      signal,
-    });
-    if (!response.ok) {
-      console.error('[line-webhook] reply failed', {
-        kind: 'http_error',
-        status: response.status,
-      });
-    }
-    // 応答本文は使わないため破棄する。破棄の失敗は返信の成否に影響しない。
-    await response.body?.cancel().catch(() => undefined);
+    const db = createDb(env.DB);
+    const user = await findLineReplyUser(db, event.source.userId);
+    if (!user) return;
+    const message = await REPLY_BUILDERS[event.postback.data](db, user);
+    await sendLineReply(accessToken, event.replyToken, [message]);
   } catch {
-    console.error('[line-webhook] reply failed', {
-      kind: signal.aborted ? 'timeout' : 'network_error',
-    });
+    console.error('[line-webhook] reply failed', { kind: 'processing_error' });
   }
 }
 
 /**
  * LINE Messaging API の Webhook の Hono ルート。
  * 署名を検証した受信に空本文の 200 を返す。友だち追加では対象ユーザーに個別リッチメニューを
- * 割り当て、検証モードではテキストをオウム返しする。
+ * 割り当て、リッチメニューの操作には個人トークで返信する。
  */
 export const lineWebhookRoute = new Hono<{ Bindings: Env }>()
   /** Webhook を受信する（認証は `x-line-signature` ヘッダーの署名） */
@@ -138,21 +140,21 @@ export const lineWebhookRoute = new Hono<{ Bindings: Env }>()
     const events = parseEvents(body);
     const followerIds = selectFollowerIds(events);
     if (followerIds.length > 0) {
-      // 友だち追加前の紐付けをここで反映する。オウム返しの設定には依存しない
+      // 友だち追加前の紐付けをここで反映する
       c.executionCtx.waitUntil(
         Promise.all(followerIds.map((userId) => assignInstructorRichMenu(c.env, userId))),
       );
     }
-    if (c.env.LINE_MESSAGING_ECHO_ENABLED !== 'true') return c.body(null, 200);
-
-    const targets = selectEchoEvents(events);
+    const targets = selectReplyEvents(events);
     if (targets.length === 0) return c.body(null, 200);
 
     const accessToken = c.env.LINE_MESSAGING_CHANNEL_ACCESS_TOKEN;
     if (!accessToken) {
       throw new HTTPException(503, { message: 'LINE reply is not configured' });
     }
-    // LINE への応答を Reply API の完了待ちにしない
-    c.executionCtx.waitUntil(Promise.all(targets.map((event) => sendReply(accessToken, event))));
+    // LINE への応答を勤務の取得と Reply API の完了待ちにしない
+    c.executionCtx.waitUntil(
+      Promise.all(targets.map((event) => respond(c.env, accessToken, event))),
+    );
     return c.body(null, 200);
   });

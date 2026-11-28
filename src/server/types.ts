@@ -29,8 +29,6 @@ export type Env = {
   LINE_MESSAGING_CHANNEL_SECRET?: string;
   /** LINE Messaging API のチャネルアクセストークン（返信と個別リッチメニューの割り当てに使う） */
   LINE_MESSAGING_CHANNEL_ACCESS_TOKEN?: string;
-  /** 文字列 `true` のときだけ、個人トークのテキストをオウム返しする（検証用） */
-  LINE_MESSAGING_ECHO_ENABLED?: string;
   /** アプリのベース URL。LINE コールバック URL とログイン後リダイレクトの基点 */
   APP_URL: string;
   /** 認証系エンドポイント用の CF ネイティブ Rate Limiter */

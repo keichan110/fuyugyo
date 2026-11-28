@@ -9,20 +9,29 @@ export const lineWebhookBodySchema = z.object({
 });
 
 /**
- * オウム返しの対象となるイベント。
- * 個人トークの空でないテキストで、LINE が再配信としてマークしていないものだけが一致する。
+ * 返信に対応するリッチメニューの操作値（`postback.data`）。完全一致だけを受け付ける。
+ * 公開済みのメニューとの契約のため、値は `scripts/line-rich-menu/definitions.ts` と合わせる。
  */
-export const lineEchoEventSchema = z.object({
-  type: z.literal('message'),
+export const lineReplyActionSchema = z.enum(['action=team-schedule']);
+
+/** 返信に対応する操作値 */
+export type LineReplyAction = z.infer<typeof lineReplyActionSchema>;
+
+/**
+ * 返信の対象となるイベント。
+ * 個人トークの対応済みの操作で、LINE が再配信としてマークしていないものだけが一致する。
+ */
+export const lineReplyEventSchema = z.object({
+  type: z.literal('postback'),
   webhookEventId: z.string().min(1),
   replyToken: z.string().min(1),
   deliveryContext: z.object({ isRedelivery: z.literal(false) }),
-  source: z.object({ type: z.literal('user') }),
-  message: z.object({ type: z.literal('text'), text: z.string().min(1) }),
+  source: z.object({ type: z.literal('user'), userId: z.string().min(1) }),
+  postback: z.object({ data: lineReplyActionSchema }),
 });
 
-/** オウム返しの対象イベント */
-export type LineEchoEvent = z.infer<typeof lineEchoEventSchema>;
+/** 返信の対象イベント */
+export type LineReplyEvent = z.infer<typeof lineReplyEventSchema>;
 
 /**
  * 個人ユーザーの友だち追加（ブロック解除を含む）イベント。

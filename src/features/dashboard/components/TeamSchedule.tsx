@@ -117,7 +117,7 @@ function DayButton({
       aria-label={label}
       onClick={onSelect}
     >
-      <Text component="span" size="xs" fz={isToday ? 10 : undefined} lh="14px">
+      <Text component="span" fz={isToday ? 10 : 'xs'} lh="14px">
         {isToday ? `今日 ${weekday}` : weekday}
       </Text>
       <Text component="span" size="md" fw={700} lh={1.4}>

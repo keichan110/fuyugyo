@@ -129,6 +129,27 @@ export function useShiftCalendar(month: string | undefined) {
 }
 
 /**
+ * 割り当て画面用の月次カレンダーを取得する。
+ * @param month - 対象月（YYYY-MM）。未指定なら取得を行わない
+ */
+export function useShiftAssignmentCalendar(month: string | undefined) {
+  return useQuery<ShiftViewResponse>({
+    queryKey: [...SHIFTS_QUERY_KEY, 'assignment-calendar', month],
+    queryFn: async () => {
+      const res = await client.api.shifts['assignment-calendar'].$get({
+        query: { month: month ?? '' },
+      });
+      if (!res.ok) {
+        const body = apiErrorSchema.parse(await res.json());
+        throw new Error(body.message ?? '月次カレンダーの取得に失敗しました');
+      }
+      return shiftViewResponseSchema.parse(await res.json());
+    },
+    enabled: !!month,
+  });
+}
+
+/**
  * 指定日群の出勤状況（各シフトの部門・種別・割り当て済み表示名）を取得する。
  * ダッシュボードの「現在（今日・明日）」「直近（同僚一覧）」で共有する。
  * @param dates - 取得対象日（YYYY-MM-DD）の配列（1〜7件）。空配列なら取得しない

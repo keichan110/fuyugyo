@@ -331,9 +331,8 @@ function sortAssignedInstructors(assigned: RankedAssignedInstructor[]): void {
   );
 }
 
-/** MEMBERの閲覧は公開済みで配置のある枠だけに限定する。集計前・ページング前に適用する。 */
-function shiftVisibility(db: Database, role: string): SQL | undefined {
-  if (role === 'MANAGER' || role === 'ADMIN') return undefined;
+/** 閲覧系は全ロール共通で公開済みかつ配置のある枠だけに限定する。 */
+function publishedShiftVisibility(db: Database): SQL | undefined {
   return and(
     eq(shifts.status, 'PUBLISHED'),
     exists(
@@ -345,6 +344,20 @@ function shiftVisibility(db: Database, role: string): SQL | undefined {
   );
 }
 
+/** 月の検証と期間の計算を行う。 */
+function calendarRange(month: string | undefined) {
+  if (!(month && monthStringSchema.safeParse(month).success)) {
+    throw new HTTPException(400, { message: 'month は YYYY-MM 形式で指定してください' });
+  }
+  const [yearStr, monthStr] = month.split('-');
+  const year = Number(yearStr);
+  const monthNumber = Number(monthStr);
+  return {
+    from: new Date(Date.UTC(year, monthNumber - 1, 1)),
+    to: new Date(Date.UTC(year, monthNumber, 0)),
+  };
+}
+
 /**
  * 指定期間 [from, to]（両端含む）のシフトを表示ビュー用に整形する（3クエリ・N+1 なし）。
  * shifts × shiftTypes を JOIN し、割り当てを別クエリでまとめて付与する。
@@ -354,7 +367,7 @@ async function loadShiftView(
   db: Database,
   from: Date,
   to: Date,
-  role: string,
+  visibility: SQL | undefined,
 ): Promise<ShiftViewItem[]> {
   const shiftRows = await db
     .select({
@@ -377,7 +390,7 @@ async function loadShiftView(
         eq(departmentShiftTypes.shiftTypeId, shifts.shiftTypeId),
       ),
     )
-    .where(and(gte(shifts.date, from), lte(shifts.date, to), shiftVisibility(db, role)))
+    .where(and(gte(shifts.date, from), lte(shifts.date, to), visibility))
     .orderBy(...shiftViewOrder);
 
   // 割り当ては shiftId の inArray ではなく、シフト本体と同じ日付範囲条件で shifts へ
@@ -396,7 +409,7 @@ async function loadShiftView(
           .from(shiftAssignments)
           .innerJoin(instructors, eq(instructors.id, shiftAssignments.instructorId))
           .innerJoin(shifts, eq(shifts.id, shiftAssignments.shiftId))
-          .where(and(gte(shifts.date, from), lte(shifts.date, to), shiftVisibility(db, role)))
+          .where(and(gte(shifts.date, from), lte(shifts.date, to), visibility))
       : [];
 
   // 枠の資格要件と保有資格が一致する担当者だけを集計し、各担当者の最上位ランクを取得する。
@@ -405,7 +418,7 @@ async function loadShiftView(
     shiftRows.length > 0
       ? await loadCertificationTierRows(
           db,
-          and(gte(shifts.date, from), lte(shifts.date, to), shiftVisibility(db, role)),
+          and(gte(shifts.date, from), lte(shifts.date, to), visibility),
         )
       : [];
 
@@ -466,7 +479,7 @@ function toPublishedShift({
 
 /**
  * 指定期間の公開済みで担当者がいる勤務枠を取得する（サーバー専用）。
- * 閲覧範囲はロールを問わず、Web の MEMBER と同じ。
+ * 閲覧範囲は Web の閲覧画面と同じく、ロールを問わない。
  *
  * @param db - Drizzle の DB クライアント
  * @param from - 開始日（YYYY-MM-DD、この日を含む）
@@ -479,7 +492,12 @@ export async function loadPublishedSchedule(
   from: string,
   to: string,
 ): Promise<PublishedShift[]> {
-  const items = await loadShiftView(db, parseShiftDate(from), parseShiftDate(to), 'MEMBER');
+  const items = await loadShiftView(
+    db,
+    parseShiftDate(from),
+    parseShiftDate(to),
+    publishedShiftVisibility(db),
+  );
   return items.map(toPublishedShift);
 }
 
@@ -488,7 +506,7 @@ const UPCOMING_SLOT_LIMIT = 3;
 
 /**
  * 本人が担当する公開済みの勤務枠を表示順に3枠まで選び、その日付を取得する（サーバー専用）。
- * 閲覧範囲はロールを問わず、Web の MEMBER と同じ。未来側の期限は設けない。
+ * 閲覧範囲は Web の閲覧画面と同じく、ロールを問わない。未来側の期限は設けない。
  *
  * @param db - Drizzle の DB クライアント
  * @param instructorId - 本人のインストラクター ID
@@ -517,7 +535,7 @@ export async function loadUpcomingWorkingDates(
       and(
         eq(shiftAssignments.instructorId, instructorId),
         gte(shifts.date, parseShiftDate(from)),
-        shiftVisibility(db, 'MEMBER'),
+        publishedShiftVisibility(db),
       ),
     )
     .orderBy(...shiftViewOrder)
@@ -527,7 +545,7 @@ export async function loadUpcomingWorkingDates(
 
 /**
  * 指定した日付だけの、公開済みで担当者がいる勤務枠を取得する（サーバー専用）。
- * 閲覧範囲はロールを問わず、Web の MEMBER と同じ。
+ * 閲覧範囲は Web の閲覧画面と同じく、ロールを問わない。
  *
  * @param db - Drizzle の DB クライアント
  * @param dates - 対象日（YYYY-MM-DD）。D1 のバインド上限に収まる件数で指定する
@@ -537,7 +555,12 @@ export async function loadPublishedScheduleByDates(
   db: Database,
   dates: string[],
 ): Promise<PublishedShift[]> {
-  const items = await loadShiftViewByDates(db, dates.map(parseShiftDate), undefined, 'MEMBER');
+  const items = await loadShiftViewByDates(
+    db,
+    dates.map(parseShiftDate),
+    undefined,
+    publishedShiftVisibility(db),
+  );
   return items.map(toPublishedShift);
 }
 
@@ -549,13 +572,13 @@ async function loadShiftViewByDates(
   db: Database,
   dates: Date[],
   departmentCode: string | undefined,
-  role: string,
+  visibility: SQL | undefined,
 ): Promise<ShiftViewItem[]> {
   if (dates.length === 0) {
     return [];
   }
 
-  const conditions = [inArray(shifts.date, dates), shiftVisibility(db, role)];
+  const conditions = [inArray(shifts.date, dates), visibility];
   if (departmentCode) {
     conditions.push(eq(shifts.departmentCode, departmentCode));
   }
@@ -1257,6 +1280,7 @@ export const shiftsRoute = new Hono<{
   /**
    * アジェンダビュー: 起点日から未来/過去方向へ、Shift が 1 件以上ある稼働日だけを返す。
    * 休校日は日付行自体を返さず、各稼働日の Shift は部門 × シフト種別でまとめて返す。
+   * 全ロール共通で、公開済みかつ配置のある枠だけを対象とし、稼働日もその枠がある日に限る。
    */
   .get('/agenda', requireAuth, readRateLimit(), async (c) => {
     const cursor = c.req.query('cursor');
@@ -1283,7 +1307,7 @@ export const shiftsRoute = new Hono<{
     const db = createDb(c.env.DB);
     const cursorDate = parseShiftDate(cursor);
     const dateConditions = [
-      shiftVisibility(db, c.get('user').role),
+      publishedShiftVisibility(db),
       direction === 'future' ? gte(shifts.date, cursorDate) : lt(shifts.date, cursorDate),
     ];
     if (departmentCode) {
@@ -1306,7 +1330,7 @@ export const shiftsRoute = new Hono<{
       db,
       pageDates,
       departmentCode,
-      c.get('user').role,
+      publishedShiftVisibility(db),
     );
     const days = groupShiftsByWorkingDay(shiftsView);
     const firstDay = days[0];
@@ -1325,32 +1349,29 @@ export const shiftsRoute = new Hono<{
   /**
    * 月次カレンダー: `month`（YYYY-MM）の当月シフトとサマリを1リクエストで返す。
    * データと集計を同梱する。MEMBER 以上。
+   * 全ロール共通で、公開済みかつ配置のある枠だけを対象とする（サマリもその枠を集計する）。
    */
   .get('/calendar', requireAuth, async (c) => {
-    const month = c.req.query('month');
-    if (!(month && monthStringSchema.safeParse(month).success)) {
-      throw new HTTPException(400, {
-        message: 'month は YYYY-MM 形式で指定してください',
-      });
-    }
-
-    // monthStringSchema が形式と月範囲（01〜12）を検証済み
-    const [yearStr, monthStr] = month.split('-');
-    const year = Number(yearStr);
-    const monthNumber = Number(monthStr);
-
+    const { from, to } = calendarRange(c.req.query('month'));
     const db = createDb(c.env.DB);
-    // 当月の初日〜末日（UTC 基準）。翌月0日が当月末日になる。
-    const from = new Date(Date.UTC(year, monthNumber - 1, 1));
-    const to = new Date(Date.UTC(year, monthNumber, 0));
 
-    const shiftsView = await loadShiftView(db, from, to, c.get('user').role);
+    const shiftsView = await loadShiftView(db, from, to, publishedShiftVisibility(db));
     return c.json({
       shifts: shiftsView,
       summary: summarizeShifts(shiftsView, {
         from: formatDate(from),
         to: formatDate(to),
       }),
+    });
+  })
+  /** 割り当て画面専用。下書き・0名の枠を含む全件を返す。MANAGER 以上。 */
+  .get('/assignment-calendar', requireAuth, requireRole('MANAGER'), async (c) => {
+    const { from, to } = calendarRange(c.req.query('month'));
+    const db = createDb(c.env.DB);
+    const shiftsView = await loadShiftView(db, from, to, undefined);
+    return c.json({
+      shifts: shiftsView,
+      summary: summarizeShifts(shiftsView, { from: formatDate(from), to: formatDate(to) }),
     });
   })
   /**
@@ -1391,6 +1412,7 @@ export const shiftsRoute = new Hono<{
   /**
    * 出勤状況ビュー: `dates`（カンマ区切り・YYYY-MM-DD、1〜7件）で指定した日群の
    * 全出勤者（部門・シフト種別・表示名付き）を返す。MEMBER 以上。
+   * 全ロール共通で、公開済みかつ配置のある枠だけを対象とする。
    * 休校日（シフトが0件の日）は要素を持たないだけで、400 にはしない。
    * ダッシュボードの「今日・明日の出勤状況」「同じ日に勤務する同僚一覧」で共有する。
    */
@@ -1417,11 +1439,17 @@ export const shiftsRoute = new Hono<{
 
     const db = createDb(c.env.DB);
     const dates = dateStrings.map((d) => parseShiftDate(d));
-    const shiftsView = await loadShiftViewByDates(db, dates, departmentCode, c.get('user').role);
+    const shiftsView = await loadShiftViewByDates(
+      db,
+      dates,
+      departmentCode,
+      publishedShiftVisibility(db),
+    );
     return c.json(shiftsView);
   })
   /**
-   * シフト一覧を返す。`dateFrom`/`dateTo`（YYYY-MM-DD）で期間を、`instructorId` で
+   * シフト一覧を返す。全ロール共通で、公開済みかつ配置のある枠だけを対象とする。
+   * `dateFrom`/`dateTo`（YYYY-MM-DD）で期間を、`instructorId` で
    * その Instructor が割り当てられたシフトのみに絞り込める。
    * `limit` で返却件数の上限を指定できる（既定100・上限200）。期間・件数のどちらも
    * 無指定のまま全件返却してしまわないよう、`limit` には常に既定値が入る。
@@ -1434,7 +1462,7 @@ export const shiftsRoute = new Hono<{
     const instructorId = c.req.query('instructorId');
     const limit = parseListLimit(c.req.query('limit'));
 
-    const conditions = [shiftVisibility(db, c.get('user').role)];
+    const conditions = [publishedShiftVisibility(db)];
     if (dateFrom && dateStringSchema.safeParse(dateFrom).success) {
       conditions.push(gte(shifts.date, parseShiftDate(dateFrom)));
     }
@@ -1501,12 +1529,7 @@ export const shiftsRoute = new Hono<{
             })
             .from(shiftAssignments)
             .innerJoin(shifts, eq(shifts.id, shiftAssignments.shiftId))
-            .where(
-              and(
-                inArray(shiftAssignments.shiftId, chunk),
-                shiftVisibility(db, c.get('user').role),
-              ),
-            ),
+            .where(and(inArray(shiftAssignments.shiftId, chunk), publishedShiftVisibility(db))),
         ),
       )
     ).flat();

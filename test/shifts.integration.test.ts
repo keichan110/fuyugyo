@@ -1,5 +1,5 @@
 import { env } from 'cloudflare:test';
-import { and, eq } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { applyAutoAssignProposals } from '../src/features/shifts/components/auto-assign-stage';
@@ -171,6 +171,28 @@ async function countAssignments(): Promise<number> {
 }
 
 /**
+ * D1 に保存された全 Shift を、割り当て Instructor ID 付きで日付順に返す。
+ * 閲覧 API に出ない下書き・0名の枠も含めて保存結果を検証するために使う。
+ */
+async function listStoredShifts() {
+  const db = createDb(env.DB);
+  const shiftRows = await db.select().from(shifts).orderBy(asc(shifts.date));
+  const assignmentRows = await db.select().from(shiftAssignments);
+  return shiftRows.map((shift) => ({
+    ...shift,
+    assignedInstructorIds: assignmentRows
+      .filter((assignment) => assignment.shiftId === shift.id)
+      .map((assignment) => assignment.instructorId),
+  }));
+}
+
+/** 保存済みの全 Shift を公開済みにする（閲覧 API の検証用） */
+async function publishAllShifts(): Promise<void> {
+  const db = createDb(env.DB);
+  await db.update(shifts).set({ status: 'PUBLISHED' });
+}
+
+/**
  * assignments API で単一セル分の Shift を用意し、生成された Shift ID を返す。
  * 単一セル専用の upsert エンドポイントは廃止済みのため、月次一括 API を1セルで呼び出す。
  */
@@ -198,14 +220,18 @@ async function upsertShift(
     throw new Error(`upsertShift: assignments failed with status ${res.status}`);
   }
 
-  const list = await app.request('/api/shifts', authHeader(token), envWith({}));
-  const shiftsBody = shiftListSchema.parse(await list.json());
-  const created = shiftsBody.find(
-    (s) =>
-      s.date.toISOString().startsWith(date) &&
-      s.departmentCode === departmentCode &&
-      s.shiftTypeId === shiftTypeId,
-  );
+  const db = createDb(env.DB);
+  const [created] = await db
+    .select({ id: shifts.id })
+    .from(shifts)
+    .where(
+      and(
+        eq(shifts.date, new Date(`${date}T00:00:00.000Z`)),
+        eq(shifts.departmentCode, departmentCode),
+        eq(shifts.shiftTypeId, shiftTypeId),
+      ),
+    )
+    .limit(1);
   if (!created) {
     throw new Error('upsertShift: shift was not created');
   }
@@ -260,9 +286,7 @@ describe('PUT /api/shifts/assignments', () => {
       envWith({}),
     );
     expect(saved.status).toBe(200);
-    const response = await app.request('/api/shifts', authHeader(token), envWith({}));
-    expect(response.status).toBe(200);
-    const rows = shiftListSchema.parse(await response.json());
+    const rows = await listStoredShifts();
     expect(rows[0]?.description).toBe('要確認: 認定指導員のみの構成\n要確認: 要調整の勤務: 山田');
   });
 
@@ -304,8 +328,7 @@ describe('PUT /api/shifts/assignments', () => {
     expect(body.upsertedCount).toBe(2);
     expect(body.deletedCount).toBe(0);
 
-    const list = await app.request('/api/shifts', authHeader(token), envWith({}));
-    const shiftsBody = shiftListSchema.parse(await list.json());
+    const shiftsBody = await listStoredShifts();
     expect(shiftsBody).toHaveLength(2);
     const first = shiftsBody.find((s) => s.date.toISOString().startsWith('2026-02-01'));
     expect(first?.description).toBe('初日');
@@ -351,8 +374,7 @@ describe('PUT /api/shifts/assignments', () => {
     expect(body.upsertedCount).toBe(1);
     expect(body.deletedCount).toBe(0);
 
-    const list = await app.request('/api/shifts', authHeader(token), envWith({}));
-    const shiftsBody = shiftListSchema.parse(await list.json());
+    const shiftsBody = await listStoredShifts();
     const targeted = shiftsBody.find((s) => s.date.toISOString().startsWith('2026-02-01'));
     expect(targeted?.description).toBe('入替');
     expect(targeted?.assignedInstructorIds.sort()).toEqual([inst2, inst3].sort());
@@ -392,8 +414,7 @@ describe('PUT /api/shifts/assignments', () => {
     expect(body.deletedCount).toBe(1);
     expect(await countAssignments()).toBe(0);
 
-    const list = await app.request('/api/shifts', authHeader(token), envWith({}));
-    const shiftsBody = shiftListSchema.parse(await list.json());
+    const shiftsBody = await listStoredShifts();
     expect(shiftsBody).toHaveLength(0);
   });
 
@@ -449,8 +470,7 @@ describe('PUT /api/shifts/assignments', () => {
     );
 
     expect(res.status).toBe(400);
-    const list = await app.request('/api/shifts', authHeader(token), envWith({}));
-    expect(shiftListSchema.parse(await list.json())).toHaveLength(0);
+    expect(await listStoredShifts()).toHaveLength(0);
   });
 
   it('実在しない日付 (2026-02-31) は 400 で正規化による月外作成を防ぐ', async () => {
@@ -480,8 +500,7 @@ describe('PUT /api/shifts/assignments', () => {
     );
 
     expect(res.status).toBe(400);
-    const list = await app.request('/api/shifts', authHeader(token), envWith({}));
-    const shiftsBody = shiftListSchema.parse(await list.json());
+    const shiftsBody = await listStoredShifts();
     expect(shiftsBody).toHaveLength(0);
   });
 
@@ -512,8 +531,7 @@ describe('PUT /api/shifts/assignments', () => {
     );
 
     expect(res.status).toBe(400);
-    const list = await app.request('/api/shifts', authHeader(token), envWith({}));
-    const shiftsBody = shiftListSchema.parse(await list.json());
+    const shiftsBody = await listStoredShifts();
     expect(shiftsBody).toHaveLength(0);
   });
 
@@ -543,8 +561,7 @@ describe('PUT /api/shifts/assignments', () => {
     );
 
     expect(res.status).toBe(400);
-    const list = await app.request('/api/shifts', authHeader(token), envWith({}));
-    const shiftsBody = shiftListSchema.parse(await list.json());
+    const shiftsBody = await listStoredShifts();
     expect(shiftsBody).toHaveLength(0);
   });
 
@@ -582,8 +599,7 @@ describe('PUT /api/shifts/assignments', () => {
     // 対象部門には存在しないため deletedCount は 0
     expect(body.deletedCount).toBe(0);
 
-    const list = await app.request('/api/shifts', authHeader(token), envWith({}));
-    const shiftsBody = shiftListSchema.parse(await list.json());
+    const shiftsBody = await listStoredShifts();
     // 別部門のシフトは残っている
     expect(shiftsBody).toHaveLength(1);
     expect(shiftsBody[0]?.departmentCode).toBe(deptB);
@@ -616,8 +632,7 @@ describe('PUT /api/shifts/assignments', () => {
     expect(res.status).toBe(400);
 
     // 部分コミットが残っていないことを確認する
-    const list = await app.request('/api/shifts', authHeader(token), envWith({}));
-    const shiftsBody = shiftListSchema.parse(await list.json());
+    const shiftsBody = await listStoredShifts();
     expect(shiftsBody).toHaveLength(0);
     expect(await countAssignments()).toBe(0);
   });
@@ -724,6 +739,7 @@ describe('GET /api/shifts', () => {
     const inst = await seedInstructor();
     const token = await seedToken('MANAGER');
     await upsertShift(token, '2026-01-15', deptId, stId, [inst]);
+    await publishAllShifts();
 
     const res = await app.request('/api/shifts', authHeader(token), envWith({}));
     expect(res.status).toBe(200);
@@ -740,6 +756,7 @@ describe('GET /api/shifts', () => {
     await upsertShift(token, '2026-01-10', deptId, stId, [inst]);
     await upsertShift(token, '2026-01-20', deptId, stId, [inst]);
     await upsertShift(token, '2026-02-01', deptId, stId, [inst]);
+    await publishAllShifts();
 
     const res = await app.request(
       '/api/shifts?dateFrom=2026-01-15&dateTo=2026-01-31',
@@ -761,6 +778,7 @@ describe('GET /api/shifts', () => {
     await upsertShift(token, '2026-01-10', deptId, stId, [inst1]);
     await upsertShift(token, '2026-01-20', deptId, stId, [inst2]);
     await upsertShift(token, '2026-01-30', deptId, stId, [inst3]);
+    await publishAllShifts();
 
     const res = await app.request('/api/shifts?limit=2', authHeader(token), envWith({}));
     expect(res.status).toBe(200);
@@ -802,6 +820,7 @@ describe('GET /api/shifts', () => {
       );
       expect(upsertRes.status).toBe(200);
     }
+    await publishAllShifts();
 
     const res = await app.request('/api/shifts', authHeader(token), envWith({}));
     expect(res.status).toBe(200);
@@ -820,6 +839,7 @@ describe('GET /api/shifts', () => {
     const token = await seedToken('MANAGER');
     const inst = await seedInstructor();
     await upsertShift(token, '2026-01-15', deptId, stId, [inst]);
+    await publishAllShifts();
 
     const res = await app.request('/api/shifts', authHeader(token), envWith({}));
     expect(res.status).toBe(200);
@@ -837,6 +857,7 @@ describe('GET /api/shifts', () => {
     const token = await seedToken('MANAGER');
     const shift1Id = await upsertShift(token, '2026-01-10', deptId, stId, [inst1]);
     await upsertShift(token, '2026-01-20', deptId, stId, [inst2]);
+    await publishAllShifts();
 
     const res = await app.request(
       `/api/shifts?instructorId=${inst1}`,
@@ -856,6 +877,7 @@ describe('GET /api/shifts', () => {
     const token = await seedToken('MANAGER');
     const assignedInst = await seedInstructor('佐藤', '次郎');
     await upsertShift(token, '2026-01-10', deptId, stId, [assignedInst]);
+    await publishAllShifts();
 
     const res = await app.request(
       `/api/shifts?instructorId=${inst}`,

@@ -11,7 +11,7 @@ import { createWorkerSolver } from '../auto-assign-worker-solver';
 import { evaluateFrameComposition } from '../qualification-composition';
 import {
   useAutoAssignContext,
-  useShiftCalendar,
+  useShiftAssignmentCalendar,
   useShiftCreationContext,
   useShiftStaffingRequirements,
   useUpsertAssignments,
@@ -75,7 +75,7 @@ export function useShiftManagerController(departmentCode: DepartmentCode) {
   const [nameById, setNameById] = useState<Map<string, string>>(new Map());
 
   const formData = useShiftCreationContext(departmentCode);
-  const monthly = useShiftCalendar(month);
+  const monthly = useShiftAssignmentCalendar(month);
   const autoAssignContext = useAutoAssignContext(departmentCode, month);
   const availabilities = useAvailabilities(`${month}-01`, monthLastDate(month));
   const requirements = useShiftStaffingRequirements(month);

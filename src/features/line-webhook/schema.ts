@@ -23,3 +23,12 @@ export const lineEchoEventSchema = z.object({
 
 /** オウム返しの対象イベント */
 export type LineEchoEvent = z.infer<typeof lineEchoEventSchema>;
+
+/**
+ * 個人ユーザーの友だち追加（ブロック解除を含む）イベント。
+ * 割り当ては何度適用しても同じ結果になるため、再配信かどうかは問わない。
+ */
+export const lineFollowEventSchema = z.object({
+  type: z.literal('follow'),
+  source: z.object({ type: z.literal('user'), userId: z.string().min(1) }),
+});

@@ -6,9 +6,15 @@
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 
+import { assignInstructorRichMenu } from '@/server/line/rich-menu';
 import type { Env } from '@/server/types';
 
-import { lineEchoEventSchema, lineWebhookBodySchema, type LineEchoEvent } from './schema';
+import {
+  lineEchoEventSchema,
+  lineFollowEventSchema,
+  lineWebhookBodySchema,
+  type LineEchoEvent,
+} from './schema';
 
 const REPLY_ENDPOINT = 'https://api.line.me/v2/bot/message/reply';
 const REPLY_TIMEOUT_MS = 5000;
@@ -63,6 +69,16 @@ function selectEchoEvents(events: unknown[]): LineEchoEvent[] {
   return [...targets.values()];
 }
 
+/** 友だち追加したユーザーの ID を、同一リクエスト内の重複を除いて抽出する。 */
+function selectFollowerIds(events: unknown[]): string[] {
+  const userIds = new Set<string>();
+  for (const event of events) {
+    const parsed = lineFollowEventSchema.safeParse(event);
+    if (parsed.success) userIds.add(parsed.data.source.userId);
+  }
+  return [...userIds];
+}
+
 /**
  * 受信したテキストをそのまま返信する。失敗しても例外は投げず、再試行もしない。
  * ログには秘密情報や本文が混入しないよう、固定の失敗種別と HTTP ステータスだけを残す。
@@ -99,7 +115,8 @@ async function sendReply(accessToken: string, event: LineEchoEvent): Promise<voi
 
 /**
  * LINE Messaging API の Webhook の Hono ルート。
- * 署名を検証した受信に空本文の 200 を返し、検証モードではテキストをオウム返しする。
+ * 署名を検証した受信に空本文の 200 を返す。友だち追加では対象ユーザーに個別リッチメニューを
+ * 割り当て、検証モードではテキストをオウム返しする。
  */
 export const lineWebhookRoute = new Hono<{ Bindings: Env }>()
   /** Webhook を受信する（認証は `x-line-signature` ヘッダーの署名） */
@@ -119,6 +136,13 @@ export const lineWebhookRoute = new Hono<{ Bindings: Env }>()
     }
 
     const events = parseEvents(body);
+    const followerIds = selectFollowerIds(events);
+    if (followerIds.length > 0) {
+      // 友だち追加前の紐付けをここで反映する。オウム返しの設定には依存しない
+      c.executionCtx.waitUntil(
+        Promise.all(followerIds.map((userId) => assignInstructorRichMenu(c.env, userId))),
+      );
+    }
     if (c.env.LINE_MESSAGING_ECHO_ENABLED !== 'true') return c.body(null, 200);
 
     const targets = selectEchoEvents(events);

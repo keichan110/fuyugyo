@@ -1,6 +1,6 @@
 # LINE Messaging API の Webhook 検証
 
-`POST /api/line/webhook` で Webhook を受信し、検証モードでは個人トークのテキストをそのまま返信（オウム返し）する。ここでは検証用の LINE 公式アカウントと検証用の HTTPS Worker で実機確認する手順を示す。デプロイと秘密情報の登録は担当者が手作業で行う。
+`POST /api/line/webhook` で Webhook を受信し、友だち追加では[個別リッチメニュー](line-rich-menu.md#アプリによる個別割り当て)を割り当てる。検証モードでは個人トークのテキストをそのまま返信（オウム返し）する。ここでは検証用の LINE 公式アカウントと検証用の HTTPS Worker で実機確認する手順を示す。デプロイと秘密情報の登録は担当者が手作業で行う。
 
 ## 動作
 
@@ -8,6 +8,7 @@
 - 受け付けた Webhook には空本文の 200 を返す。返信は応答後にバックグラウンドで実行し、失敗しても再試行しない。
 - 返信するのは `LINE_MESSAGING_ECHO_ENABLED` が文字列 `true` の場合の、個人トークのテキストメッセージだけ。グループ・複数人トーク、テキスト以外、LINE が再配信としてマークしたイベントは読み飛ばす。
 - 返信対象があるのにアクセストークンが未設定なら 503。
+- 個人ユーザーの `follow` イベントは `LINE_MESSAGING_ECHO_ENABLED` に関係なく、再配信を含めて処理する。有効かつインストラクター紐付け済みのユーザーに、応答後のバックグラウンドで個別リッチメニューを割り当てる。トークへの返信はしない。
 
 ## 環境変数
 
@@ -21,7 +22,7 @@ LINE Login の `LINE_CHANNEL_ID`・`LINE_CHANNEL_SECRET` とは別のチャネ�
 
 ## 1. 検証用 Worker を用意する
 
-本番の Worker・D1・Cron に影響しないよう、リポジトリの `wrangler.toml` は使わず、検証専用の設定ファイル `wrangler.line-verify.toml` をリポジトリ直下に一時的に作る。Webhook は D1 を使わないため、バインディングは定義しない。このファイルはコミットしない。
+本番の Worker・D1・Cron に影響しないよう、リポジトリの `wrangler.toml` は使わず、検証専用の設定ファイル `wrangler.line-verify.toml` をリポジトリ直下に一時的に作る。オウム返しは D1 を使わないため、バインディングは定義しない。このファイルはコミットしない。
 
 ```toml
 name = "fuyugyo-line-verify"
@@ -34,7 +35,7 @@ workers_dev = true
 enabled = true
 ```
 
-この Worker は Webhook の確認専用で、画面や他の API は動作しない。以降のコマンドには必ず `--config wrangler.line-verify.toml` を付ける。
+この Worker はオウム返しの確認専用で、画面や他の API、友だち追加時のリッチメニュー割り当ては動作しない。以降のコマンドには必ず `--config wrangler.line-verify.toml` を付ける。
 
 ```bash
 pnpm exec wrangler deploy --config wrangler.line-verify.toml

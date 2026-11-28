@@ -13,6 +13,7 @@ import { findLineReplyUser, type LineReplyUser } from '@/server/line/reply-user'
 import { assignInstructorRichMenu } from '@/server/line/rich-menu';
 import type { Env } from '@/server/types';
 
+import { buildMyScheduleMessage } from './my-schedule/api';
 import {
   lineFollowEventSchema,
   lineReplyEventSchema,
@@ -28,6 +29,7 @@ const REPLY_BUILDERS: Record<
   (db: Database, user: LineReplyUser) => Promise<LineMessage>
 > = {
   'action=team-schedule': buildTeamScheduleMessage,
+  'action=my-schedule': buildMyScheduleMessage,
 };
 
 /**

@@ -23,6 +23,8 @@ const REPLY_ENDPOINT = 'https://api.line.me/v2/bot/message/reply';
 /** 日本時間では 2026-11-28 の 0 時（UTC では前日） */
 const NOW = new Date('2026-11-27T15:00:00.000Z');
 const EMPTY_TEXT = '全体の勤務予定（11/28（土）〜12/4（金））\nこの期間の勤務予定はありません。';
+const UNLINKED_TEXT = 'インストラクター情報が紐付いていないため、勤務予定を確認できません。';
+const NO_UPCOMING_TEXT = '今後の勤務予定はありません';
 
 /** 受信側の設定（未指定の項目はテストの既定値、undefined は未設定を表す） */
 type Settings = {
@@ -139,6 +141,11 @@ function scheduleEvent(id: string, userId = 'U-private') {
   };
 }
 
+/** 返信対象となる直近の勤務予定の操作イベントを作る。 */
+function myScheduleEvent(id: string, userId = 'U-private') {
+  return { ...scheduleEvent(id, userId), postback: { data: 'action=my-schedule' } };
+}
+
 /** Reply API に送った JSON 本文の一覧を返す。 */
 function sentReplies(): unknown[] {
   return fetchMock.mock.calls.map(([, init]) => JSON.parse(String(init?.body)));
@@ -236,7 +243,6 @@ describe('POST /api/line/webhook の返信', () => {
     ],
     ['画像', { ...base, type: 'message', message: { type: 'image', id: '1' } }],
     ['スタンプ', { ...base, type: 'message', message: { type: 'sticker', id: '1' } }],
-    ['後続の個人勤務予定', { ...base, postback: { data: 'action=my-schedule' } }],
     ['後続のお知らせ', { ...base, postback: { data: 'action=announcements' } }],
     ['未知の操作', { ...base, postback: { data: 'action=unknown' } }],
     ['追加の値がある操作', { ...base, postback: { data: 'action=team-schedule&page=1' } }],
@@ -255,6 +261,26 @@ describe('POST /api/line/webhook の返信', () => {
     ['deliveryContext なし', { ...base, deliveryContext: undefined }],
     ['isRedelivery なし', { ...base, deliveryContext: {} }],
     ['再配信', { ...base, deliveryContext: { isRedelivery: true } }],
+    [
+      '直近の勤務予定の追加の値がある操作',
+      { ...base, postback: { data: 'action=my-schedule&page=1' } },
+    ],
+    [
+      '直近の勤務予定と同じ内容のテキスト',
+      { ...base, type: 'message', message: { type: 'text', text: 'action=my-schedule' } },
+    ],
+    [
+      'グループの直近の勤務予定',
+      { ...myScheduleEvent('x'), source: { type: 'group', groupId: 'G', userId: 'U-private' } },
+    ],
+    [
+      '複数人トークの直近の勤務予定',
+      { ...myScheduleEvent('x'), source: { type: 'room', roomId: 'R', userId: 'U-private' } },
+    ],
+    [
+      '再配信の直近の勤務予定',
+      { ...myScheduleEvent('x'), deliveryContext: { isRedelivery: true } },
+    ],
   ])('%s のイベントは D1 を参照せず読み飛ばす', async (_label, event) => {
     const response = await deliver([event], { accessToken: undefined });
 
@@ -284,7 +310,17 @@ describe('POST /api/line/webhook の返信', () => {
   );
 });
 
-describe('返信先の認可', () => {
+describe.each([
+  ['全体の勤務予定', scheduleEvent, reply],
+  [
+    '直近の勤務予定',
+    myScheduleEvent,
+    (id: string) => ({
+      replyToken: `reply-token-${id}`,
+      messages: [{ type: 'text', text: UNLINKED_TEXT }],
+    }),
+  ],
+])('%sの返信先の認可', (_name, createEvent, expectedReply) => {
   it.each<[string, Partial<typeof users.$inferInsert> | null]>([
     ['未登録', null],
     ['無効', { isActive: false }],
@@ -299,7 +335,7 @@ describe('返信先の認可', () => {
     }
     const prepare = vi.spyOn(env.DB, 'prepare');
 
-    const response = await deliver([scheduleEvent('a', 'U-target')]);
+    const response = await deliver([createEvent('a', 'U-target')]);
 
     expect(response.status).toBe(200);
     // ユーザーの照合だけで終了し、勤務は問い合わせない
@@ -313,15 +349,15 @@ describe('返信先の認可', () => {
       .insert(users)
       .values({ lineUserId: 'U-target', displayName: '対象', role });
 
-    await deliver([scheduleEvent('a', 'U-target')]);
+    await deliver([createEvent('a', 'U-target')]);
 
-    expect(sentReplies()).toEqual([reply('a')]);
+    expect(sentReplies()).toEqual([expectedReply('a')]);
   });
 
   it('許可されていないイベントがあっても、別のイベントには返信する', async () => {
-    await deliver([scheduleEvent('unknown', 'U-unknown'), scheduleEvent('a')]);
+    await deliver([createEvent('unknown', 'U-unknown'), createEvent('a')]);
 
-    expect(sentReplies()).toEqual([reply('a')]);
+    expect(sentReplies()).toEqual([expectedReply('a')]);
   });
 
   it('D1 の失敗は返信せず、元の例外を含めずに記録する', async () => {
@@ -329,7 +365,7 @@ describe('返信先の認可', () => {
       throw new Error('private-d1-error U-private');
     });
 
-    const response = await deliver([scheduleEvent('a')]);
+    const response = await deliver([createEvent('a')]);
 
     expect(response.status).toBe(200);
     expect(fetchMock).not.toHaveBeenCalled();
@@ -642,6 +678,84 @@ describe('友だち追加でのリッチメニュー割り当て', () => {
   });
 });
 
+/** 担当者を割り当てた勤務枠を作成し、ID を返す。 */
+async function seedShift(
+  date: string,
+  departmentCode: string,
+  shiftTypeId: string,
+  instructorIds: string[],
+  status: 'DRAFT' | 'PUBLISHED' = 'PUBLISHED',
+) {
+  const db = createDb(env.DB);
+  const id = crypto.randomUUID();
+  await db.insert(shifts).values({
+    id,
+    date: new Date(`${date}T00:00:00.000Z`),
+    departmentCode,
+    shiftTypeId,
+    status,
+    description: 'private-description',
+  });
+  for (const instructorId of instructorIds) {
+    await db.insert(shiftAssignments).values({ shiftId: id, instructorId });
+  }
+  return id;
+}
+
+const replySchema = z.object({
+  messages: z.tuple([
+    z.object({
+      type: z.literal('flex'),
+      altText: z.string(),
+      contents: z.object({ type: z.literal('carousel'), contents: z.array(z.unknown()) }),
+    }),
+  ]),
+});
+const textSchema = z.object({
+  type: z.literal('text'),
+  text: z.string().optional(),
+  contents: z.array(z.object({ text: z.string(), weight: z.string().optional() })).optional(),
+});
+const boxSchema = z.object({ type: z.literal('box'), contents: z.array(z.unknown()) });
+const bubbleSchema = z.object({
+  header: z.object({ contents: z.tuple([textSchema, textSchema]) }),
+  body: boxSchema,
+});
+
+/** 勤務枠を「部門 / 種別 / 担当者」に要約する。太字の部分は `*` で囲む。 */
+function summarizeSlot(component: unknown): string {
+  const [title, members] = boxSchema.parse(component).contents;
+  const [department, shiftType] = boxSchema.parse(title).contents;
+  const label = textSchema.parse(boxSchema.parse(department).contents[0]).text;
+  const { text, contents } = textSchema.parse(members);
+  const names =
+    text ??
+    contents?.map((span) => (span.weight === 'bold' ? `*${span.text}*` : span.text)).join('');
+  return `${label} / ${textSchema.parse(shiftType).text} / ${names}`;
+}
+
+/** 返信されたカードを、日付と本文の要約にする。 */
+async function deliverSchedule(userId: string, createEvent = scheduleEvent) {
+  await deliver([createEvent('a', userId)]);
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+  const [message] = replySchema.parse(sentReplies()[0]).messages;
+  const days = message.contents.contents.map((bubble) => {
+    const { header, body } = bubbleSchema.parse(bubble);
+    const lines = body.contents.flatMap((component) => {
+      const text = textSchema.safeParse(component);
+      if (text.success) return [text.data.text];
+      return boxSchema.safeParse(component).success ? [summarizeSlot(component)] : [];
+    });
+    return [header.contents[1].text, ...lines];
+  });
+  const labels = message.contents.contents.map(
+    (bubble) => bubbleSchema.parse(bubble).header.contents[0].text,
+  );
+  return { altText: message.altText, labels, days };
+}
+
+const EMPTY_DAY = 'この日の勤務予定はありません。';
+
 describe('全体の勤務予定の内容', () => {
   /** 本人を含むインストラクター、勤務種別、期間内外の勤務を作成する。 */
   async function seedSchedule() {
@@ -695,27 +809,6 @@ describe('全体の勤務予定の内容', () => {
       .insert(certificationRequirements)
       .values({ departmentShiftTypeId: 'f-ski-general', certificationId: 'cert', tierRank: 1 });
 
-    async function seedShift(
-      date: string,
-      departmentCode: string,
-      shiftTypeId: string,
-      instructorIds: string[],
-      status: 'DRAFT' | 'PUBLISHED' = 'PUBLISHED',
-    ) {
-      const id = crypto.randomUUID();
-      await db.insert(shifts).values({
-        id,
-        date: new Date(`${date}T00:00:00.000Z`),
-        departmentCode,
-        shiftTypeId,
-        status,
-        description: 'private-description',
-      });
-      for (const instructorId of instructorIds) {
-        await db.insert(shiftAssignments).values({ shiftId: id, instructorId });
-      }
-    }
-
     // 期間の前後
     await seedShift('2026-11-26', 'ski', 't-general', ['i-a']);
     await seedShift('2026-12-05', 'ski', 't-general', ['i-a']);
@@ -733,57 +826,6 @@ describe('全体の勤務予定の内容', () => {
     await seedShift('2026-12-04', 'snowboard', 't-general', ['i-self']);
     await seedShift('2026-11-27', 'ski', 't-group', ['i-w']);
   }
-
-  const replySchema = z.object({
-    messages: z.tuple([
-      z.object({
-        type: z.literal('flex'),
-        altText: z.string(),
-        contents: z.object({ type: z.literal('carousel'), contents: z.array(z.unknown()) }),
-      }),
-    ]),
-  });
-  const textSchema = z.object({
-    type: z.literal('text'),
-    text: z.string().optional(),
-    contents: z.array(z.object({ text: z.string(), weight: z.string().optional() })).optional(),
-  });
-  const boxSchema = z.object({ type: z.literal('box'), contents: z.array(z.unknown()) });
-  const bubbleSchema = z.object({
-    header: z.object({ contents: z.tuple([textSchema, textSchema]) }),
-    body: boxSchema,
-  });
-
-  /** 勤務枠を「部門 / 種別 / 担当者」に要約する。太字の部分は `*` で囲む。 */
-  function summarizeSlot(component: unknown): string {
-    const [title, members] = boxSchema.parse(component).contents;
-    const [department, shiftType] = boxSchema.parse(title).contents;
-    const label = textSchema.parse(boxSchema.parse(department).contents[0]).text;
-    const { text, contents } = textSchema.parse(members);
-    const names =
-      text ??
-      contents?.map((span) => (span.weight === 'bold' ? `*${span.text}*` : span.text)).join('');
-    return `${label} / ${textSchema.parse(shiftType).text} / ${names}`;
-  }
-
-  /** 返信されたカードを、日付と本文の要約にする。 */
-  async function deliverSchedule(userId: string) {
-    await deliver([scheduleEvent('a', userId)]);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    const [message] = replySchema.parse(sentReplies()[0]).messages;
-    const days = message.contents.contents.map((bubble) => {
-      const { header, body } = bubbleSchema.parse(bubble);
-      const lines = body.contents.flatMap((component) => {
-        const text = textSchema.safeParse(component);
-        if (text.success) return [text.data.text];
-        return boxSchema.safeParse(component).success ? [summarizeSlot(component)] : [];
-      });
-      return [header.contents[1].text, ...lines];
-    });
-    return { altText: message.altText, days };
-  }
-
-  const EMPTY_DAY = 'この日の勤務予定はありません。';
 
   it('日本時間の当日から7日間の公開済み勤務を日付と表示順に返し、本人だけを太字にする', async () => {
     await seedSchedule();
@@ -856,5 +898,230 @@ describe('全体の勤務予定の内容', () => {
     await deliver([scheduleEvent('a')]);
 
     expect(sentReplies()).toEqual([reply('a')]);
+  });
+});
+
+describe('直近の勤務予定の内容', () => {
+  beforeEach(async () => {
+    const db = createDb(env.DB);
+    await db.insert(instructors).values([
+      {
+        id: 'i-self',
+        lastName: '本人',
+        firstName: '花子',
+        lastNameKana: 'ん',
+        firstNameKana: 'ん',
+      },
+      {
+        id: 'i-a',
+        lastName: '青木',
+        firstName: '一',
+        lastNameKana: 'あおき',
+        firstNameKana: 'はじめ',
+      },
+    ]);
+    await db.insert(shiftTypes).values([
+      { id: 't-general', name: '一般レッスン' },
+      { id: 't-group', name: '団体レッスン' },
+    ]);
+    await db.insert(departmentShiftTypes).values([
+      { departmentCode: 'ski', shiftTypeId: 't-group', sortOrder: 1 },
+      { departmentCode: 'ski', shiftTypeId: 't-general', sortOrder: 2 },
+      { departmentCode: 'snowboard', shiftTypeId: 't-group', sortOrder: 1 },
+      { departmentCode: 'snowboard', shiftTypeId: 't-general', sortOrder: 2 },
+    ]);
+    await db
+      .insert(users)
+      .values({ lineUserId: 'U-self', displayName: '本人', instructorId: 'i-self' });
+  });
+
+  /** 直近の勤務予定を操作し、返信されたカードの要約を返す。 */
+  function deliverMySchedule() {
+    return deliverSchedule('U-self', myScheduleEvent);
+  }
+
+  /** 直近の勤務予定を操作し、指定したテキストが一回返信されることを確認する。 */
+  async function expectTextReply(text: string, userId = 'U-self') {
+    await deliver([myScheduleEvent('a', userId)]);
+
+    expect(sentReplies()).toEqual([
+      { replyToken: 'reply-token-a', messages: [{ type: 'text', text }] },
+    ]);
+  }
+
+  it('本人の直近3枠の日だけを昇順のカードにし、その日の公開済み勤務を返す', async () => {
+    // 登録順は表示順と逆にする
+    await seedShift('2026-12-10', 'ski', 't-general', ['i-self']);
+    await seedShift('2026-12-03', 'snowboard', 't-general', ['i-self', 'i-a']);
+    await seedShift('2026-11-28', 'snowboard', 't-general', ['i-a']);
+    await seedShift('2026-11-28', 'ski', 't-general', ['i-self']);
+    await seedShift('2026-11-28', 'ski', 't-group', ['i-self', 'i-a']);
+    // 選ばれた日の下書きと担当者のいない枠
+    await seedShift('2026-11-28', 'snowboard', 't-group', ['i-self'], 'DRAFT');
+    await seedShift('2026-12-03', 'ski', 't-group', []);
+    // 過去、下書きだけの日、別人だけが勤務する日
+    await seedShift('2026-11-27', 'ski', 't-general', ['i-self']);
+    await seedShift('2026-11-29', 'ski', 't-general', ['i-self'], 'DRAFT');
+    await seedShift('2026-11-30', 'ski', 't-general', ['i-a']);
+
+    const { altText, labels, days } = await deliverMySchedule();
+
+    expect(altText).toBe('直近の勤務予定（11/28（土）〜12/3（木））勤務予定のある日：2日');
+    expect(labels).toEqual(['直近の勤務予定', '直近の勤務予定']);
+    expect(days).toEqual([
+      [
+        '11/28（土）',
+        'スキー / 団体レッスン / 青木 一、*本人 花子*',
+        'スキー / 一般レッスン / *本人 花子*',
+        'スノーボード / 一般レッスン / 青木 一',
+      ],
+      ['12/3（木）', 'スノーボード / 一般レッスン / 青木 一、*本人 花子*'],
+    ]);
+    const sent = JSON.stringify(sentReplies());
+    expect(sent).not.toContain('private-description');
+    expect(sent).not.toContain('http');
+    expect(errorLog).not.toHaveBeenCalled();
+  });
+
+  it('同じ日の3枠は1枚にし、別の日の4枠目は選ばない', async () => {
+    await seedShift('2026-11-28', 'ski', 't-group', ['i-self']);
+    await seedShift('2026-11-28', 'ski', 't-general', ['i-self']);
+    await seedShift('2026-11-28', 'snowboard', 't-group', ['i-self']);
+    await seedShift('2026-11-29', 'ski', 't-group', ['i-self']);
+
+    const { altText, days } = await deliverMySchedule();
+
+    expect(altText).toBe('直近の勤務予定（11/28（土）〜11/28（土））勤務予定のある日：1日');
+    expect(days.map(([date]) => date)).toEqual(['11/28（土）']);
+  });
+
+  it('選ばれた日の勤務は、3枠の制限を超えてもすべて表示する', async () => {
+    await seedShift('2026-11-28', 'ski', 't-group', ['i-self']);
+    await seedShift('2026-11-28', 'ski', 't-general', ['i-self']);
+    await seedShift('2026-11-29', 'ski', 't-group', ['i-self']);
+    await seedShift('2026-11-29', 'ski', 't-general', ['i-self']);
+
+    const { days } = await deliverMySchedule();
+
+    expect(days).toEqual([
+      ['11/28（土）', 'スキー / 団体レッスン / *本人 花子*', 'スキー / 一般レッスン / *本人 花子*'],
+      ['11/29（日）', 'スキー / 団体レッスン / *本人 花子*', 'スキー / 一般レッスン / *本人 花子*'],
+    ]);
+  });
+
+  it.each<[string, string[], string[]]>([
+    ['1枠', ['2026-12-01'], ['12/1（火）']],
+    ['2枠', ['2026-12-01', '2028-03-01'], ['12/1（火）', '3/1（水）']],
+  ])('勤務が%sだけなら、未来の期限なく該当する日だけを返す', async (_label, dates, expected) => {
+    for (const date of dates) await seedShift(date, 'ski', 't-general', ['i-self']);
+
+    const { days } = await deliverMySchedule();
+
+    expect(days.map(([date]) => date)).toEqual(expected);
+  });
+
+  it.each([
+    ['直前', new Date(NOW.getTime() - 1), ['11/27（金）', '11/28（土）', '11/29（日）']],
+    ['直後', NOW, ['11/28（土）', '11/29（日）', '11/30（月）']],
+  ])('日本時間の日付が変わる%sは、その時点の当日以降を選ぶ', async (_label, now, expected) => {
+    vi.setSystemTime(now);
+    for (const date of ['2026-11-27', '2026-11-28', '2026-11-29', '2026-11-30']) {
+      await seedShift(date, 'ski', 't-general', ['i-self']);
+    }
+
+    const { days } = await deliverMySchedule();
+
+    expect(days.map(([date]) => date)).toEqual(expected);
+  });
+
+  it.each<[string, () => Promise<unknown>]>([
+    ['勤務がない', async () => undefined],
+    ['過去の勤務だけ', () => seedShift('2026-11-27', 'ski', 't-general', ['i-self'])],
+    ['下書きだけ', () => seedShift('2026-11-28', 'ski', 't-general', ['i-self'], 'DRAFT')],
+    [
+      '別人の勤務と空枠だけ',
+      async () => {
+        await seedShift('2026-11-28', 'ski', 't-general', ['i-a']);
+        await seedShift('2026-11-29', 'ski', 't-general', []);
+      },
+    ],
+  ])('%sの場合は、今後の勤務予定がないことをテキストで返す', async (_label, seed) => {
+    await seed();
+
+    await expectTextReply(NO_UPCOMING_TEXT);
+  });
+
+  it.each(['MEMBER', 'MANAGER', 'ADMIN'])(
+    '未紐付けの %s には勤務を照会せず、紐付けがないことを返す',
+    async (role) => {
+      await seedShift('2026-11-28', 'ski', 't-general', ['i-self']);
+      await createDb(env.DB)
+        .insert(users)
+        .values({ lineUserId: 'U-target', displayName: '対象', role });
+      const prepare = vi.spyOn(env.DB, 'prepare');
+
+      await expectTextReply(UNLINKED_TEXT, 'U-target');
+
+      // ユーザーの照合だけで終了し、勤務は問い合わせない
+      expect(prepare).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it.each(['MANAGER', 'ADMIN'])('%s にも下書きを表示しない', async (role) => {
+    await createDb(env.DB).update(users).set({ role }).where(eq(users.lineUserId, 'U-self'));
+    await seedShift('2026-11-28', 'ski', 't-general', ['i-self'], 'DRAFT');
+    await seedShift('2026-11-29', 'ski', 't-general', ['i-self']);
+    await seedShift('2026-11-29', 'ski', 't-group', ['i-a'], 'DRAFT');
+
+    const { days } = await deliverMySchedule();
+
+    expect(days).toEqual([['11/29（日）', 'スキー / 一般レッスン / *本人 花子*']]);
+  });
+
+  /** 候補日の勤務を取得する直前に、指定した勤務枠を下書きに戻す。 */
+  function unpublishBeforeScheduleLoad(shiftIds: string[]) {
+    const prepare = env.DB.prepare.bind(env.DB);
+    vi.spyOn(env.DB, 'prepare').mockImplementation((query) => {
+      // 備考を含む列を読むのは、日付を指定した勤務の取得だけ
+      if (query.startsWith('select') && query.includes('"description"')) {
+        for (const id of shiftIds.splice(0)) {
+          void prepare("update shifts set status = 'DRAFT' where id = ?").bind(id).run();
+        }
+      }
+      return prepare(query);
+    });
+  }
+
+  it('取得までに本人の公開済み勤務がなくなった候補日は除く', async () => {
+    const hidden = await seedShift('2026-11-28', 'ski', 't-general', ['i-self']);
+    await seedShift('2026-11-28', 'ski', 't-group', ['i-a']);
+    await seedShift('2026-11-29', 'ski', 't-general', ['i-self']);
+    unpublishBeforeScheduleLoad([hidden]);
+
+    const { altText, days } = await deliverMySchedule();
+
+    expect(altText).toBe('直近の勤務予定（11/29（日）〜11/29（日））勤務予定のある日：1日');
+    expect(days).toEqual([['11/29（日）', 'スキー / 一般レッスン / *本人 花子*']]);
+  });
+
+  it('取得までにすべての候補日がなくなった場合はテキストを返す', async () => {
+    const hidden = await seedShift('2026-11-28', 'ski', 't-general', ['i-self']);
+    await seedShift('2026-11-28', 'ski', 't-group', ['i-a']);
+    unpublishBeforeScheduleLoad([hidden]);
+
+    await expectTextReply(NO_UPCOMING_TEXT);
+  });
+
+  it('同じ配送の全体の勤務予定と直近の勤務予定に、それぞれ返信する', async () => {
+    await seedShift('2026-11-28', 'ski', 't-general', ['i-self']);
+
+    await deliver([scheduleEvent('team', 'U-self'), myScheduleEvent('mine', 'U-self')]);
+
+    const sent = sortedReplies();
+    expect(sent).toHaveLength(2);
+    expect(sent[0]).toContain('reply-token-mine');
+    expect(sent[0]).toContain('直近の勤務予定');
+    expect(sent[1]).toContain('reply-token-team');
+    expect(sent[1]).toContain('全体の勤務予定');
   });
 });

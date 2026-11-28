@@ -45,13 +45,90 @@ export function buildNotificationInserts(
     );
 }
 
-/** 一覧の並び順（作成日時・ID の降順）上の位置を cursor 文字列にする。 */
-function encodeCursor(position: { createdAt: Date; id: string }): string {
+/** 一覧の並び順（作成日時・ID の降順）上の位置 */
+type NotificationPosition = { createdAt: Date; id: string };
+
+/** 通知一覧の読み取り条件 */
+export type NotificationListOptions = {
+  /** 返す件数の上限 */
+  limit: number;
+  /** 未読の通知だけを返すか */
+  unreadOnly: boolean;
+  /** この位置より後（古い側）の通知を返す。省略すると先頭から返す */
+  after?: NotificationPosition | undefined;
+};
+
+/** 本人の通知の一覧と未読総数を読むクエリを組み立てる。呼び出し元が1つの batch で実行する。 */
+function buildNotificationListQueries(
+  db: Database,
+  userId: string,
+  { limit, unreadOnly, after }: NotificationListOptions,
+) {
+  const owned = eq(notifications.userId, userId);
+  const unread = isNull(notifications.readAt);
+  // 作成日時が同じ通知は ID の順で続きを判定し、ページの境目で欠落・重複させない
+  const afterPosition =
+    after &&
+    or(
+      lt(notifications.createdAt, after.createdAt),
+      and(eq(notifications.createdAt, after.createdAt), lt(notifications.id, after.id)),
+    );
+  return {
+    owned,
+    list: db
+      .select({
+        id: notifications.id,
+        title: notifications.title,
+        body: notifications.body,
+        actionUrl: notifications.actionUrl,
+        createdAt: notifications.createdAt,
+        readAt: notifications.readAt,
+      })
+      .from(notifications)
+      .where(and(owned, unreadOnly ? unread : undefined, afterPosition))
+      .orderBy(desc(notifications.createdAt), desc(notifications.id))
+      // 次のページの有無を判定するため、1件多く読む
+      .limit(limit + 1),
+    unreadTotal: db.select({ value: count() }).from(notifications).where(and(owned, unread)),
+  };
+}
+
+/** `buildNotificationListQueries` の結果を、上限件数の一覧と未読総数にする。 */
+function toNotificationList<Item>(items: Item[], totals: { value: number }[], limit: number) {
+  return {
+    items: items.slice(0, limit),
+    hasNext: items.length > limit,
+    unreadCount: totals[0]?.value ?? 0,
+  };
+}
+
+/**
+ * 本人の通知を新しい順（作成日時・ID の降順）に読み、未読の総数を添える（サーバー専用）。
+ * 読み取りだけを行い、既読状態は変えない。
+ *
+ * @param db - Drizzle クライアント
+ * @param userId - 通知の宛先ユーザー ID。認証済みの本人の値を渡す
+ * @param options - 件数の上限、未読だけにするか、続きを読む位置
+ * @returns 上限件数までの通知、続きの有無、ページや条件によらない本人の未読総数
+ */
+export async function listNotifications(
+  db: Database,
+  userId: string,
+  options: NotificationListOptions,
+) {
+  const { list, unreadTotal } = buildNotificationListQueries(db, userId, options);
+  // 一覧と未読総数が同じ時点の値になるよう、1つの batch で読む
+  const [items, totals] = await db.batch([list, unreadTotal]);
+  return toNotificationList(items, totals, options.limit);
+}
+
+/** 一覧の並び順上の位置を cursor 文字列にする。 */
+function encodeCursor(position: NotificationPosition): string {
   return `${Math.floor(position.createdAt.getTime() / 1000)}_${position.id}`;
 }
 
 /** 形式を検証済みの cursor 文字列を、並び順上の位置に戻す。 */
-function decodeCursor(cursor: string): { createdAt: Date; id: string } {
+function decodeCursor(cursor: string): NotificationPosition {
   const separator = cursor.indexOf('_');
   return {
     createdAt: new Date(Number(cursor.slice(0, separator)) * 1000),
@@ -74,48 +151,22 @@ export const notificationsRoute = new Hono<{ Bindings: Env; Variables: AuthVaria
       return parsed.data;
     }),
     async (c) => {
-      const db = createDb(c.env.DB);
       const {
         limit = DEFAULT_NOTIFICATION_LIMIT,
         cursor,
         unreadOnly = false,
       } = c.req.valid('query');
-      const owned = eq(notifications.userId, c.get('user').userId);
-      const unread = isNull(notifications.readAt);
-      const position = cursor === undefined ? undefined : decodeCursor(cursor);
-      // 作成日時が同じ通知は ID の順で続きを判定し、ページの境目で欠落・重複させない
-      const afterCursor =
-        position &&
-        or(
-          lt(notifications.createdAt, position.createdAt),
-          and(eq(notifications.createdAt, position.createdAt), lt(notifications.id, position.id)),
-        );
+      const { items, hasNext, unreadCount } = await listNotifications(
+        createDb(c.env.DB),
+        c.get('user').userId,
+        { limit, unreadOnly, after: cursor === undefined ? undefined : decodeCursor(cursor) },
+      );
 
-      // 一覧と未読総数が同じ時点の値になるよう、1つの batch で読む
-      const [rows, [unreadTotal]] = await db.batch([
-        db
-          .select({
-            id: notifications.id,
-            title: notifications.title,
-            body: notifications.body,
-            actionUrl: notifications.actionUrl,
-            createdAt: notifications.createdAt,
-            readAt: notifications.readAt,
-          })
-          .from(notifications)
-          .where(and(owned, unreadOnly ? unread : undefined, afterCursor))
-          .orderBy(desc(notifications.createdAt), desc(notifications.id))
-          // 次のページの有無を判定するため、1件多く読む
-          .limit(limit + 1),
-        db.select({ value: count() }).from(notifications).where(and(owned, unread)),
-      ]);
-
-      const items = rows.slice(0, limit);
       const last = items.at(-1);
       return c.json({
         items,
-        nextCursor: rows.length > limit && last ? encodeCursor(last) : null,
-        unreadCount: unreadTotal?.value ?? 0,
+        nextCursor: hasNext && last ? encodeCursor(last) : null,
+        unreadCount,
       });
     },
   )

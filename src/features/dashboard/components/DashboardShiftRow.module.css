@@ -1,12 +1,13 @@
 /* 寸法は ShiftAgendaViewer.module.css の .eventBody / .departmentBar と揃える
    （部門色の左バー＋自分を含む行の淡いブランド色背景） */
-.attendeeRow {
+.row {
   display: flex;
   gap: var(--mantine-spacing-sm);
-  padding: var(--mantine-spacing-xs) var(--mantine-spacing-sm);
+  padding: var(--mantine-spacing-xs);
+  border-radius: var(--mantine-radius-sm);
 }
 
-.attendeeRow[data-includes-me] {
+.row[data-includes-me] {
   background-color: var(--mantine-color-brand-0);
 }
 

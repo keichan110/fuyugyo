@@ -28,7 +28,7 @@ export function SeasonWorkBreakdownChart({ breakdown }: { breakdown: SeasonWorkB
 
   return (
     <Stack gap="md">
-      <Title order={3} size="h4">
+      <Title order={3} size="h5">
         勤務内訳
       </Title>
       {data.length === 0 ? (

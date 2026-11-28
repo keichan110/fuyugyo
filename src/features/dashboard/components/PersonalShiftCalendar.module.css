@@ -1,15 +1,3 @@
-.shiftRow {
-  display: flex;
-  gap: var(--mantine-spacing-sm);
-  padding: var(--mantine-spacing-xs) var(--mantine-spacing-sm);
-}
-
-.departmentBar {
-  width: 4px;
-  border-radius: 2px;
-  flex-shrink: 0;
-}
-
 /* ミニカレンダーは月固定表示のため、ナビゲーション（前後矢印・レベル切替）を非表示にする */
 .hiddenCalendarHeader {
   display: none;
@@ -93,4 +81,25 @@
   .carouselControls {
     display: none;
   }
+}
+
+.slide {
+  display: flex;
+  flex-direction: column;
+}
+
+/* スライドの高さいっぱいに広げ、月ごとの導線を下端へ寄せる */
+.slide > * {
+  flex: 1;
+}
+
+/* 狭い画面でも押しやすい高さを確保する。
+   Anchor の基本スタイル（display・border 等）に打ち消されないよう詳細度を上げる */
+.slide .editLink {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--mantine-spacing-xs);
+  min-height: 44px;
+  border-top: 1px solid var(--mantine-color-default-border);
 }

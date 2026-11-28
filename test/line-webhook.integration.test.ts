@@ -1,7 +1,10 @@
 import { createExecutionContext, env, waitOnExecutionContext } from 'cloudflare:test';
+import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import app from '../src/index';
+import { createDb } from '../src/server/db/client';
+import { instructors, users } from '../src/server/db/schema';
 
 const SECRET = 'test-messaging-channel-secret';
 const ACCESS_TOKEN = 'test-messaging-access-token';
@@ -13,6 +16,16 @@ type Settings = {
   accessToken?: string | undefined;
   echoEnabled?: string | undefined;
 };
+
+const { captureException } = vi.hoisted(() => {
+  vi.resetModules();
+  return { captureException: vi.fn() };
+});
+
+vi.mock('@sentry/cloudflare', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@sentry/cloudflare')>()),
+  captureException,
+}));
 
 const fetchMock = vi.fn<typeof fetch>();
 const dbAccess = vi.fn();
@@ -333,5 +346,204 @@ describe('Reply API の失敗', () => {
     await waitOnExecutionContext(ctx);
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(errorLog.mock.calls).toEqual([['[line-webhook] reply failed', { kind: 'timeout' }]]);
+  });
+});
+
+describe('友だち追加でのリッチメニュー割り当て', () => {
+  const ALIAS_URL = 'https://api.line.me/v2/bot/richmenu/alias/fuyugyo-instructor';
+  const MENU_ID = 'richmenu-instructor';
+  const assignUrl = (userId: string) =>
+    `https://api.line.me/v2/bot/user/${userId}/richmenu/${MENU_ID}`;
+
+  beforeEach(async () => {
+    const db = createDb(env.DB);
+    await db.delete(users);
+    await db.delete(instructors);
+    fetchMock.mockImplementation(async (input) =>
+      Response.json(String(input) === ALIAS_URL ? { richMenuId: MENU_ID } : {}),
+    );
+  });
+
+  /** User を作成する。`linked` なら Instructor も作成して紐付ける。 */
+  async function seedUser(lineUserId: string, { linked = true, isActive = true } = {}) {
+    const db = createDb(env.DB);
+    const instructorId = linked ? crypto.randomUUID() : null;
+    if (instructorId) {
+      await db
+        .insert(instructors)
+        .values({ id: instructorId, lastName: '山田', firstName: '太郎', status: 'ACTIVE' });
+    }
+    await db.insert(users).values({ lineUserId, displayName: '対象', isActive, instructorId });
+  }
+
+  function followEvent(userId: string, isRedelivery = false) {
+    return {
+      type: 'follow',
+      webhookEventId: `follow-${userId}-${isRedelivery}`,
+      replyToken: 'reply-token-follow',
+      deliveryContext: { isRedelivery },
+      source: { type: 'user', userId },
+      follow: { isUnblocked: false },
+    };
+  }
+
+  function sentRequests() {
+    return fetchMock.mock.calls.map(([url, init]) => `${init?.method} ${String(url)}`);
+  }
+
+  it.each([
+    [undefined, false],
+    ['false', true],
+    ['true', false],
+  ])(
+    'エコー設定 %j・再配信 %s でも割り当て、トークには返信しない',
+    async (echoEnabled, isRedelivery) => {
+      await seedUser('U-linked');
+
+      const response = await deliver([followEvent('U-linked', isRedelivery)], { echoEnabled });
+
+      expect(response.status).toBe(200);
+      expect(await response.text()).toBe('');
+      expect(sentRequests()).toEqual([`GET ${ALIAS_URL}`, `POST ${assignUrl('U-linked')}`]);
+      expect(captureException).not.toHaveBeenCalled();
+    },
+  );
+
+  it('同じ配送内の重複はユーザーごとに一回にし、再度の配送にも同じメニューを割り当てる', async () => {
+    await seedUser('U-a');
+    await seedUser('U-b');
+
+    await deliver([followEvent('U-a'), followEvent('U-b'), followEvent('U-a', true)]);
+
+    expect(
+      sentRequests()
+        .filter((request) => request.startsWith('POST'))
+        .sort(),
+    ).toEqual([`POST ${assignUrl('U-a')}`, `POST ${assignUrl('U-b')}`]);
+    fetchMock.mockClear();
+
+    await deliver([followEvent('U-a', true)]);
+
+    expect(sentRequests()).toEqual([`GET ${ALIAS_URL}`, `POST ${assignUrl('U-a')}`]);
+  });
+
+  it('同じ配送のテキストは従来どおり返信する', async () => {
+    await seedUser('U-linked');
+
+    await deliver([followEvent('U-linked'), textEvent('a')]);
+
+    expect(sentRequests().sort()).toEqual([
+      `GET ${ALIAS_URL}`,
+      `POST ${REPLY_ENDPOINT}`,
+      `POST ${assignUrl('U-linked')}`,
+    ]);
+  });
+
+  it.each<[string, () => Promise<void>]>([
+    ['未登録', async () => undefined],
+    ['無効', () => seedUser('U-target', { isActive: false })],
+    ['未連携', () => seedUser('U-target', { linked: false })],
+  ])('%sのユーザーの友だち追加ではメニューを操作しない', async (_label, seed) => {
+    await seed();
+
+    const response = await deliver([followEvent('U-target')]);
+
+    expect(response.status).toBe(200);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  const base = followEvent('U-linked');
+  it.each<[string, unknown]>([
+    ['グループ', { ...base, source: { type: 'group', groupId: 'G', userId: 'U-linked' } }],
+    ['userId なし', { ...base, source: { type: 'user' } }],
+    ['空の userId', { ...base, source: { type: 'user', userId: '' } }],
+    ['unfollow', { ...base, type: 'unfollow' }],
+  ])('%s のイベントでは D1 を参照せず割り当てない', async (_label, event) => {
+    await seedUser('U-linked');
+
+    const response = await deliver([event]);
+
+    expect(response.status).toBe(200);
+    expect(dbAccess).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('署名が不正な友だち追加では割り当てない', async () => {
+    await seedUser('U-linked');
+    const body = JSON.stringify({ events: [followEvent('U-linked')] });
+
+    const { response, ctx } = await post(body, await sign(body, 'wrong-secret'));
+    await waitOnExecutionContext(ctx);
+
+    expect(response.status).toBe(401);
+    expect(dbAccess).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('LINE API の完了を待たずに応答する', async () => {
+    await seedUser('U-linked');
+    let finish: (response: Response) => void = () => undefined;
+    fetchMock.mockImplementationOnce(
+      () =>
+        new Promise<Response>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const body = JSON.stringify({ events: [followEvent('U-linked')] });
+
+    const { response, ctx } = await post(body, await sign(body));
+
+    expect(response.status).toBe(200);
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    finish(Response.json({ richMenuId: MENU_ID }));
+    await waitOnExecutionContext(ctx);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('割り当ての失敗は 200 のまま D1 を変えず、固定の内容を通知する', async () => {
+    await seedUser('U-private');
+    const before = await createDb(env.DB).select().from(users);
+    fetchMock.mockImplementation(async (input) =>
+      String(input) === ALIAS_URL
+        ? Response.json({ richMenuId: MENU_ID })
+        : Response.json({ message: 'private-error-body' }, { status: 429 }),
+    );
+
+    const response = await deliver([followEvent('U-private')]);
+
+    expect(response.status).toBe(200);
+    expect(captureException.mock.calls).toEqual([
+      [
+        new Error('External API failed: line.richmenu.user.link (429)'),
+        { tags: { endpoint: 'line.richmenu.user.link', httpStatus: 429 } },
+      ],
+    ]);
+    expect(await createDb(env.DB).select().from(users)).toEqual(before);
+  });
+
+  it('D1 を確認できない場合は割り当てず、元の例外を含めずに通知する', async () => {
+    await seedUser('U-private');
+    vi.spyOn(env.DB, 'prepare').mockImplementationOnce(() => {
+      throw new Error('private-d1-error U-private');
+    });
+
+    const response = await deliver([followEvent('U-private')]);
+
+    expect(response.status).toBe(200);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(captureException.mock.calls).toEqual([
+      [
+        new Error('Operation failed: line.richmenu.user.check (db_error)'),
+        { tags: { endpoint: 'line.richmenu.user.check', failureKind: 'db_error' } },
+      ],
+    ]);
+    const [error] = captureException.mock.calls[0] ?? [];
+    expect(error).not.toHaveProperty('cause');
+    const [user] = await createDb(env.DB)
+      .select()
+      .from(users)
+      .where(eq(users.lineUserId, 'U-private'));
+    expect(user?.instructorId).not.toBeNull();
   });
 });

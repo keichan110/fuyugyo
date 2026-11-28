@@ -1,6 +1,6 @@
 # LINE Messaging API の Webhook
 
-`POST /api/line/webhook` で Webhook を受信する。友だち追加では[個別リッチメニュー](line-rich-menu.md#アプリによる個別割り当て)を割り当て、リッチメニューの「全体の勤務予定」と「直近の勤務予定」には個人トークで返信する。ここでは動作と、検証用の LINE 公式アカウントと検証用の HTTPS Worker で確認する手順を示す。デプロイと秘密情報の登録は担当者が手作業で行う。
+`POST /api/line/webhook` で Webhook を受信する。友だち追加では[個別リッチメニュー](line-rich-menu.md#アプリによる個別割り当て)を割り当て、リッチメニューの「全体の勤務予定」「直近の勤務予定」「お知らせ」には個人トークで返信する。ここでは動作と、検証用の LINE 公式アカウントと検証用の HTTPS Worker で確認する手順を示す。デプロイと秘密情報の登録は担当者が手作業で行う。
 
 ## 動作
 
@@ -26,13 +26,13 @@
 | -------- | ---------------------- | --------------------------------- |
 | 左       | `action=team-schedule` | 全体の勤務予定（今日を含む7日間） |
 | 中央     | `action=my-schedule`   | 直近の勤務予定（本人の勤務日）    |
-| 右       | `action=announcements` | 未対応（返信しない）              |
+| 右       | `action=announcements` | 本人宛ての未読のお知らせ          |
 
 通常のメッセージ（テキスト・画像・スタンプ等）、未知の操作値、グループ・複数人トーク、再配信には返信しない。
 
 ### 返信を受け取れるユーザー
 
-署名を検証したイベントの `source.userId` をユーザーの LINE ユーザー ID と照合し、有効な MEMBER・MANAGER・ADMIN にだけ返信する。未登録・無効・未知のロールには、勤務を取得せず返信もしない。インストラクターに未紐付けでも返信する（直近の勤務予定は、勤務を取得せず紐付けがないことを知らせる）。
+署名を検証したイベントの `source.userId` をユーザーの LINE ユーザー ID と照合し、有効な MEMBER・MANAGER・ADMIN にだけ返信する。未登録・無効・未知のロールには、勤務やお知らせを取得せず返信もしない。インストラクターに未紐付けでも返信する（直近の勤務予定は、勤務を取得せず紐付けがないことを知らせる）。
 
 ### 返信の内容
 
@@ -52,6 +52,18 @@
 - 日本時間の今日以降で本人が担当する公開済みの勤務枠を、日付と表示順に3枠まで選び、その日付だけをカードにする（最大3枚）。同じ日に複数の枠があれば3枚より少なくなる。今日の枠は終了時刻を過ぎていても含み、未来側の期限はない。
 - 選んだ日のカードには、他の担当者だけの枠を含むその日のすべての勤務枠を表示する（上記のサイズ上限は適用する）。
 - 対象の勤務がなければ「今後の勤務予定はありません」、インストラクターに未紐付けなら「インストラクター情報が紐付いていないため、勤務予定を確認できません。」のテキスト1件を返す。
+
+### お知らせの返信内容
+
+右ボタンの設定値は[メニュー定義](line-rich-menu.md)のとおりで、アクションは `postback`、`data` は `action=announcements`。送信テキスト（`displayText`・`text`）は設定しないため、押してもトークに利用者の発言は表示されない。
+
+- 送信者本人宛ての未読通知を、Web と同じ新しい順（作成日時が同じ秒なら ID の降順）に最大 5 件返す。インストラクターに未紐付けでも返信する。
+- 照会だけを行い、既読状態は変えない。通知と既読状態は Web と共通のため、Web で既読にした通知は次の返信に含まれない。続きの取得、既読の履歴、LINE からの既読操作はない。
+- Flex Message のカード 1 枚（単体の `mega` バブル）にまとめる。見出しは「お知らせ」と件数で、5 件以下は「未読3件」、超える場合は「未読8件のうち最新5件を表示」。代替テキストは「お知らせ（未読3件）」の形。
+- 通知ごとにタイトル、通知日時（日本時間、`11/28（土）08:15` の形）、本文を並べ、通知の間に区切り線を入れる。通知に保存されたリンク先は含めない。
+- タイトルは 100、本文は 500（UTF-16 コード単位。絵文字などは 2 以上を数える）まで原文のまま表示する。超える場合は末尾の「…」を含めて上限に収め、サロゲートペアは分断しない。分割送信はしない。この上限により、5 件でも単体バブルの上限 30 KB に収まる。
+- 本人の通知が 0 件なら「お知らせはありません。」、既読の通知だけなら「未読のお知らせはありません。」をテキストで返す。
+- 通知の読み取りに失敗した場合は「お知らせを取得できませんでした。時間をおいて、もう一度お試しください。」を返し、`[line-webhook] announcements failed` と失敗種別 `db_error` だけを記録する。
 
 ### 返信の失敗と重複
 
@@ -115,6 +127,39 @@ curl -i -X POST https://api.line.me/v2/bot/message/validate/reply \
 ```
 
 `line-message-sample.json` の `messages[0].contents` を [Flex Message Simulator](https://developers.line.biz/flex-simulator/) に貼り付け、小ラベル、日付の見出し、部門ラベルの配色、区切り線、本人の太字を確認する。直近の勤務予定は `label` を `直近の勤務予定`、`dates` を本人の勤務がある日だけにする。長い名前や多人数の表示は、サンプルの値を変えて確認する。確認後は 2 つの一時ファイルを削除する。
+
+### お知らせの返信を確認する
+
+お知らせも同じ手順で確認する。`line-message-sample.ts` を次の内容に置き換えて上のコマンドを実行する。
+
+```ts
+import { renderAnnouncementsMessage } from './src/features/line-webhook/announcements/message';
+
+const message = renderAnnouncementsMessage({
+  items: [
+    {
+      title: '集合場所の変更',
+      body: '本日の午前レッスンは、第2リフト前に集合してください。',
+      createdAt: new Date('2026-11-28T08:15:00+09:00'),
+    },
+    {
+      title: '12月の勤務予定を公開しました',
+      body: '12月前半の勤務予定を公開しました。担当日をご確認ください。',
+      createdAt: new Date('2026-11-27T18:30:00+09:00'),
+    },
+    {
+      title: '貸出ウェアの受け取り',
+      body: '貸出ウェアは受付でお渡しします。初回勤務日の朝にお立ち寄りください。',
+      createdAt: new Date('2026-11-26T12:00:00+09:00'),
+    },
+  ],
+  unreadCount: 3,
+  hasAny: true,
+});
+console.log(JSON.stringify({ messages: [message] }, null, 2));
+```
+
+`messages[0].contents` を Flex Message Simulator に貼り付け、見出しの件数、タイトル・日時・本文の順、通知の間の区切り線を確認する。長い本文の表示や、件数超過の見出し（`unreadCount: 8`）は、サンプルの値を変えて確認する。
 
 ## 2. 検証用 Worker を用意する
 
@@ -202,7 +247,7 @@ pnpm exec wrangler d1 execute fuyugyo-line-verify --remote --file line-verify-se
 3. 長い名前が折り返されること、カードを横にスワイプできること、トーク一覧に返信の種類と期間が表示されることを確認する。
 4. リッチメニュー下段の中央を押す。トークに送信テキストが表示されず、小ラベルが「直近の勤務予定」のカードが 1 回だけ届くことを確認する。
 5. カードは今日と10日後の日付の2枚で、下書きの日と本人の勤務がない6日後は含まれないことを確認する。今日のカードには同僚も表示され、本人の名前だけが太字になること、トーク一覧に返信の種類・期間・勤務予定のある日数が表示されることを確認する。
-6. 下段の右、テキスト、スタンプを送り、返信がないことを確認する。上段のタップでは、引き続き LIFF が開くことを確認する。
+6. テキストやスタンプを送り、返信がないことを確認する。上段のタップでは、引き続き LIFF が開くことを確認する。
 7. 勤務がない状態を確認する。次のコマンドで下書きに戻して左と中央を押し、それぞれテキストが 1 件届くことを確認する。
 
    ```bash
@@ -223,6 +268,40 @@ pnpm exec wrangler d1 execute fuyugyo-line-verify --remote --file line-verify-se
    pnpm exec wrangler tail --config wrangler.line-verify.toml
    ```
 
+### お知らせ
+
+通知は右ボタンで確認する。毎回、トークに利用者の発言が表示されず、返信が 1 回だけ届くことを確認する。以降の SQL は検証用の D1 にだけ実行する。
+
+1. 通知を登録する前に右を押し、「お知らせはありません。」が届くことを確認する。
+2. 次の SQL を一時ファイル `line-verify-notifications.sql` に保存して実行する。最後の 1 件は、タイトルと本文が上限を超える長文。
+
+   ```sql
+   INSERT INTO notifications (id, user_id, title, body, action_url, event_key, created_at) VALUES
+     ('verify-n1', 'verify-user', '集合場所の変更', '本日の午前レッスンは、第2リフト前に集合してください。', '/shifts', 'verify-n1', unixepoch() - 60),
+     ('verify-n2', 'verify-user', '勤務予定を公開しました', '担当日をご確認ください。', NULL, 'verify-n2', unixepoch() - 3600),
+     ('verify-n3', 'verify-user', replace(hex(zeroblob(120)), '00', '長'), replace(hex(zeroblob(600)), '00', 'あ'), NULL, 'verify-n3', unixepoch() - 7200);
+   ```
+
+   ```bash
+   pnpm exec wrangler d1 execute fuyugyo-line-verify --remote --file line-verify-notifications.sql --config wrangler.line-verify.toml
+   ```
+
+3. 右を押し、「未読3件」の見出し、新しい順の並び、日本時間の日時、日本語の折り返し、長文末尾の「…」、リンクがないことを確認する。トーク一覧に「お知らせ（未読3件）」と表示されることも確認する。
+4. もう一度右を押し、同じ内容が届く（表示しても既読にならない）ことを確認する。
+5. 通知を 3 件追加して右を押し、「未読6件のうち最新5件を表示」となり、最も古い通知が表示されないことを確認する。
+
+   ```bash
+   pnpm exec wrangler d1 execute fuyugyo-line-verify --remote --config wrangler.line-verify.toml \
+     --command "INSERT INTO notifications (id, user_id, title, body, event_key) SELECT 'verify-extra-' || value, 'verify-user', '追加のお知らせ' || value, '追加の本文', 'verify-extra-' || value FROM json_each('[1,2,3]')"
+   ```
+
+6. 全件を既読にして右を押し、「未読のお知らせはありません。」が届くことを確認する。検証用 Worker には画面がないため、Web の既読操作と同じ `read_at` を SQL で設定する。
+
+   ```bash
+   pnpm exec wrangler d1 execute fuyugyo-line-verify --remote --config wrangler.line-verify.toml \
+     --command "UPDATE notifications SET read_at = unixepoch() WHERE user_id = 'verify-user'"
+   ```
+
 ## 5. 検証後に解除する
 
 1. 「Webhookの利用」を無効にし、検証用 Worker と D1 を削除する。不要になったアクセストークンはコンソールで失効させる。
@@ -232,6 +311,6 @@ pnpm exec wrangler d1 execute fuyugyo-line-verify --remote --file line-verify-se
    pnpm exec wrangler d1 delete fuyugyo-line-verify --config wrangler.line-verify.toml
    ```
 
-2. `wrangler.line-verify.toml` と `line-verify-seed.sql` を削除する。
+2. `wrangler.line-verify.toml`、`line-verify-seed.sql`、`line-verify-notifications.sql` を削除する。
 
 参考: [Webhook の署名を検証する](https://developers.line.biz/ja/docs/messaging-api/verify-webhook-signature/)、[応答メッセージを送る](https://developers.line.biz/ja/reference/messaging-api/#send-reply-message)、[応答メッセージの検証](https://developers.line.biz/ja/reference/messaging-api/#validate-message-objects-of-reply-message)、[Webhook の受信と再配信](https://developers.line.biz/en/docs/messaging-api/receiving-messages/)。

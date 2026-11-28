@@ -6,6 +6,8 @@ import { users } from '@/server/db/schema';
 
 /** LINE の返信で業務情報を受け取れるユーザー */
 export type LineReplyUser = {
+  /** ユーザー ID。本人宛ての情報の絞り込みに使う */
+  userId: string;
   /** 紐付いたインストラクター。未紐付けは null */
   instructorId: string | null;
 };
@@ -23,11 +25,16 @@ export async function findLineReplyUser(
   lineUserId: string,
 ): Promise<LineReplyUser | null> {
   const [user] = await db
-    .select({ role: users.role, isActive: users.isActive, instructorId: users.instructorId })
+    .select({
+      id: users.id,
+      role: users.role,
+      isActive: users.isActive,
+      instructorId: users.instructorId,
+    })
     .from(users)
     .where(eq(users.lineUserId, lineUserId))
     .limit(1);
   // 未知のロールは MEMBER に読み替えず、返信しない
   if (!user?.isActive || !VALID_ROLES.some((role) => role === user.role)) return null;
-  return { instructorId: user.instructorId };
+  return { userId: user.id, instructorId: user.instructorId };
 }

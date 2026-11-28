@@ -13,6 +13,7 @@ import { findLineReplyUser, type LineReplyUser } from '@/server/line/reply-user'
 import { assignInstructorRichMenu } from '@/server/line/rich-menu';
 import type { Env } from '@/server/types';
 
+import { buildAnnouncementsMessage } from './announcements/api';
 import { buildMyScheduleMessage } from './my-schedule/api';
 import {
   lineFollowEventSchema,
@@ -30,6 +31,7 @@ const REPLY_BUILDERS: Record<
 > = {
   'action=team-schedule': buildTeamScheduleMessage,
   'action=my-schedule': buildMyScheduleMessage,
+  'action=announcements': buildAnnouncementsMessage,
 };
 
 /**
@@ -154,7 +156,7 @@ export const lineWebhookRoute = new Hono<{ Bindings: Env }>()
     if (!accessToken) {
       throw new HTTPException(503, { message: 'LINE reply is not configured' });
     }
-    // LINE への応答を勤務の取得と Reply API の完了待ちにしない
+    // LINE への応答を返信内容の取得と Reply API の完了待ちにしない
     c.executionCtx.waitUntil(
       Promise.all(targets.map((event) => respond(c.env, accessToken, event))),
     );

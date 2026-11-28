@@ -51,7 +51,9 @@ function render(
 type RenderOptions = { dates: [string, ...string[]]; instructorId: string | null };
 
 function bubblesOf(message: LineMessage): FlexBubble[] {
-  if (message.type !== 'flex') throw new Error('Flex Message ではありません');
+  if (message.type !== 'flex' || message.contents.type !== 'carousel') {
+    throw new Error('カルーセルの Flex Message ではありません');
+  }
   return message.contents.contents;
 }
 

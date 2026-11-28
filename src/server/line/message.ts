@@ -33,10 +33,14 @@ export type FlexBox = {
 /** ボックスに配置できる要素 */
 export type FlexComponent = FlexBox | FlexText | FlexSeparator;
 
-/** カルーセルの1枚分のカード */
+/** Flex のカード。単体、またはカルーセルの1枚として送る */
 export type FlexBubble = { type: 'bubble'; size: 'mega'; header: FlexBox; body: FlexBox };
 
 /** 返信で送るメッセージ */
 export type LineMessage =
   | { type: 'text'; text: string }
-  | { type: 'flex'; altText: string; contents: { type: 'carousel'; contents: FlexBubble[] } };
+  | {
+      type: 'flex';
+      altText: string;
+      contents: FlexBubble | { type: 'carousel'; contents: FlexBubble[] };
+    };

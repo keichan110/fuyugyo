@@ -243,7 +243,22 @@ describe('POST /api/line/webhook の返信', () => {
     ],
     ['画像', { ...base, type: 'message', message: { type: 'image', id: '1' } }],
     ['スタンプ', { ...base, type: 'message', message: { type: 'sticker', id: '1' } }],
-    ['後続のお知らせ', { ...base, postback: { data: 'action=announcements' } }],
+    [
+      'グループのお知らせ',
+      {
+        ...base,
+        source: { type: 'group', groupId: 'G', userId: 'U-private' },
+        postback: { data: 'action=announcements' },
+      },
+    ],
+    [
+      'グループの個人勤務予定',
+      {
+        ...base,
+        source: { type: 'group', groupId: 'G', userId: 'U-private' },
+        postback: { data: 'action=my-schedule' },
+      },
+    ],
     ['未知の操作', { ...base, postback: { data: 'action=unknown' } }],
     ['追加の値がある操作', { ...base, postback: { data: 'action=team-schedule&page=1' } }],
     ['空白を含む操作', { ...base, postback: { data: ' action=team-schedule' } }],

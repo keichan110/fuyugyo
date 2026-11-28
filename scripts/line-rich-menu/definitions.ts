@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 
-/** 連携済み用メニューを指す固定エイリアス。アプリはこのエイリアスから現在の ID を解決する。 */
-export const INSTRUCTOR_ALIAS_ID = 'fuyugyo-instructor';
+// エイリアスは Worker の割り当て処理と共有する
+export { INSTRUCTOR_ALIAS_ID } from '../../src/server/line/rich-menu-alias.ts';
 
 /** 管理するメニューの用途。 */
 export const PURPOSES = ['default', 'instructor'] as const;

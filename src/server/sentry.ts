@@ -42,3 +42,17 @@ export function captureExternalApiError(endpoint: string, status: number): void 
     tags: { endpoint, httpStatus: status },
   });
 }
+
+/** HTTP ステータスを伴わない失敗の固定種別 */
+type OperationFailureKind =
+  'timeout' | 'network_error' | 'invalid_response' | 'not_configured' | 'db_error';
+
+/** 応答を得られないなどの失敗を、固定の操作名と失敗種別だけで通知する。元の例外は含めない。 */
+export function captureOperationFailure(
+  operation: string,
+  failureKind: OperationFailureKind,
+): void {
+  Sentry.captureException(new Error(`Operation failed: ${operation} (${failureKind})`), {
+    tags: { endpoint: operation, failureKind },
+  });
+}

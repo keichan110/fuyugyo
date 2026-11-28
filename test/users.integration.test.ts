@@ -1,6 +1,6 @@
 import { env } from 'cloudflare:test';
 import { eq } from 'drizzle-orm';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { userListSchema, userSchema } from '../src/features/users/schema';
 import app from '../src/index';
@@ -14,8 +14,45 @@ import type { Env } from '../src/server/types';
  * Hono の HTTP 境界 × 実 D1 を継ぎ目として検証する。
  */
 
+const MESSAGING_TOKEN = 'test-messaging-access-token';
+const MENU_ID = 'richmenu-instructor';
+const ALIAS_URL = 'https://api.line.me/v2/bot/richmenu/alias/fuyugyo-instructor';
+
+const { captureException } = vi.hoisted(() => {
+  vi.resetModules();
+  return { captureException: vi.fn() };
+});
+
+vi.mock('@sentry/cloudflare', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@sentry/cloudflare')>()),
+  captureException,
+}));
+
+const fetchMock = vi.fn<typeof fetch>();
+
+/** エイリアス照会にはメニュー ID を、その他の操作には空の成功応答を返す LINE の代役 */
+async function fakeLine(input: Parameters<typeof fetch>[0]): Promise<Response> {
+  return Response.json(String(input) === ALIAS_URL ? { richMenuId: MENU_ID } : {});
+}
+
+// 紐付けの操作は LINE API を呼ぶため、実際の LINE へは送らない
+beforeEach(() => {
+  fetchMock.mockImplementation(fakeLine);
+  vi.stubGlobal('fetch', fetchMock);
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.resetAllMocks();
+  vi.unstubAllGlobals();
+});
+
 function envWith(overrides: Partial<Env>): Env {
-  return { ...(env as unknown as Env), ...overrides };
+  return {
+    ...(env as unknown as Env),
+    LINE_MESSAGING_CHANNEL_ACCESS_TOKEN: MESSAGING_TOKEN,
+    ...overrides,
+  };
 }
 
 function authHeader(token: string): RequestInit {
@@ -637,4 +674,265 @@ describe('DELETE /api/users/:id/link-instructor', () => {
     expect(res.status).toBe(200);
     expect(userSchema.parse(await res.json()).instructorId).toBeNull();
   });
+});
+
+// ─── Instructor リンクと LINE の個別リッチメニュー ────────────────────────────
+
+describe('Instructor リンクに応じたリッチメニューの切り替え', () => {
+  // URL セグメントのエンコードを確認できるよう、区切り文字を含む ID にする
+  const LINE_USER_ID = 'U-private/target?id';
+  const USER_MENU_URL = 'https://api.line.me/v2/bot/user/U-private%2Ftarget%3Fid/richmenu';
+
+  async function seedTarget(values: { isActive?: boolean; instructorId?: string } = {}) {
+    const [user] = await createDb(env.DB)
+      .insert(users)
+      .values({ lineUserId: LINE_USER_ID, displayName: '対象', ...values })
+      .returning();
+    if (!user) throw new Error('seedTarget: insert failed');
+    return user.id;
+  }
+
+  async function link(userId: string, instructorId: string, overrides: Partial<Env> = {}) {
+    const { token } = await seedAdminToken();
+    return app.request(
+      `/api/users/${userId}/link-instructor`,
+      { method: 'POST', ...authJsonRequest(token, { instructorId }) },
+      envWith(overrides),
+    );
+  }
+
+  async function unlink(userId: string, overrides: Partial<Env> = {}) {
+    const { token } = await seedAdminToken();
+    return app.request(
+      `/api/users/${userId}/link-instructor`,
+      { method: 'DELETE', ...authHeader(token) },
+      envWith(overrides),
+    );
+  }
+
+  async function findInstructorId(userId: string) {
+    const [row] = await createDb(env.DB)
+      .select({ instructorId: users.instructorId })
+      .from(users)
+      .where(eq(users.id, userId));
+    return row?.instructorId;
+  }
+
+  /** 送った要求をメソッドと URL の組で返す */
+  function sentRequests() {
+    return fetchMock.mock.calls.map(([url, init]) => `${init?.method} ${String(url)}`);
+  }
+
+  /** 通知が一回だけで、固定の内容以外を含まないことを確認する */
+  function expectNotification(tags: Record<string, unknown>) {
+    expect(captureException.mock.calls).toEqual([[expect.any(Error), { tags }]]);
+    const [error, context] = captureException.mock.calls[0] ?? [];
+    expect(error).not.toHaveProperty('cause');
+    const notified = `${String(error)} ${error instanceof Error ? error.stack : ''} ${JSON.stringify(context)}`;
+    expect(notified).not.toMatch(/private|test-messaging|api\.line\.me|richmenu-instructor/);
+  }
+
+  it('有効な未紐付けユーザーを紐付けると、エイリアスのメニューを対象者へ割り当てる', async () => {
+    const userId = await seedTarget();
+    const instructorId = await seedInstructor();
+
+    const res = await link(userId, instructorId);
+
+    expect(res.status).toBe(200);
+    const json: unknown = await res.json();
+    expect(json).not.toHaveProperty('lineUserId');
+    expect(userSchema.parse(json).instructorId).toBe(instructorId);
+    expect(sentRequests()).toEqual([`GET ${ALIAS_URL}`, `POST ${USER_MENU_URL}/${MENU_ID}`]);
+    for (const [, init] of fetchMock.mock.calls) {
+      expect(new Headers(init?.headers).get('authorization')).toBe(`Bearer ${MESSAGING_TOKEN}`);
+      expect(init?.signal).toBeInstanceOf(AbortSignal);
+    }
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it('付け替えでは D1 だけを更新し、LINE API を呼ばない', async () => {
+    const userId = await seedTarget({ instructorId: await seedInstructor('旧', '講師') });
+    const next = await seedInstructor('新', '講師');
+
+    const res = await link(userId, next);
+
+    expect(res.status).toBe(200);
+    expect(await findInstructorId(userId)).toBe(next);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('無効なユーザーの紐付けでは LINE API を呼ばない', async () => {
+    const userId = await seedTarget({ isActive: false });
+    const instructorId = await seedInstructor();
+
+    const res = await link(userId, instructorId);
+
+    expect(res.status).toBe(200);
+    expect(await findInstructorId(userId)).toBe(instructorId);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it('紐付け済みの Instructor を指定した 409 では、紐付けも割り当てもしない', async () => {
+    const instructorId = await seedInstructor();
+    await createDb(env.DB)
+      .update(users)
+      .set({ instructorId })
+      .where(eq(users.id, await seedUser('先約')));
+    const userId = await seedTarget();
+
+    const res = await link(userId, instructorId);
+
+    expect(res.status).toBe(409);
+    expect(await findInstructorId(userId)).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('D1 の更新に失敗した場合は割り当てない', async () => {
+    const userId = await seedTarget();
+    const instructorId = await seedInstructor();
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    vi.spyOn(env.DB, 'batch').mockRejectedValueOnce(new Error('D1 unavailable'));
+
+    const res = await link(userId, instructorId);
+
+    expect(res.status).toBe(500);
+    expect(await findInstructorId(userId)).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it.each([{ instructorId: null }, { isActive: false }])(
+    'エイリアス照会中に対象外（%j）になった場合は割り当てない',
+    async (change) => {
+      const userId = await seedTarget();
+      fetchMock.mockImplementation(async (input) => {
+        await createDb(env.DB).update(users).set(change).where(eq(users.id, userId));
+        return fakeLine(input);
+      });
+
+      const res = await link(userId, await seedInstructor());
+
+      expect(res.status).toBe(200);
+      expect(sentRequests()).toEqual([`GET ${ALIAS_URL}`]);
+    },
+  );
+
+  it.each([true, false])(
+    '解除すると対象者の個別メニューを削除する（有効: %s）',
+    async (isActive) => {
+      const userId = await seedTarget({ isActive, instructorId: await seedInstructor() });
+
+      const res = await unlink(userId);
+
+      expect(res.status).toBe(200);
+      expect(await findInstructorId(userId)).toBeNull();
+      expect(sentRequests()).toEqual([`DELETE ${USER_MENU_URL}`]);
+      expect(captureException).not.toHaveBeenCalled();
+    },
+  );
+
+  it('未紐付けの解除は 409 で、LINE API を呼ばない', async () => {
+    const res = await unlink(await seedTarget());
+
+    expect(res.status).toBe(409);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  const failed = () => Response.json({ message: 'private-error-body' }, { status: 500 });
+  const networkError = () => {
+    throw new Error('private-network-error');
+  };
+
+  it.each<[string, () => Response, Record<string, unknown>]>([
+    ['非成功の応答', failed, { httpStatus: 500 }],
+    ['通信の失敗', networkError, { failureKind: 'network_error' }],
+    ['JSON でない応答', () => new Response('private-body'), { failureKind: 'invalid_response' }],
+    [
+      '形式が不正な応答',
+      () => Response.json({ richMenuId: '' }),
+      { failureKind: 'invalid_response' },
+    ],
+  ])('エイリアス照会の%sでも紐付けは成功し、固定の内容を通知する', async (_label, fail, tags) => {
+    const userId = await seedTarget();
+    const instructorId = await seedInstructor();
+    fetchMock.mockImplementation(async () => fail());
+
+    const res = await link(userId, instructorId);
+
+    expect(res.status).toBe(200);
+    expect(await findInstructorId(userId)).toBe(instructorId);
+    expect(sentRequests()).toEqual([`GET ${ALIAS_URL}`]);
+    expectNotification({ endpoint: 'line.richmenu.alias.get', ...tags });
+  });
+
+  it.each<[string, () => Response, Record<string, unknown>]>([
+    ['非成功の応答', failed, { httpStatus: 500 }],
+    ['通信の失敗', networkError, { failureKind: 'network_error' }],
+  ])('割り当ての%sでも紐付けは成功し、固定の内容を通知する', async (_label, fail, tags) => {
+    const userId = await seedTarget();
+    const instructorId = await seedInstructor();
+    fetchMock.mockImplementation(async (input) =>
+      String(input) === ALIAS_URL ? fakeLine(input) : fail(),
+    );
+
+    const res = await link(userId, instructorId);
+
+    expect(res.status).toBe(200);
+    expect(await findInstructorId(userId)).toBe(instructorId);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expectNotification({ endpoint: 'line.richmenu.user.link', ...tags });
+  });
+
+  it.each<[string, () => Response, Record<string, unknown>]>([
+    ['非成功の応答', failed, { httpStatus: 500 }],
+    ['通信の失敗', networkError, { failureKind: 'network_error' }],
+  ])('個別解除の%sでも解除は成功し、固定の内容を通知する', async (_label, fail, tags) => {
+    const userId = await seedTarget({ instructorId: await seedInstructor() });
+    fetchMock.mockImplementation(async () => fail());
+
+    const res = await unlink(userId);
+
+    expect(res.status).toBe(200);
+    expect(await findInstructorId(userId)).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expectNotification({ endpoint: 'line.richmenu.user.unlink', ...tags });
+  });
+
+  it('5 秒のタイムアウトを超えた場合も紐付けは成功し、タイムアウトを通知する', async () => {
+    const userId = await seedTarget();
+    const instructorId = await seedInstructor();
+    const controller = new AbortController();
+    const timeout = vi.spyOn(AbortSignal, 'timeout').mockReturnValue(controller.signal);
+    // 要求の送信後に中断し、応答が届かない状態を模す
+    fetchMock.mockImplementation(async () => {
+      controller.abort();
+      throw new Error('private-abort-error');
+    });
+
+    const res = await link(userId, instructorId);
+
+    expect(res.status).toBe(200);
+    expect(timeout.mock.calls).toEqual([[5000]]);
+    expect(await findInstructorId(userId)).toBe(instructorId);
+    expectNotification({ endpoint: 'line.richmenu.alias.get', failureKind: 'timeout' });
+  });
+
+  it.each([undefined, ''])(
+    'アクセストークンが %j でも紐付けと解除は成功し、設定不備を通知する',
+    async (accessToken) => {
+      const userId = await seedTarget();
+      const instructorId = await seedInstructor();
+      const overrides: Partial<Env> = {};
+      Object.assign(overrides, { LINE_MESSAGING_CHANNEL_ACCESS_TOKEN: accessToken });
+
+      expect((await link(userId, instructorId, overrides)).status).toBe(200);
+      expectNotification({ endpoint: 'line.richmenu.user.link', failureKind: 'not_configured' });
+      captureException.mockClear();
+
+      expect((await unlink(userId, overrides)).status).toBe(200);
+      expectNotification({ endpoint: 'line.richmenu.user.unlink', failureKind: 'not_configured' });
+      expect(await findInstructorId(userId)).toBeNull();
+      expect(fetchMock).not.toHaveBeenCalled();
+    },
+  );
 });

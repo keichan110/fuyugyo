@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { and, eq, isNotNull, isNull } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { validator } from 'hono/validator';
@@ -8,6 +8,7 @@ import { toUserRole } from '@/server/auth/user';
 import { createDb } from '@/server/db/client';
 import { isUniqueViolation } from '@/server/db/errors';
 import { instructors, users } from '@/server/db/schema';
+import { assignInstructorRichMenu, unlinkUserRichMenu } from '@/server/line/rich-menu';
 import { requireAuth, requireRole, type AuthVariables } from '@/server/middleware/auth';
 import type { Env } from '@/server/types';
 
@@ -165,6 +166,7 @@ export const usersRoute = new Hono<{
    * User を Instructor にリンクする（MANAGER 以上・対象ロールは問わない）。
    * `users.instructor_id` に UNIQUE 制約があるため、1 Instructor に複数 User をリンクしようとすると
    * DB レベルで弾かれる（SQLite では NULL は UNIQUE 制約の対象外）。
+   * 未紐付けから紐付けた場合は LINE の個別リッチメニューを割り当てる。割り当ての失敗は応答に影響しない。
    */
   .post(
     '/:id/link-instructor',
@@ -182,7 +184,11 @@ export const usersRoute = new Hono<{
       const db = createDb(c.env.DB);
       const id = c.req.param('id');
 
-      const [user] = await db.select({ id: users.id }).from(users).where(eq(users.id, id)).limit(1);
+      const [user] = await db
+        .select({ lineUserId: users.lineUserId })
+        .from(users)
+        .where(eq(users.id, id))
+        .limit(1);
 
       if (!user) {
         throw new HTTPException(404, { message: 'User not found' });
@@ -199,14 +205,23 @@ export const usersRoute = new Hono<{
       }
 
       try {
-        const [updated] = await db
-          .update(users)
-          .set({ instructorId: input.instructorId })
-          .where(eq(users.id, id))
-          .returning(userColumns);
+        const change = { instructorId: input.instructorId };
+        // 未紐付けからの遷移かは、並行した操作が割り込めないよう同じ batch の条件付き更新で確定する
+        const [newlyLinked, [updated]] = await db.batch([
+          db
+            .update(users)
+            .set(change)
+            .where(and(eq(users.id, id), isNull(users.instructorId)))
+            .returning({ id: users.id }),
+          db.update(users).set(change).where(eq(users.id, id)).returning(userColumns),
+        ]);
 
         if (!updated) {
           throw new HTTPException(500, { message: 'Failed to link instructor' });
+        }
+        // 付け替えは連携済みのままのため、メニューを変更しない
+        if (newlyLinked.length > 0) {
+          await assignInstructorRichMenu(c.env, user.lineUserId);
         }
         return c.json(updated);
       } catch (err) {
@@ -219,13 +234,16 @@ export const usersRoute = new Hono<{
       }
     },
   )
-  /** User から Instructor リンクを解除する（MANAGER 以上・対象ロールは問わない） */
+  /**
+   * User から Instructor リンクを解除する（MANAGER 以上・対象ロールは問わない）。
+   * 解除後は LINE の個別リッチメニューも解除する。LINE 側の失敗は応答に影響しない。
+   */
   .delete('/:id/link-instructor', requireAuth, requireRole('MANAGER'), async (c) => {
     const db = createDb(c.env.DB);
     const id = c.req.param('id');
 
     const [existing] = await db
-      .select({ id: users.id, instructorId: users.instructorId })
+      .select({ lineUserId: users.lineUserId })
       .from(users)
       .where(eq(users.id, id))
       .limit(1);
@@ -234,18 +252,16 @@ export const usersRoute = new Hono<{
       throw new HTTPException(404, { message: 'User not found' });
     }
 
-    if (existing.instructorId === null) {
-      throw new HTTPException(409, { message: 'User is not linked to any instructor' });
-    }
-
+    // 紐付け済みであることを更新条件にし、並行した解除を二重に扱わない
     const [updated] = await db
       .update(users)
       .set({ instructorId: null })
-      .where(eq(users.id, id))
+      .where(and(eq(users.id, id), isNotNull(users.instructorId)))
       .returning(userColumns);
 
     if (!updated) {
-      throw new HTTPException(500, { message: 'Failed to unlink instructor' });
+      throw new HTTPException(409, { message: 'User is not linked to any instructor' });
     }
+    await unlinkUserRichMenu(c.env, existing.lineUserId);
     return c.json(updated);
   });
